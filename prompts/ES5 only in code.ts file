@@ -1,0 +1,3 @@
+Мы правим src/code.ts. В выходном dist/code.js должен быть ES5 (IIFE).
+Без import из Node API. Только Figma Plugin API и DOM UI через postMessage.
+Добавь пошаговые логи и обработку Variant Properties.
