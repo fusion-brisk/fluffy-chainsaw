@@ -192,9 +192,6 @@ const App: React.FC = () => {
       }
       else if (msg.type === 'selection-status') {
         setHasSelection(msg.hasSelection);
-        if (!msg.hasSelection && scope === 'selection') {
-          // Optionally switch to 'page' if selection is lost, but better to just show warning/disable
-        }
       } 
       else if (msg.type === 'log') {
         addLog(msg.message);
@@ -241,43 +238,41 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="container">
-      <div className="header">
+    <>
+      {/* Header Section */}
+      <div className="flex-between">
         <h2>Contentify</h2>
-        <div className="status-badge">
-          {isLoading ? '⏳ Working...' : 'Ready'}
-        </div>
+        {isLoading && <div className="status-bar text-small">Working...</div>}
       </div>
 
-      <div className="section">
-        <div className="section-title">Настройки</div>
-        <div className="radio-group">
-          <label className="radio-label">
-            <input 
-              type="radio" 
-              name="scope" 
-              value="selection" 
-              checked={scope === 'selection'} 
-              onChange={() => handleScopeChange('selection')}
-            />
-            <span>Только выделение</span>
-          </label>
-          <label className="radio-label">
-            <input 
-              type="radio" 
-              name="scope" 
-              value="page" 
-              checked={scope === 'page'} 
-              onChange={() => handleScopeChange('page')}
-            />
-            <span>Вся страница</span>
-          </label>
+      {/* Controls Section */}
+      <div className="flex-col">
+        <div className="segmented-control">
+          <div 
+            className={`segmented-option ${scope === 'selection' ? 'active' : ''}`}
+            onClick={() => handleScopeChange('selection')}
+          >
+            Selection
+          </div>
+          <div 
+            className={`segmented-option ${scope === 'page' ? 'active' : ''}`}
+            onClick={() => handleScopeChange('page')}
+          >
+            Current Page
+          </div>
         </div>
+        
         {!hasSelection && scope === 'selection' && (
-          <div className="warning-text">⚠️ Ничего не выделено. Выберите элементы в Figma.</div>
+          <div className="warning-banner">
+            <svg className="icon-svg" viewBox="0 0 16 16">
+              <path d="M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16zm0-1.6A6.4 6.4 0 1 0 8 1.6a6.4 6.4 0 0 0 0 12.8zM7.2 4a.8.8 0 1 1 1.6 0v4.8a.8.8 0 1 1-1.6 0V4zm.8 8.8a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+            </svg>
+            Select layers to populate
+          </div>
         )}
       </div>
 
+      {/* Drop Zone */}
       <div 
         className={`drop-zone ${isDragOver ? 'drag-over' : ''}`}
         onDragOver={handleDragOver}
@@ -285,10 +280,11 @@ const App: React.FC = () => {
         onDrop={handleDrop}
         onClick={() => document.getElementById('file-input')?.click()}
       >
-        <div className="drop-icon">📁</div>
-        <div className="drop-text">
-          Перетащите HTML/MHTML файл сюда<br/>
-          или кликните для выбора
+        <svg className="drop-icon" viewBox="0 0 24 24">
+          <path d="M19.4 11l-6-6a2 2 0 0 0-2.8 0l-6 6A2 2 0 0 0 4 12.4V20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.6a2 2 0 0 0-.6-1.4zM14 13v5h-4v-5H6l6-6 6 6h-4z"/>
+        </svg>
+        <div className="text-small">
+          Click or drag HTML file
         </div>
         <input 
           type="file" 
@@ -299,8 +295,9 @@ const App: React.FC = () => {
         />
       </div>
 
+      {/* Loading State */}
       {isLoading && (
-        <div className="section">
+        <div className="flex-col">
           <div className="progress-bar-container">
             <div 
               className="progress-bar" 
@@ -308,54 +305,52 @@ const App: React.FC = () => {
             ></div>
           </div>
           <div className="progress-text">
-            {progress ? `${progress.message || ''} (${progress.current}/${progress.total})` : 'Загрузка...'}
+            {progress ? `${progress.message || ''} (${progress.current}/${progress.total})` : 'Processing...'}
           </div>
         </div>
       )}
 
+      {/* Stats Section */}
       {stats && (
-        <div className="section stats-box">
-          <div className="section-title">Статистика</div>
-          <div className="stats-grid">
-            <div className="stat-item">
-              <div className="stat-value">{stats.processedInstances}</div>
-              <div className="stat-label">Обработано</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-value success">{stats.successfulImages}</div>
-              <div className="stat-label">Картинки OK</div>
-            </div>
-            <div className="stat-item">
-              <div className="stat-value error">{stats.failedImages}</div>
-              <div className="stat-label">Ошибки</div>
-            </div>
+        <div className="stats-grid">
+          <div className="stat-item">
+            <div className="stat-value">{stats.processedInstances}</div>
+            <div className="stat-label text-secondary text-small">Items</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-value success">{stats.successfulImages}</div>
+            <div className="stat-label text-secondary text-small">Images</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-value error">{stats.failedImages}</div>
+            <div className="stat-label text-secondary text-small">Errors</div>
           </div>
         </div>
       )}
 
-      <div className="section logs-section">
+      {/* Logs Drawer */}
+      <div className="logs-drawer">
         <div className="logs-header" onClick={() => setShowLogs(!showLogs)}>
-          <span>Логи ({logs.length})</span>
-          <span className="toggle-icon">{showLogs ? '▼' : '▶'}</span>
+          <span className="text-small font-medium">Log ({logs.length})</span>
+          <span className="text-small">{showLogs ? 'Hide' : 'Show'}</span>
         </div>
         
-        {showLogs && (
-          <>
-            <div className="logs-container">
-              {logs.map((log, index) => (
-                <div key={index} className={`log-entry ${log.includes('❌') ? 'error' : ''} ${log.includes('✅') ? 'success' : ''}`}>
-                  {log}
-                </div>
-              ))}
+        <div className={`logs-content ${showLogs ? 'open' : ''}`}>
+          {logs.map((log, index) => (
+            <div key={index} className={`log-entry ${log.includes('❌') ? 'error' : ''} ${log.includes('✅') ? 'success' : ''}`}>
+              {log}
             </div>
+          ))}
+          
+          {logs.length > 0 && (
             <div className="logs-actions">
-              <button className="secondary-button small" onClick={copyLogs}>Копировать</button>
-              <button className="secondary-button small" onClick={() => setLogs([])}>Очистить</button>
+              <button onClick={copyLogs}>Copy</button>
+              <button onClick={() => setLogs([])}>Clear</button>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

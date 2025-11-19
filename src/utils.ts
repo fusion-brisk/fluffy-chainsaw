@@ -920,6 +920,48 @@ function extractFavicon(
       bgUrl = 'https:' + bgUrl;
       console.log(`🔍 [FAVICON EXTRACT] bgUrl после добавления протокола: "${bgUrl.substring(0, 100)}..."`);
     }
+
+    // НОВАЯ ЛОГИКА: Обработка спрайт-списков в URL (если есть точка с запятой)
+    if (bgUrl.includes('favicon.yandex.net/favicon/v2/') && bgUrl.includes(';')) {
+      console.log(`🔍 [FAVICON EXTRACT] Обнаружен URL со списком доменов (спрайт): ${bgUrl}`);
+      
+      // Извлекаем часть с доменами: все после /v2/ и до ? или конца строки
+      const v2Match = bgUrl.match(/favicon\.yandex\.net\/favicon\/v2\/(.+?)(\?|$)/);
+      if (v2Match && v2Match[1]) {
+        const domainsPart = v2Match[1];
+        const domains = domainsPart.split(';').filter(d => d.trim().length > 0);
+        console.log(`🔍 [FAVICON EXTRACT] Доменов в списке: ${domains.length}`);
+        
+        let index = 0;
+        if (bgPosition) {
+          // Извлекаем смещение по Y (обычно отрицательное значение в px)
+          // Ищем число перед 'px', возможно с минусом
+          const yMatch = bgPosition.match(/(?:^|\s)(-?\d+(?:\.\d+)?)px/);
+          if (yMatch) {
+            const yOffset = Math.abs(parseFloat(yMatch[1]));
+            
+            // ЭВРИСТИКА: Шаг спрайта (высота иконки + отступ).
+            // Пользователь указал, что шаг равен 20px (0, -20, -40, -60...)
+            const stride = 20; 
+            
+            index = Math.round(yOffset / stride);
+            console.log(`🔍 [FAVICON EXTRACT] Расчет индекса из background-position: offset=${yOffset}px, stride=${stride}px => index=${index}`);
+          }
+        }
+        
+        if (index >= 0 && index < domains.length) {
+          const domain = domains[index];
+          // Формируем чистый URL для конкретного домена
+          bgUrl = `https://favicon.yandex.net/favicon/v2/${domain}?size=32`;
+          console.log(`✅ [FAVICON EXTRACT] Извлечен домен ${domain} (индекс ${index}) из спрайта. Новый URL: ${bgUrl}`);
+        } else {
+          console.warn(`⚠️ [FAVICON EXTRACT] Индекс ${index} вне границ массива доменов (${domains.length}). Используем первый домен.`);
+          if (domains.length > 0) {
+            bgUrl = `https://favicon.yandex.net/favicon/v2/${domains[0]}?size=32`;
+          }
+        }
+      }
+    }
     
     if (!bgUrl.startsWith('http://') && !bgUrl.startsWith('https://')) {
       console.log(`⚠️ [FAVICON EXTRACT] bgUrl имеет невалидный формат: "${bgUrl.substring(0, 100)}..."`);
