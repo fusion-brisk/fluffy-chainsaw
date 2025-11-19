@@ -24,7 +24,7 @@ function buildEmbeddedHtml() {
     <style>${css}</style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="react-page"></div>
     <script>(function(){${shim}\n${js}\n})();</script>
   </body>
   </html>`;
