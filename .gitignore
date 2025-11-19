@@ -1,8 +1,25 @@
-# Node
-*.log
-*.log.*
+# Dependencies
 node_modules
+.pnp
+.pnp.js
 
-out/
-dist/
-code.js
+# Production
+dist
+build
+
+# Misc
+.DS_Store
+.env
+.npmrc
+*.log
+npm-debug.log*
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs
+*.njsproj
+*.sln
+*.sw?
+.cursor

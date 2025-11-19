@@ -1,7 +1,27 @@
-// Types for UI components and data structures
+// Common types shared between UI and Code
 
 export interface CSVRow {
   [key: string]: string;
+}
+
+export interface LayerDataItem {
+  layer: SceneNode;
+  rowIndex: number;
+  fieldName: string;
+  fieldValue: string | undefined;
+  isImage: boolean;
+  isText: boolean;
+  isShape: boolean;
+  row: CSVRow | null;
+}
+
+export interface DetailedError {
+  id: string;
+  type: 'image' | 'text' | 'font' | 'other';
+  message: string;
+  layerName?: string;
+  rowIndex?: number;
+  url?: string;
 }
 
 export interface ProcessingStats {
@@ -10,37 +30,14 @@ export interface ProcessingStats {
   successfulImages: number;
   skippedImages: number;
   failedImages: number;
+  errors?: DetailedError[];
 }
 
 export interface ProgressData {
   current: number;
   total: number;
-  operationType: 'images' | 'instances';
-}
-
-export interface PluginMessage {
-  type: 'import-csv' | 'log' | 'progress' | 'stats' | 'done' | 'error' | 'test' | 'close' | 'get-theme' | 'check-selection' | 'selection-status' | 'get-pages' | 'pages-list';
-  rows?: CSVRow[];
-  filter?: string;
-  scope?: 'selection' | 'page' | 'document';
-  shuffle?: boolean;
   message?: string;
-  current?: number;
-  total?: number;
-  operationType?: 'images' | 'instances';
-  stats?: ProcessingStats;
-  count?: number;
-  hasSelection?: boolean;
-  pages?: string[];
-}
-
-export interface UIMessage {
-  pluginMessage: PluginMessage;
-}
-
-export interface SheetData {
-  ok: boolean;
-  sheets: string[];
+  operationType?: string;
 }
 
 export interface Config {
@@ -51,21 +48,37 @@ export interface Config {
   RETRY_DELAY: number;
 }
 
-export interface ThemeColors {
-  '--bg-primary': string;
-  '--bg-secondary': string;
-  '--bg-tertiary': string;
-  '--bg-hover': string;
-  '--text-primary': string;
-  '--text-secondary': string;
-  '--text-tertiary': string;
-  '--border-primary': string;
-  '--border-secondary': string;
-  '--border-focus': string;
-  '--accent-primary': string;
-  '--accent-hover': string;
-  '--accent-active': string;
-  '--error': string;
-  '--success': string;
-  '--warning': string;
+export interface SheetData {
+  ok: boolean;
+  sheets: string[];
+  error?: string;
 }
+
+export interface UserSettings {
+  scope?: 'selection' | 'page';
+}
+
+// Messages sent from UI to Code
+export type UIMessage = 
+  | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string }
+  | { type: 'test'; message: string }
+  | { type: 'get-theme' }
+  | { type: 'close' }
+  | { type: 'get-pages' }
+  | { type: 'check-selection' }
+  | { type: 'save-settings'; settings: UserSettings }
+  | { type: 'get-settings' };
+
+// Messages sent from Code to UI
+export type CodeMessage = 
+  | { type: 'log'; message: string }
+  | { type: 'error'; message: string }
+  | { type: 'pages'; pages: string[] }
+  | { type: 'selection-status'; hasSelection: boolean }
+  | { type: 'progress'; current: number; total: number; operationType?: string }
+  | { type: 'stats'; stats: ProcessingStats }
+  | { type: 'done'; count: number }
+  | { type: 'settings-loaded'; settings: UserSettings };
+
+// Combined type
+export type PluginMessage = UIMessage | CodeMessage;

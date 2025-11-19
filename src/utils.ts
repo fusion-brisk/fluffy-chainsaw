@@ -2327,8 +2327,9 @@ export function parseMhtmlFile(mhtmlContent: string): string {
 }
 
 // Parse Yandex search results from HTML
-export function parseYandexSearchResults(html: string): CSVRow[] {
+export function parseYandexSearchResults(html: string): { rows: CSVRow[], error?: string } {
   console.log('🔍 HTML разбор начат');
+  try {
   console.log('📄 Размер HTML:', html.length);
   
   // ДИАГНОСТИКА: Проверяем наличие <style> тегов в сыром HTML до парсинга
@@ -2387,7 +2388,11 @@ export function parseYandexSearchResults(html: string): CSVRow[] {
   const finalResults = deduplicateRows(results);
   console.log(`📊 Дедупликация: ${results.length} → ${finalResults.length} уникальных строк`);
   
-  return finalResults;
+  return { rows: finalResults };
+  } catch (e) {
+    console.error('Error in parseYandexSearchResults:', e);
+    return { rows: [], error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 // Create sheet from parsed data
