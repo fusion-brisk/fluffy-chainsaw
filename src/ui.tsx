@@ -119,7 +119,7 @@ const App: React.FC = () => {
         if (!htmlContent) throw new Error('Не удалось извлечь HTML из MHTML');
         
         addLog('🔍 Парсинг HTML контента...');
-        const result = parseYandexSearchResults(htmlContent);
+        const result = parseYandexSearchResults(htmlContent, text);
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
@@ -130,7 +130,7 @@ const App: React.FC = () => {
         const text = await file.text();
         
         addLog('🔍 Парсинг HTML контента...');
-        const result = parseYandexSearchResults(text);
+        const result = parseYandexSearchResults(text, text);
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
