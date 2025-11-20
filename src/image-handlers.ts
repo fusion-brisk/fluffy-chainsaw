@@ -113,9 +113,26 @@ export class ImageProcessor {
       }
       
       // 4. Create image in Figma
-      const image = figma.createImage(bytes);
+      let image: Image | null = null;
+      
+      // Проверяем тип содержимого перед созданием
+      if (bytes.length > 0) {
+        // Простейшая проверка на SVG (начинается с <svg или <?xml)
+        // Но figma.createImage не поддерживает SVG. 
+        // Если это SVG, мы не можем использовать его как ImagePaint.
+        // Здесь мы ожидаем только растровые форматы (PNG, JPEG, GIF, WEBP).
+        
+        try {
+          image = figma.createImage(bytes);
+        } catch (createError) {
+          // Если figma.createImage выбрасывает ошибку (например, для неподдерживаемых форматов)
+          Logger.warn(`⚠️ figma.createImage failed for ${url}:`, createError);
+          throw new Error(`Figma не поддерживает формат изображения: ${url}`);
+        }
+      }
+
       if (!image || !image.hash) {
-        throw new Error('Не удалось создать изображение');
+        throw new Error('Не удалось создать изображение (возможно, неподдерживаемый формат)');
       }
 
       // 5. Save hash to persistent storage
@@ -276,13 +293,17 @@ export class ImageProcessor {
         if (spritePosition) {
           await this.applySpriteImage(layer, figmaImage, spritePosition, spriteSize);
         } else {
+          // Определяем режим масштабирования: для #OrganicImage используем FIT, для остальных FILL
+          const isOrganicImage = item.fieldName.toLowerCase().includes('organicimage');
+          const scaleMode = isOrganicImage ? 'FIT' : 'FILL';
+
           const newPaint: ImagePaint = {
             type: 'IMAGE',
-            scaleMode: 'FILL',
+            scaleMode: scaleMode,
             imageHash: figmaImage.hash
           };
           layer.fills = [newPaint];
-          Logger.debug(`   ✅ Изображение применено (FILL)`);
+          Logger.debug(`   ✅ Изображение применено (${scaleMode})`);
         }
         
         this.successfulImages++;

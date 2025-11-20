@@ -920,6 +920,48 @@ function extractFavicon(
       bgUrl = 'https:' + bgUrl;
       console.log(`🔍 [FAVICON EXTRACT] bgUrl после добавления протокола: "${bgUrl.substring(0, 100)}..."`);
     }
+
+    // НОВАЯ ЛОГИКА: Обработка спрайт-списков в URL (если есть точка с запятой)
+    if (bgUrl.includes('favicon.yandex.net/favicon/v2/') && bgUrl.includes(';')) {
+      console.log(`🔍 [FAVICON EXTRACT] Обнаружен URL со списком доменов (спрайт): ${bgUrl}`);
+      
+      // Извлекаем часть с доменами: все после /v2/ и до ? или конца строки
+      const v2Match = bgUrl.match(/favicon\.yandex\.net\/favicon\/v2\/(.+?)(\?|$)/);
+      if (v2Match && v2Match[1]) {
+        const domainsPart = v2Match[1];
+        const domains = domainsPart.split(';').filter(d => d.trim().length > 0);
+        console.log(`🔍 [FAVICON EXTRACT] Доменов в списке: ${domains.length}`);
+        
+        let index = 0;
+        if (bgPosition) {
+          // Извлекаем смещение по Y (обычно отрицательное значение в px)
+          // Ищем число перед 'px', возможно с минусом
+          const yMatch = bgPosition.match(/(?:^|\s)(-?\d+(?:\.\d+)?)px/);
+          if (yMatch) {
+            const yOffset = Math.abs(parseFloat(yMatch[1]));
+            
+            // ЭВРИСТИКА: Шаг спрайта (высота иконки + отступ).
+            // Пользователь указал, что шаг равен 20px (0, -20, -40, -60...)
+            const stride = 20; 
+            
+            index = Math.round(yOffset / stride);
+            console.log(`🔍 [FAVICON EXTRACT] Расчет индекса из background-position: offset=${yOffset}px, stride=${stride}px => index=${index}`);
+          }
+        }
+        
+        if (index >= 0 && index < domains.length) {
+          const domain = domains[index];
+          // Формируем чистый URL для конкретного домена
+          bgUrl = `https://favicon.yandex.net/favicon/v2/${domain}?size=32`;
+          console.log(`✅ [FAVICON EXTRACT] Извлечен домен ${domain} (индекс ${index}) из спрайта. Новый URL: ${bgUrl}`);
+        } else {
+          console.warn(`⚠️ [FAVICON EXTRACT] Индекс ${index} вне границ массива доменов (${domains.length}). Используем первый домен.`);
+          if (domains.length > 0) {
+            bgUrl = `https://favicon.yandex.net/favicon/v2/${domains[0]}?size=32`;
+          }
+        }
+      }
+    }
     
     if (!bgUrl.startsWith('http://') && !bgUrl.startsWith('https://')) {
       console.log(`⚠️ [FAVICON EXTRACT] bgUrl имеет невалидный формат: "${bgUrl.substring(0, 100)}..."`);
@@ -1127,9 +1169,17 @@ function extractFavicon(
             
             // Генерируем URL фавиконки по шаблону
             const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
+            
+            // Если URL уже был сформирован как SPRITE_LIST, просто обновляем его
+            if (row['#FaviconImage'] && row['#FaviconImage'].startsWith('SPRITE_LIST:')) {
+              console.log(`✅ [FAVICON EXTRACT] Обновляем SPRITE_LIST на конкретный URL для хоста "${cleanHost}": ${faviconUrl}`);
+            }
+            
             row['#FaviconImage'] = faviconUrl;
             console.log(`✅ [FAVICON EXTRACT] Сопоставлен домен "${cleanHost}" (индекс ${positionIndex}), URL: ${faviconUrl}`);
-            return null; // Сбрасываем состояние спрайта
+            
+            // Возвращаем null, чтобы сбросить состояние спрайта, так как мы нашли конкретную иконку
+            return null; 
           } else if (addresses.length > 0) {
             console.log(`⚠️ [FAVICON EXTRACT] Не удалось определить индекс позиции (${positionIndex}), используем первый домен`);
             const host = addresses[0].trim();
@@ -1153,33 +1203,77 @@ function extractFavicon(
     if (spriteListMatch && spriteListMatch[1]) {
       let addressesString = spriteListMatch[1];
       
-      // Разделяем по точке с запятой (параметры запроса могут быть в последнем домене)
+      // Сначала убираем глобальные параметры запроса (все что после ?)
+      addressesString = addressesString.split('?')[0];
+      
+      // Разделяем по точке с запятой
       const addresses = addressesString.split(';').filter(addr => addr.trim().length > 0);
       
       if (addresses.length > 0) {
-        // Создаем список URL фавиконок для каждого адреса
+        // Если мы здесь, значит не сработала логика с background-position выше
+        // (например, позиция не найдена или равна 0)
+        
+        // Пробуем найти позицию еще раз, если она есть
+        if (bgPosition) {
+           // Повторяем попытку извлечения индекса (дублирование логики для надежности)
+           const posMatches = bgPosition.match(/-?\d+(?:\.\d+)?px/g);
+           if (posMatches && posMatches.length > 0) {
+              const posValueStr = posMatches.length > 1 ? posMatches[1] : posMatches[0];
+              const posValue = Math.abs(parseFloat(posValueStr));
+              
+              // Пытаемся найти spriteBgSizeValue из контекста или используем фоллбэк
+              let itemSize = 20; // Default fallback
+              if (bgSizeValue) {
+                itemSize = bgSizeValue;
+              }
+              
+              const calculatedIndex = Math.floor(posValue / itemSize);
+              
+              if (calculatedIndex >= 0 && calculatedIndex < addresses.length) {
+                 const host = addresses[calculatedIndex].trim();
+                 let cleanHost = host.replace(/^https?:\/\//i, '').split('?')[0].split('/')[0];
+                 if (host.startsWith('https://') || host.startsWith('http://')) {
+                    cleanHost = host.split('?')[0];
+                 }
+                 const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
+                 row['#FaviconImage'] = faviconUrl;
+                 console.log(`✅ [FAVICON EXTRACT] (Fallback) Сопоставлен домен "${cleanHost}" (индекс ${calculatedIndex}) из списка, URL: ${faviconUrl}`);
+                 
+                 // Инициализируем спрайт для БУДУЩИХ строк, но текущую мы уже заполнили
+                 const faviconUrls = addresses.map(addr => {
+                    const cleanAddr = addr.trim();
+                    const cleanAddrWithoutParams = cleanAddr.split('?')[0];
+                    return `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanAddrWithoutParams)}?size=32&stub=1`;
+                 });
+                 
+                 return {
+                   urls: faviconUrls,
+                   currentIndex: calculatedIndex + 1 // Следующий индекс
+                 };
+              }
+           }
+        }
+
+        // Если не удалось определить конкретную позицию, берем первую
         const faviconUrls = addresses.map(addr => {
           const cleanAddr = addr.trim();
-          // Убираем возможные параметры из адреса (если они есть, например в последнем домене)
-          // Например: https://yandex.ru/products?size=32&stub=1&reqid=... -> https://yandex.ru/products
           const cleanAddrWithoutParams = cleanAddr.split('?')[0];
-          // Формируем URL фавиконки для единичного домена
           return `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanAddrWithoutParams)}?size=32&stub=1`;
         });
         
-        // Сохраняем список в формате SPRITE_LIST и используем первую иконку
-        row['#FaviconImage'] = `SPRITE_LIST:${faviconUrls.join('|')}`;
-        console.log(`✅ [FAVICON EXTRACT] Установлен SPRITE_LIST: ${row['#FaviconImage'].substring(0, 100)}...`);
+        // Для текущей строки используем ПЕРВУЮ иконку, а не список
+        // Это предотвращает ошибку "Unsupported image type" при попытке загрузить "SPRITE_LIST:..." как URL
+        const firstFaviconUrl = faviconUrls[0];
+        row['#FaviconImage'] = firstFaviconUrl;
+        console.log(`✅ [FAVICON EXTRACT] Установлена первая иконка из списка: ${firstFaviconUrl.substring(0, 100)}...`);
         
-        // Создаем новое состояние спрайта: используем первую иконку, остальные для следующих сниппетов
+        // Создаем новое состояние спрайта для следующих строк
         const newSpriteState = {
           urls: faviconUrls,
           currentIndex: 1 // Следующий индекс (первая иконка уже использована)
         };
         
-        const firstDomain = addresses[0].trim().split('?')[0];
-        const firstFaviconUrl = faviconUrls[0];
-        console.log(`✅ Спрайт-список фавиконок найден: ${addresses.length} адресов, первый домен: ${firstDomain}, первая фавиконка: ${firstFaviconUrl}`);
+        console.log(`✅ Спрайт-список инициализирован: ${addresses.length} адресов`);
         
         return newSpriteState;
       }
@@ -2327,10 +2421,13 @@ export function parseMhtmlFile(mhtmlContent: string): string {
 }
 
 // Parse Yandex search results from HTML
-export function parseYandexSearchResults(html: string): { rows: CSVRow[], error?: string } {
+export function parseYandexSearchResults(html: string, fullMhtml?: string): { rows: CSVRow[], error?: string } {
   console.log('🔍 HTML разбор начат');
   try {
   console.log('📄 Размер HTML:', html.length);
+  if (fullMhtml) {
+    console.log('📄 Размер полного содержимого файла:', fullMhtml.length);
+  }
   
   // ДИАГНОСТИКА: Проверяем наличие <style> тегов в сыром HTML до парсинга
   const rawStyleMatches = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
@@ -2377,7 +2474,8 @@ export function parseYandexSearchResults(html: string): { rows: CSVRow[], error?
   let spriteState: { urls: string[]; currentIndex: number } | null = null;
   
   for (const container of containers) {
-    const result = extractRowData(container, doc, spriteState, html);
+    // Передаем полный контент (или html, если полного нет) для поиска спрайтов
+    const result = extractRowData(container, doc, spriteState, fullMhtml || html);
     spriteState = result.spriteState; // Обновляем состояние спрайта
     if (result.row) {
       results.push(result.row);
