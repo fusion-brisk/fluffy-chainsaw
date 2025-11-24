@@ -126,76 +126,95 @@ figma.ui.onmessage = async (msg) => {
       Logger.info(`🎯 Поиск по всей странице: ${searchNodes.length} элементов`);
     }
     
-      // 2. Собираем слои с #
-    const allHashLayers: SceneNode[] = [];
-    const collectAllHashLayers = (nodes: readonly SceneNode[]): void => {
-      for (const node of nodes) {
-        if (node.name.startsWith('#')) {
-          allHashLayers.push(node);
-        }
-        if ('children' in node && node.children) {
-          collectAllHashLayers(node.children);
-        }
+      // 2. Собираем контейнеры и группируем данные (Оптимизированный Top-Down подход)
+    const snippetGroups = new Map<string, SceneNode[]>();
+    let allContainers: SceneNode[] = [];
+
+    if (scope === 'page') {
+      // Быстрый поиск по всей странице через нативный findAll
+      if (figma.currentPage.findAll) {
+         allContainers = figma.currentPage.findAll(n => SNIPPET_CONTAINER_NAMES.includes(n.name));
+      } else {
+         // Fallback
+         figma.currentPage.children.forEach(child => {
+             if (SNIPPET_CONTAINER_NAMES.includes(child.name)) allContainers.push(child);
+             if ('findAll' in child) {
+               allContainers.push(...(child as SceneNode & ChildrenMixin).findAll((n: SceneNode) => SNIPPET_CONTAINER_NAMES.includes(n.name)));
+             }
+         });
       }
-    };
-    collectAllHashLayers(searchNodes);
-    Logger.info(`📋 Найдено ${allHashLayers.length} слоев с #`);
-    logTiming('Поиск слоев завершен');
+    } else {
+      // Поиск в выделении
+      const visited = new Set<string>();
+      
+      for (const node of searchNodes) {
+         if (node.removed) continue;
+         
+         // Проверяем сам узел
+         if (SNIPPET_CONTAINER_NAMES.includes(node.name) && !visited.has(node.id)) {
+            allContainers.push(node);
+            visited.add(node.id);
+         }
+         
+         // Ищем внутри узла
+         if ('findAll' in node) {
+            const found = (node as SceneNode & ChildrenMixin).findAll((n: SceneNode) => SNIPPET_CONTAINER_NAMES.includes(n.name));
+            for (const item of found) {
+               if (!visited.has(item.id)) {
+                   allContainers.push(item);
+                   visited.add(item.id);
+               }
+            }
+         }
+      }
+    }
     
-    if (allHashLayers.length === 0) {
-      figma.notify('❌ Нет слоев с # для заполнения');
-      return;
+    Logger.info(`📦 Найдено ${allContainers.length} контейнеров-сниппетов`);
+    
+    // Набор ID всех контейнеров для проверки вложенности
+    const containerIds = new Set(allContainers.map(c => c.id));
+    
+    for (const container of allContainers) {
+        if (container.removed) continue;
+        
+        // Ищем слои данных (#) внутри контейнера
+        let dataLayers: SceneNode[] = [];
+        
+        if ('findAll' in container) {
+           dataLayers = (container as SceneNode & ChildrenMixin).findAll((n: SceneNode) => n.name.startsWith('#'));
+        }
+        
+        if (dataLayers.length === 0) continue;
+        
+        // Фильтрация: берем только те слои, для которых этот контейнер является БЛИЖАЙШИМ из списка allContainers
+        const validLayers: SceneNode[] = [];
+        
+        for (const layer of dataLayers) {
+           let isDirectChild = true;
+           let currentParent = layer.parent;
+           
+           // Поднимаемся вверх от слоя к текущему контейнеру
+           while (currentParent && currentParent.id !== container.id) {
+              // Если по пути встретили ДРУГОЙ известный контейнер, значит слой принадлежит ему (вложенность)
+              if (containerIds.has(currentParent.id) && SNIPPET_CONTAINER_NAMES.includes(currentParent.name)) {
+                 isDirectChild = false;
+                 break;
+              }
+              currentParent = currentParent.parent;
+           }
+           
+           if (isDirectChild) {
+              validLayers.push(layer);
+           }
+        }
+        
+        if (validLayers.length > 0) {
+           snippetGroups.set(container.id, validLayers);
+        }
     }
 
-      // 3. Группируем слои по контейнерам (Snippet, etc.)
-            const snippetGroups = new Map<string, SceneNode[]>();
-            const searchNodesSet = scope === 'selection' ? new Set(searchNodes) : null;
-      const containerCache = new Map<SceneNode, BaseNode | null>();
-            
-            const findNamedSnippetContainer = (layer: SceneNode): BaseNode | null => {
-              let current: BaseNode | null = layer.parent;
-              while (current) {
-          if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
-                  if (scope === 'selection' && searchNodesSet) {
-                    let checkNode: BaseNode | null = current;
-                    let found = false;
-                    while (checkNode) {
-                      if (searchNodesSet.has(checkNode as SceneNode)) {
-                        found = true;
-                        break;
-                      }
-                      checkNode = checkNode.parent;
-                    }
-              if (!found) return null;
-                  }
-                  return current;
-                }
-                current = current.parent;
-              }
-        return null;
-            };
-            
-            for (const layer of allHashLayers) {
-                if (layer.removed) continue;
-        if (!safeGetLayerName(layer)) continue;
-                
-                let snippetContainer = containerCache.get(layer);
-                if (snippetContainer === undefined) {
-                  snippetContainer = findNamedSnippetContainer(layer);
-                  containerCache.set(layer, snippetContainer);
-                }
-                
-                if (snippetContainer && !snippetContainer.removed) {
-                    const containerKey = snippetContainer.id;
-                  if (!snippetGroups.has(containerKey)) {
-                    snippetGroups.set(containerKey, []);
-                  }
-                  snippetGroups.get(containerKey)!.push(layer);
-        }
-      }
-      
-      Logger.info(`📊 Создано ${snippetGroups.size} групп сниппетов`);
-    logTiming('Группировка сниппетов завершена');
+    Logger.info(`📊 Создано ${snippetGroups.size} групп сниппетов`);
+    logTiming('Группировка сниппетов завершена (Top-Down)');
 
       // 4. Создаем layerData (назначаем строки)
     const normalizeFieldName = (name: string): string => name ? String(name).trim().toLowerCase() : '';
@@ -204,7 +223,7 @@ figma.ui.onmessage = async (msg) => {
     
       const finalContainerMap = snippetGroups;
     
-    for (const [containerKey, layers] of finalContainerMap) {
+    for (const [_, layers] of finalContainerMap) {
         const validLayers = layers.filter(layer => !layer.removed);
         if (validLayers.length === 0) {
           nextRowIndex++;
@@ -314,10 +333,31 @@ figma.ui.onmessage = async (msg) => {
       Logger.debug(`✅ Компонентная логика обработана`);
 
       // 6. Обработка текста
-      const textLayers = filteredLayers.filter(item => item.isText);
-    if (textLayers.length > 0) {
+      const textLayers = filteredLayers.filter(item => {
+        if (!item.isText) return false;
+        
+        // Проверяем, действительно ли текст изменится
+        try {
+           if (item.layer.type === 'TEXT' && item.fieldValue) {
+              // Если текст совпадает, пропускаем загрузку шрифта и обработку
+              if ((item.layer as TextNode).characters === item.fieldValue) {
+                 return false;
+              }
+           }
+        } catch (e) {
+           // Если ошибка доступа к свойству, оставляем слой для обработки
+           return true;
+        }
+        
+        return true;
+      });
+      
+      if (textLayers.length > 0) {
+        Logger.info(`🔤 Загрузка шрифтов для ${textLayers.length} текстовых слоев`);
         await loadFonts(textLayers);
         processTextLayers(textLayers);
+      } else {
+        Logger.info('🔤 Нет текстовых слоев для обновления');
       }
 
       // 7. Обработка изображений

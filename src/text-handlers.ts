@@ -39,34 +39,28 @@ export async function loadFonts(textLayers: LayerDataItem[]): Promise<void> {
         }
       }
 
-      // 2) Fallback: посимвольное чтение (если MIXED и нет сегментов)
+      // 2) Fallback: ОПТИМИЗАЦИЯ для MIXED
+      // Если мы собираемся заменить весь текст, нам нужен только шрифт, который применится к новому тексту.
+      // Figma использует стили первого символа при полной замене текста.
+      // Поэтому нет смысла сканировать весь текст (getStyledTextSegments или getRangeFontName в цикле),
+      // если мы не сохраняем форматирование.
+      
       const fontName = textNode.fontName as FontName | 'MIXED';
-      if (fontName && fontName !== 'MIXED' && typeof fontName === 'object') {
+      
+      if (fontName === 'MIXED') {
+        // Берем шрифт только первого символа
+        if (textLength > 0) {
+           const firstCharFont = textNode.getRangeFontName(0, 1) as FontName | 'MIXED';
+           if (firstCharFont && firstCharFont !== 'MIXED' && typeof firstCharFont === 'object') {
+             const key = `${firstCharFont.family}|||${firstCharFont.style}`;
+             fontsToLoadMap[key] = { family: firstCharFont.family, style: firstCharFont.style };
+           }
+        }
+      } else if (fontName && typeof fontName === 'object') {
+        // Обычный (единый) шрифт
         if (fontName.family && fontName.style) {
           const key = `${fontName.family}|||${fontName.style}`;
           fontsToLoadMap[key] = { family: fontName.family, style: fontName.style };
-        }
-      } else {
-        let start = 0;
-        while (start < textLength) {
-          try {
-            const rangeFont = textNode.getRangeFontName(start, start + 1) as FontName | 'MIXED';
-            let end = start + 1;
-            while (end < textLength) {
-              const nextFont = textNode.getRangeFontName(end, end + 1) as FontName | 'MIXED';
-              if (!nextFont || nextFont === 'MIXED' || typeof nextFont !== 'object' || 
-                  nextFont.family !== (typeof rangeFont === 'object' ? rangeFont.family : '') || 
-                  nextFont.style !== (typeof rangeFont === 'object' ? rangeFont.style : '')) break;
-              end++;
-            }
-            if (rangeFont && rangeFont !== 'MIXED' && typeof rangeFont === 'object' && rangeFont.family && rangeFont.style) {
-              const key = `${rangeFont.family}|||${rangeFont.style}`;
-              fontsToLoadMap[key] = { family: rangeFont.family, style: rangeFont.style };
-            }
-            start = end;
-          } catch (e) {
-            start++;
-          }
         }
       }
     } catch (e) {

@@ -3,11 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()">
+  <!-- Блокируем зум жестами и устанавливаем правильный вьюпорт -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Contentify</title>
+  <!-- Шрифт Inter — стандарт интерфейса Figma -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Базовые стили до загрузки React и CSS-файла */
+    body { 
+      margin: 0; 
+      font-family: 'Inter', sans-serif; 
+      /* Используем CSS-переменные Figma для нативной темы сразу */
+      background-color: var(--figma-color-bg, #ffffff); 
+      color: var(--figma-color-text, #333333);
+      cursor: default;
+      user-select: none;
+    }
+    #loading-splash { 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      height: 100vh; 
+      font-size: 11px; 
+      color: var(--figma-color-text-secondary, #888); 
+    }
+  </style>
 </head>
 <body>
-  <div id="react-page"></div>
+  <div id="react-page">
+    <!-- Содержимое, видимое до инициализации React -->
+    <div id="loading-splash">Загрузка интерфейса...</div>
+  </div>
   <script src="ui.js"></script>
 </body>
 </html>
