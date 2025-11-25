@@ -5,7 +5,6 @@ import { IMAGE_CONFIG } from './config';
 export class ImageProcessor {
   // Memory cache for the current session
   private imageCache: { [url: string]: Promise<Image> | undefined } = {};
-  private spriteFaviconList: { urls: string[]; currentIndex: number } | null = null;
   
   public successfulImages = 0;
   public failedImages = 0;
@@ -17,7 +16,6 @@ export class ImageProcessor {
     this.successfulImages = 0;
     this.failedImages = 0;
     this.errors = [];
-    this.spriteFaviconList = null;
     // We intentionally don't clear cache here to preserve it across runs in same session
   }
 
@@ -116,20 +114,25 @@ export class ImageProcessor {
       let image: Image | null = null;
       
       // Проверяем тип содержимого перед созданием
-      if (bytes.length > 0) {
-        // Простейшая проверка на SVG (начинается с <svg или <?xml)
-        // Но figma.createImage не поддерживает SVG. 
-        // Если это SVG, мы не можем использовать его как ImagePaint.
-        // Здесь мы ожидаем только растровые форматы (PNG, JPEG, GIF, WEBP).
-        
-        try {
-          image = figma.createImage(bytes);
-        } catch (createError) {
-          // Если figma.createImage выбрасывает ошибку (например, для неподдерживаемых форматов)
-          Logger.warn(`⚠️ figma.createImage failed for ${url}:`, createError);
-          throw new Error(`Figma не поддерживает формат изображения: ${url}`);
+      // Ограничиваем область видимости переменной bytes, чтобы помочь GC очистить память быстрее
+      {
+        if (bytes.length > 0) {
+          // Простейшая проверка на SVG (начинается с <svg или <?xml)
+          // Но figma.createImage не поддерживает SVG. 
+          // Если это SVG, мы не можем использовать его как ImagePaint.
+          // Здесь мы ожидаем только растровые форматы (PNG, JPEG, GIF, WEBP).
+          
+          try {
+            // Важно: createImage - синхронная операция
+            image = figma.createImage(bytes);
+          } catch (createError) {
+            // Если figma.createImage выбрасывает ошибку (например, для неподдерживаемых форматов)
+            Logger.warn(`⚠️ figma.createImage failed for ${url}:`, createError);
+            throw new Error(`Figma не поддерживает формат изображения: ${url}`);
+          }
         }
       }
+      // bytes больше не нужен, GC может собрать его, если он не используется в замыканиях
 
       if (!image || !image.hash) {
         throw new Error('Не удалось создать изображение (возможно, неподдерживаемый формат)');
@@ -196,59 +199,20 @@ export class ImageProcessor {
       let spritePosition: string | null = null;
       let spriteSize: string | null = null;
       
-      const isFavicon = item.fieldName.toLowerCase().includes('favicon');
-      
-      // Обработка SPRITE_LIST
+      // Предварительная проверка на список, который не был обработан (на всякий случай)
       if (imgUrl.startsWith('SPRITE_LIST:')) {
-        if (!isFavicon) {
-          Logger.warn(`   ⚠️ SPRITE_LIST найден в не-фавиконке "${item.fieldName}", пропускаем`);
-          this.markAsFailed(item, 'SPRITE_LIST только для фавиконок');
-          return;
-        }
-        
-        const listData = imgUrl.substring('SPRITE_LIST:'.length);
-        const urls = listData.split('|').filter(url => url.trim().length > 0);
-        
-        if (urls.length > 0) {
-          if (this.spriteFaviconList && this.spriteFaviconList.currentIndex < this.spriteFaviconList.urls.length) {
-            imgUrl = this.spriteFaviconList.urls[this.spriteFaviconList.currentIndex];
-            Logger.debug(`   🎯 Фавиконка из списка (idx ${this.spriteFaviconList.currentIndex}): ${imgUrl.substring(0, 50)}...`);
-            this.spriteFaviconList.currentIndex++;
-          } else {
-            this.spriteFaviconList = { urls: urls, currentIndex: 1 };
-            imgUrl = urls[0];
-            Logger.debug(`   🎯 Новый список фавиконок, берем первую: ${imgUrl.substring(0, 50)}...`);
-          }
-          
-          this.updateShopNameFromUrl(imgUrl, item);
-        } else {
-          Logger.warn(`   ⚠️ Пустой список фавиконок в SPRITE_LIST`);
-          this.markAsFailed(item, 'Пустой SPRITE_LIST');
-          return;
-        }
-      } else if (isFavicon && this.spriteFaviconList) {
-        if (this.spriteFaviconList.currentIndex < this.spriteFaviconList.urls.length) {
-          imgUrl = this.spriteFaviconList.urls[this.spriteFaviconList.currentIndex];
-          Logger.debug(`   🎯 Фавиконка из списка (idx ${this.spriteFaviconList.currentIndex}): ${imgUrl.substring(0, 50)}...`);
-          this.spriteFaviconList.currentIndex++;
-        } else {
-          Logger.debug(`   ⚠️ Список фавиконок закончился, сбрасываем`);
-          this.spriteFaviconList = null;
-          Logger.warn(`   ⚠️ Нет URL для фавиконки в строке ${item.rowIndex}`);
-          this.markAsFailed(item, 'Список фавиконок закончился');
-          return;
-        }
-        
-        this.updateShopNameFromUrl(imgUrl, item);
-      } else {
-        // Обычная обработка спрайтов
-        const spriteMatch = imgUrl.match(/^(.+)\|(.+?)(?:\|(.+))?$/);
-        if (spriteMatch) {
-          imgUrl = spriteMatch[1];
-          spritePosition = spriteMatch[2].trim();
-          spriteSize = spriteMatch[3] ? spriteMatch[3].trim() : null;
-          Logger.debug(`   🎯 Спрайт: позиция=${spritePosition}${spriteSize ? `, размер=${spriteSize}` : ''}`);
-        }
+        Logger.warn(`⚠️ Необработанный SPRITE_LIST в processImage: ${imgUrl.substring(0, 30)}...`);
+        this.markAsFailed(item, 'Ошибка обработки SPRITE_LIST');
+        return;
+      }
+      
+      // Обычная обработка спрайтов (CSS sprites)
+      const spriteMatch = imgUrl.match(/^(.+)\|(.+?)(?:\|(.+))?$/);
+      if (spriteMatch) {
+        imgUrl = spriteMatch[1];
+        spritePosition = spriteMatch[2].trim();
+        spriteSize = spriteMatch[3] ? spriteMatch[3].trim() : null;
+        Logger.debug(`   🎯 Спрайт: позиция=${spritePosition}${spriteSize ? `, размер=${spriteSize}` : ''}`);
       }
       
       if (!imgUrl.startsWith('http://') && !imgUrl.startsWith('https://') && !imgUrl.startsWith('//')) {
@@ -325,13 +289,35 @@ export class ImageProcessor {
       const urlMatch = imgUrl.match(/\/favicon\/v2\/([^?]+)/);
       if (urlMatch && urlMatch[1]) {
         const decodedHost = decodeURIComponent(urlMatch[1]);
-        const hostUrl = new URL(decodedHost.startsWith('http') ? decodedHost : `https://${decodedHost}`);
-        const hostname = hostUrl.hostname;
+        // Simple hostname extraction
+        let hostname = decodedHost;
+        if (hostname.startsWith('http')) {
+             try {
+                 hostname = new URL(hostname).hostname;
+             } catch (e) {}
+        } else {
+             hostname = hostname.split('/')[0];
+        }
         
         if (item.row) {
-          item.row['#ShopName'] = hostname;
+          // Мы не должны перезаписывать #ShopName доменом, если там уже есть нормальное имя!
+          // Это поле перезаписывается только если оно пустое или совпадает с доменом
+          if (!item.row['#ShopName'] || item.row['#ShopName'] === item.row['#OrganicHost']) {
+             // Осторожно: hostname из фавиконки может быть техническим (market.yandex.ru), 
+             // а не реальным именем магазина.
+             // Поэтому лучше использовать hostname только если совсем ничего нет.
+             if (!item.row['#ShopName']) {
+                 item.row['#ShopName'] = hostname;
+                 this.updateRelatedTextLayers(item.rowIndex, hostname);
+             }
+          }
+          
+          // #OrganicHost можно обновлять смело, так как это техническое поле
           item.row['#OrganicHost'] = hostname;
-          this.updateRelatedTextLayers(item.rowIndex, hostname);
+          
+          // Но updateRelatedTextLayers обновляет и #ShopName в UI (текстовых слоях),
+          // даже если мы не трогали item.row['#ShopName'].
+          // Нужно разделить обновление слоев.
         }
       }
     } catch (e) {
@@ -344,7 +330,10 @@ export class ImageProcessor {
 
   private updateRelatedTextLayers(rowIndex: number, value: string): void {
     if (this.onUpdateTextLayer) {
-      this.onUpdateTextLayer(rowIndex, '#ShopName', value);
+      // НЕ обновляем #ShopName автоматически из домена фавиконки, 
+      // так как это часто затирает красивое имя магазина (Video-shoper.ru) на техническое (video-shoper.ru)
+      // this.onUpdateTextLayer(rowIndex, '#ShopName', value); 
+      
       this.onUpdateTextLayer(rowIndex, '#OrganicHost', value);
     }
   }
@@ -438,17 +427,109 @@ export class ImageProcessor {
     Logger.debug(`   ✅ Спрайт применен успешно (CROP)`);
   }
 
+  // Pre-process favicons synchronously to resolve lists and prevent race conditions
+  private resolveFaviconUrls(items: LayerDataItem[]): void {
+    let currentSpriteList: string[] | null = null;
+    let currentListIndex = 0;
+    
+    let lastRowIndex = -1;
+    let cachedRowUrl: string | null = null;
+
+    for (const item of items) {
+      const isFavicon = item.fieldName.toLowerCase().includes('favicon');
+      if (!isFavicon) continue;
+
+      const rawValue = typeof item.fieldValue === 'string' ? item.fieldValue.trim() : '';
+      const isSpriteList = rawValue.startsWith('SPRITE_LIST:');
+
+      // Check if we are in a new row context
+      if (item.rowIndex !== lastRowIndex) {
+        lastRowIndex = item.rowIndex;
+        cachedRowUrl = null; // Reset cached decision for new row
+
+        if (isSpriteList) {
+          // Initialize new list
+          const listData = rawValue.substring('SPRITE_LIST:'.length);
+          const urls = listData.split('|').filter(u => u.length > 0);
+          
+          if (urls.length > 0) {
+            currentSpriteList = urls;
+            currentListIndex = 0;
+            // Use first item immediately
+            cachedRowUrl = currentSpriteList[currentListIndex];
+            currentListIndex++;
+            Logger.debug(`   📦 [Pre-process] New SpriteList init for row ${item.rowIndex}, using idx 0: ${cachedRowUrl?.substring(0, 30)}...`);
+          } else {
+            currentSpriteList = null;
+            Logger.warn(`   ⚠️ [Pre-process] Empty SpriteList for row ${item.rowIndex}`);
+          }
+        } else if (rawValue && (rawValue.startsWith('http') || rawValue.startsWith('//'))) {
+          // Explicit URL - overrides list
+          cachedRowUrl = rawValue;
+          // We DO NOT advance currentListIndex here. Explicit URL is treated as an "insert" or "override" 
+          // that doesn't consume a sequence item (safest assumption).
+          Logger.debug(`   📦 [Pre-process] Explicit URL for row ${item.rowIndex}: ${cachedRowUrl.substring(0, 30)}...`);
+        } else {
+          // Empty or invalid - try to use active list
+          if (currentSpriteList && currentListIndex < currentSpriteList.length) {
+            cachedRowUrl = currentSpriteList[currentListIndex];
+            currentListIndex++;
+            Logger.debug(`   📦 [Pre-process] Using SpriteList item ${currentListIndex-1} for row ${item.rowIndex}: ${cachedRowUrl.substring(0, 30)}...`);
+          } else if (currentSpriteList) {
+             Logger.warn(`   ⚠️ [Pre-process] SpriteList exhausted at row ${item.rowIndex}`);
+          }
+        }
+      } else {
+         // Same row - handle potential conflict if this layer brings a new list?
+         // If duplicate layers exist, we use the `cachedRowUrl` determined for this row.
+         // However, if THIS specific layer introduces a SpriteList (e.g. was processed second), 
+         // we should probably respect it if we haven't found a URL yet.
+         if (isSpriteList && !cachedRowUrl) {
+             const listData = rawValue.substring('SPRITE_LIST:'.length);
+             const urls = listData.split('|').filter(u => u.length > 0);
+             if (urls.length > 0) {
+                 currentSpriteList = urls;
+                 currentListIndex = 0;
+                 cachedRowUrl = currentSpriteList[currentListIndex];
+                 currentListIndex++;
+                 Logger.debug(`   📦 [Pre-process] Late SpriteList init for row ${item.rowIndex}`);
+             }
+         }
+      }
+
+      // Apply resolved URL to item
+      if (cachedRowUrl) {
+        item.fieldValue = cachedRowUrl;
+        this.updateShopNameFromUrl(cachedRowUrl, item);
+      }
+    }
+  }
+
   public async processPool(items: LayerDataItem[]): Promise<void> {
+    Logger.info('🔄 Начинаем обработку пула изображений...');
+    
+    // 1. Synchronous pre-processing of favicons
+    this.resolveFaviconUrls(items);
+    
     const queue = [...items];
     const workers: Promise<void>[] = [];
     
     for (let i = 0; i < IMAGE_CONFIG.MAX_CONCURRENT; i++) {
       workers.push((async () => {
+        let processedCount = 0;
         while (queue.length > 0) {
           const item = queue.shift();
           if (item) {
             const index = items.length - queue.length - 1;
             await this.processImage(item, index, items.length);
+            
+            // ОПТИМИЗАЦИЯ: Smart Batching
+            // Каждые 3 картинки даем UI потоку Figma передохнуть ("продышаться"), 
+            // чтобы интерфейс не зависал намертво при большом импорте.
+            processedCount++;
+            if (processedCount % 3 === 0) {
+               await new Promise(resolve => setTimeout(resolve, 10));
+            }
           }
         }
       })());

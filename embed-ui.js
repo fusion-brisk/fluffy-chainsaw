@@ -10,27 +10,45 @@ function write(file, content) {
 }
 
 function buildEmbeddedHtml() {
+  console.log('🔨 Generating embedded UI...');
+  
+  const template = read('src/ui.html');
   const css = read('src/styles.css');
   const js = read('dist/ui.js');
+  
   const shim = 'window.process=window.process||{env:{}};';
-
-  const html = `<!DOCTYPE html>
-<html lang="ru" data-theme="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()" />
-    <title>Contentify UI</title>
-    <style>${css}</style>
-  </head>
-  <body>
-    <div id="react-page"></div>
-    <script>(function(){${shim}\n${js}\n})();</script>
-  </body>
-  </html>`;
-
+  
+  const errorHandler = `
+    window.onerror = function(msg, url, line, col, error) {
+      console.error("UI Launch Error:", msg, error);
+      const div = document.getElementById('loading-splash');
+      if (div) {
+        div.innerHTML = '<div style="color: #ef5350; padding: 20px; font-family: sans-serif;">' + 
+          '<h3 style="margin: 0 0 10px 0;">Startup Error</h3>' + 
+          '<div style="font-family: monospace; font-size: 11px; background: rgba(255,0,0,0.1); padding: 10px; border-radius: 4px; white-space: pre-wrap; word-break: break-all;">' + 
+          msg + '\\nLine: ' + line + 
+          '</div></div>';
+      }
+    };
+  `;
+  
+  // 1. Вставляем CSS. replace со строкой безопасен для CSS (обычно)
+  // Но лучше использовать callback, чтобы $& не интерпретировались
+  let html = template.replace(
+    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*>/, 
+    () => `<style>\n${css}\n</style>`
+  );
+  
+  // 2. Вставляем JS. 
+  // КРИТИЧНО: Используем функцию-callback в replace, чтобы спецсимволы ($) в коде JS 
+  // не интерпретировались как подстановки regex.
+  html = html.replace(
+    /<script\s+src="ui\.js"\s*><\/script>/, 
+    () => `<script>\n${errorHandler}\n(function(){\n${shim}\n${js}\n})();\n</script>`
+  );
+  
   write('dist/ui-embedded.html', html);
-  console.log('✅ ui-embedded.html generated');
+  console.log('✅ ui-embedded.html generated successfully');
 }
 
 try {
@@ -39,5 +57,3 @@ try {
   console.error('❌ Failed to generate embedded UI:', e);
   process.exit(1);
 }
-
-

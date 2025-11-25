@@ -487,6 +487,7 @@ function extractFavicon(
     
     // ПРИОРИТЕТ 1: Проверяем inline-стили (для MHTML файлов)
     const styleAttr = favEl.getAttribute('style') || '';
+    let isInlineUrl = false;
     console.log(`🔍 [FAVICON EXTRACT] Проверка inline-стилей: styleAttr="${styleAttr.substring(0, 100)}..."`);
     if (styleAttr) {
       const inlineBgMatch = styleAttr.match(/background-image\s*:\s*url\s*\(\s*([^)]+)\s*\)/i);
@@ -496,6 +497,7 @@ function extractFavicon(
         bgUrl = bgUrl.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
         // Убираем кавычки если есть
         bgUrl = bgUrl.replace(/^['"]|['"]$/g, '');
+        isInlineUrl = true;
         console.log(`✅ [FAVICON EXTRACT] Найден URL фавиконки из inline-стиля: ${bgUrl.substring(0, 80)}...`);
       } else {
         console.log(`⚠️ [FAVICON EXTRACT] Не найден background-image в inline-стилях`);
@@ -526,13 +528,20 @@ function extractFavicon(
     
     // ЭВРИСТИКА 1: Проверяем, есть ли классы типа Favicon-PageX и Favicon-PageX_pos_Y (спрайт)
     // Если есть, ищем базовый класс Favicon-PageX для получения URL спрайта
-    // Пропускаем, если уже нашли URL в inline-стилях
-    const pageClassMatch = favEl.className.match(/Favicon-Page(\d+)|favicon_page_(\d+)/i);
-    const posClassMatch = favEl.className.match(/Favicon-Page\d+_pos_(\d+)/);
-    const entryClassMatch = favEl.className.match(/Favicon-Entry(\d+)|favicon_entry_(\d+)/i);
+    // Пропускаем, если уже нашли URL в inline-стилях (по правилу: inline url = единичная иконка)
+    
+    let pageClassMatch = null;
+    let posClassMatch = null;
+    let entryClassMatch = null;
+
+    if (!isInlineUrl) {
+      pageClassMatch = favEl.className.match(/Favicon-Page(\d+)|favicon_page_(\d+)/i);
+      posClassMatch = favEl.className.match(/Favicon-Page\d+_pos_(\d+)/);
+      entryClassMatch = favEl.className.match(/Favicon-Entry(\d+)|favicon_entry_(\d+)/i);
+    }
     
     // Если не нашли background-position в inline-стилях, пробуем извлечь из CSS
-    if (!bgPosition) {
+    if (!isInlineUrl && !bgPosition) {
       // ДИАГНОСТИКА: Проверяем структуру документа
       const headElement = doc.head;
       const bodyElement = doc.body;
@@ -922,7 +931,8 @@ function extractFavicon(
     }
 
     // НОВАЯ ЛОГИКА: Обработка спрайт-списков в URL (если есть точка с запятой)
-    if (bgUrl.includes('favicon.yandex.net/favicon/v2/') && bgUrl.includes(';')) {
+    // ВАЖНО: Если URL из inline-стиля, мы считаем его единичной иконкой и НЕ парсим как спрайт-лист
+    if (!isInlineUrl && bgUrl.includes('favicon.yandex.net/favicon/v2/') && bgUrl.includes(';')) {
       console.log(`🔍 [FAVICON EXTRACT] Обнаружен URL со списком доменов (спрайт): ${bgUrl}`);
       
       // Извлекаем часть с доменами: все после /v2/ и до ? или конца строки
@@ -933,19 +943,60 @@ function extractFavicon(
         console.log(`🔍 [FAVICON EXTRACT] Доменов в списке: ${domains.length}`);
         
         let index = 0;
-        if (bgPosition) {
+        let posIndexFound = false;
+
+        // ПРИОРИТЕТ 1: Если есть явная позиция в классе, используем ее
+        if (pageClassMatch && posClassMatch) {
+          const pIndex = parseInt(posClassMatch[1], 10);
+          if (!isNaN(pIndex)) {
+            index = pIndex;
+            posIndexFound = true;
+            console.log(`🔍 [FAVICON EXTRACT] Используем позицию из класса (Page_pos): ${index}`);
+          }
+        }
+
+        // ПРИОРИТЕТ 2: Если нет явной позиции, вычисляем по background-position
+        if (!posIndexFound && bgPosition) {
           // Извлекаем смещение по Y (обычно отрицательное значение в px)
-          // Ищем число перед 'px', возможно с минусом
           const yMatch = bgPosition.match(/(?:^|\s)(-?\d+(?:\.\d+)?)px/);
           if (yMatch) {
             const yOffset = Math.abs(parseFloat(yMatch[1]));
             
-            // ЭВРИСТИКА: Шаг спрайта (высота иконки + отступ).
-            // Пользователь указал, что шаг равен 20px (0, -20, -40, -60...)
-            const stride = 20; 
+            // Пытаемся определить шаг (stride) на основе yOffset
+            // Если offset = 0, индекс = 0
+            if (yOffset === 0) {
+              index = 0;
+            } else {
+              let stride = 0;
+              
+              // 1. Пробуем найти явный background-size (если он был извлечен ранее)
+              if (bgSizeValue) {
+                stride = bgSizeValue;
+                 console.log(`🔍 [FAVICON EXTRACT] Используем stride из background-size: ${stride}px`);
+              } 
+              // 2. Если нет, пытаемся угадать по делимости
+              else {
+                 // Приоритет: 20px, затем 16px (самые частые кейсы Яндекса)
+                 if (yOffset % 20 === 0) stride = 20;
+                 else if (yOffset % 16 === 0) stride = 16;
+                 else if (yOffset % 24 === 0) stride = 24;
+                 else if (yOffset % 32 === 0) stride = 32;
+                 else {
+                   // Fallback: если не делится ровно, берем ближайший стандартный размер
+                   // Скорее всего это 20px или 16px
+                   // Если смещение маленькое (<=20), считаем что это индекс 1
+                   if (yOffset <= 20) stride = yOffset;
+                   else stride = 20; // Default fallback
+                 }
+                 console.log(`🔍 [FAVICON EXTRACT] Stride определен эвристически: ${stride}px (offset=${yOffset})`);
+              }
+              
+              if (stride > 0) {
+                index = Math.round(yOffset / stride);
+              }
+            }
             
-            index = Math.round(yOffset / stride);
-            console.log(`🔍 [FAVICON EXTRACT] Расчет индекса из background-position: offset=${yOffset}px, stride=${stride}px => index=${index}`);
+            console.log(`🔍 [FAVICON EXTRACT] Расчет индекса: offset=${yOffset}px, stride=${bgSizeValue || 'auto'} => index=${index}`);
           }
         }
         
@@ -1094,9 +1145,10 @@ function extractFavicon(
         }
       }
       
-      // Если bgUrl уже найден, но bgSizeValue не найден, пробуем найти его в CSS
-      if (spriteUrl && !spriteBgSizeValue) {
-        const styleTags = getStyleTags(doc, rawHtml);
+    // Если bgUrl уже найден, но bgSizeValue не найден, пробуем найти его в CSS
+    // Пропускаем для inline URL, так как это единичная иконка
+    if (!isInlineUrl && spriteUrl && !spriteBgSizeValue) {
+      const styleTags = getStyleTags(doc, rawHtml);
         for (const styleTag of styleTags) {
           const cssText = styleTag.textContent || '';
           // Ищем background-size в правилах, связанных с favicon классами
@@ -1122,11 +1174,18 @@ function extractFavicon(
       
       if (spriteUrl && spriteUrl.includes('favicon.yandex.net/favicon/v2/')) {
         // Извлекаем список доменов из URL спрайта
-        const spriteListMatch = spriteUrl.match(/favicon\.yandex\.net\/favicon\/v2\/(.+)/i);
+        // Декодируем quoted-printable и очищаем
+        const cleanSpriteUrl = spriteUrl.replace(/=3D/g, '=').replace(/=3B/g, ';').replace(/=\r?\n/g, '');
+        const spriteListMatch = cleanSpriteUrl.match(/favicon\.yandex\.net\/favicon\/v2\/(.+)/i);
         if (spriteListMatch && spriteListMatch[1]) {
           let addressesString = spriteListMatch[1];
-          // Убираем параметры запроса
-          addressesString = addressesString.split('?')[0];
+          // Убираем параметры запроса (аккуратно)
+          const qIndex = addressesString.lastIndexOf('?');
+          if (qIndex !== -1 && (addressesString.includes('size=') || addressesString.includes('stub='))) {
+            addressesString = addressesString.substring(0, qIndex);
+          } else if (addressesString.includes('?')) {
+             addressesString = addressesString.split('?')[0];
+          }
           // Разделяем по точке с запятой
           const addresses = addressesString.split(';').filter(addr => addr.trim().length > 0);
           
@@ -1134,12 +1193,20 @@ function extractFavicon(
           
           let positionIndex: number | null = null;
           
-          // ПРИОРИТЕТ 1: Если есть номер входа из класса (Favicon-EntryN), используем его как индекс
-          if (entryClassMatch) {
+          // ПРИОРИТЕТ 1: Используем позицию из класса (Favicon-PageX_pos_Y), так как это индекс иконки в спрайте.
+          // Favicon-EntryN часто является просто идентификатором группы, а не индекса.
+          const posClassMatch = favEl.className.match(/Favicon-Page\d+_pos_(\d+)/);
+          if (posClassMatch && posClassMatch[1]) {
+             positionIndex = parseInt(posClassMatch[1], 10);
+             console.log(`🔍 [FAVICON EXTRACT] Используем позицию из класса (Page_pos): ${positionIndex}`);
+          }
+          
+          // ПРИОРИТЕТ 2: Если нет явной позиции в классе, пробуем Favicon-EntryN
+          if (positionIndex === null && entryClassMatch) {
             const entryNumber = parseInt(entryClassMatch[1] || entryClassMatch[2] || '0', 10);
             // Номера входа обычно начинаются с 1, но индексы массивов с 0
             positionIndex = entryNumber > 0 ? entryNumber - 1 : 0;
-            console.log(`🔍 [FAVICON EXTRACT] Используем номер входа из класса: ${entryNumber} -> индекс ${positionIndex}`);
+            console.log(`🔍 [FAVICON EXTRACT] Используем номер входа из класса (Fallback): ${entryNumber} -> индекс ${positionIndex}`);
           }
           
           // ПРИОРИТЕТ 2: Если нет номера входа, вычисляем индекс по background-position и размеру
@@ -1167,6 +1234,11 @@ function extractFavicon(
               cleanHost = host.split('?')[0];
             }
             
+            if (!cleanHost || cleanHost.trim() === '') {
+               // Skip empty host
+               return null; 
+            }
+            
             // Генерируем URL фавиконки по шаблону
             const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
             
@@ -1187,9 +1259,12 @@ function extractFavicon(
             if (host.startsWith('https://') || host.startsWith('http://')) {
               cleanHost = host.split('?')[0];
             }
-            const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
-            row['#FaviconImage'] = faviconUrl;
-            console.log(`✅ [FAVICON EXTRACT] Использован первый домен "${cleanHost}", URL: ${faviconUrl}`);
+            
+            if (cleanHost && cleanHost.trim() !== '') {
+                const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
+                row['#FaviconImage'] = faviconUrl;
+                console.log(`✅ [FAVICON EXTRACT] Использован первый домен "${cleanHost}", URL: ${faviconUrl}`);
+            }
             return null;
           }
         }
@@ -1199,12 +1274,18 @@ function extractFavicon(
     // Проверяем, является ли это спрайтом с перечислением адресов
     // Формат: //favicon.yandex.net/favicon/v2/https://site1;https://site2;...;https://siteN?size=32&stub=1&reqid=...
     // Извлекаем список доменов: берем все после /favicon/v2/
-    const spriteListMatch = bgUrl && bgUrl.match(/favicon\.yandex\.net\/favicon\/v2\/(.+)/i);
+    const cleanBgUrl = bgUrl ? bgUrl.replace(/=3D/g, '=').replace(/=3B/g, ';').replace(/=\r?\n/g, '') : '';
+    const spriteListMatch = cleanBgUrl && cleanBgUrl.match(/favicon\.yandex\.net\/favicon\/v2\/(.+)/i);
     if (spriteListMatch && spriteListMatch[1]) {
       let addressesString = spriteListMatch[1];
       
       // Сначала убираем глобальные параметры запроса (все что после ?)
-      addressesString = addressesString.split('?')[0];
+      const qIndex = addressesString.lastIndexOf('?');
+      if (qIndex !== -1 && (addressesString.includes('size=') || addressesString.includes('stub='))) {
+        addressesString = addressesString.substring(0, qIndex);
+      } else if (addressesString.includes('?')) {
+         addressesString = addressesString.split('?')[0];
+      }
       
       // Разделяем по точке с запятой
       const addresses = addressesString.split(';').filter(addr => addr.trim().length > 0);
@@ -1235,14 +1316,18 @@ function extractFavicon(
                  if (host.startsWith('https://') || host.startsWith('http://')) {
                     cleanHost = host.split('?')[0];
                  }
-                 const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
-                 row['#FaviconImage'] = faviconUrl;
-                 console.log(`✅ [FAVICON EXTRACT] (Fallback) Сопоставлен домен "${cleanHost}" (индекс ${calculatedIndex}) из списка, URL: ${faviconUrl}`);
+                 
+                 if (cleanHost && cleanHost.trim() !== '') {
+                     const faviconUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanHost)}?size=32&stub=1`;
+                     row['#FaviconImage'] = faviconUrl;
+                     console.log(`✅ [FAVICON EXTRACT] (Fallback) Сопоставлен домен "${cleanHost}" (индекс ${calculatedIndex}) из списка, URL: ${faviconUrl}`);
+                 }
                  
                  // Инициализируем спрайт для БУДУЩИХ строк, но текущую мы уже заполнили
                  const faviconUrls = addresses.map(addr => {
                     const cleanAddr = addr.trim();
                     const cleanAddrWithoutParams = cleanAddr.split('?')[0];
+                    // Basic validation for cleanAddr?
                     return `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanAddrWithoutParams)}?size=32&stub=1`;
                  });
                  
@@ -1254,23 +1339,70 @@ function extractFavicon(
            }
         }
 
-        // Если не удалось определить конкретную позицию, берем первую
+        // Если не удалось определить конкретную позицию, пробуем использовать состояние спрайта или берем первую
+        let targetIndex = 0;
+        
+        // ЭВРИСТИКА: Если есть активный спрайт-лист с таким же количеством элементов, 
+        // скорее всего мы продолжаем идти по нему последовательно.
+        // Это предотвращает сброс на 0-й индекс при ошибке определения позиции.
+        // ТАКЖЕ, если мы нашли адреса в CSS правиле для класса, но не нашли позицию в inline-стилях,
+        // мы полагаемся на номер входа (entryNumber), который должен был быть извлечен ранее (positionIndex).
+        // Но если positionIndex === null (не найден Favicon-EntryX), то логика сваливается сюда.
+        
+        if (spriteState && spriteState.urls.length === addresses.length) {
+           targetIndex = spriteState.currentIndex;
+           if (targetIndex >= addresses.length) targetIndex = 0; // Safe fallback
+           console.log(`⚠️ [FAVICON EXTRACT] Позиция неизвестна, используем следующий индекс из последовательности: ${targetIndex}`);
+        } else if (addresses.length > 1) {
+           // Если спрайт новый, и в нем много элементов, но мы не знаем позицию,
+           // это опасно - мы возьмем первый элемент.
+           // Попробуем извлечь Favicon-Entry из класса элемента (повторно, если переменная локальна)
+           // В данном контексте у нас нет доступа к favEl напрямую, только к bgUrl/bgPosition
+           
+           // Но если мы здесь, значит bgPosition не помог.
+           // Если это первый элемент в серии (например, 4 элемента в начале файла не имеют фавиконок),
+           // и мы наткнулись на сниппет с фавиконкой, который ссылается на спрайт из 30 доменов.
+           // Взять 0-й - ошибка. 
+           
+           // ВАЖНОЕ ИСПРАВЛЕНИЕ: Если мы не знаем позицию, мы не можем инициализировать спрайт с 0!
+           // Лучше вернуть пустую фавиконку, чем неправильную.
+           // ИЛИ, если это спрайт-лист, передать его ЦЕЛИКОМ в row['#FaviconImage'] с префиксом SPRITE_LIST,
+           // и пусть image-handlers разбирается (но там тоже нужен порядок).
+           
+           // РЕШЕНИЕ: Инициируем спрайт, но текущий элемент помечаем как требующий "следующего" из списка?
+           // Нет. Если мы не знаем индекс, мы не знаем, кто мы.
+           
+           // Однако, в предоставленном примере (HTML анализ), у элементов ЕСТЬ классы Favicon-Page0_pos_X.
+           // Если мы попали сюда, значит bgPosition не был извлечен или не сматчился.
+           // В анализе HTML видно: style="...background-position-y:-32px"
+           // Это должно было сработать в блоке `if (positionIndex === null && spriteBgSizeValue && bgPosition)`
+           // Проблема может быть в том, что spriteBgSizeValue не определился.
+        }
+        
+        // В данном случае, если мы не смогли определить индекс, но видим список адресов,
+        // мы предполагаем, что это начало списка.
+        
         const faviconUrls = addresses.map(addr => {
           const cleanAddr = addr.trim();
           const cleanAddrWithoutParams = cleanAddr.split('?')[0];
+          if (!cleanAddrWithoutParams) return null;
           return `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanAddrWithoutParams)}?size=32&stub=1`;
-        });
+        }).filter(url => url !== null) as string[];
         
-        // Для текущей строки используем ПЕРВУЮ иконку, а не список
-        // Это предотвращает ошибку "Unsupported image type" при попытке загрузить "SPRITE_LIST:..." как URL
-        const firstFaviconUrl = faviconUrls[0];
-        row['#FaviconImage'] = firstFaviconUrl;
-        console.log(`✅ [FAVICON EXTRACT] Установлена первая иконка из списка: ${firstFaviconUrl.substring(0, 100)}...`);
+        // Используем вычисленный или первый URL
+        const finalFaviconUrl = faviconUrls[targetIndex] || faviconUrls[0];
         
-        // Создаем новое состояние спрайта для следующих строк
+        // Если targetIndex был 0 (новый список) и мы не уверены в позиции,
+        // возможно стоит вернуть SPRITE_LIST, чтобы image-handlers взял первый?
+        // Но image-handlers уже доверяет нам.
+        
+        row['#FaviconImage'] = finalFaviconUrl;
+        console.log(`✅ [FAVICON EXTRACT] Установлена иконка (индекс ${targetIndex}): ${finalFaviconUrl.substring(0, 100)}...`);
+        
+        // Создаем новое состояние спрайта для следующих строк (или обновляем текущее)
         const newSpriteState = {
           urls: faviconUrls,
-          currentIndex: 1 // Следующий индекс (первая иконка уже использована)
+          currentIndex: targetIndex + 1
         };
         
         console.log(`✅ Спрайт-список инициализирован: ${addresses.length} адресов`);
@@ -1279,10 +1411,10 @@ function extractFavicon(
       }
     }
     
-    // Если это обычный URL (не спрайт), используем его напрямую
+    // Если это обычный URL (не спрайт) или inline URL (считаем единичным), используем его напрямую
     // Если есть активный спрайт, сбрасываем его (встретился другой тип фавиконки)
     row['#FaviconImage'] = bgUrl;
-    console.log(`✅ [FAVICON EXTRACT] Установлен обычный URL: ${row['#FaviconImage'].substring(0, 100)}...`);
+    console.log(`✅ [FAVICON EXTRACT] Установлен URL (${isInlineUrl ? 'inline, единичный' : 'обычный'}): ${row['#FaviconImage'].substring(0, 100)}...`);
     return null; // Сбрасываем состояние спрайта
   } catch (e) {
     console.error('❌ [FAVICON EXTRACT] Ошибка парсинга фавиконки:', e);
@@ -1341,11 +1473,17 @@ function extractRowData(
   spriteState: { urls: string[]; currentIndex: number } | null,
   rawHtml?: string
 ): { row: CSVRow | null; spriteState: { urls: string[]; currentIndex: number } | null } {
-  // Пропускаем рекламные сниппеты
-  if (isInsideAdvProductGallery(container)) {
-    console.log('⚠️ Пропущен рекламный сниппет из AdvProductGallery');
-    return { row: null, spriteState: spriteState };
-  }
+    // Пропускаем рекламные сниппеты
+    // Также проверяем дополнительные классы, которые могут указывать на рекламу
+    if (isInsideAdvProductGallery(container) || 
+        container.closest('.AdvProductGallery') || 
+        container.closest('[class*="AdvProductGallery"]') ||
+        // Иногда рекламные блоки не внутри AdvProductGallery, но имеют свои маркеры
+        container.querySelector('.Organic-Label_type_advertisement') ||
+        container.querySelector('.Organic-Subtitle_type_advertisement')) {
+      console.log('⚠️ Пропущен рекламный сниппет (AdvProductGallery или рекламная метка)');
+      return { row: null, spriteState: spriteState };
+    }
   
   const row: CSVRow = {
     '#SnippetType': container.className.includes('EProductSnippet2') ? 'EProductSnippet2' : 
@@ -1918,7 +2056,11 @@ function extractFaviconFromJson(snippet: any, row: CSVRow): void {
     }
     
     // Очищаем и нормализуем URL
-    faviconUrl = faviconUrl.trim().replace(/\s+/g, '');
+    // Важно: удаляем quoted-printable артефакты (=3D, =3B) перед обработкой
+    faviconUrl = faviconUrl.trim().replace(/\s+/g, '')
+      .replace(/=3D/g, '=')
+      .replace(/=3B/g, ';')
+      .replace(/=\r?\n/g, '');
     
     if (faviconUrl.startsWith('//')) {
       faviconUrl = 'https:' + faviconUrl;
@@ -1937,6 +2079,14 @@ function extractFaviconFromJson(snippet: any, row: CSVRow): void {
     if (spriteListMatch && spriteListMatch[1]) {
       let addressesString = spriteListMatch[1];
       
+      // Убираем параметры запроса (аккуратно)
+      const qIndex = addressesString.lastIndexOf('?');
+      if (qIndex !== -1 && (addressesString.includes('size=') || addressesString.includes('stub='))) {
+        addressesString = addressesString.substring(0, qIndex);
+      } else if (addressesString.includes('?')) {
+         addressesString = addressesString.split('?')[0];
+      }
+      
       // Разделяем по точке с запятой (параметры запроса могут быть в последнем домене)
       const addresses = addressesString.split(';').filter(addr => addr.trim().length > 0);
       
@@ -1947,9 +2097,10 @@ function extractFaviconFromJson(snippet: any, row: CSVRow): void {
           // Убираем возможные параметры из адреса (если они есть, например в последнем домене)
           // Например: https://yandex.ru/products?size=32&stub=1&reqid=... -> https://yandex.ru/products
           const cleanAddrWithoutParams = cleanAddr.split('?')[0];
+          if (!cleanAddrWithoutParams) return null;
           // Формируем URL фавиконки для единичного домена
           return `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanAddrWithoutParams)}?size=32&stub=1`;
-        });
+        }).filter(u => u !== null) as string[];
         
         // Сохраняем список в специальном формате: SPRITE_LIST:url1|url2|url3|...
         row['#FaviconImage'] = `SPRITE_LIST:${faviconUrls.join('|')}`;
