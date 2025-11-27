@@ -9,6 +9,11 @@ console.log('🚀 Плагин Contentify загружен');
 
 try {
   figma.showUI(__html__, { width: 320, height: 600 });
+  // Отправляем начальное состояние выделения
+  figma.ui.postMessage({ 
+    type: 'selection-status', 
+    hasSelection: figma.currentPage.selection.length > 0 
+  });
 } catch (error) {
   Logger.error('❌ Ошибка при показе UI:', error);
   figma.notify('❌ Ошибка загрузки UI');
@@ -16,6 +21,12 @@ try {
 
 // Глобальный экземпляр ImageProcessor для сохранения кэша между импортами
 const imageProcessor = new ImageProcessor();
+
+// Обработка изменений выделения
+figma.on('selectionchange', () => {
+  const hasSelection = figma.currentPage.selection.length > 0;
+  figma.ui.postMessage({ type: 'selection-status', hasSelection: hasSelection });
+});
 
 // Вспомогательные функции
 const safeGetLayerName = (layer: SceneNode): string | null => {
@@ -66,11 +77,7 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
   
-  if (msg.type === 'check-selection') {
-    const hasSelection = figma.currentPage.selection.length > 0;
-      figma.ui.postMessage({ type: 'selection-status', hasSelection: hasSelection });
-      return;
-    }
+  // Old check-selection handler removed (using selectionchange event instead)
 
     // --- SETTINGS HANDLERS ---
     if (msg.type === 'get-settings') {
