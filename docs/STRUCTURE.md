@@ -47,7 +47,8 @@
 | `encoding.ts` | `fixEncoding()`, `getTextContent()` — работа с кодировкой |
 | `network.ts` | `fetchWithRetry()`, `convertImageToBase64()`, `processCSVRows()` |
 | `plugin-bridge.ts` | `log()`, `sendMessageToPlugin()`, `applyFigmaTheme()`, `shuffleArray()` |
-| `dom-utils.ts` | `findSnippetContainers()`, `filterTopLevelContainers()`, `getStyleTags()` |
+| `dom-utils.ts` | `findSnippetContainers()`, `filterTopLevelContainers()`, `getStyleTags()` (оптимизирован) |
+| `dom-cache.ts` | **Phase 5:** `buildContainerCache()`, `queryFromCache()`, `queryFirstMatch()` — кэширование DOM |
 | `mhtml-parser.ts` | `parseMhtmlFile()` — парсинг MHTML файлов |
 | `json-parser.ts` | `parseJsonFromNoframes()`, `extractSnippetsFromJson()` |
 | `css-cache.ts` | **Phase 4:** `buildCSSCache()`, `getRulesByClass()` — кэширование CSS |
@@ -82,6 +83,23 @@ interface CSSCache {
 ```
 
 Кэш строится **один раз** в `parseYandexSearchResults()` и передаётся во все экстракторы.
+
+##### Архитектура dom-cache.ts (Phase 5)
+
+```typescript
+interface ContainerCache {
+  element: Element;
+  byClass: Map<string, Element[]>;    // className -> Element[]
+  firstByClass: Map<string, Element>; // className -> первый Element
+  byTag: Map<string, Element[]>;      // tagName -> Element[]
+  stats: { totalElements, totalClasses };
+}
+```
+
+- **TreeWalker** для единственного обхода DOM контейнера
+- **O(1) lookup** вместо O(n) querySelector
+- `queryFromCache()`, `queryFirstMatch()` — замена для querySelector
+- Кэш строится для **каждого контейнера** перед extractRowData()
 
 #### `src/components/` — React компоненты UI
 
@@ -147,7 +165,7 @@ interface CSSCache {
 | 2 | Разделение utils.ts на 12 модулей | ✅ |
 | 3 | Рефакторинг favicon-extractor.ts (Chain of Responsibility) | ✅ |
 | 4 | Кэширование CSS-парсинга (css-cache.ts) | ✅ |
-| 5 | Оптимизация DOM-обхода (TreeWalker) | 📋 Планируется |
+| 5 | Оптимизация DOM-обхода (dom-cache.ts, TreeWalker) | ✅ |
 | 6 | Потоковая обработка MHTML | 📋 Опционально |
 
 Подробности в `docs/OPTIMIZATION_STATUS.md`.

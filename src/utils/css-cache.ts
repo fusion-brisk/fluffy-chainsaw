@@ -311,6 +311,9 @@ export function getRuleByClasses(cache: CSSCache, classes: string[]): CSSRuleEnt
 
 /**
  * Поиск правила с паттерном класса (для Favicon-PageX, Favicon-EntryX)
+ * 
+ * ВАЖНО: Если entryClass не задан, ищем правило которое содержит pageClass,
+ * но НЕ содержит Entry (чтобы не спутать с более специфичным правилом)
  */
 export function getRuleByClassPattern(
   cache: CSSCache, 
@@ -320,21 +323,48 @@ export function getRuleByClassPattern(
   const pageClassLower = pageClass.toLowerCase();
   const entryClassLower = entryClass ? entryClass.toLowerCase() : null;
   
+  console.log(`🔍 [getRuleByClassPattern] Поиск: pageClass="${pageClass}", entryClass="${entryClass || 'НЕТ'}"`);
+  console.log(`🔍 [getRuleByClassPattern] Всего селекторов в кэше: ${cache.bySelector.size}`);
+  
+  let checkedCount = 0;
+  let matchedWithEntry: string[] = [];
+  let matchedWithoutEntry: string[] = [];
+  
   for (const [selector, entry] of cache.bySelector) {
     const selectorLower = selector.toLowerCase();
     
-    // Если есть entry класс, ищем комбинацию
+    if (!selectorLower.includes(pageClassLower)) continue;
+    
+    checkedCount++;
+    const hasEntry = selectorLower.includes('entry');
+    
+    if (hasEntry) {
+      matchedWithEntry.push(selector.substring(0, 80));
+    } else {
+      matchedWithoutEntry.push(selector.substring(0, 80));
+    }
+    
+    // Если есть entry класс, ищем комбинацию (page + entry)
     if (entryClassLower) {
-      if (selectorLower.includes(pageClassLower) && selectorLower.includes(entryClassLower)) {
+      if (selectorLower.includes(entryClassLower)) {
+        console.log(`✅ [getRuleByClassPattern] Найдено правило С Entry: "${selector.substring(0, 80)}..."`);
+        console.log(`   URL: ${entry.bgUrl.substring(0, 100)}...`);
         return entry;
       }
     } else {
-      // Ищем только page класс
-      if (selectorLower.includes(pageClassLower)) {
+      // ИСПРАВЛЕНИЕ: Ищем правило с page классом, но БЕЗ entry класса
+      if (!hasEntry) {
+        console.log(`✅ [getRuleByClassPattern] Найдено правило БЕЗ Entry: "${selector.substring(0, 80)}..."`);
+        console.log(`   URL: ${entry.bgUrl.substring(0, 100)}...`);
         return entry;
       }
     }
   }
+  
+  console.log(`⚠️ [getRuleByClassPattern] Не найдено подходящее правило!`);
+  console.log(`   Проверено селекторов с pageClass: ${checkedCount}`);
+  console.log(`   С Entry: [${matchedWithEntry.join(', ')}]`);
+  console.log(`   Без Entry: [${matchedWithoutEntry.join(', ')}]`);
   
   return null;
 }

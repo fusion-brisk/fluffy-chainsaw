@@ -3,17 +3,16 @@
 import { STYLE_TAG_REGEX, STYLE_TAG_CONTENT_REGEX } from './regex';
 
 // Находит все контейнеры сниппетов в документе
+// ОПТИМИЗИРОВАНО (Phase 5): один комбинированный селектор вместо трёх
 export function findSnippetContainers(doc: Document): Element[] {
-  const containersSet = new Set<Element>();
-  const allContainers = [
-    ...Array.from(doc.querySelectorAll('[class*="Organic_withOfferInfo"]')),
-    ...Array.from(doc.querySelectorAll('[class*="EProductSnippet2"]')),
-    ...Array.from(doc.querySelectorAll('[class*="EShopItem"]'))
-  ];
+  // Один комбинированный селектор — эффективнее трёх отдельных querySelectorAll
+  const combinedSelector = '[class*="Organic_withOfferInfo"], [class*="EProductSnippet2"], [class*="EShopItem"]';
+  const containers = doc.querySelectorAll(combinedSelector);
   
-  // Убираем дубликаты по DOM-элементу
-  for (const container of allContainers) {
-    containersSet.add(container);
+  // Дедупликация через Set
+  const containersSet = new Set<Element>();
+  for (let i = 0; i < containers.length; i++) {
+    containersSet.add(containers[i]);
   }
   
   return Array.from(containersSet);

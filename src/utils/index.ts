@@ -43,6 +43,19 @@ export {
   getStyleTags
 } from './dom-utils';
 
+// DOM Cache utilities (Phase 5 optimization)
+export {
+  buildContainerCache,
+  buildDOMCache,
+  findSnippetContainersOptimized,
+  queryFromCache,
+  queryAllFromCache,
+  queryFirstMatch,
+  hasClass,
+  getTextByClass
+} from './dom-cache';
+export type { ContainerCache, DOMCache } from './dom-cache';
+
 // Price extraction utilities
 export { 
   extractPrices,

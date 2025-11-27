@@ -38,6 +38,12 @@ import {
   getRuleByClassPattern,
   getFirstSpriteUrl
 } from './css-cache';
+// Phase 5: DOM cache integration
+import {
+  ContainerCache,
+  queryFromCache,
+  queryFirstMatch
+} from './dom-cache';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -165,18 +171,38 @@ function calculateIndexFromPosition(
   
   if (yOffset === 0) return 0;
 
-  let stride = bgSizeValue || 0;
+  // ИСПРАВЛЕНИЕ: Сначала определяем stride по эвристике (кратность offset),
+  // потому что bgSizeValue из CSS может быть шириной спрайта, а не шагом.
+  // Например, background-size: 16px 176px — первое значение (16px) это ширина,
+  // а реальный шаг между иконками может быть 20px.
   
-  // Эвристическое определение stride если не задан
+  let stride = 0;
+  
+  // Эвристическое определение stride по кратности offset
+  // ПРИОРИТЕТ: 20 > 16 > 24 > 32 (наиболее частые размеры фавиконок)
+  if (yOffset % 20 === 0) stride = 20;
+  else if (yOffset % 16 === 0) stride = 16;
+  else if (yOffset % 24 === 0) stride = 24;
+  else if (yOffset % 32 === 0) stride = 32;
+  
+  // Если эвристика не сработала, пробуем bgSizeValue
+  if (!stride && bgSizeValue && bgSizeValue > 0) {
+    // Проверяем, что bgSizeValue дает целый индекс
+    const potentialIndex = yOffset / bgSizeValue;
+    if (Number.isInteger(potentialIndex) || Math.abs(potentialIndex - Math.round(potentialIndex)) < 0.1) {
+      stride = bgSizeValue;
+    }
+  }
+  
+  // Последний fallback
   if (!stride) {
-    if (yOffset % 20 === 0) stride = 20;
-    else if (yOffset % 16 === 0) stride = 16;
-    else if (yOffset % 24 === 0) stride = 24;
-    else if (yOffset % 32 === 0) stride = 32;
-    else stride = yOffset <= 20 ? yOffset : 20;
+    stride = yOffset <= 20 ? yOffset : 20;
   }
 
-  return stride > 0 ? Math.round(yOffset / stride) : 0;
+  const index = stride > 0 ? Math.round(yOffset / stride) : 0;
+  console.log(`🔍 [calculateIndexFromPosition] yOffset=${yOffset}px, stride=${stride}px => index=${index}`);
+  
+  return index;
 }
 
 // ============================================================================
@@ -250,7 +276,14 @@ const SpriteClassExtractor: FaviconExtractor = {
     const posClassMatch = ctx.favEl.className.match(FAVICON_POS_CLASS_REGEX);
     const entryClassMatch = ctx.favEl.className.match(FAVICON_ENTRY_CLASS_REGEX);
 
+    console.log(`🔍 [${this.name}] ========================================`);
+    console.log(`🔍 [${this.name}] Анализ элемента: className="${ctx.favEl.className}"`);
+    console.log(`🔍 [${this.name}] pageClassMatch: ${pageClassMatch ? pageClassMatch[0] : 'НЕТ'}`);
+    console.log(`🔍 [${this.name}] posClassMatch: ${posClassMatch ? posClassMatch[0] : 'НЕТ'}`);
+    console.log(`🔍 [${this.name}] entryClassMatch: ${entryClassMatch ? entryClassMatch[0] : 'НЕТ'}`);
+
     if (!pageClassMatch) {
+      console.log(`⚠️ [${this.name}] Нет pageClass, пропускаем`);
       return prevResult;
     }
 
@@ -259,7 +292,7 @@ const SpriteClassExtractor: FaviconExtractor = {
     const pageClassLower = `favicon_page_${pageNumber}`;
     const pageClassUpper = `Favicon-Page${pageNumber}`;
 
-    console.log(`🔍 [${this.name}] Найден класс страницы: ${pageClassUpper}`);
+    console.log(`🔍 [${this.name}] Найден класс страницы: ${pageClassUpper}, hasEntry: ${!!entryClassMatch}`);
 
     // ОПТИМИЗАЦИЯ: используем CSS кэш вместо getStyleTags()
     
@@ -286,25 +319,63 @@ const SpriteClassExtractor: FaviconExtractor = {
       }
     }
 
-    // ПРИОРИТЕТ 2: Только page класс через кэш
+    // ПРИОРИТЕТ 2: Только page класс через кэш (БЕЗ Entry)
+    // ВАЖНО: Используем getRuleByClassPattern без entryClass, 
+    // чтобы найти правило .Favicon-Page0.Favicon (без Entry),
+    // а не .Favicon-Page0.Favicon-Entry1.Favicon
     if (!result.bgUrl) {
-      const pageRules = getRulesByClass(ctx.cssCache, pageClassUpper) || 
-                        getRulesByClass(ctx.cssCache, pageClassLower);
+      console.log(`🔍 [${this.name}] ПРИОРИТЕТ 2: bgUrl ещё не найден, ищем по page классу`);
       
-      if (pageRules && pageRules.length > 0) {
-        const rule = pageRules[0];
-        result.bgUrl = rule.bgUrl;
-        result.found = true;
-        if (rule.bgSize !== null) {
-          result.bgSizeValue = rule.bgSize;
+      // Если у элемента НЕТ Entry класса, ищем правило без Entry
+      const hasEntryClass = !!entryClassMatch;
+      console.log(`🔍 [${this.name}] hasEntryClass: ${hasEntryClass}`);
+      
+      if (!hasEntryClass) {
+        console.log(`🔍 [${this.name}] Элемент БЕЗ Entry, вызываем getRuleByClassPattern(${pageClassUpper}, undefined)`);
+        // Элемент без Entry — ищем правило без Entry через исправленную функцию
+        const ruleWithoutEntry = getRuleByClassPattern(ctx.cssCache, pageClassUpper) ||
+                                 getRuleByClassPattern(ctx.cssCache, pageClassLower);
+        if (ruleWithoutEntry) {
+          result.bgUrl = ruleWithoutEntry.bgUrl;
+          result.found = true;
+          if (ruleWithoutEntry.bgSize !== null) {
+            result.bgSizeValue = ruleWithoutEntry.bgSize;
+          }
+          console.log(`✅ [${this.name}] Найден URL спрайта из кэша (класс ${pageClassUpper} без Entry): ${result.bgUrl.substring(0, 80)}...`);
+        } else {
+          console.log(`⚠️ [${this.name}] getRuleByClassPattern не нашла правило без Entry`);
         }
-        console.log(`✅ [${this.name}] Найден URL спрайта из кэша (класс ${pageClassUpper}): ${result.bgUrl.substring(0, 80)}...`);
       }
+      
+      // Fallback: если не нашли, пробуем любое правило с этим классом
+      if (!result.bgUrl) {
+        console.log(`🔍 [${this.name}] Fallback: пробуем getRulesByClass`);
+        const pageRules = getRulesByClass(ctx.cssCache, pageClassUpper) || 
+                          getRulesByClass(ctx.cssCache, pageClassLower);
+        
+        console.log(`🔍 [${this.name}] getRulesByClass вернула ${pageRules ? pageRules.length : 0} правил`);
+        
+        if (pageRules && pageRules.length > 0) {
+          for (let i = 0; i < pageRules.length; i++) {
+            console.log(`   [${i}]: ${pageRules[i].bgUrl.substring(0, 80)}...`);
+          }
+          const rule = pageRules[0];
+          result.bgUrl = rule.bgUrl;
+          result.found = true;
+          if (rule.bgSize !== null) {
+            result.bgSizeValue = rule.bgSize;
+          }
+          console.log(`✅ [${this.name}] Найден URL спрайта из кэша (класс ${pageClassUpper}, fallback): ${result.bgUrl.substring(0, 80)}...`);
+        }
+      }
+    } else {
+      console.log(`🔍 [${this.name}] ПРИОРИТЕТ 2 пропущен: bgUrl уже найден`);
     }
 
     // Извлекаем background-position из класса позиции через кэш
     if (result.bgUrl && posClassMatch && !result.bgPosition) {
-      const posClass = `Favicon-Page${posClassMatch[1]}_pos_${posClassMatch[1]}`;
+      // posClassMatch[1] = индекс позиции, pageNumber = номер страницы
+      const posClass = `Favicon-Page${pageNumber}_pos_${posClassMatch[1]}`;
       const posRules = getRulesByClass(ctx.cssCache, posClass);
       
       if (posRules && posRules.length > 0 && posRules[0].bgPosition) {
@@ -634,9 +705,16 @@ function processSpriteWithPosition(
 
   const bgUrl = result.bgUrl;
   
-  // Если уже содержит спрайт с доменами, используем processSpriteUrl
-  if (bgUrl && bgUrl.includes('favicon.yandex.net/favicon/v2/')) {
+  // Если уже содержит спрайт с доменами (наличие ';' означает список), используем processSpriteUrl
+  // ВАЖНО: проверяем ';' чтобы не перезаписывать уже извлечённый единичный URL
+  if (bgUrl && bgUrl.includes('favicon.yandex.net/favicon/v2/') && bgUrl.includes(';')) {
     return processSpriteUrl(bgUrl, result.bgPosition, result.bgSizeValue, ctx.favEl, result.isInlineUrl, ctx.spriteState);
+  }
+  
+  // Если URL уже единичный (без списка доменов), возвращаем как есть
+  if (bgUrl && bgUrl.includes('favicon.yandex.net/favicon/v2/') && !bgUrl.includes(';')) {
+    console.log(`🔍 [processSpriteWithPosition] URL уже единичный, пропускаем: ${bgUrl.substring(0, 80)}...`);
+    return { faviconUrl: bgUrl, newSpriteState: result.newSpriteState };
   }
 
   // Ищем спрайт в CSS кэше для сопоставления позиции с доменами
@@ -792,6 +870,7 @@ function processSpriteWithPosition(
  * НЕ для последовательного перебора иконок.
  * 
  * ОПТИМИЗИРОВАНО (Phase 4): использует CSS кэш вместо повторного парсинга
+ * ОПТИМИЗИРОВАНО (Phase 5): использует DOM кэш для быстрого поиска элементов
  * 
  * @param container - DOM элемент контейнера сниппета
  * @param doc - Document для поиска CSS
@@ -799,6 +878,7 @@ function processSpriteWithPosition(
  * @param spriteState - Кэш списка доменов из спрайта (НЕ используется для последовательного перебора)
  * @param cssCache - CSS кэш (Phase 4 optimization)
  * @param rawHtml - Сырой HTML (для fallback поиска в MHTML)
+ * @param containerCache - DOM кэш контейнера (Phase 5 optimization, опционально)
  * @returns Обновленное состояние спрайта (кэш) или null
  */
 export function extractFavicon(
@@ -807,7 +887,8 @@ export function extractFavicon(
   row: CSVRow,
   spriteState: SpriteState | null,
   cssCache: CSSCache,
-  rawHtml?: string
+  rawHtml?: string,
+  containerCache?: ContainerCache
 ): SpriteState | null {
   try {
     const snippetTitle = row['#OrganicTitle']?.substring(0, 30) || 'unknown';
@@ -819,27 +900,73 @@ export function extractFavicon(
       return spriteState;
     }
 
-    // Ищем Favicon элемент
-    let favEl = container.querySelector('.Favicon, [class*="Favicon"]') as HTMLElement | null;
-    console.log(`🔍 [FAVICON EXTRACT] Поиск 1: favEl=${favEl ? `найден (${favEl.className})` : 'не найден'}`);
+    // Ищем Favicon элемент с ПРИОРИТЕТОМ на элементы с позицией (_pos_X)
+    // и НЕ внутри рекламной галереи (AdvProductGallery)
+    let favEl: HTMLElement | null = null;
+    
+    // ПРИОРИТЕТ 1: Ищем Favicon с классом Favicon-Page*_pos_* (содержит позицию)
+    // и проверяем, что он НЕ внутри рекламной галереи
+    const allFavicons = container.querySelectorAll('.Favicon, [class*="Favicon"]');
+    console.log(`🔍 [FAVICON EXTRACT] Найдено ${allFavicons.length} Favicon элементов в контейнере`);
+    
+    for (let i = 0; i < allFavicons.length; i++) {
+      const fav = allFavicons[i] as HTMLElement;
+      const className = fav.className || '';
+      
+      // Пропускаем Favicon внутри рекламной галереи
+      const isInsideAdv = fav.closest('.AdvProductGallery') !== null || 
+                          fav.closest('[class*="AdvProductGallery"]') !== null ||
+                          fav.closest('.AdvProductGalleryCard') !== null ||
+                          className.includes('AdvProductGallery');
+      
+      if (isInsideAdv) {
+        console.log(`🔍 [FAVICON EXTRACT] Пропущен Favicon внутри рекламы: ${className.substring(0, 50)}...`);
+        continue;
+      }
+      
+      // Проверяем, есть ли _pos_ в классе (приоритетный выбор)
+      const hasPosition = className.includes('_pos_');
+      
+      if (hasPosition) {
+        favEl = fav;
+        console.log(`🔍 [FAVICON EXTRACT] Найден Favicon с позицией: ${className.substring(0, 60)}...`);
+        break;
+      }
+      
+      // Сохраняем первый подходящий (без рекламы) как fallback
+      if (!favEl) {
+        favEl = fav;
+      }
+    }
+    
+    if (favEl) {
+      console.log(`🔍 [FAVICON EXTRACT] Выбран Favicon: ${favEl.className.substring(0, 60)}...`);
+    }
 
-    // Альтернативные селекторы
+    // ПРИОРИТЕТ 2: Если не нашли, ищем через EShopName
     if (!favEl) {
       const shopNameEl = container.querySelector('.EShopName, [class*="EShopName"], [class*="ShopName"]');
+      
       if (shopNameEl) {
-        favEl = shopNameEl.closest(container.tagName)?.querySelector('.Favicon, [class*="Favicon"]') as HTMLElement | null;
-        if (favEl && !container.contains(favEl)) {
-          favEl = null;
+        // Ищем Favicon рядом с EShopName (в том же родителе)
+        const parent = shopNameEl.parentElement;
+        if (parent) {
+          favEl = parent.querySelector('.Favicon, [class*="Favicon"]') as HTMLElement | null;
+          if (favEl && !container.contains(favEl)) {
+            favEl = null;
+          }
         }
-        console.log(`🔍 [FAVICON EXTRACT] Поиск 2 (через EShopName): favEl=${favEl ? `найден (${favEl.className})` : 'не найден'}`);
+        console.log(`🔍 [FAVICON EXTRACT] Поиск через EShopName: favEl=${favEl ? `найден (${favEl.className.substring(0, 40)}...)` : 'не найден'}`);
       }
     }
 
+    // ПРИОРИТЕТ 3: Через ImagePlaceholder
     if (!favEl) {
       const imagePlaceholder = container.querySelector('[class*="ImagePlaceholder"], [class*="Image-Placeholder"]');
+      
       if (imagePlaceholder) {
         favEl = imagePlaceholder.querySelector('.Favicon, [class*="Favicon"], [class*="FaviconImage"]') as HTMLElement | null;
-        console.log(`🔍 [FAVICON EXTRACT] Поиск 3 (через ImagePlaceholder): favEl=${favEl ? `найден (${favEl.className})` : 'не найден'}`);
+        console.log(`🔍 [FAVICON EXTRACT] Поиск через ImagePlaceholder: favEl=${favEl ? `найден` : 'не найден'}`);
       }
     }
 
@@ -909,7 +1036,12 @@ export function extractFavicon(
     }
 
     // Дополнительная обработка спрайта с position
-    if (result.bgPosition && finalUrl) {
+    // НЕ вызываем, если URL уже единичный (без ';') или если это inline URL
+    const isAlreadySingleUrl = finalUrl && 
+                               finalUrl.includes('favicon.yandex.net/favicon/v2/') && 
+                               !finalUrl.includes(';');
+    
+    if (result.bgPosition && finalUrl && !isAlreadySingleUrl && !result.isInlineUrl) {
       const posResult = processSpriteWithPosition(ctx, {
         ...result,
         bgUrl: finalUrl,

@@ -24,29 +24,51 @@ import {
 import { extractPrices, formatPriceWithThinSpace } from './price-extractor';
 import { extractFavicon, SpriteState } from './favicon-extractor';
 import { CSSCache, buildCSSCache } from './css-cache';
+// Phase 5: DOM cache for optimized element lookup
+import { 
+  ContainerCache, 
+  buildContainerCache, 
+  queryFromCache, 
+  queryFirstMatch,
+  queryAllFromCache
+} from './dom-cache';
 
 // Извлекает все данные строки из контейнера
 // spriteState - состояние текущего спрайта
 // cssCache - кэш CSS правил (Phase 4 optimization)
+// containerCache - кэш элементов контейнера (Phase 5 optimization, опционально)
 // Возвращает { row: CSVRow | null, spriteState: состояние спрайта }
 export function extractRowData(
   container: Element, 
   doc: Document,
   spriteState: SpriteState | null,
   cssCache: CSSCache,
-  rawHtml?: string
+  rawHtml?: string,
+  containerCache?: ContainerCache
 ): { row: CSVRow | null; spriteState: SpriteState | null } {
+    // Phase 5: Строим кэш элементов контейнера, если не передан
+    const cache = containerCache || buildContainerCache(container);
+    
     // Пропускаем рекламные сниппеты
-    // Также проверяем дополнительные классы, которые могут указывать на рекламу
+    // ОПТИМИЗИРОВАНО: используем кэш вместо querySelector
+    const hasAdvLabel = queryFromCache(cache, '.Organic-Label_type_advertisement') ||
+                        queryFromCache(cache, '.Organic-Subtitle_type_advertisement');
+    
+    // Проверяем AdvProductGalleryCard — рекламные карточки товаров
+    const isAdvGalleryCard = container.classList.contains('AdvProductGalleryCard') ||
+                             container.className.includes('AdvProductGalleryCard') ||
+                             container.closest('.AdvProductGalleryCard') !== null ||
+                             container.closest('[class*="AdvProductGalleryCard"]') !== null;
+    
     if (isInsideAdvProductGallery(container) || 
         container.closest('.AdvProductGallery') || 
         container.closest('[class*="AdvProductGallery"]') ||
-        // Иногда рекламные блоки не внутри AdvProductGallery, но имеют свои маркеры
-        container.querySelector('.Organic-Label_type_advertisement') ||
-        container.querySelector('.Organic-Subtitle_type_advertisement')) {
-      console.log('⚠️ Пропущен рекламный сниппет (AdvProductGallery или рекламная метка)');
+        isAdvGalleryCard ||
+        hasAdvLabel) {
+      console.log('⚠️ Пропущен рекламный сниппет (AdvProductGallery/AdvProductGalleryCard или рекламная метка)');
       return { row: null, spriteState: spriteState };
     }
+    
   
   const row: CSVRow = {
     '#SnippetType': container.className.includes('EProductSnippet2') ? 'EProductSnippet2' : 
@@ -92,25 +114,31 @@ export function extractRowData(
     }
   }
   
-  // #OrganicTitle
-  let titleEl: Element | null = container.querySelector('.OrganicTitle, [class*="OrganicTitle"], .EProductSnippet2-Title, [class*="EProductSnippet2-Title"]');
+  // #OrganicTitle — ОПТИМИЗИРОВАНО (Phase 5): queryFirstMatch вместо querySelector
+  let titleEl: Element | null = queryFirstMatch(cache, [
+    '.OrganicTitle',
+    '[class*="OrganicTitle"]',
+    '.EProductSnippet2-Title',
+    '[class*="EProductSnippet2-Title"]'
+  ]);
   if (!titleEl) {
+    // Fallback: ищем ссылку внутри заголовка
     titleEl = container.querySelector('.EProductSnippet2-Title a, [class*="EProductSnippet2-Title"] a');
   }
   if (titleEl) {
     row['#OrganicTitle'] = getTextContent(titleEl);
   }
   
-  // #ShopName
+  // #ShopName — ОПТИМИЗИРОВАНО (Phase 5)
   if (row['#SnippetType'] === 'EProductSnippet2') {
-    const shopName = container.querySelector('.EShopName');
+    const shopName = queryFromCache(cache, '.EShopName');
     if (shopName) {
       row['#ShopName'] = getTextContent(shopName);
     }
   }
   
   if (row['#SnippetType'] === 'EProductSnippet2' && !row['#ShopName']) {
-    const shopNameAlt = container.querySelector('.EShopName, [class*="EShopName"], [class*="ShopName"]');
+    const shopNameAlt = queryFirstMatch(cache, ['.EShopName', '[class*="EShopName"]', '[class*="ShopName"]']);
     if (shopNameAlt) {
       row['#ShopName'] = getTextContent(shopNameAlt);
     } else if (row['#OrganicHost']) {
@@ -118,26 +146,34 @@ export function extractRowData(
     }
   }
   
-  // #OrganicPath
-  const path = container.querySelector('.Path, [class*="Path"]');
+  // #OrganicPath — ОПТИМИЗИРОВАНО (Phase 5)
+  const path = queryFirstMatch(cache, ['.Path', '[class*="Path"]']);
   if (path) {
     const fixedPathText = getTextContent(path);
     const firstSeparator = fixedPathText.indexOf('›');
     row['#OrganicPath'] = firstSeparator > 0 ? fixedPathText.substring(firstSeparator + 1).trim() : fixedPathText;
   }
   
-  // #FaviconImage (ОПТИМИЗИРОВАНО: используем CSS кэш)
-  spriteState = extractFavicon(container, doc, row, spriteState, cssCache, rawHtml);
+  // #FaviconImage (ОПТИМИЗИРОВАНО: используем CSS кэш + DOM кэш)
+  spriteState = extractFavicon(container, doc, row, spriteState, cssCache, rawHtml, cache);
   console.log(`🔍 [PARSE] После extractFavicon: row['#FaviconImage']="${row['#FaviconImage'] || '(пусто)'}"`);
   
-  // #OrganicText
-  const textContent = container.querySelector('.OrganicTextContentSpan, [class*="OrganicTextContentSpan"], .EProductSnippet2-Text, [class*="EProductSnippet2-Text"]');
+  // #OrganicText — ОПТИМИЗИРОВАНО (Phase 5)
+  const textContent = queryFirstMatch(cache, [
+    '.OrganicTextContentSpan',
+    '[class*="OrganicTextContentSpan"]',
+    '.EProductSnippet2-Text',
+    '[class*="EProductSnippet2-Text"]'
+  ]);
   if (textContent) {
     row['#OrganicText'] = getTextContent(textContent);
   }
   
-  // #OrganicImage
-  const image = container.querySelector('.Organic-OfferThumbImage, [class*="Organic-OfferThumbImage"], .EProductSnippet2-Thumb img, [class*="EProductSnippet2-Thumb"] img, img');
+  // #OrganicImage — ОПТИМИЗИРОВАНО (Phase 5)
+  const image = queryFirstMatch(cache, [
+    '.Organic-OfferThumbImage',
+    '[class*="Organic-OfferThumbImage"]'
+  ]) || container.querySelector('.EProductSnippet2-Thumb img, [class*="EProductSnippet2-Thumb"] img, img');
   if (image) {
     let src = image.getAttribute('src') || image.getAttribute('data-src') || image.getAttribute('srcset');
     if (src && src.includes(' ')) {
@@ -150,7 +186,8 @@ export function extractRowData(
   row['#ThumbImage'] = row['#OrganicImage'];
 
   // Проверяем наличие EPriceGroup-Pair (специальная обработка для цен с скидкой)
-  const priceGroupPair = container.querySelector('.EPriceGroup-Pair, [class*="EPriceGroup-Pair"]');
+  // ОПТИМИЗИРОВАНО (Phase 5)
+  const priceGroupPair = queryFirstMatch(cache, ['.EPriceGroup-Pair', '[class*="EPriceGroup-Pair"]']);
   if (priceGroupPair) {
     console.log('✅ Найден EPriceGroup-Pair, обрабатываем специальную логику цен');
     
@@ -162,7 +199,7 @@ export function extractRowData(
     
     // 2. Извлекаем #OrganicPrice из блока с классом EPriceGroup-Price (текущая цена)
     // Ищем .EPrice-Value внутри .EPriceGroup-Price (но не внутри .EPrice_view_old)
-    const priceGroupEl = container.querySelector('.EPriceGroup, [class*="EPriceGroup"]');
+    const priceGroupEl = queryFirstMatch(cache, ['.EPriceGroup', '[class*="EPriceGroup"]']);
     if (priceGroupEl) {
       // Ищем цену в .EPriceGroup-Price, но не в .EPrice_view_old
       const currentPriceEl = priceGroupEl.querySelector('.EPriceGroup-Price:not(.EPrice_view_old) .EPrice-Value, [class*="EPriceGroup-Price"]:not([class*="EPrice_view_old"]) .EPrice-Value');
@@ -279,16 +316,18 @@ export function extractRowData(
     }
   }
   
-  // #ShopRating
-  const rating = container.querySelector('.Rating, [class*="Rating"], [aria-label*="рейтинг" i]');
+  // #ShopRating — ОПТИМИЗИРОВАНО (Phase 5)
+  const rating = queryFirstMatch(cache, ['.Rating', '[class*="Rating"]']) ||
+                 container.querySelector('[aria-label*="рейтинг" i]');
   if (rating) {
     const ratingText = rating.textContent?.trim() || '';
     const match = ratingText.match(RATING_REGEX);
     if (match) row['#ShopRating'] = match[1];
   }
   
-  // #ReviewsNumber
-  const reviews = container.querySelector('[class*="Review"], [class*="review"], [aria-label*="отзыв" i], .Reviews, [class*="Reviews"]');
+  // #ReviewsNumber — ОПТИМИЗИРОВАНО (Phase 5)
+  const reviews = queryFirstMatch(cache, ['[class*="Review"]', '.Reviews', '[class*="Reviews"]']) ||
+                  container.querySelector('[aria-label*="отзыв" i]');
   if (reviews) {
     const revText = reviews.textContent?.trim() || '';
     const match = revText.match(REVIEWS_REGEX);
@@ -328,12 +367,12 @@ export function extractRowData(
     return formatted;
   };
   
-  // Пробуем разные варианты поиска элемента с рейтингом
-  let labelRating = container.querySelector('.ELabelRating, [class*="ELabelRating"]');
+  // Пробуем разные варианты поиска элемента с рейтингом — ОПТИМИЗИРОВАНО (Phase 5)
+  let labelRating = queryFirstMatch(cache, ['.ELabelRating', '[class*="ELabelRating"]']);
   
   // Если не нашли, пробуем найти через другие варианты классов
   if (!labelRating) {
-    labelRating = container.querySelector('[class*="LabelRating"], [class*="label-rating"]');
+    labelRating = queryFirstMatch(cache, ['[class*="LabelRating"]', '[class*="label-rating"]']);
   }
   
   if (labelRating) {
@@ -380,8 +419,8 @@ export function extractRowData(
     }
   }
   
-  // #EPriceBarometer - проверяем наличие и определяем view
-  const priceBarometer = container.querySelector('.EPriceBarometer, [class*="EPriceBarometer"]');
+  // #EPriceBarometer - проверяем наличие и определяем view — ОПТИМИЗИРОВАНО (Phase 5)
+  const priceBarometer = queryFirstMatch(cache, ['.EPriceBarometer', '[class*="EPriceBarometer"]']);
   if (priceBarometer) {
     console.log(`🔍 Найден EPriceBarometer в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     
@@ -504,17 +543,24 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string): { ro
   }
   
   // Извлекаем данные из каждого контейнера
+  // PHASE 5 OPTIMIZATION: Строим DOM кэш для каждого контейнера один раз
   const results: CSVRow[] = [];
   let spriteState: SpriteState | null = null;
   
+  const domCacheStartTime = performance.now();
   for (const container of containers) {
-    // Передаем CSS кэш и полный контент (для fallback поиска спрайтов)
-    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html);
+    // Phase 5: Строим кэш элементов контейнера ОДИН РАЗ
+    const containerCache = buildContainerCache(container);
+    
+    // Передаем CSS кэш, полный контент и DOM кэш контейнера
+    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html, containerCache);
     spriteState = result.spriteState; // Обновляем состояние спрайта
     if (result.row) {
       results.push(result.row);
     }
   }
+  const domCacheTime = performance.now() - domCacheStartTime;
+  console.log(`✅ [DOM CACHE] Обработано ${containers.length} контейнеров за ${domCacheTime.toFixed(2)}ms`);
   
   // Дедуплицируем результаты
   const finalResults = deduplicateRows(results);
