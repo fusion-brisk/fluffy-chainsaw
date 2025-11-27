@@ -63,6 +63,18 @@ export {
   extractSnippetsFromJson
 } from './json-parser';
 
+// CSS Cache utilities (Phase 4 optimization)
+export { 
+  buildCSSCache,
+  getRulesByClass,
+  getRuleByClasses,
+  getRuleByClassPattern,
+  getFirstSpriteUrl,
+  getPositionForClass,
+  getSizeForClass
+} from './css-cache';
+export type { CSSCache, CSSRuleEntry } from './css-cache';
+
 // Favicon extraction utilities
 export { 
   extractFavicon 

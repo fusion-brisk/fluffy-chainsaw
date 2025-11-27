@@ -14,12 +14,6 @@ import {
   FAVICON_ENTRY_CLASS_REGEX,
   FAVICON_SPRITE_URL_REGEX,
   FAVICON_V2_URL_REGEX,
-  SPRITE_BG_IMAGE_REGEX,
-  SPRITE_URL_REGEX,
-  SPRITE_RULE_LOWER_REGEX,
-  SPRITE_RULE_UPPER_REGEX,
-  SPRITE_BG_IMAGE_WITH_SIZE_REGEX,
-  SPRITE_FULL_RULE_REGEX,
   RAW_HTML_SPRITE_HREF_REGEX,
   RAW_HTML_SPRITE_URL_REGEX,
   RAW_HTML_SPRITE_QUOTED_REGEX,
@@ -35,13 +29,15 @@ import {
   HTML_QUOT_REGEX,
   QP_EQUALS_REGEX,
   QP_SEMICOLON_REGEX,
-  QP_LINEBREAK_REGEX,
-  FAVICON_CSS_RULES_REGEX,
-  FAVICON_YANDEX_CSS_RULES_REGEX,
-  getCachedRegex,
-  escapeRegex
+  QP_LINEBREAK_REGEX
 } from './regex';
-import { isInsideAdvProductGallery, getStyleTags } from './dom-utils';
+import { isInsideAdvProductGallery } from './dom-utils';
+import { 
+  CSSCache, 
+  getRulesByClass, 
+  getRuleByClassPattern,
+  getFirstSpriteUrl
+} from './css-cache';
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -58,6 +54,9 @@ export interface FaviconContext {
   doc: Document;
   row: CSVRow;
   spriteState: SpriteState | null;
+  /** CSS кэш (Phase 4 optimization) */
+  cssCache: CSSCache;
+  /** Сырой HTML для fallback поиска спрайтов */
   rawHtml?: string;
   favEl: HTMLElement;
   favClasses: string[];
@@ -236,6 +235,7 @@ const InlineStyleExtractor: FaviconExtractor = {
 /**
  * Экстрактор 2: CSS классы спрайтов (Favicon-PageX, Favicon-EntryX)
  * Работает с CSS-спрайтами Яндекса
+ * ОПТИМИЗИРОВАНО: использует CSS кэш вместо повторного парсинга
  */
 const SpriteClassExtractor: FaviconExtractor = {
   name: 'SpriteClassExtractor',
@@ -258,90 +258,59 @@ const SpriteClassExtractor: FaviconExtractor = {
     const pageNumber = pageClassMatch[1] || pageClassMatch[2] || '0';
     const pageClassLower = `favicon_page_${pageNumber}`;
     const pageClassUpper = `Favicon-Page${pageNumber}`;
-    const escapedPageClassLower = escapeRegex(pageClassLower);
-    const escapedPageClassUpper = escapeRegex(pageClassUpper);
 
     console.log(`🔍 [${this.name}] Найден класс страницы: ${pageClassUpper}`);
 
-    const styleTags = getStyleTags(ctx.doc, ctx.rawHtml);
+    // ОПТИМИЗАЦИЯ: используем CSS кэш вместо getStyleTags()
+    
+    // ПРИОРИТЕТ 1: Комбинация page + entry классов через кэш
+    if (entryClassMatch && !result.bgUrl) {
+      const entryNumber = entryClassMatch[1] || entryClassMatch[2] || '1';
+      const entryClassLower = `favicon_entry_${entryNumber}`;
+      const entryClassUpper = `Favicon-Entry${entryNumber}`;
 
-    for (const styleTag of styleTags) {
-      const cssText = styleTag.textContent || '';
-
-      // ПРИОРИТЕТ 1: Комбинация page + entry классов
-      if (entryClassMatch && !result.bgUrl) {
-        const entryNumber = entryClassMatch[1] || entryClassMatch[2] || '1';
-        const entryClassLower = `favicon_entry_${entryNumber}`;
-        const entryClassUpper = `Favicon-Entry${entryNumber}`;
-        const escapedEntryLower = escapeRegex(entryClassLower);
-        const escapedEntryUpper = escapeRegex(entryClassUpper);
-
-        const combinedPatterns = [
-          getCachedRegex(`\\.${escapedPageClassLower}\\.${escapedEntryLower}(?:\\s+\\.[^{]*)?\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*background-size[^}]*:([^;}]+)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.${escapedPageClassUpper}\\.${escapedEntryUpper}(?:\\.[^{]*)?\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*background-size[^}]*:([^;}]+)[^}]*\\}`, 'i')
-        ];
-
-        for (const pattern of combinedPatterns) {
-          const match = cssText.match(pattern);
-          if (match && match[1]) {
-            result.bgUrl = match[1].replace(QUOTES_REGEX, '').trim();
-            result.found = true;
-            
-            const bgSizeStr = match[2] ? match[2].trim() : '';
-            const sizeMatches = bgSizeStr.match(PX_VALUES_REGEX);
-            if (sizeMatches && sizeMatches.length > 0) {
-              result.bgSizeValue = parseFloat(sizeMatches[0]);
-            }
-            
-            console.log(`✅ [${this.name}] Найден URL спрайта из комбинации классов: ${result.bgUrl.substring(0, 80)}..., size: ${result.bgSizeValue || 'n/a'}px`);
-            break;
-          }
+      // Ищем в кэше по комбинации классов
+      const cachedRule = getRuleByClassPattern(ctx.cssCache, pageClassUpper, entryClassUpper) ||
+                         getRuleByClassPattern(ctx.cssCache, pageClassLower, entryClassLower);
+      
+      if (cachedRule) {
+        result.bgUrl = cachedRule.bgUrl;
+        result.found = true;
+        if (cachedRule.bgSize !== null) {
+          result.bgSizeValue = cachedRule.bgSize;
         }
-      }
-
-      // ПРИОРИТЕТ 2: Только page класс
-      if (!result.bgUrl) {
-        const basePagePatterns = [
-          getCachedRegex(`\\.${escapedPageClassLower}(?![_\\w-])[^{]*\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.${escapedPageClassUpper}(?![_\\w-])[^{]*\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.Favicon\\.${escapedPageClassUpper}(?![_\\w-])[^{]*\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.${escapedPageClassUpper}\\.Favicon[^{]*\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.${escapedPageClassUpper}\\.[^{]*\\{[^}]*background-image[^}]*url\\s*\\(\\s*["']?([^"')]+)["']?\\s*\\)[^}]*\\}`, 'i')
-        ];
-
-        for (const pattern of basePagePatterns) {
-          const match = cssText.match(pattern);
-          if (match && match[1]) {
-            result.bgUrl = match[1].replace(QUOTES_REGEX, '').trim();
-            result.found = true;
-            console.log(`✅ [${this.name}] Найден URL спрайта из класса ${pageClassUpper}: ${result.bgUrl.substring(0, 80)}...`);
-            break;
-          }
+        if (cachedRule.bgPosition) {
+          result.bgPosition = cachedRule.bgPosition;
         }
+        console.log(`✅ [${this.name}] Найден URL спрайта из кэша (комбинация классов): ${result.bgUrl.substring(0, 80)}..., size: ${result.bgSizeValue || 'n/a'}px`);
       }
+    }
 
-      // Извлекаем background-position из класса позиции
-      if (result.bgUrl && posClassMatch && !result.bgPosition) {
-        const posClass = `Favicon-Page${posClassMatch[1]}_pos_${posClassMatch[1]}`;
-        const escapedPosClass = escapeRegex(posClass);
-
-        const posPatterns = [
-          getCachedRegex(`\\.${escapedPosClass}(?![_\\w-])[^{]*\\{[^}]*background-position[^}]*:([^;}]+)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.Favicon\\.${escapedPosClass}(?![_\\w-])[^{]*\\{[^}]*background-position[^}]*:([^;}]+)[^}]*\\}`, 'i'),
-          getCachedRegex(`\\.${escapedPosClass}\\.[^{]*\\{[^}]*background-position[^}]*:([^;}]+)[^}]*\\}`, 'i')
-        ];
-
-        for (const posPattern of posPatterns) {
-          const posMatch = cssText.match(posPattern);
-          if (posMatch && posMatch[1]) {
-            result.bgPosition = posMatch[1].trim();
-            console.log(`✅ [${this.name}] Найдена позиция из класса ${posClass}: ${result.bgPosition}`);
-            break;
-          }
+    // ПРИОРИТЕТ 2: Только page класс через кэш
+    if (!result.bgUrl) {
+      const pageRules = getRulesByClass(ctx.cssCache, pageClassUpper) || 
+                        getRulesByClass(ctx.cssCache, pageClassLower);
+      
+      if (pageRules && pageRules.length > 0) {
+        const rule = pageRules[0];
+        result.bgUrl = rule.bgUrl;
+        result.found = true;
+        if (rule.bgSize !== null) {
+          result.bgSizeValue = rule.bgSize;
         }
+        console.log(`✅ [${this.name}] Найден URL спрайта из кэша (класс ${pageClassUpper}): ${result.bgUrl.substring(0, 80)}...`);
       }
+    }
 
-      if (result.bgUrl) break;
+    // Извлекаем background-position из класса позиции через кэш
+    if (result.bgUrl && posClassMatch && !result.bgPosition) {
+      const posClass = `Favicon-Page${posClassMatch[1]}_pos_${posClassMatch[1]}`;
+      const posRules = getRulesByClass(ctx.cssCache, posClass);
+      
+      if (posRules && posRules.length > 0 && posRules[0].bgPosition) {
+        result.bgPosition = posRules[0].bgPosition;
+        console.log(`✅ [${this.name}] Найдена позиция из кэша (класс ${posClass}): ${result.bgPosition}`);
+      }
     }
 
     return result;
@@ -351,6 +320,7 @@ const SpriteClassExtractor: FaviconExtractor = {
 /**
  * Экстрактор 3: CSS правила по классам элемента
  * Ищет background-image в CSS по классам Favicon элемента
+ * ОПТИМИЗИРОВАНО: использует CSS кэш вместо повторного парсинга
  */
 const CssRuleExtractor: FaviconExtractor = {
   name: 'CssRuleExtractor',
@@ -365,73 +335,52 @@ const CssRuleExtractor: FaviconExtractor = {
     }
 
     const result = { ...prevResult };
-    const styleTags = getStyleTags(ctx.doc, ctx.rawHtml);
 
-    console.log(`🔍 [${this.name}] Поиск в CSS по ${ctx.favClasses.length} классам элемента (${styleTags.length} style тегов)`);
+    console.log(`🔍 [${this.name}] Поиск в кэше по ${ctx.favClasses.length} классам элемента (кэш: ${ctx.cssCache.stats.faviconRules} favicon правил)`);
 
-    for (const styleTag of styleTags) {
-      const cssText = styleTag.textContent || '';
+    // ОПТИМИЗАЦИЯ: используем CSS кэш
 
-      // Поиск background-position для каждого класса (если URL inline и position не найден)
-      if (!result.bgPosition && prevResult.isInlineUrl) {
-        for (const favClass of ctx.favClasses) {
-          const escapedClass = escapeRegex(favClass);
-          const posRule = getCachedRegex(`\\.${escapedClass}(?:\\.[^{]*)?\\{[^}]*background-position(?:-y)?[^}]*:([^;}]+)[^}]*\\}`, 'i');
-          const posMatch = cssText.match(posRule);
-          if (posMatch && posMatch[1]) {
-            result.bgPosition = posMatch[1].trim();
-            console.log(`✅ [${this.name}] Найден background-position для класса "${favClass}": "${result.bgPosition}"`);
-            break;
+    // Поиск background-position для каждого класса (если URL inline и position не найден)
+    if (!result.bgPosition && prevResult.isInlineUrl) {
+      for (const favClass of ctx.favClasses) {
+        const rules = getRulesByClass(ctx.cssCache, favClass);
+        if (rules && rules.length > 0) {
+          for (const rule of rules) {
+            if (rule.bgPosition) {
+              result.bgPosition = rule.bgPosition;
+              console.log(`✅ [${this.name}] Найден background-position из кэша для класса "${favClass}": "${result.bgPosition}"`);
+              break;
+            }
           }
+        }
+        if (result.bgPosition) break;
+      }
+    }
+
+    // Поиск background-image (если URL еще не найден)
+    if (!result.bgUrl) {
+      // По отдельным классам через кэш
+      for (const favClass of ctx.favClasses) {
+        const rules = getRulesByClass(ctx.cssCache, favClass);
+        if (rules && rules.length > 0) {
+          const rule = rules[0];
+          result.bgUrl = rule.bgUrl;
+          result.found = true;
+          if (rule.bgSize !== null && result.bgSizeValue === null) {
+            result.bgSizeValue = rule.bgSize;
+          }
+          if (rule.bgPosition && !result.bgPosition) {
+            result.bgPosition = rule.bgPosition;
+          }
+          console.log(`✅ [${this.name}] Найден bgUrl из кэша по классу "${favClass}": ${result.bgUrl.substring(0, 80)}...`);
+          break;
         }
       }
-
-      // Поиск background-image (если URL еще не найден)
-      if (!result.bgUrl) {
-        // По комбинации всех классов
-        if (ctx.favClasses.length > 0) {
-          const allClassesEscaped = ctx.favClasses.map(c => escapeRegex(c)).join('\\.');
-          const combinedRule = getCachedRegex(`\\.${allClassesEscaped}[^{]*\\{[^}]*background-image[^}]*url\\(([^)]+)\\)[^}]*\\}`, 'i');
-          const combinedMatch = cssText.match(combinedRule);
-          if (combinedMatch && combinedMatch[1]) {
-            result.bgUrl = combinedMatch[1].replace(QUOTES_REGEX, '').trim();
-            result.found = true;
-            console.log(`✅ [${this.name}] Найден bgUrl по комбинации классов: ${result.bgUrl.substring(0, 80)}...`);
-            break;
-          }
-        }
-
-        // По отдельным классам
-        for (const favClass of ctx.favClasses) {
-          const escapedClass = escapeRegex(favClass);
-          const cssRule = getCachedRegex(`\\.${escapedClass}(?:\\.[^{]*)?\\{[^}]*background-image[^}]*url\\(([^)]+)\\)[^}]*\\}`, 'i');
-          const match = cssText.match(cssRule);
-          if (match && match[1]) {
-            result.bgUrl = match[1].replace(QUOTES_REGEX, '').trim();
-            result.found = true;
-            console.log(`✅ [${this.name}] Найден bgUrl по классу "${favClass}": ${result.bgUrl.substring(0, 80)}...`);
-            break;
-          }
-        }
-      }
-
-      if (result.bgUrl && result.bgPosition) break;
     }
 
     // Диагностика если не нашли
     if (!result.bgUrl) {
-      console.log(`⚠️ [${this.name}] Не найдено bgUrl по классам. Ищем все упоминания favicon в CSS...`);
-      for (const styleTag of styleTags) {
-        const cssText = styleTag.textContent || '';
-        const faviconRules = cssText.match(FAVICON_CSS_RULES_REGEX);
-        if (faviconRules && faviconRules.length > 0) {
-          console.log(`🔍 [${this.name}] Найдено ${faviconRules.length} CSS правил с favicon`);
-        }
-        const spriteRules = cssText.match(FAVICON_YANDEX_CSS_RULES_REGEX);
-        if (spriteRules && spriteRules.length > 0) {
-          console.log(`🔍 [${this.name}] Найдено ${spriteRules.length} CSS правил с favicon.yandex.net`);
-        }
-      }
+      console.log(`⚠️ [${this.name}] Не найдено bgUrl по классам. Статистика кэша: ${ctx.cssCache.stats.faviconRules} favicon, ${ctx.cssCache.stats.spriteRules} спрайтов`);
     }
 
     return result;
@@ -440,7 +389,8 @@ const CssRuleExtractor: FaviconExtractor = {
 
 /**
  * Экстрактор 4: Поиск спрайтов в CSS/HTML при наличии background-position
- * Когда есть позиция, но нет URL — ищем спрайт везде
+ * Когда есть позиция, но нет URL — ищем спрайт в кэше или сыром HTML
+ * ОПТИМИЗИРОВАНО: использует CSS кэш для быстрого поиска спрайтов
  */
 const RawHtmlExtractor: FaviconExtractor = {
   name: 'RawHtmlExtractor',
@@ -454,56 +404,33 @@ const RawHtmlExtractor: FaviconExtractor = {
     const result = { ...prevResult };
     console.log(`🔍 [${this.name}] bgUrl пустой, но есть bgPosition="${result.bgPosition}", ищем спрайт...`);
 
-    const styleTags = getStyleTags(ctx.doc, ctx.rawHtml);
     let spriteUrl: string | null = null;
     let bgSizeValue: number | null = result.bgSizeValue;
 
-    // Поиск в CSS
-    for (const styleTag of styleTags) {
-      const cssText = styleTag.textContent || '';
-
-      const spriteUrlPatterns = [SPRITE_BG_IMAGE_REGEX, SPRITE_URL_REGEX];
+    // ОПТИМИЗАЦИЯ: Сначала ищем в кэше
+    spriteUrl = getFirstSpriteUrl(ctx.cssCache);
+    if (spriteUrl) {
+      console.log(`✅ [${this.name}] Найден спрайт URL в кэше: ${spriteUrl.substring(0, 100)}...`);
       
-      for (const pattern of spriteUrlPatterns) {
-        const matches = cssText.matchAll(pattern);
-        for (const match of matches) {
-          if (match[1]) {
-            spriteUrl = match[1].trim();
-            console.log(`✅ [${this.name}] Найден спрайт URL в CSS: ${spriteUrl.substring(0, 100)}...`);
-
-            // Ищем background-size в том же правиле
-            const escapedSpriteUrl = escapeRegex(spriteUrl);
-            const ruleMatch = cssText.match(getCachedRegex(`[^{]*\\{[^}]*${escapedSpriteUrl}[^}]*background-size[^}]*:([^;}]+)[^}]*\\}`, 'i'));
-            if (ruleMatch && ruleMatch[1]) {
-              const sizeValueMatch = ruleMatch[1].match(PX_VALUE_REGEX);
-              if (sizeValueMatch) {
-                bgSizeValue = parseFloat(sizeValueMatch[1]);
-                console.log(`✅ [${this.name}] Найден background-size: ${bgSizeValue}px`);
-              }
+      // Ищем size в кэше для этого URL
+      if (!bgSizeValue) {
+        // Берём первое правило с этим спрайтом, у которого есть size
+        for (const rules of ctx.cssCache.byClass.values()) {
+          for (const rule of rules) {
+            if (rule.bgUrl === spriteUrl && rule.bgSize !== null) {
+              bgSizeValue = rule.bgSize;
+              console.log(`✅ [${this.name}] Найден background-size из кэша: ${bgSizeValue}px`);
+              break;
             }
-
-            // Fallback: ищем background-size в соседних правилах
-            if (!bgSizeValue) {
-              const sizeMatch = cssText.match(BG_SIZE_GLOBAL_REGEX);
-              if (sizeMatch && sizeMatch.length > 0) {
-                const firstSizeMatch = sizeMatch[0].match(PX_VALUE_REGEX);
-                if (firstSizeMatch) {
-                  bgSizeValue = parseFloat(firstSizeMatch[1]);
-                  console.log(`✅ [${this.name}] Найден background-size из соседнего правила: ${bgSizeValue}px`);
-                }
-              }
-            }
-            break;
           }
+          if (bgSizeValue !== null) break;
         }
-        if (spriteUrl) break;
       }
-      if (spriteUrl) break;
     }
 
-    // Поиск в сыром HTML (если не нашли в CSS)
+    // Поиск в сыром HTML (если не нашли в кэше)
     if (!spriteUrl && ctx.rawHtml) {
-      console.log(`🔍 [${this.name}] Не найдено в CSS, ищем спрайт в сыром HTML...`);
+      console.log(`🔍 [${this.name}] Не найдено в кэше, ищем спрайт в сыром HTML...`);
 
       const rawHtmlPatterns = [
         RAW_HTML_SPRITE_HREF_REGEX,
@@ -695,6 +622,7 @@ function processSpriteUrl(
 /**
  * Обрабатывает сложную логику со спрайтами когда есть bgPosition
  * но домены нужно извлечь из CSS
+ * ОПТИМИЗИРОВАНО: использует CSS кэш вместо повторного парсинга
  */
 function processSpriteWithPosition(
   ctx: FaviconContext,
@@ -711,50 +639,33 @@ function processSpriteWithPosition(
     return processSpriteUrl(bgUrl, result.bgPosition, result.bgSizeValue, ctx.favEl, result.isInlineUrl, ctx.spriteState);
   }
 
-  // Ищем спрайт в CSS для сопоставления позиции с доменами
+  // Ищем спрайт в CSS кэше для сопоставления позиции с доменами
   console.log(`🔍 [processSpriteWithPosition] Пытаемся сопоставить bgPosition "${result.bgPosition}" с доменами`);
 
-  const styleTags = getStyleTags(ctx.doc, ctx.rawHtml);
   let spriteUrl: string | null = null;
   let spriteBgSizeValue: number | null = result.bgSizeValue;
 
-  // Ищем правило со спрайтом в CSS
-  for (const styleTag of styleTags) {
-    const cssText = styleTag.textContent || '';
-
-    const spritePatterns = [SPRITE_RULE_LOWER_REGEX, SPRITE_RULE_UPPER_REGEX];
-    for (const pattern of spritePatterns) {
-      const match = cssText.match(pattern);
-      if (match && match[1]) {
-        spriteUrl = match[1].trim();
-        const bgSizeStr = match[2] ? match[2].trim() : '';
-        const sizeMatches = bgSizeStr.match(PX_VALUES_REGEX);
-        if (sizeMatches && sizeMatches.length > 0) {
-          spriteBgSizeValue = parseFloat(sizeMatches[0]);
+  // ОПТИМИЗАЦИЯ: Используем кэш вместо перебора styleTags
+  spriteUrl = getFirstSpriteUrl(ctx.cssCache);
+  if (spriteUrl) {
+    console.log(`✅ [processSpriteWithPosition] Найден спрайт в кэше: ${spriteUrl.substring(0, 100)}...`);
+    
+    // Ищем size в кэше
+    if (!spriteBgSizeValue) {
+      for (const rules of ctx.cssCache.byClass.values()) {
+        for (const rule of rules) {
+          if (rule.bgUrl === spriteUrl && rule.bgSize !== null) {
+            spriteBgSizeValue = rule.bgSize;
+            console.log(`✅ [processSpriteWithPosition] Найден size из кэша: ${spriteBgSizeValue}px`);
+            break;
+          }
         }
-        console.log(`✅ [processSpriteWithPosition] Найдено правило со спрайтом: ${spriteUrl.substring(0, 100)}..., size: ${spriteBgSizeValue || 'n/a'}px`);
-        break;
+        if (spriteBgSizeValue !== null) break;
       }
-    }
-    if (spriteUrl) break;
-
-    // Альтернативный паттерн
-    const altMatch = cssText.match(SPRITE_BG_IMAGE_WITH_SIZE_REGEX);
-    if (altMatch && altMatch[1]) {
-      spriteUrl = altMatch[1].trim();
-      const fullRuleMatch = cssText.match(SPRITE_FULL_RULE_REGEX);
-      if (fullRuleMatch && fullRuleMatch[1]) {
-        const sizeValues = fullRuleMatch[1].trim().match(PX_VALUES_REGEX);
-        if (sizeValues && sizeValues.length > 0) {
-          spriteBgSizeValue = parseFloat(sizeValues[0]);
-        }
-      }
-      console.log(`✅ [processSpriteWithPosition] Найдено правило (альтернативный паттерн): ${spriteUrl.substring(0, 100)}..., size: ${spriteBgSizeValue || 'n/a'}px`);
-      break;
     }
   }
 
-  // Ищем в сыром HTML
+  // Ищем в сыром HTML (если не нашли в кэше)
   if (!spriteUrl && ctx.rawHtml) {
     const rawPatterns = [
       RAW_HTML_SPRITE_HREF_REGEX,
@@ -880,11 +791,14 @@ function processSpriteWithPosition(
  * spriteState используется только для кэширования списка доменов из спрайта,
  * НЕ для последовательного перебора иконок.
  * 
+ * ОПТИМИЗИРОВАНО (Phase 4): использует CSS кэш вместо повторного парсинга
+ * 
  * @param container - DOM элемент контейнера сниппета
  * @param doc - Document для поиска CSS
  * @param row - Строка CSV для записи результата
  * @param spriteState - Кэш списка доменов из спрайта (НЕ используется для последовательного перебора)
- * @param rawHtml - Сырой HTML (для поиска в MHTML)
+ * @param cssCache - CSS кэш (Phase 4 optimization)
+ * @param rawHtml - Сырой HTML (для fallback поиска в MHTML)
  * @returns Обновленное состояние спрайта (кэш) или null
  */
 export function extractFavicon(
@@ -892,6 +806,7 @@ export function extractFavicon(
   doc: Document,
   row: CSVRow,
   spriteState: SpriteState | null,
+  cssCache: CSSCache,
   rawHtml?: string
 ): SpriteState | null {
   try {
@@ -949,6 +864,7 @@ export function extractFavicon(
       doc,
       row,
       spriteState,
+      cssCache,
       rawHtml,
       favEl,
       favClasses,

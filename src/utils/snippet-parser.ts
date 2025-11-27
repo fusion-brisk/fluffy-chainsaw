@@ -23,14 +23,17 @@ import {
 } from './dom-utils';
 import { extractPrices, formatPriceWithThinSpace } from './price-extractor';
 import { extractFavicon, SpriteState } from './favicon-extractor';
+import { CSSCache, buildCSSCache } from './css-cache';
 
 // Извлекает все данные строки из контейнера
 // spriteState - состояние текущего спрайта
+// cssCache - кэш CSS правил (Phase 4 optimization)
 // Возвращает { row: CSVRow | null, spriteState: состояние спрайта }
 export function extractRowData(
   container: Element, 
   doc: Document,
   spriteState: SpriteState | null,
+  cssCache: CSSCache,
   rawHtml?: string
 ): { row: CSVRow | null; spriteState: SpriteState | null } {
     // Пропускаем рекламные сниппеты
@@ -123,8 +126,8 @@ export function extractRowData(
     row['#OrganicPath'] = firstSeparator > 0 ? fixedPathText.substring(firstSeparator + 1).trim() : fixedPathText;
   }
   
-  // #FaviconImage
-  spriteState = extractFavicon(container, doc, row, spriteState, rawHtml);
+  // #FaviconImage (ОПТИМИЗИРОВАНО: используем CSS кэш)
+  spriteState = extractFavicon(container, doc, row, spriteState, cssCache, rawHtml);
   console.log(`🔍 [PARSE] После extractFavicon: row['#FaviconImage']="${row['#FaviconImage'] || '(пусто)'}"`);
   
   // #OrganicText
@@ -477,6 +480,10 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string): { ro
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
+  // PHASE 4 OPTIMIZATION: Строим CSS кэш ОДИН РАЗ при инициализации
+  const cssCache = buildCSSCache(doc, fullMhtml || html);
+  console.log(`✅ [CSS CACHE] Построен: ${cssCache.stats.totalRules} правил, ${cssCache.stats.faviconRules} favicon, ${cssCache.stats.spriteRules} спрайтов`);
+  
   // Находим и фильтруем контейнеры сниппетов
   const allContainers = findSnippetContainers(doc);
   const containers = filterTopLevelContainers(allContainers);
@@ -501,8 +508,8 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string): { ro
   let spriteState: SpriteState | null = null;
   
   for (const container of containers) {
-    // Передаем полный контент (или html, если полного нет) для поиска спрайтов
-    const result = extractRowData(container, doc, spriteState, fullMhtml || html);
+    // Передаем CSS кэш и полный контент (для fallback поиска спрайтов)
+    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html);
     spriteState = result.spriteState; // Обновляем состояние спрайта
     if (result.row) {
       results.push(result.row);

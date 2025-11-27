@@ -34,7 +34,65 @@
 #### Модули UI (UI Thread)
 *   `ui.html`: Шаблон HTML для UI (каркас).
 *   `styles.css`: Глобальные стили.
-*   `utils.ts`: Утилиты для UI (парсинг Yandex Search результатов, работа с HTML/MHTML).
+*   `styles-logs.css`: Стили для панели логов.
+
+#### `src/utils/` — Утилиты парсинга (модульная архитектура)
+
+После оптимизации (Фазы 1-4) утилиты разделены на специализированные модули:
+
+| Модуль | Описание |
+|--------|----------|
+| `index.ts` | Реэкспорт всех модулей (единая точка входа) |
+| `regex.ts` | Все regex константы + `getCachedRegex()`, `escapeRegex()` |
+| `encoding.ts` | `fixEncoding()`, `getTextContent()` — работа с кодировкой |
+| `network.ts` | `fetchWithRetry()`, `convertImageToBase64()`, `processCSVRows()` |
+| `plugin-bridge.ts` | `log()`, `sendMessageToPlugin()`, `applyFigmaTheme()`, `shuffleArray()` |
+| `dom-utils.ts` | `findSnippetContainers()`, `filterTopLevelContainers()`, `getStyleTags()` |
+| `mhtml-parser.ts` | `parseMhtmlFile()` — парсинг MHTML файлов |
+| `json-parser.ts` | `parseJsonFromNoframes()`, `extractSnippetsFromJson()` |
+| `css-cache.ts` | **Phase 4:** `buildCSSCache()`, `getRulesByClass()` — кэширование CSS |
+| `favicon-extractor.ts` | `extractFavicon()` — Chain of Responsibility (5 экстракторов) |
+| `price-extractor.ts` | `extractPrices()`, `formatPriceWithThinSpace()` |
+| `snippet-parser.ts` | `parseYandexSearchResults()`, `extractRowData()`, `deduplicateRows()` |
+
+##### Архитектура favicon-extractor.ts
+
+Использует паттерн **Chain of Responsibility** для извлечения фавиконок:
+
+```
+InlineStyleExtractor → SpriteClassExtractor → CssRuleExtractor → RawHtmlExtractor → ImgSrcExtractor
+```
+
+1. **InlineStyleExtractor** — inline-стили (background-image в style атрибуте)
+2. **SpriteClassExtractor** — CSS классы спрайтов (Favicon-PageX, Favicon-EntryX)
+3. **CssRuleExtractor** — CSS правила по классам элемента
+4. **RawHtmlExtractor** — поиск спрайтов в CSS/HTML при наличии background-position
+5. **ImgSrcExtractor** — fallback на img src
+
+##### Архитектура css-cache.ts (Phase 4)
+
+```typescript
+interface CSSCache {
+  byClass: Map<string, CSSRuleEntry[]>;  // Быстрый lookup по классу
+  bySelector: Map<string, CSSRuleEntry>; // Lookup по селектору
+  spriteUrls: string[];                   // Кэш sprite URL
+  allCssText: string;                     // Весь CSS (для fallback)
+  stats: { totalRules, faviconRules, spriteRules };
+}
+```
+
+Кэш строится **один раз** в `parseYandexSearchResults()` и передаётся во все экстракторы.
+
+#### `src/components/` — React компоненты UI
+
+| Компонент | Описание |
+|-----------|----------|
+| `DropZone.tsx` | Drag & drop зона для файлов |
+| `Header.tsx` | Заголовок плагина |
+| `LogViewer.tsx` | Панель логов |
+| `ProgressBar.tsx` | Индикатор прогресса |
+| `ScopeControl.tsx` | Переключатель области (Page/Selection) |
+| `StatsPanel.tsx` | Панель статистики |
 
 #### Общие
 *   `types.ts`: TypeScript интерфейсы, общие для UI и Logic. **Важно:** Определяет протокол `postMessage`.
@@ -80,4 +138,17 @@
     *   Вызывает `component-handlers.ts` для логики компонентов.
     *   Асинхронно обрабатывает изображения через `image-handlers.ts`.
 6.  **Отчет (Logic -> UI):** В процессе отправляются логи, а в конце — статистика (`stats`) и сигнал завершения (`done`).
+
+## История оптимизаций
+
+| Фаза | Описание | Статус |
+|------|----------|--------|
+| 1 | Оптимизация regex: вынос inline regex в константы | ✅ |
+| 2 | Разделение utils.ts на 12 модулей | ✅ |
+| 3 | Рефакторинг favicon-extractor.ts (Chain of Responsibility) | ✅ |
+| 4 | Кэширование CSS-парсинга (css-cache.ts) | ✅ |
+| 5 | Оптимизация DOM-обхода (TreeWalker) | 📋 Планируется |
+| 6 | Потоковая обработка MHTML | 📋 Опционально |
+
+Подробности в `docs/OPTIMIZATION_STATUS.md`.
 
