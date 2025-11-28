@@ -1,6 +1,7 @@
 // Snippet parsing utilities for Yandex search results
 
 import { CSVRow } from '../types';
+import { ParsingSchema, DEFAULT_PARSING_RULES } from '../parsing-rules';
 import {
   STYLE_TAG_REGEX,
   LINK_STYLESHEET_REGEX,
@@ -44,10 +45,12 @@ export function extractRowData(
   spriteState: SpriteState | null,
   cssCache: CSSCache,
   rawHtml?: string,
-  containerCache?: ContainerCache
+  containerCache?: ContainerCache,
+  parsingRules: ParsingSchema = DEFAULT_PARSING_RULES
 ): { row: CSVRow | null; spriteState: SpriteState | null } {
     // Phase 5: Строим кэш элементов контейнера, если не передан
     const cache = containerCache || buildContainerCache(container);
+    const rules = parsingRules.rules;
     
     // Пропускаем рекламные сниппеты
     // ОПТИМИЗИРОВАНО: используем кэш вместо querySelector
@@ -115,14 +118,10 @@ export function extractRowData(
   }
   
   // #OrganicTitle — ОПТИМИЗИРОВАНО (Phase 5): queryFirstMatch вместо querySelector
-  let titleEl: Element | null = queryFirstMatch(cache, [
-    '.OrganicTitle',
-    '[class*="OrganicTitle"]',
-    '.EProductSnippet2-Title',
-    '[class*="EProductSnippet2-Title"]'
-  ]);
+  let titleEl: Element | null = queryFirstMatch(cache, rules['#OrganicTitle'].domSelectors);
   if (!titleEl) {
-    // Fallback: ищем ссылку внутри заголовка
+    // Fallback: ищем ссылку внутри заголовка (если не найдено по основным селекторам)
+    // В новой схеме это должно быть уже включено в domSelectors, но оставим как fallback если нужно
     titleEl = container.querySelector('.EProductSnippet2-Title a, [class*="EProductSnippet2-Title"] a');
   }
   if (titleEl) {
@@ -138,7 +137,7 @@ export function extractRowData(
   }
   
   if (row['#SnippetType'] === 'EProductSnippet2' && !row['#ShopName']) {
-    const shopNameAlt = queryFirstMatch(cache, ['.EShopName', '[class*="EShopName"]', '[class*="ShopName"]']);
+    const shopNameAlt = queryFirstMatch(cache, rules['#ShopName'].domSelectors);
     if (shopNameAlt) {
       row['#ShopName'] = getTextContent(shopNameAlt);
     } else if (row['#OrganicHost']) {
@@ -147,7 +146,7 @@ export function extractRowData(
   }
   
   // #OrganicPath — ОПТИМИЗИРОВАНО (Phase 5)
-  const path = queryFirstMatch(cache, ['.Path', '[class*="Path"]']);
+  const path = queryFirstMatch(cache, rules['#OrganicPath'].domSelectors);
   if (path) {
     const fixedPathText = getTextContent(path);
     const firstSeparator = fixedPathText.indexOf('›');
@@ -159,21 +158,13 @@ export function extractRowData(
   console.log(`🔍 [PARSE] После extractFavicon: row['#FaviconImage']="${row['#FaviconImage'] || '(пусто)'}"`);
   
   // #OrganicText — ОПТИМИЗИРОВАНО (Phase 5)
-  const textContent = queryFirstMatch(cache, [
-    '.OrganicTextContentSpan',
-    '[class*="OrganicTextContentSpan"]',
-    '.EProductSnippet2-Text',
-    '[class*="EProductSnippet2-Text"]'
-  ]);
+  const textContent = queryFirstMatch(cache, rules['#OrganicText'].domSelectors);
   if (textContent) {
     row['#OrganicText'] = getTextContent(textContent);
   }
   
   // #OrganicImage — ОПТИМИЗИРОВАНО (Phase 5)
-  const image = queryFirstMatch(cache, [
-    '.Organic-OfferThumbImage',
-    '[class*="Organic-OfferThumbImage"]'
-  ]) || container.querySelector('.EProductSnippet2-Thumb img, [class*="EProductSnippet2-Thumb"] img, img');
+  const image = queryFirstMatch(cache, rules['#OrganicImage'].domSelectors);
   if (image) {
     let src = image.getAttribute('src') || image.getAttribute('data-src') || image.getAttribute('srcset');
     if (src && src.includes(' ')) {
@@ -187,7 +178,7 @@ export function extractRowData(
 
   // Проверяем наличие EPriceGroup-Pair (специальная обработка для цен с скидкой)
   // ОПТИМИЗИРОВАНО (Phase 5)
-  const priceGroupPair = queryFirstMatch(cache, ['.EPriceGroup-Pair', '[class*="EPriceGroup-Pair"]']);
+  const priceGroupPair = queryFirstMatch(cache, rules['EPriceGroup_Pair'].domSelectors);
   if (priceGroupPair) {
     console.log('✅ Найден EPriceGroup-Pair, обрабатываем специальную логику цен');
     
@@ -199,10 +190,12 @@ export function extractRowData(
     
     // 2. Извлекаем #OrganicPrice из блока с классом EPriceGroup-Price (текущая цена)
     // Ищем .EPrice-Value внутри .EPriceGroup-Price (но не внутри .EPrice_view_old)
-    const priceGroupEl = queryFirstMatch(cache, ['.EPriceGroup', '[class*="EPriceGroup"]']);
+    const priceGroupEl = queryFirstMatch(cache, ['.EPriceGroup', '[class*="EPriceGroup"]']); // rules['EPriceGroup_Container'].domSelectors
     if (priceGroupEl) {
       // Ищем цену в .EPriceGroup-Price, но не в .EPrice_view_old
-      const currentPriceEl = priceGroupEl.querySelector('.EPriceGroup-Price:not(.EPrice_view_old) .EPrice-Value, [class*="EPriceGroup-Price"]:not([class*="EPrice_view_old"]) .EPrice-Value');
+      const currentPriceEl = queryFirstMatch(cache, rules['EPriceGroup_Price'].domSelectors) || 
+                             priceGroupEl.querySelector('.EPriceGroup-Price:not(.EPrice_view_old) .EPrice-Value, [class*="EPriceGroup-Price"]:not([class*="EPrice_view_old"]) .EPrice-Value');
+                             
       if (currentPriceEl) {
         const currentPriceText = currentPriceEl.textContent?.trim() || '';
         const currentPriceDigits = currentPriceText.replace(PRICE_DIGITS_REGEX, '');
@@ -212,7 +205,9 @@ export function extractRowData(
           row['#OrganicPrice'] = formattedPrice;
           
           // Также извлекаем валюту
-          const currencyEl = priceGroupEl.querySelector('.EPriceGroup-Price:not(.EPrice_view_old) .EPrice-Currency, [class*="EPriceGroup-Price"]:not([class*="EPrice_view_old"]) .EPrice-Currency');
+          const currencyEl = queryFirstMatch(cache, rules['EPriceGroup_Currency'].domSelectors) ||
+                             priceGroupEl.querySelector('.EPriceGroup-Price:not(.EPrice_view_old) .EPrice-Currency, [class*="EPriceGroup-Price"]:not([class*="EPrice_view_old"]) .EPrice-Currency');
+                             
           if (currencyEl) {
             const currencyText = currencyEl.textContent?.trim() || '';
             if (CURRENCY_RUB_REGEX.test(currencyText)) {
@@ -230,7 +225,9 @@ export function extractRowData(
     
     // 3. Извлекаем #OldPrice из блока с классом EPrice_view_old
     // Ищем конкретно .EPrice-Value внутри .EPrice_view_old, чтобы избежать дублирования
-    const oldPriceEl = priceGroupPair.querySelector('.EPrice_view_old .EPrice-Value, [class*="EPrice_view_old"] .EPrice-Value, .EPrice_view_old [class*="EPrice-Value"]');
+    const oldPriceEl = queryFirstMatch(cache, rules['EPrice_Old'].domSelectors) ||
+                       priceGroupPair.querySelector('.EPrice_view_old .EPrice-Value, [class*="EPrice_view_old"] .EPrice-Value, .EPrice_view_old [class*="EPrice-Value"]');
+                       
     if (oldPriceEl) {
       const oldPriceText = oldPriceEl.textContent?.trim() || '';
       // Очищаем значение цены (убираем все кроме цифр)
@@ -258,7 +255,9 @@ export function extractRowData(
     
     // 4. Извлекаем #discount из блока с классом LabelDiscount
     // Ищем конкретно .Label-Content внутри .LabelDiscount, где находится текст скидки
-    const discountContentEl = priceGroupPair.querySelector('.LabelDiscount .Label-Content, [class*="LabelDiscount"] .Label-Content, .LabelDiscount [class*="Label-Content"]');
+    const discountContentEl = queryFirstMatch(cache, rules['LabelDiscount_Content'].domSelectors) ||
+                              priceGroupPair.querySelector('.LabelDiscount .Label-Content, [class*="LabelDiscount"] .Label-Content, .LabelDiscount [class*="Label-Content"]');
+                              
     if (discountContentEl) {
       const discountText = discountContentEl.textContent?.trim() || '';
       // Извлекаем число из текста вида "−51%" или "–51%" (может быть минус U+2212 или дефис)
@@ -308,7 +307,8 @@ export function extractRowData(
     }
     
     // #DiscountPercent
-    const discount = container.querySelector('.Price-DiscountPercent, [class*="Price-DiscountPercent"], .EProductSnippet2-Discount, [class*="Discount"]');
+    const discount = queryFirstMatch(cache, rules['#DiscountPercent'].domSelectors) ||
+                     container.querySelector('.Price-DiscountPercent, [class*="Price-DiscountPercent"], .EProductSnippet2-Discount, [class*="Discount"]');
     if (discount) {
       const discText = discount.textContent?.trim() || '';
       const match = discText.match(DISCOUNT_PERCENT_REGEX);
@@ -317,7 +317,7 @@ export function extractRowData(
   }
   
   // #ShopRating — ОПТИМИЗИРОВАНО (Phase 5)
-  const rating = queryFirstMatch(cache, ['.Rating', '[class*="Rating"]']) ||
+  const rating = queryFirstMatch(cache, rules['#ShopRating'].domSelectors) ||
                  container.querySelector('[aria-label*="рейтинг" i]');
   if (rating) {
     const ratingText = rating.textContent?.trim() || '';
@@ -326,7 +326,7 @@ export function extractRowData(
   }
   
   // #ReviewsNumber — ОПТИМИЗИРОВАНО (Phase 5)
-  const reviews = queryFirstMatch(cache, ['[class*="Review"]', '.Reviews', '[class*="Reviews"]']) ||
+  const reviews = queryFirstMatch(cache, rules['#ReviewsNumber'].domSelectors) ||
                   container.querySelector('[aria-label*="отзыв" i]');
   if (reviews) {
     const revText = reviews.textContent?.trim() || '';
@@ -368,9 +368,9 @@ export function extractRowData(
   };
   
   // Пробуем разные варианты поиска элемента с рейтингом — ОПТИМИЗИРОВАНО (Phase 5)
-  let labelRating = queryFirstMatch(cache, ['.ELabelRating', '[class*="ELabelRating"]']);
+  let labelRating = queryFirstMatch(cache, rules['#ProductRating'].domSelectors);
   
-  // Если не нашли, пробуем найти через другие варианты классов
+  // Если не нашли, пробуем найти через другие варианты классов (уже есть в конфиге, но для безопасности)
   if (!labelRating) {
     labelRating = queryFirstMatch(cache, ['[class*="LabelRating"]', '[class*="label-rating"]']);
   }
@@ -420,7 +420,7 @@ export function extractRowData(
   }
   
   // #EPriceBarometer - проверяем наличие и определяем view — ОПТИМИЗИРОВАНО (Phase 5)
-  const priceBarometer = queryFirstMatch(cache, ['.EPriceBarometer', '[class*="EPriceBarometer"]']);
+  const priceBarometer = queryFirstMatch(cache, rules['EPriceBarometer'].domSelectors);
   if (priceBarometer) {
     console.log(`🔍 Найден EPriceBarometer в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     
@@ -490,7 +490,7 @@ export function deduplicateRows(rows: CSVRow[]): CSVRow[] {
 }
 
 // Parse Yandex search results from HTML
-export function parseYandexSearchResults(html: string, fullMhtml?: string): { rows: CSVRow[], error?: string } {
+export function parseYandexSearchResults(html: string, fullMhtml?: string, parsingRules?: ParsingSchema): { rows: CSVRow[], error?: string } {
   console.log('🔍 HTML разбор начат');
   try {
   console.log('📄 Размер HTML:', html.length);
@@ -553,7 +553,7 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string): { ro
     const containerCache = buildContainerCache(container);
     
     // Передаем CSS кэш, полный контент и DOM кэш контейнера
-    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html, containerCache);
+    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html, containerCache, parsingRules);
     spriteState = result.spriteState; // Обновляем состояние спрайта
     if (result.row) {
       results.push(result.row);

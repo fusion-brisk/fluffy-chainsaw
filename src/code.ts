@@ -4,23 +4,55 @@ import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBar
 import { ImageProcessor } from './image-handlers';
 import { loadFonts, processTextLayers } from './text-handlers';
 import { LayerDataItem } from './types';
+import { ParsingRulesManager } from './parsing-rules-manager';
 
 console.log('🚀 Плагин Contentify загружен');
 
-try {
-  figma.showUI(__html__, { width: 320, height: 600 });
-  // Отправляем начальное состояние выделения
-  figma.ui.postMessage({ 
-    type: 'selection-status', 
-    hasSelection: figma.currentPage.selection.length > 0 
-  });
-} catch (error) {
-  Logger.error('❌ Ошибка при показе UI:', error);
-  figma.notify('❌ Ошибка загрузки UI');
-}
-
-// Глобальный экземпляр ImageProcessor для сохранения кэша между импортами
+// Глобальные экземпляры
 const imageProcessor = new ImageProcessor();
+const rulesManager = new ParsingRulesManager();
+
+// Инициализация плагина
+(async function initPlugin() {
+  try {
+    figma.showUI(__html__, { width: 320, height: 600 });
+    
+    // Отправляем начальное состояние выделения
+    figma.ui.postMessage({ 
+      type: 'selection-status', 
+      hasSelection: figma.currentPage.selection.length > 0 
+    });
+    
+    // Загружаем правила парсинга
+    await rulesManager.loadRules();
+    Logger.info('✅ Правила парсинга загружены');
+    
+    // Проверяем обновления в фоне (не блокируя старт)
+    checkRulesUpdates().catch(function(err) {
+      Logger.error('Ошибка проверки обновлений правил:', err);
+    });
+    
+  } catch (error) {
+    Logger.error('❌ Ошибка при инициализации плагина:', error);
+    figma.notify('❌ Ошибка загрузки плагина');
+  }
+})();
+
+// Проверка обновлений правил парсинга
+async function checkRulesUpdates() {
+  var updateInfo = await rulesManager.checkForUpdates();
+  
+  if (updateInfo && updateInfo.hasUpdate && updateInfo.newRules) {
+    Logger.info('📢 Доступно обновление правил парсинга');
+    
+    figma.ui.postMessage({
+      type: 'rules-update-available',
+      newVersion: updateInfo.newRules.version,
+      currentVersion: rulesManager.getCurrentRules().version,
+      hash: updateInfo.hash || ''
+    });
+  }
+}
 
 // Обработка изменений выделения
 figma.on('selectionchange', () => {
@@ -99,6 +131,63 @@ figma.ui.onmessage = async (msg) => {
         await figma.clientStorage.setAsync('contentify_scope', msg.settings.scope);
         Logger.debug('Settings saved:', msg.settings);
       }
+      return;
+    }
+
+    if (msg.type === 'get-parsing-rules') {
+      Logger.info('📋 Запрос правил парсинга от UI');
+      var metadata = rulesManager.getCurrentMetadata();
+      if (metadata) {
+        figma.ui.postMessage({
+          type: 'parsing-rules-loaded',
+          metadata: metadata
+        });
+      }
+      return;
+    }
+
+    if (msg.type === 'check-remote-rules-update') {
+      Logger.info('🔄 Ручная проверка обновлений правил');
+      checkRulesUpdates().catch(function(err) {
+        Logger.error('Ошибка проверки обновлений:', err);
+        figma.ui.postMessage({ type: 'error', message: 'Не удалось проверить обновления' });
+      });
+      return;
+    }
+
+    if (msg.type === 'apply-remote-rules') {
+      Logger.info('✅ Применение удалённых правил');
+      var success = await rulesManager.applyRemoteRules(msg.hash);
+      
+      if (success) {
+        figma.notify('✅ Правила парсинга обновлены');
+        var newMetadata = rulesManager.getCurrentMetadata();
+        if (newMetadata) {
+          figma.ui.postMessage({
+            type: 'parsing-rules-loaded',
+            metadata: newMetadata
+          });
+        }
+      } else {
+        figma.notify('❌ Не удалось применить правила');
+      }
+      return;
+    }
+
+    if (msg.type === 'dismiss-rules-update') {
+      await rulesManager.dismissUpdate();
+      Logger.info('❌ Обновление правил отклонено');
+      return;
+    }
+
+    if (msg.type === 'reset-rules-cache') {
+      Logger.info('🔄 Сброс кэша правил');
+      var resetMetadata = await rulesManager.resetToDefaults();
+      figma.notify('🔄 Правила сброшены к значениям по умолчанию');
+      figma.ui.postMessage({
+        type: 'parsing-rules-loaded',
+        metadata: resetMetadata
+      });
       return;
     }
     // -------------------------

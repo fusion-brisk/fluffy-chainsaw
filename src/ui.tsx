@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
-import { CSVRow, ProcessingStats, ProgressData, PluginMessage } from './types';
+import { CSVRow, ProcessingStats, ProgressData, PluginMessage, ParsingRulesMetadata } from './types';
 import { 
   applyFigmaTheme, 
   sendMessageToPlugin, 
@@ -15,6 +15,8 @@ import { DropZone } from './components/DropZone';
 import { ProgressBar } from './components/ProgressBar';
 import { StatsPanel } from './components/StatsPanel';
 import { LogViewer } from './components/LogViewer';
+import { ParsingRulesViewer } from './components/ParsingRulesViewer';
+import { UpdateDialog } from './components/UpdateDialog';
 
 // Main App Component
 const App: React.FC = () => {
@@ -27,6 +29,13 @@ const App: React.FC = () => {
   const [showLogs, setShowLogs] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isParsingFromHtml, setIsParsingFromHtml] = useState(false);
+  const [parsingRulesMetadata, setParsingRulesMetadata] = useState<ParsingRulesMetadata | null>(null);
+  const [showRules, setShowRules] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<{
+    currentVersion: number;
+    newVersion: number;
+    hash: string;
+  } | null>(null);
 
   // Add log message
   const addLog = useCallback((message: string) => {
@@ -69,6 +78,8 @@ const App: React.FC = () => {
       applyFigmaTheme();
       // Load saved settings
       sendMessageToPlugin({ type: 'get-settings' });
+      // Load parsing rules
+      sendMessageToPlugin({ type: 'get-parsing-rules' });
       
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => applyFigmaTheme();
@@ -190,6 +201,18 @@ const App: React.FC = () => {
           console.log('Loaded settings:', msg.settings);
         }
       }
+      else if (msg.type === 'parsing-rules-loaded') {
+        setParsingRulesMetadata(msg.metadata);
+        console.log('Loaded parsing rules:', msg.metadata);
+      }
+      else if (msg.type === 'rules-update-available') {
+        setUpdateAvailable({
+          currentVersion: msg.currentVersion,
+          newVersion: msg.newVersion,
+          hash: msg.hash
+        });
+        addLog(`🌐 Доступно обновление правил: v${msg.currentVersion} → v${msg.newVersion}`);
+      }
       else if (msg.type === 'selection-status') {
         setHasSelection(msg.hasSelection);
       } 
@@ -237,9 +260,40 @@ const App: React.FC = () => {
     });
   };
 
+  const handleToggleRules = useCallback(() => {
+    setShowRules(!showRules);
+  }, [showRules]);
+
+  const handleRefreshRules = useCallback(() => {
+    sendMessageToPlugin({ type: 'check-remote-rules-update' });
+    addLog('🔄 Проверка обновлений правил парсинга...');
+  }, [addLog]);
+
+  const handleResetCache = useCallback(() => {
+    if (confirm('Reset parsing rules to default values?')) {
+      sendMessageToPlugin({ type: 'reset-rules-cache' });
+      addLog('🔄 Сброс правил к значениям по умолчанию...');
+    }
+  }, [addLog]);
+
+  const handleApplyUpdate = useCallback((hash: string) => {
+    sendMessageToPlugin({ type: 'apply-remote-rules', hash });
+    setUpdateAvailable(null);
+    addLog('✅ Применение обновлённых правил...');
+  }, [addLog]);
+
+  const handleDismissUpdate = useCallback(() => {
+    sendMessageToPlugin({ type: 'dismiss-rules-update' });
+    setUpdateAvailable(null);
+    addLog('❌ Обновление правил отклонено');
+  }, [addLog]);
+
   return (
     <>
-      <Header isLoading={isLoading} />
+      <Header 
+        isLoading={isLoading} 
+        onToggleRules={handleToggleRules}
+      />
 
       <ScopeControl 
         scope={scope} 
@@ -259,6 +313,14 @@ const App: React.FC = () => {
 
       <StatsPanel stats={stats} />
 
+      <ParsingRulesViewer 
+        metadata={parsingRulesMetadata}
+        showRules={showRules}
+        onToggleRules={handleToggleRules}
+        onRefreshRules={handleRefreshRules}
+        onResetCache={handleResetCache}
+      />
+
       <LogViewer 
         logs={logs}
         showLogs={showLogs}
@@ -266,6 +328,16 @@ const App: React.FC = () => {
         onClearLogs={() => setLogs([])}
         onCopyLogs={copyLogs}
       />
+
+      {updateAvailable && (
+        <UpdateDialog
+          currentVersion={updateAvailable.currentVersion}
+          newVersion={updateAvailable.newVersion}
+          hash={updateAvailable.hash}
+          onApply={handleApplyUpdate}
+          onDismiss={handleDismissUpdate}
+        />
+      )}
     </>
   );
 };

@@ -1,6 +1,7 @@
 // JSON parsing utilities for Yandex search results
 
 import { CSVRow } from '../types';
+import { ParsingSchema, DEFAULT_PARSING_RULES, FieldRule } from '../parsing-rules';
 import {
   NOFRAMES_JSON_REGEX,
   FAVICON_V2_URL_REGEX,
@@ -301,9 +302,20 @@ export function collectAllFields(obj: any, prefix: string = '', depth: number = 
   return fields;
 }
 
+// Вспомогательная функция для поиска значения по списку ключей
+function getValueByKeyList(obj: any, keys: string[]): any {
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
+      return obj[key];
+    }
+  }
+  return undefined;
+}
+
 // Извлекает данные о сниппетах из JSON структуры Яндекс.Поиска
-export function extractSnippetsFromJson(jsonData: any): CSVRow[] {
+export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSchema = DEFAULT_PARSING_RULES): CSVRow[] {
   const results: CSVRow[] = [];
+  const rules = parsingRules.rules;
   
   console.log('🔍 Извлечение данных из JSON...');
   console.log('📊 Верхнеуровневые ключи JSON:', Object.keys(jsonData));
@@ -358,7 +370,9 @@ export function extractSnippetsFromJson(jsonData: any): CSVRow[] {
         const first = obj[0];
         if (first && typeof first === 'object') {
           const keys = Object.keys(first);
-          if (keys.some(k => k.toLowerCase().includes('title') || k.toLowerCase().includes('url') || k.toLowerCase().includes('price'))) {
+          // Используем ключи из правил для эвристики
+          const heuristicKeys = [...rules['#OrganicTitle'].jsonKeys, ...rules['#ProductURL'].jsonKeys];
+          if (keys.some(k => heuristicKeys.some(hk => k.toLowerCase().includes(hk.toLowerCase())))) {
             return { array: obj, path: path || 'root array' };
           }
         }
@@ -441,24 +455,24 @@ export function extractSnippetsFromJson(jsonData: any): CSVRow[] {
     if (!snippet || typeof snippet !== 'object') continue;
     
     const row: CSVRow = {
-      '#SnippetType': snippet.type || snippet.snippetType || 'Organic_withOfferInfo',
-      '#ProductURL': snippet.url || snippet.link || snippet.href || snippet.productUrl || '',
-      '#OrganicTitle': snippet.title || snippet.name || snippet.headline || snippet.text || '',
-      '#ShopName': snippet.shopName || snippet.shop || snippet.vendor || snippet.domain || '',
+      '#SnippetType': getValueByKeyList(snippet, rules['#SnippetType'].jsonKeys) || 'Organic_withOfferInfo',
+      '#ProductURL': getValueByKeyList(snippet, rules['#ProductURL'].jsonKeys) || '',
+      '#OrganicTitle': getValueByKeyList(snippet, rules['#OrganicTitle'].jsonKeys) || '',
+      '#ShopName': getValueByKeyList(snippet, rules['#ShopName'].jsonKeys) || '',
       '#OrganicHost': '',
-      '#OrganicPath': snippet.path || snippet.breadcrumbs || '',
+      '#OrganicPath': getValueByKeyList(snippet, rules['#OrganicPath'].jsonKeys) || '',
       '#SnippetFavicon': '',
       '#FaviconImage': '',
-      '#OrganicText': snippet.description || snippet.text || snippet.snippet || '',
-      '#OrganicImage': snippet.image || snippet.thumbnail || snippet.thumb || snippet.img || '',
-      '#ThumbImage': snippet.thumbnail || snippet.thumb || snippet.image || '',
+      '#OrganicText': getValueByKeyList(snippet, rules['#OrganicText'].jsonKeys) || '',
+      '#OrganicImage': getValueByKeyList(snippet, rules['#OrganicImage'].jsonKeys) || '',
+      '#ThumbImage': getValueByKeyList(snippet, rules['#ThumbImage'].jsonKeys) || '',
       '#OrganicPrice': '',
       '#Currency': '',
       '#PriceInfo': '',
       '#OldPrice': '',
       '#DiscountPercent': '',
-      '#ShopRating': snippet.rating || snippet.stars || '',
-      '#ReviewsNumber': snippet.reviews || snippet.reviewsCount || '',
+      '#ShopRating': getValueByKeyList(snippet, rules['#ShopRating'].jsonKeys) || '',
+      '#ReviewsNumber': getValueByKeyList(snippet, rules['#ReviewsNumber'].jsonKeys) || '',
       '#LabelsList': '',
       '#DeliveryList': '',
       '#FintechList': '',
@@ -483,51 +497,57 @@ export function extractSnippetsFromJson(jsonData: any): CSVRow[] {
       }
     }
     
-    // Обрабатываем цену
-    if (snippet.price) {
-      if (typeof snippet.price === 'number') {
-        row['#OrganicPrice'] = snippet.price.toString();
-      } else if (typeof snippet.price === 'string') {
-        const priceMatch = snippet.price.match(PRICE_NUMBERS_REGEX);
+    // Обрабатываем цену (сложная логика, оставим пока частично ручной)
+    // Но ключи попытаемся взять из правил, если это примитив
+    const priceVal = getValueByKeyList(snippet, rules['#OrganicPrice'].jsonKeys);
+    if (priceVal !== undefined) {
+      if (typeof priceVal === 'number') {
+        row['#OrganicPrice'] = priceVal.toString();
+      } else if (typeof priceVal === 'string') {
+        const priceMatch = priceVal.match(PRICE_NUMBERS_REGEX);
         if (priceMatch) {
           row['#OrganicPrice'] = priceMatch[1].replace(/\s/g, '');
         }
-        if (snippet.price.includes('₽') || snippet.price.includes('руб')) {
+        if (priceVal.includes('₽') || priceVal.includes('руб')) {
           row['#Currency'] = '₽';
-        } else if (snippet.price.includes('$')) {
+        } else if (priceVal.includes('$')) {
           row['#Currency'] = '$';
-        } else if (snippet.price.includes('€')) {
+        } else if (priceVal.includes('€')) {
           row['#Currency'] = '€';
         }
-      } else if (snippet.price.value) {
-        row['#OrganicPrice'] = snippet.price.value.toString();
-        row['#Currency'] = snippet.price.currency || '₽';
+      } else if (priceVal && typeof priceVal === 'object' && priceVal.value) {
+        row['#OrganicPrice'] = priceVal.value.toString();
+        row['#Currency'] = priceVal.currency || '₽';
       }
     }
     
     // Обрабатываем старую цену
-    if (snippet.oldPrice) {
-      if (typeof snippet.oldPrice === 'number') {
-        row['#OldPrice'] = snippet.oldPrice.toString();
-      } else if (typeof snippet.oldPrice === 'string') {
-        const oldPriceMatch = snippet.oldPrice.match(PRICE_NUMBERS_REGEX);
+    const oldPriceVal = getValueByKeyList(snippet, rules['#OldPrice'].jsonKeys);
+    if (oldPriceVal !== undefined) {
+      if (typeof oldPriceVal === 'number') {
+        row['#OldPrice'] = oldPriceVal.toString();
+      } else if (typeof oldPriceVal === 'string') {
+        const oldPriceMatch = oldPriceVal.match(PRICE_NUMBERS_REGEX);
         if (oldPriceMatch) {
           row['#OldPrice'] = oldPriceMatch[1].replace(/\s/g, '');
         }
-      } else if (snippet.oldPrice.value) {
-        row['#OldPrice'] = snippet.oldPrice.value.toString();
+      } else if (oldPriceVal && typeof oldPriceVal === 'object' && oldPriceVal.value) {
+        row['#OldPrice'] = oldPriceVal.value.toString();
       }
     }
     
     // Обрабатываем скидку
-    if (snippet.discount || snippet.discountPercent) {
-      const discount = snippet.discount || snippet.discountPercent;
-      if (typeof discount === 'number') {
-        row['#DiscountPercent'] = discount.toString();
-      } else if (typeof discount === 'string') {
-        const discMatch = discount.match(RATING_REGEX);
+    const discountVal = getValueByKeyList(snippet, rules['#DiscountPercent'].jsonKeys);
+    if (discountVal !== undefined) {
+      if (typeof discountVal === 'number') {
+        row['#DiscountPercent'] = discountVal.toString();
+      } else if (typeof discountVal === 'string') {
+        const discMatch = discountVal.match(RATING_REGEX);
         if (discMatch) {
           row['#DiscountPercent'] = discMatch[1];
+        } else {
+             // Если не нашли цифр, пробуем сохранить как есть, если это похоже на скидку
+             row['#DiscountPercent'] = discountVal;
         }
       }
     }
@@ -557,4 +577,3 @@ export function extractSnippetsFromJson(jsonData: any): CSVRow[] {
   
   return results;
 }
-
