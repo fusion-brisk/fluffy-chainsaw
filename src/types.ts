@@ -109,3 +109,15 @@ export type CodeMessage =
 
 // Combined type
 export type PluginMessage = UIMessage | CodeMessage;
+
+// [REFACTOR-CHECKPOINT-1] Tab-based UI types
+export type TabType = 'import' | 'settings' | 'logs';
+
+export type UIState = 'idle' | 'loading' | 'completed';
+
+export interface TabConfig {
+  id: TabType;
+  label: string;
+  icon: string;
+  badge?: number;
+}

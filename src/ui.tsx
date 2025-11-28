@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
-import { CSVRow, ProcessingStats, ProgressData, PluginMessage, ParsingRulesMetadata } from './types';
+import { CSVRow, ProcessingStats, ProgressData, PluginMessage, ParsingRulesMetadata, TabType, UIState } from './types';
 import { 
   applyFigmaTheme, 
   sendMessageToPlugin, 
@@ -18,9 +18,19 @@ import { LogViewer } from './components/LogViewer';
 import { ParsingRulesViewer } from './components/ParsingRulesViewer';
 import { UpdateDialog } from './components/UpdateDialog';
 import { SettingsPanel } from './components/SettingsPanel';
+// [REFACTOR-CHECKPOINT-2] Import new components
+import { LiveProgressView } from './components/import/LiveProgressView';
+import { CompletionCard } from './components/import/CompletionCard';
+// [REFACTOR-CHECKPOINT-3] Import unified views
+import { SettingsView } from './components/settings/SettingsView';
+import { LogsView } from './components/logs/LogsView';
 
 // Main App Component
 const App: React.FC = () => {
+  // [REFACTOR-CHECKPOINT-1] Tab navigation state
+  const [activeTab, setActiveTab] = useState<TabType>('import');
+  // [REFACTOR-CHECKPOINT-2] UI state machine
+  const [uiState, setUiState] = useState<UIState>('idle');
   const [scope, setScope] = useState<'selection' | 'page'>('selection');
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState<ProgressData | null>(null);
@@ -117,6 +127,7 @@ const App: React.FC = () => {
 
   const processFiles = async (files: FileList) => {
     setIsLoading(true);
+    setUiState('loading'); // [REFACTOR-CHECKPOINT-2] Set loading state
     setProgress({ current: 0, total: 100, message: 'Чтение файла...' });
     setStats(null);
     setLogs([]);
@@ -169,6 +180,7 @@ const App: React.FC = () => {
       console.error('File processing error:', error);
       addLog(`❌ Ошибка: ${error instanceof Error ? error.message : String(error)}`);
       setIsLoading(false);
+      setUiState('idle'); // [REFACTOR-CHECKPOINT-2] Reset to idle on error
       setProgress(null);
     } finally {
       setIsParsingFromHtml(false);
@@ -249,12 +261,14 @@ const App: React.FC = () => {
       } 
       else if (msg.type === 'done') {
         setIsLoading(false);
+        setUiState('completed'); // [REFACTOR-CHECKPOINT-2] Set completed state
         setProgress(null);
         addLog(`✅ Готово! Обработано ${msg.count} элементов.`);
       } 
       else if (msg.type === 'error') {
         addLog(`❌ Ошибка плагина: ${msg.message}`);
         setIsLoading(false);
+        setUiState('idle'); // [REFACTOR-CHECKPOINT-2] Reset to idle on error
         setProgress(null);
       }
     };
@@ -270,6 +284,10 @@ const App: React.FC = () => {
 
   const handleToggleRules = useCallback(() => {
     setShowRules(!showRules);
+    // [REFACTOR-CHECKPOINT-1] Auto-switch to settings tab when toggling rules
+    if (!showRules) {
+      setActiveTab('settings');
+    }
   }, [showRules]);
 
   const handleRefreshRules = useCallback(() => {
@@ -302,51 +320,141 @@ const App: React.FC = () => {
     addLog('🔗 Remote config URL обновлён');
   }, [addLog]);
 
+  // [REFACTOR-CHECKPOINT-2] Reset to import another file
+  const handleImportAnother = useCallback(() => {
+    setUiState('idle');
+    setStats(null);
+    setProgress(null);
+    setLogs([]);
+    addLog('🔄 Ready for new import');
+  }, [addLog]);
+
+  // [REFACTOR-CHECKPOINT-2] View logs from completion card
+  const handleViewLogsFromCard = useCallback(() => {
+    setActiveTab('logs');
+  }, []);
+
+  // [REFACTOR-CHECKPOINT-1] Smart tab navigation: auto-switch to logs on errors
+  useEffect(() => {
+    if (stats && stats.failedImages > 0 && !isLoading) {
+      // Auto-open logs tab if there are errors
+      setActiveTab('logs');
+    }
+  }, [stats, isLoading]);
+
+  // [REFACTOR-CHECKPOINT-4] Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Tab switching: 1, 2, 3
+      if (e.key === '1' && !e.metaKey && !e.ctrlKey) {
+        setActiveTab('import');
+        e.preventDefault();
+      } else if (e.key === '2' && !e.metaKey && !e.ctrlKey) {
+        setActiveTab('settings');
+        e.preventDefault();
+      } else if (e.key === '3' && !e.metaKey && !e.ctrlKey) {
+        setActiveTab('logs');
+        e.preventDefault();
+      }
+      // Open file: Cmd/Ctrl + O
+      else if (e.key === 'o' && (e.metaKey || e.ctrlKey)) {
+        if (activeTab === 'import' && uiState === 'idle') {
+          document.getElementById('file-input')?.click();
+          e.preventDefault();
+        }
+      }
+      // Clear logs: Cmd/Ctrl + K (when on logs tab)
+      else if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
+        if (activeTab === 'logs' && logs.length > 0) {
+          if (confirm('Clear all logs?')) {
+            setLogs([]);
+          }
+          e.preventDefault();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, uiState, logs.length]);
+
   return (
     <>
       <Header 
-        isLoading={isLoading} 
-        onToggleRules={handleToggleRules}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        errorCount={stats?.failedImages || 0}
+        isLoading={isLoading}
       />
 
-      <ScopeControl 
-        scope={scope} 
-        hasSelection={hasSelection} 
-        onScopeChange={handleScopeChange} 
-      />
+      {/* [REFACTOR-CHECKPOINT-1] Tab: Import */}
+      {activeTab === 'import' && (
+        <>
+          <ScopeControl 
+            scope={scope} 
+            hasSelection={hasSelection} 
+            onScopeChange={handleScopeChange} 
+          />
 
-      <DropZone 
-        isDragOver={isDragOver}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onFileSelect={handleFileInputChange}
-      />
+          {/* [REFACTOR-CHECKPOINT-2] State: IDLE - Show DropZone */}
+          {uiState === 'idle' && (
+            <>
+              <DropZone 
+                isDragOver={isDragOver}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onFileSelect={handleFileInputChange}
+                compact={true}
+              />
+              
+              <div className="import-tip">
+                💡 <strong>Tip:</strong> Supports HTML & MHTML files from Yandex search results
+              </div>
+            </>
+          )}
 
-      {isLoading && <ProgressBar progress={progress} />}
+          {/* [REFACTOR-CHECKPOINT-2] State: LOADING - Show LiveProgressView */}
+          {uiState === 'loading' && (
+            <LiveProgressView 
+              progress={progress}
+              recentLogs={logs}
+              currentOperation={progress?.message}
+            />
+          )}
 
-      <StatsPanel stats={stats} />
+          {/* [REFACTOR-CHECKPOINT-2] State: COMPLETED - Show CompletionCard */}
+          {uiState === 'completed' && stats && (
+            <CompletionCard 
+              stats={stats}
+              onViewLogs={handleViewLogsFromCard}
+              onImportAnother={handleImportAnother}
+            />
+          )}
+        </>
+      )}
 
-      <SettingsPanel 
-        remoteUrl={remoteUrl}
-        onUpdateUrl={handleUpdateUrl}
-      />
+      {/* [REFACTOR-CHECKPOINT-1] Tab: Settings */}
+      {/* [REFACTOR-CHECKPOINT-3] Use new unified SettingsView */}
+      {activeTab === 'settings' && (
+        <SettingsView 
+          remoteUrl={remoteUrl}
+          parsingRulesMetadata={parsingRulesMetadata}
+          onUpdateUrl={handleUpdateUrl}
+          onRefreshRules={handleRefreshRules}
+          onResetCache={handleResetCache}
+        />
+      )}
 
-      <ParsingRulesViewer 
-        metadata={parsingRulesMetadata}
-        showRules={showRules}
-        onToggleRules={handleToggleRules}
-        onRefreshRules={handleRefreshRules}
-        onResetCache={handleResetCache}
-      />
-
-      <LogViewer 
-        logs={logs}
-        showLogs={showLogs}
-        onToggleLogs={() => setShowLogs(!showLogs)}
-        onClearLogs={() => setLogs([])}
-        onCopyLogs={copyLogs}
-      />
+      {/* [REFACTOR-CHECKPOINT-1] Tab: Logs */}
+      {/* [REFACTOR-CHECKPOINT-3] Use new LogsView with filters */}
+      {activeTab === 'logs' && (
+        <LogsView 
+          logs={logs}
+          onClearLogs={() => setLogs([])}
+          onCopyLogs={copyLogs}
+        />
+      )}
 
       {updateAvailable && (
         <UpdateDialog
