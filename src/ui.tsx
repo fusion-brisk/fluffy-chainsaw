@@ -17,6 +17,7 @@ import { StatsPanel } from './components/StatsPanel';
 import { LogViewer } from './components/LogViewer';
 import { ParsingRulesViewer } from './components/ParsingRulesViewer';
 import { UpdateDialog } from './components/UpdateDialog';
+import { SettingsPanel } from './components/SettingsPanel';
 
 // Main App Component
 const App: React.FC = () => {
@@ -36,6 +37,7 @@ const App: React.FC = () => {
     newVersion: number;
     hash: string;
   } | null>(null);
+  const [remoteUrl, setRemoteUrl] = useState<string>('');
 
   // Add log message
   const addLog = useCallback((message: string) => {
@@ -80,6 +82,8 @@ const App: React.FC = () => {
       sendMessageToPlugin({ type: 'get-settings' });
       // Load parsing rules
       sendMessageToPlugin({ type: 'get-parsing-rules' });
+      // Load remote URL
+      sendMessageToPlugin({ type: 'get-remote-url' });
       
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => applyFigmaTheme();
@@ -213,6 +217,10 @@ const App: React.FC = () => {
         });
         addLog(`🌐 Доступно обновление правил: v${msg.currentVersion} → v${msg.newVersion}`);
       }
+      else if (msg.type === 'remote-url-loaded') {
+        setRemoteUrl(msg.url);
+        console.log('Loaded remote URL:', msg.url);
+      }
       else if (msg.type === 'selection-status') {
         setHasSelection(msg.hasSelection);
       } 
@@ -288,6 +296,12 @@ const App: React.FC = () => {
     addLog('❌ Обновление правил отклонено');
   }, [addLog]);
 
+  const handleUpdateUrl = useCallback((url: string) => {
+    sendMessageToPlugin({ type: 'set-remote-url', url });
+    setRemoteUrl(url);
+    addLog('🔗 Remote config URL обновлён');
+  }, [addLog]);
+
   return (
     <>
       <Header 
@@ -312,6 +326,11 @@ const App: React.FC = () => {
       {isLoading && <ProgressBar progress={progress} />}
 
       <StatsPanel stats={stats} />
+
+      <SettingsPanel 
+        remoteUrl={remoteUrl}
+        onUpdateUrl={handleUpdateUrl}
+      />
 
       <ParsingRulesViewer 
         metadata={parsingRulesMetadata}

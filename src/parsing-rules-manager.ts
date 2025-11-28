@@ -10,8 +10,9 @@ const STORAGE_KEYS = {
   PENDING_RULES: 'contentify_pending_rules' // Для правил, ожидающих подтверждения
 };
 
-// Дефолтный URL для удалённого конфига (можно изменить в настройках)
-const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/yourusername/contentify-config/main/parsing-rules.json';
+// Дефолтный URL для удалённого конфига
+// Пользователь может изменить его через Settings в UI
+const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/shchuchkin/fluffy-chainsaw/main/config/parsing-rules.json';
 
 /**
  * Вычисляет простой hash строки (для сравнения версий)

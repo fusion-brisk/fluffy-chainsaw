@@ -190,6 +190,29 @@ figma.ui.onmessage = async (msg) => {
       });
       return;
     }
+
+    if (msg.type === 'get-remote-url') {
+      var url = await rulesManager.getRemoteUrl();
+      figma.ui.postMessage({
+        type: 'remote-url-loaded',
+        url: url || ''
+      });
+      return;
+    }
+
+    if (msg.type === 'set-remote-url') {
+      await rulesManager.setRemoteUrl(msg.url);
+      figma.notify('✅ Remote config URL обновлён');
+      Logger.info('🔗 URL обновлён: ' + msg.url);
+      
+      // Автоматически проверяем обновления после установки URL
+      if (msg.url && msg.url.trim()) {
+        checkRulesUpdates().catch(function(err) {
+          Logger.error('Ошибка проверки обновлений:', err);
+        });
+      }
+      return;
+    }
     // -------------------------
   
   if (msg.type === 'import-csv') {

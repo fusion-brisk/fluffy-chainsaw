@@ -630,3 +630,129 @@ button:active { background-color: var(--figma-color-bg-pressed); }
 .update-dialog-btn-secondary:hover {
   background-color: var(--figma-color-bg-hover);
 }
+
+/* Settings Panel */
+.settings-panel {
+  background-color: var(--figma-color-bg-secondary);
+  border-radius: var(--radius-medium);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.settings-header {
+  margin-bottom: 8px;
+}
+
+.settings-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--figma-color-text);
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--figma-color-text-secondary);
+}
+
+.settings-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-input {
+  width: 100%;
+  background-color: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-small);
+  color: var(--figma-color-text);
+  font-family: 'JetBrains Mono', 'Monaco', monospace;
+  font-size: 9px;
+  padding: 6px 8px;
+  outline: none;
+  transition: border-color 0.1s;
+}
+
+.settings-input:focus {
+  border-color: var(--figma-color-border-brand);
+}
+
+.settings-input-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.settings-display-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-display-value {
+  flex: 1;
+  background-color: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-small);
+  padding: 6px 8px;
+  font-family: 'JetBrains Mono', 'Monaco', monospace;
+  font-size: 9px;
+  color: var(--figma-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-empty {
+  color: var(--figma-color-text-tertiary);
+  font-style: italic;
+}
+
+.settings-hint {
+  font-size: 9px;
+  color: var(--figma-color-text-tertiary);
+  font-style: italic;
+}
+
+.settings-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  background-color: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition: all 0.1s;
+  color: var(--figma-color-text);
+}
+
+.settings-btn:hover {
+  background-color: var(--figma-color-bg-hover);
+}
+
+.settings-btn-small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.settings-btn-primary {
+  background-color: var(--figma-color-bg-brand);
+  color: var(--figma-color-text-onbrand);
+  border-color: var(--figma-color-bg-brand);
+}
+
+.settings-btn-primary:hover {
+  background-color: var(--figma-color-bg-brand-hover);
+}

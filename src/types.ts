@@ -60,6 +60,10 @@ export interface UserSettings {
   remoteConfigUrl?: string;
 }
 
+export interface PluginSettings {
+  remoteUrl: string;
+}
+
 // Экспортируем ParsingSchema как ParsingRulesData для совместимости
 export type ParsingRulesData = ParsingSchema;
 
@@ -85,7 +89,9 @@ export type UIMessage =
   | { type: 'check-remote-rules-update' }
   | { type: 'apply-remote-rules'; hash: string }
   | { type: 'dismiss-rules-update' }
-  | { type: 'reset-rules-cache' };
+  | { type: 'reset-rules-cache' }
+  | { type: 'get-remote-url' }
+  | { type: 'set-remote-url'; url: string };
 
 // Messages sent from Code to UI
 export type CodeMessage = 
@@ -98,7 +104,8 @@ export type CodeMessage =
   | { type: 'done'; count: number }
   | { type: 'settings-loaded'; settings: UserSettings }
   | { type: 'parsing-rules-loaded'; metadata: ParsingRulesMetadata }
-  | { type: 'rules-update-available'; newVersion: number; currentVersion: number; hash: string };
+  | { type: 'rules-update-available'; newVersion: number; currentVersion: number; hash: string }
+  | { type: 'remote-url-loaded'; url: string };
 
 // Combined type
 export type PluginMessage = UIMessage | CodeMessage;
