@@ -3,15 +3,32 @@ import { ProcessingStats } from '../../types';
 
 interface CompletionCardProps {
   stats: ProcessingStats;
+  processingTime?: number; // in milliseconds
   onViewLogs?: () => void;
   onImportAnother?: () => void;
 }
 
-export const CompletionCard: React.FC<CompletionCardProps> = ({ 
-  stats, 
+export const CompletionCard: React.FC<CompletionCardProps> = ({
+  stats,
+  processingTime,
   onViewLogs,
-  onImportAnother 
+  onImportAnother
 }) => {
+  // [SEED-IMPLEMENTATION] Copy error to clipboard
+  const copyErrorToClipboard = (error: any) => {
+    let errorText = `[${error.type}] ${error.rowIndex !== undefined ? `Row ${error.rowIndex + 1}: ` : ''}${error.message}`;
+    if (error.url) {
+      errorText += `\nURL: ${error.url}`;
+    }
+
+    navigator.clipboard.writeText(errorText).then(() => {
+      // Could add toast notification here in future
+      console.log('Error copied to clipboard:', errorText);
+    }).catch(err => {
+      console.error('Failed to copy error:', err);
+      // Fallback for older browsers - could implement textarea method
+    });
+  };
   const hasErrors = stats.failedImages > 0;
   const successRate = stats.processedInstances > 0
     ? Math.round((stats.successfulImages / stats.processedInstances) * 100)
@@ -25,6 +42,11 @@ export const CompletionCard: React.FC<CompletionCardProps> = ({
         </div>
         <div className="completion-title">
           {hasErrors ? 'Completed with errors' : 'Successfully completed'}
+          {processingTime && (
+            <div className="completion-time">
+              in {Math.round(processingTime / 1000)}s
+            </div>
+          )}
         </div>
       </div>
 
@@ -78,8 +100,21 @@ export const CompletionCard: React.FC<CompletionCardProps> = ({
           <div className="completion-errors-preview">
             {stats.errors.slice(0, 2).map((error, idx) => (
               <div key={idx} className="completion-error-item">
-                <span className="completion-error-type">[{error.type}]</span>
-                <span className="completion-error-message">{error.message}</span>
+                <div className="completion-error-content">
+                  <span className="completion-error-type">[{error.type}]</span>
+                  <span className="completion-error-message">
+                    {error.rowIndex !== undefined ? `Row ${error.rowIndex + 1}: ` : ''}
+                    {error.message}
+                  </span>
+                </div>
+                <button
+                  className="completion-error-copy-btn"
+                  onClick={() => copyErrorToClipboard(error)}
+                  title="Copy error details"
+                  aria-label="Copy error to clipboard"
+                >
+                  📋
+                </button>
               </div>
             ))}
             {stats.errors.length > 2 && (

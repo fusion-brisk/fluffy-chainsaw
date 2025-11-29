@@ -5,18 +5,27 @@ interface LiveProgressViewProps {
   progress: ProgressData | null;
   recentLogs: string[];
   currentOperation?: string;
+  fileSize?: number; // in bytes
 }
 
-export const LiveProgressView: React.FC<LiveProgressViewProps> = ({ 
-  progress, 
+export const LiveProgressView: React.FC<LiveProgressViewProps> = ({
+  progress,
   recentLogs,
-  currentOperation 
+  currentOperation,
+  fileSize
 }) => {
   if (!progress) return null;
 
-  const percentage = progress.total > 0 
-    ? Math.round((progress.current / progress.total) * 100) 
+  const percentage = progress.total > 0
+    ? Math.round((progress.current / progress.total) * 100)
     : 0;
+
+  // [SEED-IMPLEMENTATION] Format file size for display
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
 
   return (
     <div className="live-progress-view">
@@ -27,7 +36,9 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = ({
             {currentOperation || progress.message || 'Processing...'}
           </span>
         </div>
-        <div className="live-progress-percentage">{percentage}%</div>
+        <div className="live-progress-percentage">
+          {percentage}%{fileSize ? ` • ${formatFileSize(fileSize)}` : ''}
+        </div>
       </div>
 
       <div className="live-progress-bar-container">

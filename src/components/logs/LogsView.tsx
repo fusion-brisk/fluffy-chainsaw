@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 
 interface LogsViewProps {
   logs: string[];
@@ -8,13 +8,16 @@ interface LogsViewProps {
 
 type LogFilter = 'all' | 'errors' | 'warnings' | 'success' | 'info';
 
-export const LogsView: React.FC<LogsViewProps> = ({ 
-  logs, 
-  onClearLogs, 
-  onCopyLogs 
+export const LogsView: React.FC<LogsViewProps> = ({
+  logs,
+  onClearLogs,
+  onCopyLogs
 }) => {
   const [activeFilter, setActiveFilter] = useState<LogFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // [SEED-IMPLEMENTATION] Auto-scroll functionality
+  const logsContainerRef = useRef<HTMLDivElement>(null);
 
   // Filter logs based on selected filter
   const filteredLogs = useMemo(() => {
@@ -57,6 +60,18 @@ export const LogsView: React.FC<LogsViewProps> = ({
       info: logs.filter(log => log.includes('ℹ️') || log.includes('📂') || log.includes('📄')).length
     };
   }, [logs]);
+
+  // [SEED-IMPLEMENTATION] Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (logsContainerRef.current && filteredLogs.length > 0) {
+      const container = logsContainerRef.current;
+      // Scroll to bottom with smooth animation for better UX
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [filteredLogs]);
 
   const getLogClass = (log: string): string => {
     if (log.includes('❌') || log.toLowerCase().includes('error')) return 'error';
@@ -153,7 +168,7 @@ export const LogsView: React.FC<LogsViewProps> = ({
       </div>
 
       {/* Logs content */}
-      <div className="logs-view-content">
+      <div className="logs-view-content" ref={logsContainerRef}>
         {filteredLogs.length === 0 ? (
           <div className="logs-view-empty">
             {logs.length === 0 ? (

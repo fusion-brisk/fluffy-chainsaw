@@ -306,7 +306,7 @@ button:disabled {
 .drop-zone {
   border: 1px dashed var(--figma-color-border);
   border-radius: var(--radius-large);
-  padding: 24px 16px;
+  padding: 32px 20px;
   text-align: center;
   transition: all 0.2s;
   background-color: transparent;
@@ -314,6 +314,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-height: 120px;
   justify-content: center;
   gap: 8px;
   min-height: 100px;
@@ -347,6 +348,45 @@ button:disabled {
   border-color: var(--figma-color-border-brand);
   background-color: var(--figma-color-bg-selected);
   color: var(--figma-color-text);
+}
+
+.drop-zone.disabled {
+  border-color: var(--figma-color-border);
+  background-color: var(--figma-color-bg-secondary);
+  color: var(--figma-color-text-secondary);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.drop-zone.disabled:hover {
+  border-color: var(--figma-color-border);
+  background-color: var(--figma-color-bg-secondary);
+  color: var(--figma-color-text-secondary);
+}
+
+.drop-zone.fullscreen {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 9999;
+  padding: 60px 20px;
+  min-height: auto;
+  border: 2px dashed var(--figma-color-border-brand);
+  background-color: rgba(12, 140, 233, 0.05);
+  border-radius: var(--radius-large);
+}
+
+.drop-zone.fullscreen .drop-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+}
+
+.drop-zone.fullscreen .drop-zone-text {
+  font-size: 16px;
+  font-weight: 600;
 }
 .drop-icon {
   width: 24px;
@@ -591,6 +631,13 @@ button:disabled {
   color: var(--figma-color-text);
 }
 
+.completion-time {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--figma-color-text-secondary);
+  margin-top: 2px;
+}
+
 .completion-stats {
   margin-bottom: 16px;
 }
@@ -694,10 +741,41 @@ button:disabled {
 }
 
 .completion-error-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.completion-error-content {
+  flex: 1;
   font-size: 9px;
   color: var(--figma-color-text-secondary);
-  padding: 4px 0;
   line-height: 1.4;
+}
+
+.completion-error-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-small);
+  color: var(--figma-color-text-secondary);
+  font-size: 10px;
+  line-height: 1;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+}
+
+.completion-error-copy-btn:hover {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-text);
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.completion-error-copy-btn:active {
+  transform: scale(0.95);
 }
 
 .completion-error-type {

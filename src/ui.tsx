@@ -39,8 +39,14 @@ const App: React.FC = () => {
   const [hasSelection, setHasSelection] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [isParsingFromHtml, setIsParsingFromHtml] = useState(false);
   const [parsingRulesMetadata, setParsingRulesMetadata] = useState<ParsingRulesMetadata | null>(null);
+  // [SEED-IMPLEMENTATION] Track processing time for performance feedback
+  const [processingTime, setProcessingTime] = useState<number | null>(null);
+  const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
+  // [SEED-IMPLEMENTATION] Track file size for progress feedback
+  const [currentFileSize, setCurrentFileSize] = useState<number | null>(null);
   const [showRules, setShowRules] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState<{
     currentVersion: number;
@@ -126,6 +132,11 @@ const App: React.FC = () => {
   };
 
   const processFiles = async (files: FileList) => {
+    // [SEED-IMPLEMENTATION] Track processing start time for performance feedback
+    const startTime = Date.now();
+    setProcessingStartTime(startTime);
+    setProcessingTime(null); // Reset previous time
+
     setIsLoading(true);
     setUiState('loading'); // [REFACTOR-CHECKPOINT-2] Set loading state
     setProgress({ current: 0, total: 100, message: 'Чтение файла...' });
@@ -135,6 +146,24 @@ const App: React.FC = () => {
 
     try {
       const file = files[0];
+      // [SEED-IMPLEMENTATION] Store file size for progress display
+      setCurrentFileSize(file.size);
+
+      // [SEED-IMPLEMENTATION] Warn about large files (>10MB)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        const confirmed = confirm(
+          `Warning: Large file detected (${sizeMB}MB)\n\n` +
+          `Processing large files may take longer and use more memory.\n\n` +
+          `Do you want to continue?`
+        );
+        if (!confirmed) {
+          addLog(`❌ Обработка файла отменена пользователем (${sizeMB}MB)`);
+          return; // Exit early without processing
+        }
+        addLog(`⚠️ Пользователь подтвердил обработку большого файла (${sizeMB}MB)`);
+      }
       let rows: CSVRow[] = [];
 
       if (file.name.endsWith('.mhtml') || file.name.endsWith('.mht')) {
@@ -198,6 +227,46 @@ const App: React.FC = () => {
     setIsDragOver(false);
   };
 
+  // [UX-ENHANCEMENT] Global drag tracking for fullscreen drop zone
+  useEffect(() => {
+    const handleWindowDragEnter = (e: DragEvent) => {
+      e.preventDefault();
+      setIsDragging(true);
+    };
+
+    const handleWindowDragLeave = (e: DragEvent) => {
+      e.preventDefault();
+      // Only stop dragging if we're actually leaving the window
+      if (e.clientX === 0 && e.clientY === 0) {
+        setIsDragging(false);
+        setIsDragOver(false);
+      }
+    };
+
+    const handleWindowDrop = (e: DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      setIsDragOver(false);
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    // Add global listeners
+    window.addEventListener('dragenter', handleWindowDragEnter);
+    window.addEventListener('dragleave', handleWindowDragLeave);
+    window.addEventListener('drop', handleWindowDrop);
+    window.addEventListener('dragover', handleWindowDragOver);
+
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDragEnter);
+      window.removeEventListener('dragleave', handleWindowDragLeave);
+      window.removeEventListener('drop', handleWindowDrop);
+      window.removeEventListener('dragover', handleWindowDragOver);
+    };
+  }, []);
+
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -260,6 +329,13 @@ const App: React.FC = () => {
         }
       } 
       else if (msg.type === 'done') {
+        // [SEED-IMPLEMENTATION] Calculate processing time for performance feedback
+        if (processingStartTime) {
+          const elapsedTime = Date.now() - processingStartTime;
+          setProcessingTime(elapsedTime);
+          addLog(`⏱️ Время обработки: ${Math.round(elapsedTime / 1000)} сек`);
+        }
+
         setIsLoading(false);
         setUiState('completed'); // [REFACTOR-CHECKPOINT-2] Set completed state
         setProgress(null);
@@ -325,6 +401,9 @@ const App: React.FC = () => {
     setUiState('idle');
     setStats(null);
     setProgress(null);
+    setProcessingTime(null);
+    setProcessingStartTime(null);
+    setCurrentFileSize(null);
     setLogs([]);
     addLog('🔄 Ready for new import');
   }, [addLog]);
@@ -399,13 +478,15 @@ const App: React.FC = () => {
           {/* [REFACTOR-CHECKPOINT-2] State: IDLE - Show DropZone */}
           {uiState === 'idle' && (
             <>
-              <DropZone 
+              <DropZone
                 isDragOver={isDragOver}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onFileSelect={handleFileInputChange}
-                compact={true}
+                compact={false}
+                disabled={scope === 'selection' && !hasSelection}
+                fullscreen={isDragging || isDragOver}
               />
               
               <div className="import-tip">
@@ -416,17 +497,19 @@ const App: React.FC = () => {
 
           {/* [REFACTOR-CHECKPOINT-2] State: LOADING - Show LiveProgressView */}
           {uiState === 'loading' && (
-            <LiveProgressView 
+            <LiveProgressView
               progress={progress}
               recentLogs={logs}
               currentOperation={progress?.message}
+              fileSize={currentFileSize || undefined}
             />
           )}
 
           {/* [REFACTOR-CHECKPOINT-2] State: COMPLETED - Show CompletionCard */}
           {uiState === 'completed' && stats && (
-            <CompletionCard 
+            <CompletionCard
               stats={stats}
+              processingTime={processingTime || undefined}
               onViewLogs={handleViewLogsFromCard}
               onImportAnother={handleImportAnother}
             />
