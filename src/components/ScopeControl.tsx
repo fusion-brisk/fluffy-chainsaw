@@ -12,7 +12,7 @@ export const ScopeControl: React.FC<ScopeControlProps> = ({
   onScopeChange 
 }) => {
   return (
-    <div className="flex-col">
+    <div className="scope-control">
       <div className="segmented-control">
         <div 
           className={`segmented-option ${scope === 'selection' ? 'active' : ''}`}
@@ -29,14 +29,24 @@ export const ScopeControl: React.FC<ScopeControlProps> = ({
       </div>
       
       {!hasSelection && scope === 'selection' && (
-        <div className="warning-banner">
-          <svg className="icon-svg" viewBox="0 0 16 16">
-            <path d="M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16zm0-1.6A6.4 6.4 0 1 0 8 1.6a6.4 6.4 0 0 0 0 12.8zM7.2 4a.8.8 0 1 1 1.6 0v4.8a.8.8 0 1 1-1.6 0V4zm.8 8.8a1 1 0 1 1 0-2 1 1 0 0 1 0 2z" />
+        <div className="scope-hint">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path 
+              d="M6 11C8.76142 11 11 8.76142 11 6C11 3.23858 8.76142 1 6 1C3.23858 1 1 3.23858 1 6C1 8.76142 3.23858 11 6 11Z" 
+              stroke="currentColor" 
+              strokeWidth="1.5"
+            />
+            <path 
+              d="M6 3.5V6.5" 
+              stroke="currentColor" 
+              strokeWidth="1.5" 
+              strokeLinecap="round"
+            />
+            <circle cx="6" cy="8.5" r="0.75" fill="currentColor"/>
           </svg>
-          Select layers to populate
+          <span>Select layers to populate</span>
         </div>
       )}
     </div>
   );
 };
-

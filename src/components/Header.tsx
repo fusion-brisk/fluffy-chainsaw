@@ -14,39 +14,64 @@ export const Header: React.FC<HeaderProps> = ({
   errorCount,
   isLoading 
 }) => {
-  const tabs = [
-    { id: 'import' as TabType, label: 'Import', icon: '📋', shortcut: '1' },
-    { id: 'settings' as TabType, label: 'Settings', icon: '⚙️', shortcut: '2' },
-    { id: 'logs' as TabType, label: 'Logs', icon: '📊', badge: errorCount, shortcut: '3' }
+  const tabs: { id: TabType; icon: React.ReactNode; label: string }[] = [
+    { 
+      id: 'import', 
+      label: 'Import',
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M8 2v8M8 2L5 5M8 2l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M3 10v3a1 1 0 001 1h8a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      )
+    },
+    { 
+      id: 'settings', 
+      label: 'Settings',
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.41 1.41M11.66 11.66l1.41 1.41M2.93 13.07l1.41-1.41M11.66 4.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      )
+    },
+    { 
+      id: 'logs', 
+      label: 'Logs',
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M5 6h6M5 8h6M5 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      )
+    }
   ];
 
   return (
-    <div className="header">
-      <div className="header-title">
-        <h2>Contentify</h2>
-        {isLoading && <span className="header-status">Working...</span>}
+    <header className="app-header">
+      <div className="app-header-left">
+        <h1 className="app-title">Contentify</h1>
+        {isLoading && <span className="app-status">Working...</span>}
       </div>
-      <div className="header-tabs">
+      
+      <nav className="app-nav">
         {tabs.map(tab => (
           <button
             key={tab.id}
-            className={`header-tab ${activeTab === tab.id ? 'active' : ''}`}
+            className={`app-nav-item ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => onTabChange(tab.id)}
             disabled={isLoading}
-            title={`${tab.label} (Press ${tab.shortcut})`}
-            aria-label={`${tab.label} tab`}
+            title={tab.label}
+            aria-label={tab.label}
             aria-current={activeTab === tab.id ? 'page' : undefined}
           >
-            <span className="tab-icon">{tab.icon}</span>
-            {tab.badge !== undefined && tab.badge > 0 && (
-              <span className="tab-badge" aria-label={`${tab.badge} errors`}>
-                {tab.badge}
-              </span>
+            {tab.icon}
+            {tab.id === 'logs' && errorCount !== undefined && errorCount > 0 && (
+              <span className="app-nav-badge">{errorCount}</span>
             )}
           </button>
         ))}
-      </div>
-    </div>
+      </nav>
+    </header>
   );
 };
-

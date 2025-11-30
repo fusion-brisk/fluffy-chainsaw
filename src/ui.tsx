@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CSVRow, ProcessingStats, ProgressData, PluginMessage, ParsingRulesMetadata, TabType, UIState } from './types';
 import { 
@@ -12,24 +12,20 @@ import {
 import { Header } from './components/Header';
 import { ScopeControl } from './components/ScopeControl';
 import { DropZone } from './components/DropZone';
-import { ProgressBar } from './components/ProgressBar';
-import { StatsPanel } from './components/StatsPanel';
-import { LogViewer } from './components/LogViewer';
-import { ParsingRulesViewer } from './components/ParsingRulesViewer';
 import { UpdateDialog } from './components/UpdateDialog';
-import { SettingsPanel } from './components/SettingsPanel';
-// [REFACTOR-CHECKPOINT-2] Import new components
+// Import tab components
 import { LiveProgressView } from './components/import/LiveProgressView';
 import { CompletionCard } from './components/import/CompletionCard';
-// [REFACTOR-CHECKPOINT-3] Import unified views
+import { ErrorCard } from './components/import/ErrorCard';
+// Settings & Logs views
 import { SettingsView } from './components/settings/SettingsView';
 import { LogsView } from './components/logs/LogsView';
 
 // Main App Component
 const App: React.FC = () => {
-  // [REFACTOR-CHECKPOINT-1] Tab navigation state
+  // Tab navigation state
   const [activeTab, setActiveTab] = useState<TabType>('import');
-  // [REFACTOR-CHECKPOINT-2] UI state machine
+  // UI state machine
   const [uiState, setUiState] = useState<UIState>('idle');
   const [scope, setScope] = useState<'selection' | 'page'>('selection');
   const [isLoading, setIsLoading] = useState(false);
@@ -37,23 +33,35 @@ const App: React.FC = () => {
   const [stats, setStats] = useState<ProcessingStats | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [hasSelection, setHasSelection] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isParsingFromHtml, setIsParsingFromHtml] = useState(false);
   const [parsingRulesMetadata, setParsingRulesMetadata] = useState<ParsingRulesMetadata | null>(null);
-  // [SEED-IMPLEMENTATION] Track processing time for performance feedback
+  // Track processing time
   const [processingTime, setProcessingTime] = useState<number | null>(null);
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
-  // [SEED-IMPLEMENTATION] Track file size for progress feedback
+  // Track file size
   const [currentFileSize, setCurrentFileSize] = useState<number | null>(null);
-  const [showRules, setShowRules] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState<{
     currentVersion: number;
     newVersion: number;
     hash: string;
   } | null>(null);
   const [remoteUrl, setRemoteUrl] = useState<string>('');
+  // Last completion stats for showing after returning to idle
+  const [lastCompletionStats, setLastCompletionStats] = useState<{
+    stats: ProcessingStats;
+    processingTime: number | null;
+  } | null>(null);
+  
+  // Last error for showing in status area
+  const [lastError, setLastError] = useState<{
+    message: string;
+    details?: string;
+  } | null>(null);
+  
+  // Ref to track latest stats (for closure in message handler)
+  const statsRef = useRef<ProcessingStats | null>(null);
 
   // Add log message
   const addLog = useCallback((message: string) => {
@@ -94,11 +102,8 @@ const App: React.FC = () => {
   useEffect(() => {
     try {
       applyFigmaTheme();
-      // Load saved settings
       sendMessageToPlugin({ type: 'get-settings' });
-      // Load parsing rules
       sendMessageToPlugin({ type: 'get-parsing-rules' });
-      // Load remote URL
       sendMessageToPlugin({ type: 'get-remote-url' });
       
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
@@ -127,18 +132,21 @@ const App: React.FC = () => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
     await processFiles(files);
-    // Reset input
     event.target.value = '';
   };
 
   const processFiles = async (files: FileList) => {
-    // [SEED-IMPLEMENTATION] Track processing start time for performance feedback
+    // Clear last completion stats and errors when starting new processing
+    setLastCompletionStats(null);
+    setLastError(null);
+    statsRef.current = null;
+    
     const startTime = Date.now();
     setProcessingStartTime(startTime);
-    setProcessingTime(null); // Reset previous time
+    setProcessingTime(null);
 
     setIsLoading(true);
-    setUiState('loading'); // [REFACTOR-CHECKPOINT-2] Set loading state
+    setUiState('loading');
     setProgress({ current: 0, total: 100, message: 'Чтение файла...' });
     setStats(null);
     setLogs([]);
@@ -146,11 +154,10 @@ const App: React.FC = () => {
 
     try {
       const file = files[0];
-      // [SEED-IMPLEMENTATION] Store file size for progress display
       setCurrentFileSize(file.size);
 
-      // [SEED-IMPLEMENTATION] Warn about large files (>10MB)
-      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+      // Warn about large files (>10MB)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024;
       if (file.size > MAX_FILE_SIZE) {
         const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
         const confirmed = confirm(
@@ -160,7 +167,10 @@ const App: React.FC = () => {
         );
         if (!confirmed) {
           addLog(`❌ Обработка файла отменена пользователем (${sizeMB}MB)`);
-          return; // Exit early without processing
+          setIsLoading(false);
+          setUiState('idle');
+          setProgress(null);
+          return;
         }
         addLog(`⚠️ Пользователь подтвердил обработку большого файла (${sizeMB}MB)`);
       }
@@ -207,9 +217,17 @@ const App: React.FC = () => {
 
     } catch (error) {
       console.error('File processing error:', error);
-      addLog(`❌ Ошибка: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addLog(`❌ Ошибка: ${errorMessage}`);
+      
+      // Save error for display in status area
+      setLastError({
+        message: errorMessage,
+        details: error instanceof Error && error.stack ? error.stack.split('\n')[0] : undefined
+      });
+      
       setIsLoading(false);
-      setUiState('idle'); // [REFACTOR-CHECKPOINT-2] Reset to idle on error
+      setUiState('idle');
       setProgress(null);
     } finally {
       setIsParsingFromHtml(false);
@@ -227,7 +245,7 @@ const App: React.FC = () => {
     setIsDragOver(false);
   };
 
-  // [UX-ENHANCEMENT] Global drag tracking for fullscreen drop zone
+  // Global drag tracking for fullscreen drop zone
   useEffect(() => {
     const handleWindowDragEnter = (e: DragEvent) => {
       e.preventDefault();
@@ -236,7 +254,6 @@ const App: React.FC = () => {
 
     const handleWindowDragLeave = (e: DragEvent) => {
       e.preventDefault();
-      // Only stop dragging if we're actually leaving the window
       if (e.clientX === 0 && e.clientY === 0) {
         setIsDragging(false);
         setIsDragOver(false);
@@ -253,7 +270,6 @@ const App: React.FC = () => {
       e.preventDefault();
     };
 
-    // Add global listeners
     window.addEventListener('dragenter', handleWindowDragEnter);
     window.addEventListener('dragleave', handleWindowDragLeave);
     window.addEventListener('drop', handleWindowDrop);
@@ -270,6 +286,12 @@ const App: React.FC = () => {
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
+    setIsDragging(false);
+    
+    // Clear completion stats and errors when dropping new file
+    setLastCompletionStats(null);
+    setLastError(null);
+    
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       await processFiles(e.dataTransfer.files);
     }
@@ -317,38 +339,52 @@ const App: React.FC = () => {
       } 
       else if (msg.type === 'stats') {
         setStats(msg.stats);
-        // Display detailed errors in logs
+        statsRef.current = msg.stats; // Keep ref updated for done handler
         if (msg.stats.errors && msg.stats.errors.length > 0) {
           addLog(`⚠️ Found ${msg.stats.errors.length} errors:`);
           msg.stats.errors.forEach(err => {
             addLog(`❌ [${err.type}] Layer "${err.layerName}" (Row ${err.rowIndex ? err.rowIndex + 1 : 'N/A'}): ${err.message}`);
             if (err.url) addLog(`   🔗 URL: ${err.url}`);
           });
-          // Auto-open logs if there are errors
-          setShowLogs(true);
         }
       } 
       else if (msg.type === 'done') {
-        // [SEED-IMPLEMENTATION] Calculate processing time for performance feedback
+        // Calculate processing time
+        let elapsedTime: number | null = null;
         if (processingStartTime) {
-          const elapsedTime = Date.now() - processingStartTime;
+          elapsedTime = Date.now() - processingStartTime;
           setProcessingTime(elapsedTime);
           addLog(`⏱️ Время обработки: ${Math.round(elapsedTime / 1000)} сек`);
         }
 
+        // Store completion stats for display (use ref to get latest stats)
+        const currentStats = statsRef.current;
+        if (currentStats) {
+          setLastCompletionStats({
+            stats: currentStats,
+            processingTime: elapsedTime
+          });
+        }
+
         setIsLoading(false);
-        setUiState('completed'); // [REFACTOR-CHECKPOINT-2] Set completed state
+        setUiState('idle'); // Return to idle state (not 'completed')
         setProgress(null);
         addLog(`✅ Готово! Обработано ${msg.count} элементов.`);
       } 
       else if (msg.type === 'error') {
         addLog(`❌ Ошибка плагина: ${msg.message}`);
+        
+        // Save error for display in status area
+        setLastError({
+          message: msg.message
+        });
+        
         setIsLoading(false);
-        setUiState('idle'); // [REFACTOR-CHECKPOINT-2] Reset to idle on error
+        setUiState('idle');
         setProgress(null);
       }
     };
-  }, [addLog, scope]);
+  }, [addLog, scope, processingStartTime]);
 
   const handleScopeChange = (newScope: 'selection' | 'page') => {
     setScope(newScope);
@@ -357,14 +393,6 @@ const App: React.FC = () => {
       settings: { scope: newScope }
     });
   };
-
-  const handleToggleRules = useCallback(() => {
-    setShowRules(!showRules);
-    // [REFACTOR-CHECKPOINT-1] Auto-switch to settings tab when toggling rules
-    if (!showRules) {
-      setActiveTab('settings');
-    }
-  }, [showRules]);
 
   const handleRefreshRules = useCallback(() => {
     sendMessageToPlugin({ type: 'check-remote-rules-update' });
@@ -396,35 +424,24 @@ const App: React.FC = () => {
     addLog('🔗 Remote config URL обновлён');
   }, [addLog]);
 
-  // [REFACTOR-CHECKPOINT-2] Reset to import another file
-  const handleImportAnother = useCallback(() => {
-    setUiState('idle');
-    setStats(null);
-    setProgress(null);
-    setProcessingTime(null);
-    setProcessingStartTime(null);
-    setCurrentFileSize(null);
-    setLogs([]);
-    addLog('🔄 Ready for new import');
-  }, [addLog]);
-
-  // [REFACTOR-CHECKPOINT-2] View logs from completion card
+  // View logs from completion
   const handleViewLogsFromCard = useCallback(() => {
     setActiveTab('logs');
   }, []);
 
-  // [REFACTOR-CHECKPOINT-1] Smart tab navigation: auto-switch to logs on errors
-  useEffect(() => {
-    if (stats && stats.failedImages > 0 && !isLoading) {
-      // Auto-open logs tab if there are errors
-      setActiveTab('logs');
-    }
-  }, [stats, isLoading]);
+  // Clear completion stats
+  const handleDismissCompletion = useCallback(() => {
+    setLastCompletionStats(null);
+  }, []);
 
-  // [REFACTOR-CHECKPOINT-4] Keyboard shortcuts
+  // Clear error
+  const handleDismissError = useCallback(() => {
+    setLastError(null);
+  }, []);
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Tab switching: 1, 2, 3
       if (e.key === '1' && !e.metaKey && !e.ctrlKey) {
         setActiveTab('import');
         e.preventDefault();
@@ -435,14 +452,12 @@ const App: React.FC = () => {
         setActiveTab('logs');
         e.preventDefault();
       }
-      // Open file: Cmd/Ctrl + O
       else if (e.key === 'o' && (e.metaKey || e.ctrlKey)) {
-        if (activeTab === 'import' && uiState === 'idle') {
+        if (activeTab === 'import' && uiState === 'idle' && !isLoading) {
           document.getElementById('file-input')?.click();
           e.preventDefault();
         }
       }
-      // Clear logs: Cmd/Ctrl + K (when on logs tab)
       else if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         if (activeTab === 'logs' && logs.length > 0) {
           if (confirm('Clear all logs?')) {
@@ -455,18 +470,20 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, uiState, logs.length]);
+  }, [activeTab, uiState, isLoading, logs.length]);
+
+  const isDropZoneDisabled = (scope === 'selection' && !hasSelection) || isLoading;
 
   return (
     <>
       <Header 
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        errorCount={stats?.failedImages || 0}
+        errorCount={stats?.failedImages || lastCompletionStats?.stats.failedImages || 0}
         isLoading={isLoading}
       />
 
-      {/* [REFACTOR-CHECKPOINT-1] Tab: Import */}
+      {/* Tab: Import */}
       {activeTab === 'import' && (
         <>
           <ScopeControl 
@@ -475,50 +492,62 @@ const App: React.FC = () => {
             onScopeChange={handleScopeChange} 
           />
 
-          {/* [REFACTOR-CHECKPOINT-2] State: IDLE - Show DropZone */}
-          {uiState === 'idle' && (
-            <>
-              <DropZone
-                isDragOver={isDragOver}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onFileSelect={handleFileInputChange}
-                compact={false}
-                disabled={scope === 'selection' && !hasSelection}
-                fullscreen={isDragging || isDragOver}
+          {/* DropZone - always visible */}
+          <DropZone
+            isDragOver={isDragOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onFileSelect={handleFileInputChange}
+            disabled={isDropZoneDisabled}
+            fullscreen={(isDragging || isDragOver) && !isLoading}
+            isLoading={isLoading}
+            progress={progress ? { current: progress.current, total: progress.total } : undefined}
+          />
+
+          {/* Status area below DropZone */}
+          <div className="status-area">
+            {/* Loading status - GPT thinking style */}
+            {isLoading && (
+              <LiveProgressView
+                progress={progress}
+                recentLogs={logs}
+                currentOperation={progress?.message}
+                fileSize={currentFileSize || undefined}
               />
-              
+            )}
+
+            {/* Error - shows when file processing fails */}
+            {!isLoading && lastError && (
+              <ErrorCard
+                message={lastError.message}
+                details={lastError.details}
+                onViewLogs={handleViewLogsFromCard}
+                onDismiss={handleDismissError}
+              />
+            )}
+
+            {/* Completion summary - shows after successful processing */}
+            {!isLoading && !lastError && lastCompletionStats && (
+              <CompletionCard
+                stats={lastCompletionStats.stats}
+                processingTime={lastCompletionStats.processingTime || undefined}
+                onViewLogs={handleViewLogsFromCard}
+                onDismiss={handleDismissCompletion}
+              />
+            )}
+
+            {/* Tip - only show when no status to display */}
+            {!isLoading && !lastError && !lastCompletionStats && (
               <div className="import-tip">
                 💡 <strong>Tip:</strong> Supports HTML & MHTML files from Yandex search results
               </div>
-            </>
-          )}
-
-          {/* [REFACTOR-CHECKPOINT-2] State: LOADING - Show LiveProgressView */}
-          {uiState === 'loading' && (
-            <LiveProgressView
-              progress={progress}
-              recentLogs={logs}
-              currentOperation={progress?.message}
-              fileSize={currentFileSize || undefined}
-            />
-          )}
-
-          {/* [REFACTOR-CHECKPOINT-2] State: COMPLETED - Show CompletionCard */}
-          {uiState === 'completed' && stats && (
-            <CompletionCard
-              stats={stats}
-              processingTime={processingTime || undefined}
-              onViewLogs={handleViewLogsFromCard}
-              onImportAnother={handleImportAnother}
-            />
-          )}
+            )}
+          </div>
         </>
       )}
 
-      {/* [REFACTOR-CHECKPOINT-1] Tab: Settings */}
-      {/* [REFACTOR-CHECKPOINT-3] Use new unified SettingsView */}
+      {/* Tab: Settings */}
       {activeTab === 'settings' && (
         <SettingsView 
           remoteUrl={remoteUrl}
@@ -529,8 +558,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* [REFACTOR-CHECKPOINT-1] Tab: Logs */}
-      {/* [REFACTOR-CHECKPOINT-3] Use new LogsView with filters */}
+      {/* Tab: Logs */}
       {activeTab === 'logs' && (
         <LogsView 
           logs={logs}

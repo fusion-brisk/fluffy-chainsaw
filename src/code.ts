@@ -1,6 +1,6 @@
 import { Logger } from './logger';
 import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES } from './config';
-import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer } from './component-handlers';
+import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel, handleOfficialShop, handleEDeliveryGroup, handleEPriceView, handleLabelDiscountView } from './component-handlers';
 import { ImageProcessor } from './image-handlers';
 import { loadFonts, processTextLayers } from './text-handlers';
 import { LayerDataItem } from './types';
@@ -290,6 +290,21 @@ figma.ui.onmessage = async (msg) => {
     
     Logger.info(`📦 Найдено ${allContainers.length} контейнеров-сниппетов`);
     
+    // Сортировка контейнеров по визуальной позиции (сначала по Y, затем по X)
+    // Это гарантирует соответствие порядка контейнеров Figma порядку сниппетов в HTML
+    allContainers.sort(function(a, b) {
+      var ay = a.absoluteTransform ? a.absoluteTransform[1][2] : a.y;
+      var by = b.absoluteTransform ? b.absoluteTransform[1][2] : b.y;
+      // Если разница по Y больше 10px — это разные строки
+      if (Math.abs(ay - by) > 10) return ay - by;
+      // Одна строка — сортируем по X
+      var ax = a.absoluteTransform ? a.absoluteTransform[0][2] : a.x;
+      var bx = b.absoluteTransform ? b.absoluteTransform[0][2] : b.x;
+      return ax - bx;
+    });
+    
+    Logger.debug(`🔢 Контейнеры отсортированы по позиции (Y→X)`);
+    
     // Набор ID всех контейнеров для проверки вложенности
     const containerIds = new Set(allContainers.map(c => c.id));
     
@@ -435,15 +450,31 @@ figma.ui.onmessage = async (msg) => {
       
       Logger.debug(`🔄 Обработка компонентной логики для ${containersToProcess.size} контейнеров...`);
       const componentPromises: Promise<void>[] = [];
+      var processingIndex = 0;
       for (const [containerKey, data] of containersToProcess) {
         if (!data.container || !data.row) continue;
         const context = { container: data.container, containerKey, row: data.row };
+        
+        // Детальное логирование для отладки Fintech
+        var containerName = data.container && 'name' in data.container ? data.container.name : 'N/A';
+        var shopName = data.row['#ShopName'] || 'N/A';
+        var price = data.row['#OrganicPrice'] || 'N/A';
+        var fintechEnabled = data.row['#EPriceGroup_Fintech'] || 'false';
+        var fintechType = data.row['#Fintech_Type'] || 'N/A';
+        var priceView = data.row['#EPrice_View'] || 'N/A';
+        Logger.info(`📍 [${processingIndex}] ${containerName}: Shop="${shopName}", Price="${price}", Fintech=${fintechEnabled} (${fintechType}), EPrice_View=${priceView}`);
+        processingIndex++;
         
         try {
           handleBrandLogic(context);
           handleEPriceGroup(context);
           handleEPriceBarometer(context);
+          handleEMarketCheckoutLabel(context);
+          handleOfficialShop(context);
+          handleEPriceView(context);
+          handleLabelDiscountView(context);
           componentPromises.push(handleELabelGroup(context).catch(e => Logger.error(`Error in handleELabelGroup:`, e)));
+          componentPromises.push(handleEDeliveryGroup(context).catch(e => Logger.error(`Error in handleEDeliveryGroup:`, e)));
         } catch (e) {
           Logger.error(`Error in component handlers:`, e);
         }

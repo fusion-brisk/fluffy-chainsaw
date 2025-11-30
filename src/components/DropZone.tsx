@@ -6,9 +6,11 @@ interface DropZoneProps {
   onDragLeave: (e: React.DragEvent) => void;
   onDrop: (e: React.DragEvent) => void;
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  compact?: boolean; // [REFACTOR-CHECKPOINT-3] New prop for compact mode
-  disabled?: boolean; // [SEED-IMPLEMENTATION] Disable when no selection in selection scope
-  fullscreen?: boolean; // [UX-ENHANCEMENT] Fullscreen mode when dragging
+  disabled?: boolean;
+  fullscreen?: boolean;
+  // Progress overlay props
+  isLoading?: boolean;
+  progress?: { current: number; total: number };
 }
 
 export const DropZone: React.FC<DropZoneProps> = ({
@@ -17,32 +19,62 @@ export const DropZone: React.FC<DropZoneProps> = ({
   onDragLeave,
   onDrop,
   onFileSelect,
-  compact = false,
   disabled = false,
-  fullscreen = false
+  fullscreen = false,
+  isLoading = false,
+  progress
 }) => {
+  const isDisabled = disabled || isLoading;
+  const percentage = progress && progress.total > 0
+    ? Math.round((progress.current / progress.total) * 100)
+    : 0;
+
   return (
     <div
-      className={`drop-zone ${isDragOver ? 'drag-over' : ''} ${compact ? 'compact' : ''} ${disabled ? 'disabled' : ''} ${fullscreen ? 'fullscreen' : ''}`}
-      onDragOver={disabled ? undefined : onDragOver}
-      onDragLeave={disabled ? undefined : onDragLeave}
-      onDrop={disabled ? undefined : onDrop}
-      onClick={disabled ? undefined : () => document.getElementById('file-input')?.click()}
-      style={disabled ? { cursor: 'not-allowed', opacity: 0.5 } : undefined}
+      className={`drop-zone ${isDragOver ? 'drag-over' : ''} ${isDisabled ? 'disabled' : ''} ${fullscreen ? 'fullscreen' : ''} ${isLoading ? 'loading' : ''}`}
+      onDragOver={isDisabled ? undefined : onDragOver}
+      onDragLeave={isDisabled ? undefined : onDragLeave}
+      onDrop={isDisabled ? undefined : onDrop}
+      onClick={isDisabled ? undefined : () => document.getElementById('file-input')?.click()}
     >
-      <svg className="drop-icon" viewBox="0 0 24 24">
-        <path d="M19.4 11l-6-6a2 2 0 0 0-2.8 0l-6 6A2 2 0 0 0 4 12.4V20a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.6a2 2 0 0 0-.6-1.4zM14 13v5h-4v-5H6l6-6 6 6h-4z"/>
+      {/* Progress bar overlay when loading */}
+      {isLoading && (
+        <div className="drop-zone-progress-overlay">
+          <div 
+            className="drop-zone-progress-bar" 
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      )}
+
+      {/* Modern upload icon */}
+      <svg className="drop-icon" viewBox="0 0 48 48" fill="none">
+        <path 
+          d="M24 4L24 32M24 4L14 14M24 4L34 14" 
+          stroke="currentColor" 
+          strokeWidth="3" 
+          strokeLinecap="round" 
+          strokeLinejoin="round"
+        />
+        <path 
+          d="M8 28V38C8 40.2091 9.79086 42 12 42H36C38.2091 42 40 40.2091 40 38V28" 
+          stroke="currentColor" 
+          strokeWidth="3" 
+          strokeLinecap="round"
+        />
       </svg>
+      
       <div className="drop-zone-text">
-        {disabled
-          ? 'Select elements first'
-          : fullscreen
-            ? 'Drop file anywhere'
-            : compact
-              ? 'Drop file or click'
+        {isLoading
+          ? `${percentage}%`
+          : disabled
+            ? 'Select elements first'
+            : fullscreen
+              ? 'Drop file anywhere'
               : 'Click or drag HTML file'
         }
       </div>
+      
       <input 
         type="file" 
         id="file-input" 
@@ -53,4 +85,3 @@ export const DropZone: React.FC<DropZoneProps> = ({
     </div>
   );
 };
-

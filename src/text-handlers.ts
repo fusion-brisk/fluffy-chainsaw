@@ -182,7 +182,42 @@ export function processTextLayers(textLayers: LayerDataItem[]): void {
             if (targetLayer) {
               targetLayer.characters = textValue;
             } else {
-              Logger.warn(`⚠️ Не найден текстовый слой в INSTANCE "${instance.name}" для "${item.fieldName}"`);
+              // Нет дочернего TEXT — пробуем установить через componentProperties
+              // Это нужно для компонентов типа EPrice, которые используют exposed properties
+              let propertySet = false;
+              
+              if (instance.componentProperties) {
+                // Пробуем разные имена свойств
+                const propertyNames = ['value', 'text', 'content', 'label', 'Value', 'Text'];
+                
+                for (const propName of propertyNames) {
+                  // Проверяем точное совпадение или с суффиксом
+                  for (const propKey in instance.componentProperties) {
+                    if (propKey === propName || propKey.startsWith(propName + '#') || propKey.toLowerCase() === propName.toLowerCase()) {
+                      const prop = instance.componentProperties[propKey];
+                      if (prop && typeof prop === 'object' && 'value' in prop) {
+                        try {
+                          // Figma setProperties принимает только string | boolean
+                          // Для числовых свойств передаём как строку
+                          const valueToSet: string = textValue;
+                          
+                          instance.setProperties({ [propName]: valueToSet });
+                          Logger.debug(`✅ Установлено свойство "${propName}" = "${valueToSet}" для INSTANCE "${instance.name}"`);
+                          propertySet = true;
+                          break;
+                        } catch (propError) {
+                          Logger.debug(`⚠️ Не удалось установить "${propName}": ${propError}`);
+                        }
+                      }
+                    }
+                  }
+                  if (propertySet) break;
+                }
+              }
+              
+              if (!propertySet) {
+                Logger.warn(`⚠️ Не найден текстовый слой или свойство в INSTANCE "${instance.name}" для "${item.fieldName}"`);
+              }
             }
           } catch (instanceError) {
             Logger.error(`❌ Ошибка обработки INSTANCE "${item.fieldName}":`, instanceError);

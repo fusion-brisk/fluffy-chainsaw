@@ -118,31 +118,59 @@ export function extractRowData(
   }
   
   // #OrganicTitle — ОПТИМИЗИРОВАНО (Phase 5): queryFirstMatch вместо querySelector
+  const snippetType = row['#SnippetType'];
   let titleEl: Element | null = queryFirstMatch(cache, rules['#OrganicTitle'].domSelectors);
   if (!titleEl) {
     // Fallback: ищем ссылку внутри заголовка (если не найдено по основным селекторам)
-    // В новой схеме это должно быть уже включено в domSelectors, но оставим как fallback если нужно
-    titleEl = container.querySelector('.EProductSnippet2-Title a, [class*="EProductSnippet2-Title"] a');
+    if (snippetType === 'EShopItem') {
+      titleEl = container.querySelector('.EShopItem-Title, [class*="EShopItem-Title"]');
+    } else {
+      titleEl = container.querySelector('.EProductSnippet2-Title a, [class*="EProductSnippet2-Title"] a');
+    }
   }
   if (titleEl) {
     row['#OrganicTitle'] = getTextContent(titleEl);
   }
   
   // #ShopName — ОПТИМИЗИРОВАНО (Phase 5)
-  if (row['#SnippetType'] === 'EProductSnippet2') {
-    const shopName = queryFromCache(cache, '.EShopName');
-    if (shopName) {
-      row['#ShopName'] = getTextContent(shopName);
+  // Сначала пробуем получить чистое имя из Line-AddonContent (без текста OfficialShop)
+  if (snippetType === 'EProductSnippet2' || snippetType === 'EShopItem') {
+    // Для EShopItem: ищем в EShopItem-ShopName
+    // Для EProductSnippet2: ищем в EShopName
+    const shopNameSelectors = snippetType === 'EShopItem'
+      ? ['.EShopItem-ShopName .Line-AddonContent', '[class*="EShopItem-ShopName"] .Line-AddonContent', '.EShopItem-ShopName .EShopName', '.EShopItem-ShopName']
+      : ['.EShopName .Line-AddonContent', '[class*="EShopName"] .Line-AddonContent'];
+    
+    const shopNameClean = queryFirstMatch(cache, shopNameSelectors);
+    if (shopNameClean) {
+      row['#ShopName'] = getTextContent(shopNameClean);
+    } else {
+      // Fallback: весь EShopName (может содержать OfficialShop текст)
+      const shopName = queryFromCache(cache, '.EShopName');
+      if (shopName) {
+        row['#ShopName'] = getTextContent(shopName);
+      }
     }
   }
   
-  if (row['#SnippetType'] === 'EProductSnippet2' && !row['#ShopName']) {
+  // Fallback для ShopName если не найдено
+  if (!row['#ShopName']) {
     const shopNameAlt = queryFirstMatch(cache, rules['#ShopName'].domSelectors);
     if (shopNameAlt) {
       row['#ShopName'] = getTextContent(shopNameAlt);
     } else if (row['#OrganicHost']) {
       row['#ShopName'] = row['#OrganicHost'];
     }
+  }
+  
+  // #OfficialShop — проверяем наличие метки официального магазина внутри EShopName
+  const officialShopSelectors = rules['OfficialShop']?.domSelectors || ['.EShopName .OfficialShop', '[class*="EShopName"] .OfficialShop'];
+  const officialShop = queryFirstMatch(cache, officialShopSelectors);
+  if (officialShop) {
+    row['#OfficialShop'] = 'true';
+    console.log(`✅ Найден OfficialShop в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..." (магазин: ${row['#ShopName']})`);
+  } else {
+    row['#OfficialShop'] = 'false';
   }
   
   // #OrganicPath — ОПТИМИЗИРОВАНО (Phase 5)
@@ -182,11 +210,8 @@ export function extractRowData(
   if (priceGroupPair) {
     console.log('✅ Найден EPriceGroup-Pair, обрабатываем специальную логику цен');
     
-    // 1. Устанавливаем Variant Properties для инстанса EPriceGroup
-    // Добавляем инструкции для установки "Discount=true" и "Old Price=true"
-    // Используем специальные поля, которые будут обработаны в code.ts
-    row['#EPriceGroup_Discount'] = 'true';
-    row['#EPriceGroup_OldPrice'] = 'true';
+    // 1. НЕ устанавливаем Variant Properties сразу!
+    // Установим #EPriceGroup_Discount и #EPriceGroup_OldPrice только если найдём реальные данные
     
     // 2. Извлекаем #OrganicPrice из блока с классом EPriceGroup-Price (текущая цена)
     // Ищем .EPrice-Value внутри .EPriceGroup-Price (но не внутри .EPrice_view_old)
@@ -236,6 +261,7 @@ export function extractRowData(
         // Форматируем цену с математическим пробелом
         const formattedOldPrice = formatPriceWithThinSpace(oldPriceDigits);
         row['#OldPrice'] = formattedOldPrice;
+        row['#EPriceGroup_OldPrice'] = 'true';  // ← Только если есть данные
         console.log(`✅ Извлечена старая цена из EPrice-Value: ${formattedOldPrice}`);
       }
     } else {
@@ -248,6 +274,7 @@ export function extractRowData(
           // Форматируем цену с математическим пробелом
           const formattedOldPrice = formatPriceWithThinSpace(oldPriceDigits);
           row['#OldPrice'] = formattedOldPrice;
+          row['#EPriceGroup_OldPrice'] = 'true';  // ← Только если есть данные
           console.log(`✅ Извлечена старая цена из EPrice_view_old (fallback): ${formattedOldPrice}`);
         }
       }
@@ -269,6 +296,7 @@ export function extractRowData(
         // Форматируем как "–{значение}%" (используем обычные пробелы, если были математические)
         const formattedDiscount = `–${discountValue.replace(/[\u2009\u00A0]/g, ' ')}%`;
         row['#discount'] = formattedDiscount;
+        row['#EPriceGroup_Discount'] = 'true';  // ← Только если есть данные
         // Также сохраняем в DiscountPercent для совместимости
         const discountNumber = discountValue.replace(/\s/g, '');
         if (discountNumber) {
@@ -288,6 +316,7 @@ export function extractRowData(
           const discountValue = discountMatch[1].replace(/[^\d\s\u2009\u00A0]/g, '').trim();
           const formattedDiscount = `–${discountValue.replace(/[\u2009\u00A0]/g, ' ')}%`;
           row['#discount'] = formattedDiscount;
+          row['#EPriceGroup_Discount'] = 'true';  // ← Только если есть данные
           const discountNumber = discountValue.replace(/\s/g, '');
           if (discountNumber) {
             row['#DiscountPercent'] = discountNumber;
@@ -419,6 +448,144 @@ export function extractRowData(
     }
   }
   
+  // #EMarketCheckoutLabel - проверяем наличие лейбла "Покупки" — ОПТИМИЗИРОВАНО (Phase 5)
+  const marketCheckoutLabel = queryFirstMatch(cache, rules['EMarketCheckoutLabel']?.domSelectors || ['.EMarketCheckoutLabel', '[class*="EMarketCheckoutLabel"]']);
+  if (marketCheckoutLabel) {
+    console.log(`✅ Найден EMarketCheckoutLabel в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    row['#EMarketCheckoutLabel'] = 'true';
+  } else {
+    row['#EMarketCheckoutLabel'] = 'false';
+  }
+  
+  // #EDeliveryGroup - блок с вариантами доставки
+  // Используем более специфичный селектор чтобы найти контейнер, а не Item
+  const deliveryGroupSelectors = ['.EDeliveryGroup', '[class*="EDeliveryGroup"]:not([class*="EDeliveryGroup-Item"])'];
+  const deliveryGroup = queryFirstMatch(cache, deliveryGroupSelectors);
+  
+  if (deliveryGroup) {
+    row['#EDeliveryGroup'] = 'true';
+    
+    // Извлекаем все EDeliveryGroup-Item из этого контейнера
+    const itemSelector = '.EDeliveryGroup-Item';
+    const items = queryAllFromCache(cache, itemSelector);
+    
+    // Фильтруем только те, что внутри EDeliveryGroup (не A11yHidden)
+    const deliveryItems: string[] = [];
+    for (let i = 0; i < items.length && i < 5; i++) {
+      const item = items[i];
+      // Пропускаем скрытые элементы (A11yHidden)
+      const parentClasses = item.parentElement?.className || '';
+      if (parentClasses.includes('A11yHidden')) continue;
+      
+      const itemText = item.textContent?.trim();
+      if (itemText && !deliveryItems.includes(itemText)) {
+        deliveryItems.push(itemText);
+      }
+    }
+    
+    // Сохраняем каждый item в отдельное поле (#EDeliveryGroup-Item-1, #EDeliveryGroup-Item-2, ...)
+    for (let i = 0; i < deliveryItems.length; i++) {
+      row[`#EDeliveryGroup-Item-${i + 1}`] = deliveryItems[i];
+    }
+    
+    // Также сохраняем количество items
+    row['#EDeliveryGroup-Count'] = String(deliveryItems.length);
+    
+    console.log(`✅ Найден EDeliveryGroup с ${deliveryItems.length} items: ${deliveryItems.join(', ')}`);
+  } else {
+    row['#EDeliveryGroup'] = 'false';
+    row['#EDeliveryGroup-Count'] = '0';
+  }
+  
+  // #EPrice_view_special - специальный вид цены (зелёная)
+  const priceSpecial = queryFirstMatch(cache, rules['EPrice_view_special']?.domSelectors || ['.EPrice_view_special', '[class*="EPrice_view_special"]']);
+  if (priceSpecial) {
+    row['#EPrice_View'] = 'special';
+    console.log(`✅ Найден EPrice_view_special в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+  }
+  
+  // #Label_view_outlineSpecial - скидка с outline и словом "Вам"
+  const labelOutlineSpecial = queryFirstMatch(cache, rules['Label_view_outlineSpecial']?.domSelectors || ['.Label_view_outlineSpecial', '[class*="Label_view_outlineSpecial"]']);
+  if (labelOutlineSpecial) {
+    row['#LabelDiscount_View'] = 'outlineSpecial';
+    row['#DiscountPrefix'] = 'Вам';
+    
+    // Формируем полный текст "Вам –X%" для #discount, чтобы processTextLayers не перезаписал его
+    const discountVal = row['#discount'] || row['#DiscountPercent'];
+    if (discountVal) {
+      // Форматируем: добавляем "Вам " перед значением скидки
+      const cleanDiscount = discountVal.replace(/^[–-]?\s*/, ''); // Убираем минус в начале если есть
+      row['#discount'] = `Вам –${cleanDiscount}`;
+      console.log(`✅ Найден Label_view_outlineSpecial, сформирован текст: "${row['#discount']}"`);
+    } else {
+      console.log(`✅ Найден Label_view_outlineSpecial с префиксом "Вам" в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    }
+  }
+  
+  // #Fintech - блок рассрочки/оплаты (Сплит/Пэй)
+  const fintechSelectors = ['.Fintech:not(.Fintech-Icon)', '[class*="EPriceGroup-Fintech"]'];
+  const fintech = queryFirstMatch(cache, fintechSelectors);
+  if (fintech) {
+    row['#EPriceGroup_Fintech'] = 'true';
+    
+    // Определяем type (Split или Pay)
+    const fintechClasses = fintech.className || '';
+    if (fintechClasses.includes('Fintech_type_split')) {
+      row['#Fintech_Type'] = 'Split';
+      console.log(`✅ Найден Fintech type=Split`);
+    } else if (fintechClasses.includes('Fintech_type_pay')) {
+      row['#Fintech_Type'] = 'Pay';
+      console.log(`✅ Найден Fintech type=Pay`);
+    }
+    
+    // Определяем view (значения с большой буквы как в Figma)
+    if (fintechClasses.includes('Fintech_view_extra-short')) {
+      row['#Fintech_View'] = 'Extra Short';
+      console.log(`✅ Fintech view=Extra Short`);
+    } else if (fintechClasses.includes('Fintech_view_short')) {
+      row['#Fintech_View'] = 'Short';
+      console.log(`✅ Fintech view=Short`);
+    } else if (fintechClasses.includes('Fintech_view_long')) {
+      row['#Fintech_View'] = 'Long';
+      console.log(`✅ Fintech view=Long`);
+    } else if (fintechClasses.includes('Fintech_view_extra-long')) {
+      row['#Fintech_View'] = 'Extra Long';
+      console.log(`✅ Fintech view=Extra Long`);
+    }
+  } else {
+    row['#EPriceGroup_Fintech'] = 'false';
+  }
+  
+  // #EBnpl - блок BNPL (Buy Now Pay Later) в EShopItem
+  const ebnplSelectors = rules['EBnpl']?.domSelectors || ['.EShopItem-Bnpl', '[class*="EShopItem-Bnpl"]', '.EBnpl'];
+  const ebnplContainer = queryFirstMatch(cache, ebnplSelectors);
+  if (ebnplContainer) {
+    row['#EBnpl'] = 'true';
+    
+    // Извлекаем список BNPL опций (Сплит, Долями и т.д.)
+    const ebnplItemSelectors = rules['EBnpl-Item']?.domSelectors || ['.EBnpl .Line-AddonContent', '[class*="EBnpl"] .Line-AddonContent'];
+    const ebnplItems = queryAllFromCache(cache, ebnplItemSelectors[0]);
+    const bnplOptions: string[] = [];
+    
+    for (let i = 0; i < ebnplItems.length && i < 5; i++) {
+      const itemText = ebnplItems[i].textContent?.trim();
+      if (itemText && !bnplOptions.includes(itemText)) {
+        bnplOptions.push(itemText);
+      }
+    }
+    
+    // Сохраняем каждую опцию в отдельное поле
+    for (let i = 0; i < bnplOptions.length; i++) {
+      row[`#EBnpl-Item-${i + 1}`] = bnplOptions[i];
+    }
+    row['#EBnpl-Count'] = String(bnplOptions.length);
+    
+    console.log(`✅ Найден EBnpl с ${bnplOptions.length} опциями: ${bnplOptions.join(', ')}`);
+  } else {
+    row['#EBnpl'] = 'false';
+    row['#EBnpl-Count'] = '0';
+  }
+  
   // #EPriceBarometer - проверяем наличие и определяем view — ОПТИМИЗИРОВАНО (Phase 5)
   const priceBarometer = queryFirstMatch(cache, rules['EPriceBarometer'].domSelectors);
   if (priceBarometer) {
@@ -450,6 +617,91 @@ export function extractRowData(
   } else {
     // Если EPriceBarometer не найден, устанавливаем Barometer=false для ELabelGroup
     row['#ELabelGroup_Barometer'] = 'false';
+  }
+  
+  // #Quote - цитата из отзыва (для ESnippet)
+  const quoteSelectors = rules['Quote']?.domSelectors || ['.OrganicUgcReviews-Text', '[class*="OrganicUgcReviews-Text"]'];
+  const quoteEl = queryFirstMatch(cache, quoteSelectors);
+  if (quoteEl) {
+    const quoteText = quoteEl.textContent?.trim() || '';
+    if (quoteText) {
+      row['#QuoteText'] = quoteText;
+      console.log(`✅ Найдена цитата: "${quoteText.substring(0, 50)}..."`);
+    }
+  }
+  
+  // #QuoteImage - изображение автора цитаты
+  const quoteImageSelectors = rules['QuoteImage']?.domSelectors || ['.OrganicUgcReviews img', '[class*="OrganicUgcReviews"] img'];
+  const quoteImageEl = queryFirstMatch(cache, quoteImageSelectors);
+  if (quoteImageEl) {
+    const src = quoteImageEl.getAttribute('src') || quoteImageEl.getAttribute('data-src');
+    if (src) {
+      row['#QuoteImage'] = src.startsWith('http') ? src : `https:${src}`;
+    }
+  }
+  
+  // #Sitelinks - ссылки на страницы сайта (для ESnippet)
+  const sitelinksSelectors = rules['Sitelinks']?.domSelectors || ['.Sitelinks', '[class*="Sitelinks"]'];
+  const sitelinksContainer = queryFirstMatch(cache, sitelinksSelectors);
+  if (sitelinksContainer) {
+    row['#Sitelinks'] = 'true';
+    
+    // Извлекаем отдельные ссылки
+    const sitelinkItemSelectors = rules['Sitelinks-Item']?.domSelectors || ['.Sitelinks-Title', '[class*="Sitelinks-Title"]'];
+    const sitelinkItems = queryAllFromCache(cache, sitelinkItemSelectors[0]);
+    const sitelinks: string[] = [];
+    
+    for (let i = 0; i < sitelinkItems.length && i < 5; i++) {
+      const linkText = sitelinkItems[i].textContent?.trim();
+      if (linkText && !sitelinks.includes(linkText)) {
+        sitelinks.push(linkText);
+      }
+    }
+    
+    for (let i = 0; i < sitelinks.length; i++) {
+      row[`#Sitelinks-Item-${i + 1}`] = sitelinks[i];
+    }
+    row['#Sitelinks-Count'] = String(sitelinks.length);
+    
+    if (sitelinks.length > 0) {
+      console.log(`✅ Найдены сайтлинки (${sitelinks.length}): ${sitelinks.join(', ')}`);
+    }
+  } else {
+    row['#Sitelinks'] = 'false';
+    row['#Sitelinks-Count'] = '0';
+  }
+  
+  // #Phone - телефон (для ESnippet)
+  const phoneSelectors = rules['Phone']?.domSelectors || ['.CoveredPhone', '[class*="CoveredPhone"]'];
+  const phoneEl = queryFirstMatch(cache, phoneSelectors);
+  if (phoneEl) {
+    const phoneText = phoneEl.textContent?.trim() || '';
+    if (phoneText) {
+      row['#Phone'] = phoneText;
+      console.log(`✅ Найден телефон: "${phoneText}"`);
+    }
+  }
+  
+  // #PromoOffer - промо-предложение (для ESnippet)
+  const promoSelectors = rules['PromoOffer']?.domSelectors || ['.PromoOffer', '[class*="PromoOffer"]'];
+  const promoEl = queryFirstMatch(cache, promoSelectors);
+  if (promoEl) {
+    const promoText = promoEl.textContent?.trim() || '';
+    if (promoText) {
+      row['#Promo'] = promoText;
+      console.log(`✅ Найден промо-текст: "${promoText.substring(0, 50)}..."`);
+    }
+  }
+  
+  // #Address - адрес (для ESnippet)
+  const addressSelectors = rules['Address']?.domSelectors || ['.Organic-Address', '[class*="Organic-Address"]'];
+  const addressEl = queryFirstMatch(cache, addressSelectors);
+  if (addressEl) {
+    const addressText = addressEl.textContent?.trim() || '';
+    if (addressText) {
+      row['#Address'] = addressText;
+      console.log(`✅ Найден адрес: "${addressText}"`);
+    }
   }
   
   // Валидация: требуем заголовок и хотя бы один источник

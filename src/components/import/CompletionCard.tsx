@@ -5,146 +5,122 @@ interface CompletionCardProps {
   stats: ProcessingStats;
   processingTime?: number; // in milliseconds
   onViewLogs?: () => void;
-  onImportAnother?: () => void;
+  onDismiss?: () => void;
 }
 
 export const CompletionCard: React.FC<CompletionCardProps> = ({
   stats,
   processingTime,
   onViewLogs,
-  onImportAnother
+  onDismiss
 }) => {
-  // [SEED-IMPLEMENTATION] Copy error to clipboard
-  const copyErrorToClipboard = (error: any) => {
-    let errorText = `[${error.type}] ${error.rowIndex !== undefined ? `Row ${error.rowIndex + 1}: ` : ''}${error.message}`;
-    if (error.url) {
-      errorText += `\nURL: ${error.url}`;
-    }
-
-    navigator.clipboard.writeText(errorText).then(() => {
-      // Could add toast notification here in future
-      console.log('Error copied to clipboard:', errorText);
-    }).catch(err => {
-      console.error('Failed to copy error:', err);
-      // Fallback for older browsers - could implement textarea method
-    });
-  };
   const hasErrors = stats.failedImages > 0;
-  const successRate = stats.processedInstances > 0
-    ? Math.round((stats.successfulImages / stats.processedInstances) * 100)
-    : 0;
+  
+  // Calculate success rate based on total image operations
+  const totalImageOperations = stats.successfulImages + stats.failedImages;
+  const successRate = totalImageOperations > 0
+    ? Math.min(100, Math.round((stats.successfulImages / totalImageOperations) * 100))
+    : (stats.processedInstances > 0 ? 100 : 0);
+
+  // Format time
+  const formatTime = (ms: number): string => {
+    const seconds = ms / 1000;
+    if (seconds < 1) return `${Math.round(ms)}ms`;
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
+  };
 
   return (
-    <div className={`completion-card ${hasErrors ? 'has-errors' : 'success'}`}>
-      <div className="completion-card-header">
-        <div className="completion-icon">
-          {hasErrors ? '⚠️' : '✅'}
-        </div>
-        <div className="completion-title">
-          {hasErrors ? 'Completed with errors' : 'Successfully completed'}
-          {processingTime && (
-            <div className="completion-time">
-              in {Math.round(processingTime / 1000)}s
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="completion-stats">
-        <div className="completion-stat-item main">
-          <div className="completion-stat-value">{stats.processedInstances}</div>
-          <div className="completion-stat-label">Items Processed</div>
-        </div>
-
-        <div className="completion-stats-grid">
-          <div className="completion-stat-item success">
-            <div className="completion-stat-value">{stats.successfulImages}</div>
-            <div className="completion-stat-label">Images</div>
-          </div>
-
-          {stats.skippedImages > 0 && (
-            <div className="completion-stat-item skipped">
-              <div className="completion-stat-value">{stats.skippedImages}</div>
-              <div className="completion-stat-label">Skipped</div>
-            </div>
-          )}
-
-          {hasErrors && (
-            <div className="completion-stat-item error">
-              <div className="completion-stat-value">{stats.failedImages}</div>
-              <div className="completion-stat-label">Errors</div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {successRate > 0 && (
-        <div className="completion-success-rate">
-          <div className="completion-success-rate-bar-bg">
-            <div 
-              className="completion-success-rate-bar"
-              style={{ width: `${successRate}%` }}
-            />
-          </div>
-          <div className="completion-success-rate-text">
-            {successRate}% Success Rate
-          </div>
-        </div>
-      )}
-
-      {hasErrors && stats.errors && stats.errors.length > 0 && (
-        <div className="completion-errors-summary">
-          <div className="completion-errors-title">
-            ⚠️ {stats.errors.length} error{stats.errors.length > 1 ? 's' : ''} occurred
-          </div>
-          <div className="completion-errors-preview">
-            {stats.errors.slice(0, 2).map((error, idx) => (
-              <div key={idx} className="completion-error-item">
-                <div className="completion-error-content">
-                  <span className="completion-error-type">[{error.type}]</span>
-                  <span className="completion-error-message">
-                    {error.rowIndex !== undefined ? `Row ${error.rowIndex + 1}: ` : ''}
-                    {error.message}
-                  </span>
-                </div>
-                <button
-                  className="completion-error-copy-btn"
-                  onClick={() => copyErrorToClipboard(error)}
-                  title="Copy error details"
-                  aria-label="Copy error to clipboard"
-                >
-                  📋
-                </button>
-              </div>
-            ))}
-            {stats.errors.length > 2 && (
-              <div className="completion-errors-more">
-                +{stats.errors.length - 2} more errors
-              </div>
+    <div className="status-completion">
+      {/* Header with close button */}
+      <div className="status-completion-header">
+        <div className={`status-completion-badge ${hasErrors ? 'has-errors' : 'success'}`}>
+          <span className="status-completion-icon">
+            {hasErrors ? '⚠️' : (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path 
+                  d="M3 8.5L6.5 12L13 4" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                />
+              </svg>
             )}
-          </div>
-          {onViewLogs && (
-            <button 
-              className="completion-view-logs-btn"
-              onClick={onViewLogs}
-            >
-              View Details in Logs →
+          </span>
+          <span className="status-completion-text">
+            {hasErrors ? 'Completed with issues' : 'Done'}
+          </span>
+        </div>
+        {onDismiss && (
+          <button 
+            className="status-completion-close" 
+            onClick={onDismiss}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        )}
+      </div>
+
+      {/* Compact stats row */}
+      <div className="status-completion-summary">
+        <span className="status-completion-summary-item">
+          <strong>{stats.processedInstances}</strong> items
+        </span>
+        {stats.successfulImages > 0 && (
+          <span className="status-completion-summary-item">
+            <strong>{stats.successfulImages}</strong> images
+          </span>
+        )}
+        {hasErrors && (
+          <span className="status-completion-summary-item error">
+            <strong>{stats.failedImages}</strong> failed
+          </span>
+        )}
+        {processingTime && (
+          <span className="status-completion-summary-item">
+            <strong>{formatTime(processingTime)}</strong>
+          </span>
+        )}
+      </div>
+
+      {/* Success rate bar */}
+      <div className="status-completion-rate">
+        <div 
+          className={`status-completion-rate-bar ${hasErrors ? 'has-errors' : 'success'}`}
+          style={{ width: `${successRate}%` }}
+        />
+      </div>
+
+      {/* Error summary if any */}
+      {hasErrors && stats.errors && stats.errors.length > 0 && (
+        <div className="status-completion-errors">
+          {stats.errors.slice(0, 2).map((error, idx) => (
+            <div key={idx} className="status-completion-error">
+              <span className="status-completion-error-indicator">×</span>
+              <span className="status-completion-error-text">
+                {error.rowIndex !== undefined && `Row ${error.rowIndex + 1}: `}
+                {error.message}
+              </span>
+            </div>
+          ))}
+          {stats.errors.length > 2 && onViewLogs && (
+            <button className="status-completion-more-btn" onClick={onViewLogs}>
+              +{stats.errors.length - 2} more
             </button>
           )}
         </div>
       )}
 
-      <div className="completion-actions">
-        {onImportAnother && (
-          <button 
-            className="completion-action-btn primary"
-            onClick={onImportAnother}
-          >
-            Import Another File
+      {/* Actions row */}
+      {onViewLogs && (
+        <div className="status-completion-actions">
+          <button className="status-completion-link" onClick={onViewLogs}>
+            View logs
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
-

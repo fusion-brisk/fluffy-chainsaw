@@ -58,8 +58,14 @@ export function isInsideAdvProductGallery(container: Element): boolean {
 // Извлекает URL продукта из контейнера
 export function extractProductURL(container: Element): string {
   const productLink: Element | null =
+    // EProductSnippet2
     container.querySelector('.EProductSnippet2-Overlay[href], .EProductSnippet2-Overlay [href]') ||
     container.querySelector('.EProductSnippet2 a[href], [data-href]') ||
+    // EShopItem — ссылка в кнопке или в заголовке
+    container.querySelector('.EShopItem-ButtonLink[href], [class*="EShopItem-ButtonLink"][href]') ||
+    container.querySelector('.EShopItem-Title a[href], [class*="EShopItem-Title"] a[href]') ||
+    container.querySelector('.EShopItem a[href]') ||
+    // Общий fallback
     container.querySelector('a[href], [data-href]');
 
   if (productLink) {

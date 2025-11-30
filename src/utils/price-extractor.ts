@@ -15,10 +15,17 @@ export interface PriceResult {
 
 // Извлекает цены из контейнера
 export function extractPrices(container: Element): PriceResult {
-  const priceElements = container.querySelectorAll('.EProductSnippet2-Price, [class*="EProductSnippet2-Price"], .Price, [class*="Price"], [class*="price"]');
+  // Ищем только элементы цены, исключая LabelDiscount и другие не-ценовые элементы
+  const priceElements = container.querySelectorAll('.EPrice-Value, .EProductSnippet2-Price, [class*="EPriceGroup-Price"]:not([class*="LabelDiscount"])');
   const prices: { value: number; currency: string; text: string }[] = [];
   
   for (const priceEl of priceElements) {
+    // Пропускаем элементы скидок и лейблов
+    const classes = priceEl.className || '';
+    if (classes.includes('LabelDiscount') || classes.includes('Discount') || classes.includes('Label_')) {
+      continue;
+    }
+    
     const text = priceEl.textContent?.trim() || '';
     const digits = text.replace(PRICE_DIGITS_REGEX, '');
     if (digits.length >= 3) {

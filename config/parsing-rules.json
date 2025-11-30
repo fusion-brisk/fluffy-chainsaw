@@ -26,12 +26,23 @@
     },
     "#ShopName": {
       "domSelectors": [
+        ".EShopName .Line-AddonContent",
+        "[class*=\"EShopName\"] .Line-AddonContent",
         ".EShopName",
         "[class*=\"EShopName\"]",
         "[class*=\"ShopName\"]"
       ],
       "jsonKeys": ["shopName", "shop", "vendor", "domain"],
       "type": "text"
+    },
+    "OfficialShop": {
+      "domSelectors": [
+        ".EShopName .OfficialShop",
+        "[class*=\"EShopName\"] .OfficialShop",
+        "[class*=\"EShopName\"] [class*=\"OfficialShop\"]"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
     },
     "#OrganicPath": {
       "domSelectors": [
@@ -169,6 +180,51 @@
       "domSelectors": [".EPriceBarometer", "[class*=\"EPriceBarometer\"]"],
       "jsonKeys": [],
       "type": "attribute"
+    },
+    "EMarketCheckoutLabel": {
+      "domSelectors": [".EMarketCheckoutLabel", "[class*=\"EMarketCheckoutLabel\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EDeliveryGroup": {
+      "domSelectors": [".EDeliveryGroup:not(.EDeliveryGroup-Item)", "[class*=\"EDeliveryGroup\"]:not([class*=\"EDeliveryGroup-Item\"])"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EDeliveryGroup-Item": {
+      "domSelectors": [".EDeliveryGroup-Item", "[class*=\"EDeliveryGroup-Item\"]"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EPrice_view_special": {
+      "domSelectors": [".EPrice_view_special", "[class*=\"EPrice_view_special\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Label_view_outlineSpecial": {
+      "domSelectors": [".Label_view_outlineSpecial", "[class*=\"Label_view_outlineSpecial\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Fintech": {
+      "domSelectors": [".Fintech:not(.Fintech-Icon)", "[class*=\"EPriceGroup-Fintech\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Fintech_type_split": {
+      "domSelectors": [".Fintech_type_split", "[class*=\"Fintech_type_split\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Fintech_type_pay": {
+      "domSelectors": [".Fintech_type_pay", "[class*=\"Fintech_type_pay\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Fintech_view_extra-short": {
+      "domSelectors": [".Fintech_view_extra-short", "[class*=\"Fintech_view_extra-short\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
     }
   }
 }
