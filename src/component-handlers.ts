@@ -81,7 +81,7 @@ function findTextLayerByName(node: BaseNode, name: string): TextNode | null {
 }
 
 // Обработка EPriceGroup
-export function handleEPriceGroup(context: HandlerContext): void {
+export async function handleEPriceGroup(context: HandlerContext): Promise<void> {
   const { container, row } = context;
   if (!container || !row) return;
 
@@ -160,50 +160,292 @@ export function handleEPriceGroup(context: HandlerContext): void {
   }
   console.log(`💰 [EPriceGroup] DISCOUNT + OLD PRICE=${hasDiscountOrOldPrice}, результат: ${discountOldPriceSet}`);
   
+  // ВАЖНО: После изменения вариантов EPriceGroup его структура могла измениться!
+  // Нужно пере-найти EPriceGroup чтобы получить актуальную ссылку
+  const freshEPriceGroup = findInstanceByName(container, 'EPriceGroup');
+  const activeEPriceGroup = freshEPriceGroup || ePriceGroupInstance;
+  console.log(`🔄 [EPriceGroup] Пере-поиск: ${freshEPriceGroup ? 'найден свежий' : 'используем старый'}`);
+  
   // Устанавливаем значение текущей цены в EPrice через exposed property
   const priceValue = row['#OrganicPrice'];
-  const ePriceInstance = findInstanceByName(ePriceGroupInstance, 'EPrice');
+  console.log(`🔍 [EPrice DEBUG] Ищем EPrice в EPriceGroup, priceValue="${priceValue}"`);
+  
+  // Ищем EPrice - это должен быть компонент текущей цены, НЕ старой (EPrice_view_old)
+  let ePriceInstance: InstanceNode | null = null;
+  
+  if ('children' in activeEPriceGroup) {
+    // Ищем все EPrice инстансы
+    const allEPrices: InstanceNode[] = [];
+    const findAllEPrice = (node: BaseNode) => {
+      if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
+        allEPrices.push(node as InstanceNode);
+      }
+      if ('children' in node && node.children) {
+        for (const child of node.children) {
+          findAllEPrice(child);
+        }
+      }
+    };
+    findAllEPrice(activeEPriceGroup);
+    
+    console.log(`🔍 [EPrice DEBUG] Найдено ${allEPrices.length} EPrice инстансов`);
+    
+    // Выбираем первый EPrice который НЕ является старой ценой
+    for (const ep of allEPrices) {
+      // Проверяем родительский контейнер - если это "Discount + Old Price", пропускаем
+      let parent = ep.parent;
+      let isOldPrice = false;
+      while (parent && parent.id !== activeEPriceGroup.id) {
+        if (parent.name && (parent.name.includes('Old') || parent.name.includes('old'))) {
+          isOldPrice = true;
+          break;
+        }
+        parent = parent.parent;
+      }
+      
+      if (!isOldPrice) {
+        ePriceInstance = ep;
+        console.log(`🔍 [EPrice DEBUG] Выбран EPrice для текущей цены (не Old Price)`);
+        break;
+      } else {
+        console.log(`🔍 [EPrice DEBUG] Пропущен EPrice (Old Price): parent=${ep.parent?.name}`);
+      }
+    }
+  }
+  
+  console.log(`🔍 [EPrice DEBUG] Итоговый EPrice: ${ePriceInstance ? ePriceInstance.name : 'не найден'}`);
   
   if (ePriceInstance && ePriceInstance.componentProperties) {
-    // 1. Устанавливаем view = default/discount в зависимости от наличия скидки
-    // Это сбрасывает цвет цены при работе "поверх" старых данных
-    const viewValue = hasDiscount ? 'discount' : 'default';
+    console.log(`🔍 [EPrice DEBUG] Свойства EPrice:`);
+    for (const pk in ePriceInstance.componentProperties) {
+      const prop = ePriceInstance.componentProperties[pk];
+      if (prop && typeof prop === 'object' && 'value' in prop) {
+        console.log(`   - ${pk}: value="${prop.value}"`);
+      }
+    }
+    
+    // ВАЖНО: Собираем ВСЕ свойства и устанавливаем ОДНИМ вызовом setProperties
+    // чтобы избежать перестроения компонента между вызовами
+    const propsToSet: Record<string, string> = {};
+    
+    // 1. Находим view property
+    const viewVariants = hasDiscount 
+      ? ['special', 'discount', 'Special', 'Discount'] 
+      : ['default', 'Default'];
+    
+    let viewPropKey: string | null = null;
     for (const propKey in ePriceInstance.componentProperties) {
       if (propKey === 'view' || propKey.startsWith('view#')) {
-        try {
-          ePriceInstance.setProperties({ [propKey]: viewValue });
-          console.log(`✅ [EPrice] Установлен view=${viewValue}`);
-        } catch (e) {
-          // Пробуем альтернативные значения
-          try {
-            const altValue = hasDiscount ? 'Discount' : 'Default';
-            ePriceInstance.setProperties({ [propKey]: altValue });
-            console.log(`✅ [EPrice] Установлен view=${altValue} (альтернатива)`);
-          } catch {
-            console.log(`⚠️ [EPrice] Не удалось установить view: ${e}`);
-          }
-        }
+        viewPropKey = propKey;
         break;
       }
     }
     
-    // 2. Устанавливаем значение цены
-    if (priceValue) {
-      for (const propKey in ePriceInstance.componentProperties) {
-        if (propKey === 'value' || propKey.startsWith('value#')) {
-          const numericPrice = priceValue.replace(/[^\d]/g, '');
-          if (numericPrice) {
-            try {
-              ePriceInstance.setProperties({ [propKey]: numericPrice });
-              console.log(`✅ [EPrice] Установлена цена ${propKey}="${numericPrice}"`);
-            } catch (e) {
-              console.log(`⚠️ [EPrice] Ошибка setProperties для ${propKey}: ${e}`);
-            }
-          }
+    // 2. Находим value property для цены
+    let valuePropKey: string | null = null;
+    const priceProps = ['value', 'text', 'content', 'price'];
+    for (const propKey in ePriceInstance.componentProperties) {
+      const propLower = propKey.toLowerCase();
+      for (const pn of priceProps) {
+        if (propLower === pn || propLower.startsWith(pn + '#')) {
+          valuePropKey = propKey;
           break;
         }
       }
+      if (valuePropKey) break;
     }
+    
+    // 3. Подготавливаем значение цены
+    const numericPrice = priceValue ? priceValue.replace(/[^\d]/g, '') : '';
+    
+    console.log(`🔍 [EPrice] viewPropKey="${viewPropKey}", valuePropKey="${valuePropKey}", price="${numericPrice}"`);
+    
+    // 4. Пробуем установить ВСЕ свойства ОДНИМ вызовом
+    // Пробуем разные варианты view
+    let success = false;
+    for (const viewValue of viewVariants) {
+      try {
+        // Собираем все свойства для одного вызова
+        if (viewPropKey) {
+          propsToSet[viewPropKey] = viewValue;
+        }
+        if (valuePropKey && numericPrice) {
+          propsToSet[valuePropKey] = numericPrice;
+        }
+        
+        if (Object.keys(propsToSet).length > 0) {
+          ePriceInstance.setProperties(propsToSet);
+          console.log(`✅ [EPrice] Установлены свойства одним вызовом:`, JSON.stringify(propsToSet));
+          success = true;
+          break;
+        }
+      } catch (e) {
+        // Пробуем следующий вариант view
+        console.log(`🔄 [EPrice] Не удалось с view="${viewValue}", пробуем следующий...`);
+      }
+    }
+    
+    // 5. Если нет valuePropKey, нужно установить цену через TEXT node внутри EPrice
+    if (!valuePropKey && numericPrice) {
+      console.log(`🔍 [EPrice] Нет exposed property для цены, ищем TEXT node внутри EPrice...`);
+      
+      // Пере-находим свежий EPrice после установки view
+      let freshEPrice: InstanceNode | null = null;
+      if ('children' in activeEPriceGroup) {
+        const findFreshEPrice = (node: BaseNode): InstanceNode | null => {
+          if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
+            let parent = node.parent;
+            while (parent && parent.id !== activeEPriceGroup.id) {
+              if (parent.name && (parent.name.includes('Old') || parent.name.includes('old'))) {
+                return null;
+              }
+              parent = parent.parent;
+            }
+            return node as InstanceNode;
+          }
+          if ('children' in node && node.children) {
+            for (const child of node.children) {
+              const found = findFreshEPrice(child);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        freshEPrice = findFreshEPrice(activeEPriceGroup);
+      }
+      
+      if (freshEPrice) {
+        // Ищем TEXT node с именем #OrganicPrice или содержащий цену
+        const findPriceTextNode = (node: BaseNode): TextNode | null => {
+          if (node.type === 'TEXT' && !node.removed) {
+            const textNode = node as TextNode;
+            // Приоритет: ищем слой с именем #OrganicPrice
+            if (textNode.name === '#OrganicPrice' || 
+                textNode.name.toLowerCase().includes('price') ||
+                textNode.name.toLowerCase().includes('value')) {
+              return textNode;
+            }
+          }
+          if ('children' in node && node.children) {
+            for (const child of node.children) {
+              const found = findPriceTextNode(child);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        // Сначала ищем по имени
+        let textNode = findPriceTextNode(freshEPrice);
+        
+        // Если не нашли по имени, ищем TEXT с числовым содержимым (цена)
+        if (!textNode) {
+          const findNumericTextNode = (node: BaseNode): TextNode | null => {
+            if (node.type === 'TEXT' && !node.removed) {
+              const tn = node as TextNode;
+              // Проверяем, содержит ли текст числа (похоже на цену)
+              if (/\d/.test(tn.characters)) {
+                return tn;
+              }
+            }
+            if ('children' in node && node.children) {
+              for (const child of node.children) {
+                const found = findNumericTextNode(child);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          textNode = findNumericTextNode(freshEPrice);
+        }
+        if (textNode) {
+          // Форматируем цену с пробелами (81299 → 81 299)
+          const formattedPrice = numericPrice.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+          console.log(`🔍 [EPrice] Найден TEXT node "${textNode.name}", устанавливаем: "${formattedPrice}"`);
+          
+          // Нужно загрузить шрифт перед изменением текста
+          try {
+            if (textNode.fontName !== figma.mixed) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+            }
+            textNode.characters = formattedPrice;
+            console.log(`✅ [EPrice] Цена установлена через TEXT node: "${formattedPrice}"`);
+          } catch (e) {
+            console.log(`⚠️ [EPrice] Ошибка установки текста: ${e}`);
+          }
+        } else {
+          console.log(`⚠️ [EPrice] TEXT node не найден внутри EPrice`);
+        }
+      }
+    }
+    
+    // 6. Если комбинированный вызов не сработал, пробуем по отдельности
+    if (!success) {
+      console.log(`⚠️ [EPrice] Комбинированный вызов не сработал, пробуем по отдельности`);
+      
+      // Сначала view
+      if (viewPropKey) {
+        for (const viewValue of viewVariants) {
+          try {
+            ePriceInstance.setProperties({ [viewPropKey]: viewValue });
+            console.log(`✅ [EPrice] Установлен view=${viewValue}`);
+            break;
+          } catch {
+            // Пробуем следующий
+          }
+        }
+      }
+      
+      // Затем цена - ПОСЛЕ установки view нужно ПЕРЕ-НАЙТИ EPrice!
+      if (valuePropKey && numericPrice) {
+        // Пере-находим EPrice после изменения view (используем activeEPriceGroup)
+        let freshEPrice: InstanceNode | null = null;
+        if ('children' in activeEPriceGroup) {
+          const findFreshEPrice = (node: BaseNode): InstanceNode | null => {
+            if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
+              // Проверяем что это не старая цена
+              let parent = node.parent;
+              while (parent && parent.id !== activeEPriceGroup.id) {
+                if (parent.name && (parent.name.includes('Old') || parent.name.includes('old'))) {
+                  return null;
+                }
+                parent = parent.parent;
+              }
+              return node as InstanceNode;
+            }
+            if ('children' in node && node.children) {
+              for (const child of node.children) {
+                const found = findFreshEPrice(child);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          freshEPrice = findFreshEPrice(activeEPriceGroup);
+        }
+        
+        if (freshEPrice && freshEPrice.componentProperties) {
+          // Ищем value property заново
+          for (const propKey in freshEPrice.componentProperties) {
+            const propLower = propKey.toLowerCase();
+            for (const pn of priceProps) {
+              if (propLower === pn || propLower.startsWith(pn + '#')) {
+                try {
+                  freshEPrice.setProperties({ [propKey]: numericPrice });
+                  console.log(`✅ [EPrice] Установлена цена через ${propKey}="${numericPrice}" (после пере-поиска)`);
+                } catch (e) {
+                  console.log(`⚠️ [EPrice] Ошибка setProperties для ${propKey}: ${e}`);
+                }
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    console.log(`⚠️ [EPrice] EPrice не найден или не имеет componentProperties`);
   }
   
   // Fintech - включаем/выключаем блок рассрочки
@@ -337,10 +579,53 @@ export function handleLabelDiscountView(context: HandlerContext): void {
       Logger.debug(`   🏷️ [LabelDiscount] View=${labelView} результат: ${viewSet}`);
     }
     
-    // Текст скидки уже сформирован в snippet-parser.ts как "Вам –X%"
-    // Здесь НЕ нужно добавлять "Вам" повторно — processTextLayers применит row['#discount']
-    if (discountPrefix) {
-      Logger.debug(`   🏷️ [LabelDiscount] Скидка с префиксом "${discountPrefix}" будет применена через processTextLayers`);
+    // Текст скидки — устанавливаем напрямую в TEXT node внутри LabelDiscount
+    // processTextLayers может не найти слой, если он не называется #discount
+    // ВАЖНО: discountValue уже содержит "Вам –X%" если есть prefix (сформировано в snippet-parser.ts)
+    if (discountValue) {
+      const discountText = discountValue; // Уже отформатировано!
+      Logger.debug(`   🏷️ [LabelDiscount] Устанавливаем текст скидки: "${discountText}"`);
+      
+      // Ищем TEXT node внутри LabelDiscount
+      const findDiscountTextNode = (node: BaseNode): TextNode | null => {
+        if (node.type === 'TEXT' && !node.removed) {
+          const textNode = node as TextNode;
+          // Ищем слой с числовым содержимым (скидка) или подходящим именем
+          if (textNode.name.toLowerCase().includes('content') ||
+              textNode.name.toLowerCase().includes('discount') ||
+              textNode.name.toLowerCase().includes('value') ||
+              /\d/.test(textNode.characters)) {
+            return textNode;
+          }
+        }
+        if ('children' in node && node.children) {
+          for (const child of node.children) {
+            const found = findDiscountTextNode(child);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      
+      const textNode = findDiscountTextNode(labelDiscountInstance);
+      if (textNode) {
+        try {
+          if (textNode.fontName !== figma.mixed) {
+            figma.loadFontAsync(textNode.fontName as FontName).then(() => {
+              textNode.characters = discountText;
+              console.log(`✅ [LabelDiscount] Текст установлен: "${discountText}"`);
+            }).catch(e => {
+              console.log(`⚠️ [LabelDiscount] Ошибка загрузки шрифта: ${e}`);
+            });
+          } else {
+            console.log(`⚠️ [LabelDiscount] Mixed fonts, пропускаем установку текста`);
+          }
+        } catch (e) {
+          console.log(`⚠️ [LabelDiscount] Ошибка установки текста: ${e}`);
+        }
+      } else {
+        Logger.debug(`   ⚠️ [LabelDiscount] TEXT node не найден внутри LabelDiscount`);
+      }
     }
   } else if (labelView || discountPrefix) {
     Logger.warn(`   ⚠️ [LabelDiscount] Инстанс не найден в контейнере "${container.name}"`);

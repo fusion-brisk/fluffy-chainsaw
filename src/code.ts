@@ -311,11 +311,31 @@ figma.ui.onmessage = async (msg) => {
     for (const container of allContainers) {
         if (container.removed) continue;
         
-        // Ищем слои данных (#) внутри контейнера
+        // Ищем слои данных внутри контейнера
+        // Поддерживаем два формата:
+        // 1. С префиксом "#" (например "#OrganicTitle")
+        // 2. Формат ESnippet: "Block / Snippet-staff / OrganicTitle"
         let dataLayers: SceneNode[] = [];
         
+        // Список полей данных для поиска (без # префикса)
+        const DATA_FIELD_PATTERNS = [
+          'OrganicTitle', 'OrganicText', 'OrganicHost', 'OrganicPath', 'OrganicImage',
+          'OrganicPrice', 'OldPrice', 'ShopName', 'FaviconImage', 'ThumbImage',
+          'discount', 'ProductRating', 'ReviewCount', 'ProductURL'
+        ];
+        
         if ('findAll' in container) {
-           dataLayers = (container as SceneNode & ChildrenMixin).findAll((n: SceneNode) => n.name.startsWith('#'));
+           dataLayers = (container as SceneNode & ChildrenMixin).findAll((n: SceneNode) => {
+             // Формат 1: начинается с #
+             if (n.name.startsWith('#')) return true;
+             
+             // Формат 2: содержит известные поля данных (для ESnippet)
+             for (const pattern of DATA_FIELD_PATTERNS) {
+               if (n.name.includes(pattern)) return true;
+             }
+             
+             return false;
+           });
         }
         
         if (dataLayers.length === 0) continue;
@@ -352,6 +372,33 @@ figma.ui.onmessage = async (msg) => {
 
       // 4. Создаем layerData (назначаем строки)
     const normalizeFieldName = (name: string): string => name ? String(name).trim().toLowerCase() : '';
+    
+    // Извлекаем имя поля данных из имени слоя
+    // Поддерживает:
+    // 1. "#OrganicTitle" → "#OrganicTitle"
+    // 2. "Block / Snippet-staff / OrganicTitle" → "#OrganicTitle"
+    // 3. "#OrganicImage" → "#OrganicImage"
+    const DATA_FIELD_NAMES_SET = new Set([
+      'organictitle', 'organictext', 'organichost', 'organicpath', 'organicimage',
+      'organicprice', 'oldprice', 'shopname', 'faviconimage', 'thumbimage',
+      'discount', 'productrating', 'reviewcount', 'producturl'
+    ]);
+    
+    const extractDataFieldName = (layerName: string): string => {
+      // Если уже с #, возвращаем как есть
+      if (layerName.startsWith('#')) return layerName;
+      
+      // Ищем известные поля в имени слоя
+      const lowerName = layerName.toLowerCase();
+      for (const field of DATA_FIELD_NAMES_SET) {
+        if (lowerName.includes(field)) {
+          // Возвращаем с # префиксом для соответствия данным
+          return '#' + field.charAt(0).toUpperCase() + field.slice(1);
+        }
+      }
+      
+      return layerName;
+    };
     const layerData: LayerDataItem[] = [];
     let nextRowIndex = 0;
     
@@ -379,8 +426,12 @@ figma.ui.onmessage = async (msg) => {
         const processedFieldNames = new Set<string>();
         
         for (const layer of validLayers) {
-            const fieldName = safeGetLayerName(layer);
-            if (!fieldName) continue;
+            const rawLayerName = safeGetLayerName(layer);
+            if (!rawLayerName) continue;
+            
+            // Извлекаем имя поля данных (с поддержкой ESnippet формата)
+            const fieldName = extractDataFieldName(rawLayerName);
+            
             if (processedFieldNames.has(fieldName)) continue;
             processedFieldNames.add(fieldName);
             
@@ -467,7 +518,7 @@ figma.ui.onmessage = async (msg) => {
         
         try {
           handleBrandLogic(context);
-          handleEPriceGroup(context);
+          await handleEPriceGroup(context);
           handleEPriceBarometer(context);
           handleEMarketCheckoutLabel(context);
           handleOfficialShop(context);
