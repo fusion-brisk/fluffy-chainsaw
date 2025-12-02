@@ -55,7 +55,13 @@ export function extractRowData(
     // Пропускаем рекламные сниппеты
     // ОПТИМИЗИРОВАНО: используем кэш вместо querySelector
     const hasAdvLabel = queryFromCache(cache, '.Organic-Label_type_advertisement') ||
-                        queryFromCache(cache, '.Organic-Subtitle_type_advertisement');
+                        queryFromCache(cache, '.Organic-Subtitle_type_advertisement') ||
+                        queryFromCache(cache, '.AdvLabel') ||  // "Промо" лейбл
+                        queryFromCache(cache, '.OrganicAdvLabel');
+    
+    // Проверяем класс контейнера на наличие рекламной метки
+    const isAdvContainer = container.className.includes('Organic_withAdvLabel') ||
+                           container.className.includes('_withAdvLabel');
     
     // Проверяем AdvProductGalleryCard — рекламные карточки товаров
     const isAdvGalleryCard = container.classList.contains('AdvProductGalleryCard') ||
@@ -67,8 +73,9 @@ export function extractRowData(
         container.closest('.AdvProductGallery') || 
         container.closest('[class*="AdvProductGallery"]') ||
         isAdvGalleryCard ||
+        isAdvContainer ||  // ← ДОБАВЛЕНО: Organic_withAdvLabel
         hasAdvLabel) {
-      console.log('⚠️ Пропущен рекламный сниппет (AdvProductGallery/AdvProductGalleryCard или рекламная метка)');
+      console.log('⚠️ Пропущен рекламный сниппет (Organic_withAdvLabel/AdvProductGallery/AdvLabel)');
       return { row: null, spriteState: spriteState };
     }
     
@@ -76,7 +83,9 @@ export function extractRowData(
   const row: CSVRow = {
     '#SnippetType': container.className.includes('EProductSnippet2') ? 'EProductSnippet2' : 
                     container.className.includes('EShopItem') ? 'EShopItem' : 
-                    'Organic_withOfferInfo',
+                    container.className.includes('ProductTile-Item') ? 'ProductTile-Item' :
+                    container.className.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
+                    'Organic',
     '#ProductURL': '',
     '#OrganicTitle': '',
     '#ShopName': '',
@@ -151,6 +160,20 @@ export function extractRowData(
         row['#ShopName'] = getTextContent(shopName);
       }
     }
+  } else if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
+    // Для Organic_withOfferInfo: извлекаем из .Path (первая часть до ›)
+    const pathEl = queryFirstMatch(cache, ['.Path', '[class*="Path"]']);
+    if (pathEl) {
+      const pathText = getTextContent(pathEl);
+      // Формат: "domain.ru›category/path..." — берём только домен
+      const separator = pathText.indexOf('›');
+      const shopName = separator > 0 ? pathText.substring(0, separator).trim() : pathText.trim();
+      row['#ShopName'] = shopName;
+      // Также ставим OrganicHost если ещё не установлен
+      if (!row['#OrganicHost']) {
+        row['#OrganicHost'] = shopName;
+      }
+    }
   }
   
   // Fallback для ShopName если не найдено
@@ -204,11 +227,16 @@ export function extractRowData(
   // #ThumbImage
   row['#ThumbImage'] = row['#OrganicImage'];
 
-  // Проверяем наличие EPriceGroup-Pair (специальная обработка для цен с скидкой)
+  // Проверяем наличие EPriceGroup-Pair или EPriceGroup_withLabelDiscount (специальная обработка для цен с скидкой)
   // ОПТИМИЗИРОВАНО (Phase 5)
   const priceGroupPair = queryFirstMatch(cache, rules['EPriceGroup_Pair'].domSelectors);
-  if (priceGroupPair) {
-    console.log('✅ Найден EPriceGroup-Pair, обрабатываем специальную логику цен');
+  // Также проверяем EPriceGroup с классом withLabelDiscount (Organic_withOfferInfo сниппеты)
+  const hasLabelDiscount = container.className.includes('EPriceGroup_withLabelDiscount') || 
+                           queryFromCache(cache, '[class*="EPriceGroup_withLabelDiscount"]') !== null;
+  const hasSpecialPriceLogic = priceGroupPair || hasLabelDiscount;
+  
+  if (hasSpecialPriceLogic) {
+    console.log(`✅ Найден ${priceGroupPair ? 'EPriceGroup-Pair' : 'EPriceGroup_withLabelDiscount'}, обрабатываем специальную логику цен`);
     
     // 1. НЕ устанавливаем Variant Properties сразу!
     // Установим #EPriceGroup_Discount и #EPriceGroup_OldPrice только если найдём реальные данные
@@ -250,8 +278,10 @@ export function extractRowData(
     
     // 3. Извлекаем #OldPrice из блока с классом EPrice_view_old
     // Ищем конкретно .EPrice-Value внутри .EPrice_view_old, чтобы избежать дублирования
+    // ИСПРАВЛЕНИЕ: используем container как fallback когда priceGroupPair не существует
+    const searchContext = priceGroupPair || container;
     const oldPriceEl = queryFirstMatch(cache, rules['EPrice_Old'].domSelectors) ||
-                       priceGroupPair.querySelector('.EPrice_view_old .EPrice-Value, [class*="EPrice_view_old"] .EPrice-Value, .EPrice_view_old [class*="EPrice-Value"]');
+                       searchContext.querySelector('.EPrice_view_old .EPrice-Value, [class*="EPrice_view_old"] .EPrice-Value, .EPrice_view_old [class*="EPrice-Value"]');
                        
     if (oldPriceEl) {
       const oldPriceText = oldPriceEl.textContent?.trim() || '';
@@ -266,7 +296,7 @@ export function extractRowData(
       }
     } else {
       // Fallback: если не нашли .EPrice-Value, пробуем весь элемент
-      const oldPriceElFallback = priceGroupPair.querySelector('.EPrice_view_old, [class*="EPrice_view_old"]');
+      const oldPriceElFallback = searchContext.querySelector('.EPrice_view_old, [class*="EPrice_view_old"]');
       if (oldPriceElFallback) {
         const oldPriceText = oldPriceElFallback.textContent?.trim() || '';
         const oldPriceDigits = oldPriceText.replace(PRICE_DIGITS_REGEX, '');
@@ -282,8 +312,9 @@ export function extractRowData(
     
     // 4. Извлекаем #discount из блока с классом LabelDiscount
     // Ищем конкретно .Label-Content внутри .LabelDiscount, где находится текст скидки
+    // ВАЖНО: используем searchContext (priceGroupPair || container), а не priceGroupPair напрямую!
     const discountContentEl = queryFirstMatch(cache, rules['LabelDiscount_Content'].domSelectors) ||
-                              priceGroupPair.querySelector('.LabelDiscount .Label-Content, [class*="LabelDiscount"] .Label-Content, .LabelDiscount [class*="Label-Content"]');
+                              searchContext.querySelector('.LabelDiscount .Label-Content, [class*="LabelDiscount"] .Label-Content, .LabelDiscount [class*="Label-Content"]');
                               
     if (discountContentEl) {
       const discountText = discountContentEl.textContent?.trim() || '';
@@ -308,7 +339,8 @@ export function extractRowData(
       }
     } else {
       // Fallback: если не нашли .Label-Content, пробуем весь элемент LabelDiscount
-      const discountLabelEl = priceGroupPair.querySelector('.LabelDiscount, [class*="LabelDiscount"]');
+      // ВАЖНО: используем searchContext (priceGroupPair || container), а не priceGroupPair напрямую!
+      const discountLabelEl = searchContext.querySelector('.LabelDiscount, [class*="LabelDiscount"]');
       if (discountLabelEl) {
         const discountText = discountLabelEl.textContent?.trim() || '';
         const discountMatch = discountText.match(DISCOUNT_VALUE_REGEX);
@@ -333,15 +365,43 @@ export function extractRowData(
     row['#Currency'] = prices.currency;
     if (prices.oldPrice) {
       row['#OldPrice'] = formatPriceWithThinSpace(prices.oldPrice);
+      // ВАЖНО: устанавливаем флаг для Figma компонента
+      row['#EPriceGroup_OldPrice'] = 'true';
+      console.log(`✅ Найдена старая цена (без EPriceGroup-Pair): ${prices.oldPrice}`);
     }
     
-    // #DiscountPercent
-    const discount = queryFirstMatch(cache, rules['#DiscountPercent'].domSelectors) ||
-                     container.querySelector('.Price-DiscountPercent, [class*="Price-DiscountPercent"], .EProductSnippet2-Discount, [class*="Discount"]');
-    if (discount) {
-      const discText = discount.textContent?.trim() || '';
+    // #DiscountPercent — ищем в LabelDiscount (ТОЧНЫЙ класс, не подстрока!)
+    // ВАЖНО: НЕ используем [class*="LabelDiscount"] — он захватывает EPriceGroup_withLabelDiscount
+    const discountLabel = container.querySelector('.LabelDiscount .Label-Content, .LabelDiscount.Label .Label-Content');
+    if (discountLabel) {
+      const discText = discountLabel.textContent?.trim() || '';
       const match = discText.match(DISCOUNT_PERCENT_REGEX);
-      if (match) row['#DiscountPercent'] = match[1];
+      if (match) {
+        row['#DiscountPercent'] = match[1];
+        // ВАЖНО: устанавливаем флаг для Figma компонента
+        row['#EPriceGroup_Discount'] = 'true';
+        // Форматируем скидку для поля #discount
+        row['#discount'] = `–${match[1]}%`;
+        console.log(`✅ Найдена скидка (без EPriceGroup-Pair): –${match[1]}%`);
+      }
+    }
+    
+    // Fallback: ищем скидку через селекторы из правил
+    if (!row['#DiscountPercent']) {
+      const discountAlt = queryFirstMatch(cache, rules['#DiscountPercent'].domSelectors) ||
+                          container.querySelector('.Price-DiscountPercent, .EProductSnippet2-Discount');
+      if (discountAlt) {
+        // Проверяем, что это реально скидка (содержит %)
+        const discText = discountAlt.textContent?.trim() || '';
+        if (discText.includes('%')) {
+          const match = discText.match(DISCOUNT_PERCENT_REGEX);
+          if (match) {
+            row['#DiscountPercent'] = match[1];
+            row['#EPriceGroup_Discount'] = 'true';
+            row['#discount'] = `–${match[1]}%`;
+          }
+        }
+      }
     }
   }
   
@@ -397,11 +457,26 @@ export function extractRowData(
   };
   
   // Пробуем разные варианты поиска элемента с рейтингом — ОПТИМИЗИРОВАНО (Phase 5)
+  // ВАЖНО: исключаем LabelDiscount, который может иметь класс ELabelRating_size_*
   let labelRating = queryFirstMatch(cache, rules['#ProductRating'].domSelectors);
   
-  // Если не нашли, пробуем найти через другие варианты классов (уже есть в конфиге, но для безопасности)
+  // Если не нашли, пробуем найти через ТОЧНЫЙ класс .ELabelRating (не подстроку!)
+  // ВАЖНО: НЕ используем [class*="ELabelRating"] или [class*="LabelRating"],
+  // потому что LabelDiscount имеет класс ELabelRating_size_3xs (подстрока совпадает!)
   if (!labelRating) {
-    labelRating = queryFirstMatch(cache, ['[class*="LabelRating"]', '[class*="label-rating"]']);
+    labelRating = queryFirstMatch(cache, [
+      '.ELabelRating:not(.LabelDiscount)',
+      '.ELabelRating'
+    ]);
+  }
+  
+  // Дополнительная проверка: убедимся что найденный элемент НЕ является LabelDiscount
+  if (labelRating) {
+    const labelClasses = labelRating.className || '';
+    if (labelClasses.includes('LabelDiscount')) {
+      console.log(`⚠️ Найденный ELabelRating является LabelDiscount, пропускаем`);
+      labelRating = null;
+    }
   }
   
   if (labelRating) {
@@ -556,6 +631,33 @@ export function extractRowData(
     row['#EPriceGroup_Fintech'] = 'false';
   }
   
+  // ВАЖНО: Устанавливаем view по умолчанию для цен БЕЗ Fintech
+  // Если есть скидка, но нет Fintech:
+  //   - LabelDiscount view = outlinePrimary (обычная скидка)
+  //   - EPrice view = default (обычная цена)
+  // Если есть Fintech:
+  //   - LabelDiscount view = outlineSpecial (уже установлено выше)
+  //   - EPrice view = special (уже установлено выше)
+  const hasDiscount = row['#EPriceGroup_Discount'] === 'true' || row['#DiscountPercent'] || row['#discount'];
+  const hasFintech = row['#EPriceGroup_Fintech'] === 'true';
+  
+  if (hasDiscount && !hasFintech) {
+    // Устанавливаем view только если не установлен (не перезаписываем outlineSpecial/special)
+    if (!row['#LabelDiscount_View']) {
+      row['#LabelDiscount_View'] = 'outlinePrimary';
+      console.log(`✅ Установлен LabelDiscount_View=outlinePrimary (без Fintech)`);
+    }
+    if (!row['#EPrice_View']) {
+      row['#EPrice_View'] = 'default';
+      console.log(`✅ Установлен EPrice_View=default (без Fintech)`);
+    }
+  } else if (!hasDiscount) {
+    // ВАЖНО: Если НЕТ скидки — сбрасываем EPrice view на default
+    // Это нужно чтобы не наследовать view от предыдущих данных
+    row['#EPrice_View'] = 'default';
+    console.log(`✅ Установлен EPrice_View=default (нет скидки)`);
+  }
+  
   // #EBnpl - блок BNPL (Buy Now Pay Later) в EShopItem
   const ebnplSelectors = rules['EBnpl']?.domSelectors || ['.EShopItem-Bnpl', '[class*="EShopItem-Bnpl"]', '.EBnpl'];
   const ebnplContainer = queryFirstMatch(cache, ebnplSelectors);
@@ -701,6 +803,35 @@ export function extractRowData(
     if (addressText) {
       row['#Address'] = addressText;
       console.log(`✅ Найден адрес: "${addressText}"`);
+    }
+  }
+  
+  // #BUTTON - кнопка "Купить в 1 клик" (MarketCheckout)
+  // Эвристика: ищем блок MarketCheckoutButton по характерным признакам:
+  // 1. data-market-url-type="market_checkout" - атрибут ссылки на корзину Маркета
+  // 2. .MarketCheckout-Button - точный класс кнопки
+  // 3. id^="MarketCheckoutButtonBase__" - ID контейнера кнопки
+  // 4. Текст "Купить в 1 клик" внутри кнопки
+  const marketCheckoutSelectors = rules['MarketCheckoutButton']?.domSelectors || [
+    '[data-market-url-type="market_checkout"]',
+    '.MarketCheckout-Button',
+    '[class*="MarketCheckout-Button"]',
+    '[id^="MarketCheckoutButtonBase__"]',
+    '[id*="MarketCheckoutButton"]'
+  ];
+  const marketCheckoutBtn = queryFirstMatch(cache, marketCheckoutSelectors);
+  
+  if (marketCheckoutBtn) {
+    row['#BUTTON'] = 'true';
+    console.log(`✅ Найдена кнопка "Купить в 1 клик" в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+  } else {
+    // Fallback: ищем по тексту "Купить в 1 клик" внутри Button-Text
+    const buttonTextEl = container.querySelector('.Button-Text');
+    if (buttonTextEl && buttonTextEl.textContent?.includes('Купить в 1 клик')) {
+      row['#BUTTON'] = 'true';
+      console.log(`✅ Найдена кнопка "Купить в 1 клик" (по тексту) в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    } else {
+      row['#BUTTON'] = 'false';
     }
   }
   

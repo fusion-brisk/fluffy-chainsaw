@@ -21,7 +21,7 @@ export interface ParsingSchema {
 }
 
 export const DEFAULT_PARSING_RULES: ParsingSchema = {
-  version: 2,  // Updated: EShopItem selectors from iphone 16 pro max HTML analysis
+  version: 3,  // Updated: new components from iPhone 17 HTML analysis (EQuote, EProductSpecs, EShopSplitDiscount, etc.)
   rules: {
     '#SnippetType': {
       domSelectors: [], // Определяется логикой классов контейнера
@@ -36,8 +36,11 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     },
     '#OrganicTitle': {
       domSelectors: [
+        // Organic_withOfferInfo — приоритет
         '.OrganicTitle',
         '[class*="OrganicTitle"]',
+        '.Organic-Title',
+        '[class*="Organic-Title"]',
         // EProductSnippet2
         '.EProductSnippet2-Title',
         '[class*="EProductSnippet2-Title"]',
@@ -104,11 +107,12 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     },
     '#OrganicImage': {
       domSelectors: [
-        // Organic сниппет
+        // Organic_withOfferInfo — приоритет для сниппетов с ценой
         '.Organic-OfferThumb img',
         '.Organic-OfferThumbImage',
         '[class*="Organic-OfferThumb"] img',
         '[class*="Organic-OfferThumbImage"]',
+        '[class*="OfferThumb"] img',
         // EProductSnippet2
         '.EProductSnippet2-Thumb img', 
         '[class*="EProductSnippet2-Thumb"] img',
@@ -153,14 +157,21 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     '#ShopRating': {
       domSelectors: [
         // EShopItem — рейтинг магазина в формате одной звезды (приоритет)
-        '.EShopItemMeta-UgcLine .RatingOneStar',
-        '.EShopItemMeta-ReviewsContainer .RatingOneStar',
-        '[class*="EShopItemMeta"] .RatingOneStar',
+        // ВАЖНО: извлекаем .Line-AddonContent для чистого числа (не "Рейтинг: X из 5")
+        '.EShopItemMeta-UgcLine .RatingOneStar .Line-AddonContent',
+        '.EShopItemMeta-ReviewsContainer .RatingOneStar .Line-AddonContent',
+        '[class*="EShopItemMeta"] .RatingOneStar .Line-AddonContent',
+        // Organic_withOfferInfo — рейтинг магазина в RatingOneStar
+        '.ShopInfo-Ugc .RatingOneStar .Line-AddonContent',
+        '[class*="ShopInfo"] .RatingOneStar .Line-AddonContent',
+        '.OrganicUgcReviews .RatingOneStar .Line-AddonContent',
+        '[class*="OrganicUgcReviews"] .RatingOneStar .Line-AddonContent',
+        // Общий RatingOneStar — извлекаем .Line-AddonContent
+        '.RatingOneStar .Line-AddonContent',
+        '[class*="RatingOneStar"] .Line-AddonContent',
+        // Fallback на весь RatingOneStar (если нет Line-AddonContent)
         '.RatingOneStar',
         '[class*="RatingOneStar"]',
-        // Organic — рейтинг в блоке UGC
-        '.OrganicUgcReviews .RatingOneStar',
-        '[class*="OrganicUgcReviews"] .RatingOneStar',
         // Общий fallback
         '.Rating',
         '[class*="Rating"]',
@@ -191,10 +202,13 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     },
     '#ProductRating': {
       domSelectors: [
-        '.ELabelRating',
-        '[class*="ELabelRating"]',
-        '[class*="LabelRating"]',
-        '[class*="label-rating"]'
+        // ВАЖНО: Используем ТОЧНЫЙ класс .ELabelRating, а не подстроку [class*="ELabelRating"]
+        // Потому что LabelDiscount имеет класс ELabelRating_size_3xs (подстрока совпадает!)
+        // но НЕ имеет точного класса ELabelRating
+        '.ELabelRating:not(.LabelDiscount)',
+        '.ELabelRating:not([class*="LabelDiscount"])',
+        // НЕ используем [class*="ELabelRating"] — он захватывает LabelDiscount с ELabelRating_size_*
+        '.ELabelRating'
       ],
       jsonKeys: ['productRating'],
       type: 'text'
@@ -477,6 +491,199 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
         ],
         jsonKeys: ['metro', 'station'],
         type: 'text'
+    },
+    
+    // ========== НОВЫЕ КОМПОНЕНТЫ (iPhone 17 HTML анализ) ==========
+    
+    // EReviews - отзывы магазина (текст + рейтинг)
+    'EReviews': {
+        domSelectors: [
+          '.EReviews-ShopText',
+          '[class*="EReviews-ShopText"]',
+          '.EReviews',
+          '[class*="EReviews"]'
+        ],
+        jsonKeys: ['reviews', 'shopReviews'],
+        type: 'text'
+    },
+    
+    // EQuote - цитата из отзыва
+    'EQuote': {
+        domSelectors: [
+          '.EQuote',
+          '[class*="EQuote"]',
+          '.OrganicUgcReviews-QuoteWrapper'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    'EQuote_Text': {
+        domSelectors: [
+          '.EQuote-Text',
+          '[class*="EQuote-Text"]'
+        ],
+        jsonKeys: ['quoteText'],
+        type: 'text'
+    },
+    'EQuote_Avatar': {
+        domSelectors: [
+          '.EQuote-AuthorAvatar img',
+          '[class*="EQuote-AuthorAvatar"] img',
+          '.EQuote-AvatarWrapper img'
+        ],
+        jsonKeys: [],
+        type: 'image',
+        domAttribute: 'src'
+    },
+    
+    // EProductSpecs - характеристики товара
+    'EProductSpecs': {
+        domSelectors: [
+          '.EProductSpecs',
+          '[class*="EProductSpecs"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    'EProductSpecs_Property': {
+        domSelectors: [
+          '.EProductSpecs-Property',
+          '[class*="EProductSpecs-Property"]'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    'EProductSpecs_PropertyName': {
+        domSelectors: [
+          '.EProductSpecs-PropertyName',
+          '[class*="EProductSpecs-PropertyName"]',
+          '.EProductSpecs-PropertyNameText'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    'EProductSpecs_PropertyValue': {
+        domSelectors: [
+          '.EProductSpecs-PropertyValue',
+          '[class*="EProductSpecs-PropertyValue"]'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    
+    // EShopSplitDiscount - Сплит со скидкой (новый формат отображения)
+    'EShopSplitDiscount': {
+        domSelectors: [
+          '.EShopSplitDiscount',
+          '[class*="EShopSplitDiscount"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    'EShopSplitDiscount_Price': {
+        domSelectors: [
+          '.EShopSplitDiscount-Price',
+          '[class*="EShopSplitDiscount-Price"]'
+        ],
+        jsonKeys: [],
+        type: 'price'
+    },
+    'EShopSplitDiscount_DiscountLabel': {
+        domSelectors: [
+          '.EShopSplitDiscount-DiscountLabel',
+          '[class*="EShopSplitDiscount-DiscountLabel"]'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    'EShopSplitDiscount_PayMethod': {
+        domSelectors: [
+          '.EShopSplitDiscount-PayMethod',
+          '[class*="EShopSplitDiscount-PayMethod"]'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    
+    // EntityCard - карточка сущности (похожие товары, характеристики)
+    'EntityCard': {
+        domSelectors: [
+          '.EntityCard',
+          '[class*="EntityCard"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    'EntityCard_Item': {
+        domSelectors: [
+          '.EntityCard-Item',
+          '[class*="EntityCard-Item"]',
+          '.EntityCardItem'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    
+    // EProductTabs - вкладки товара (Отзывы, Характеристики, и т.д.)
+    'EProductTabs': {
+        domSelectors: [
+          '.EProductTabs',
+          '[class*="EProductTabs"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    'EProductTabs_Tab': {
+        domSelectors: [
+          '.EProductTabs-Tab',
+          '[class*="EProductTabs-Tab"]'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    'EProductTabs_Tab_active': {
+        domSelectors: [
+          '.EProductTabs-Tab_active',
+          '[class*="EProductTabs-Tab_active"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    
+    // EThumb - миниатюра изображения (универсальный компонент)
+    'EThumb': {
+        domSelectors: [
+          '.EThumb-Image',
+          '[class*="EThumb-Image"]',
+          '.EThumb img'
+        ],
+        jsonKeys: [],
+        type: 'image',
+        domAttribute: 'src'
+    },
+    
+    // Extralinks - дополнительные ссылки (поделиться, пожаловаться)
+    'Extralinks': {
+        domSelectors: [
+          '.Extralinks',
+          '[class*="Extralinks"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    
+    // MarketCheckoutButton - кнопка "Купить в 1 клик" (для ESnippet)
+    // Эвристика: ищем по data-атрибуту, классу или ID кнопки Маркета
+    'MarketCheckoutButton': {
+        domSelectors: [
+          '[data-market-url-type="market_checkout"]',
+          '.MarketCheckout-Button',
+          '[class*="MarketCheckout-Button"]',
+          '[id^="MarketCheckoutButtonBase__"]',
+          '[id*="MarketCheckoutButton"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
     }
   }
 };

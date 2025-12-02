@@ -229,9 +229,23 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
     const propsToSet: Record<string, string> = {};
     
     // 1. Находим view property
-    const viewVariants = hasDiscount 
-      ? ['special', 'discount', 'Special', 'Discount'] 
-      : ['default', 'Default'];
+    // ВАЖНО: Используем #EPrice_View если установлен (учитывает Fintech),
+    // иначе определяем по наличию скидки
+    const explicitView = row['#EPrice_View'];
+    let viewVariants: string[];
+    
+    if (explicitView === 'special') {
+      // С Fintech — зелёная цена
+      viewVariants = ['special', 'Special'];
+    } else if (explicitView === 'default' || !hasDiscount) {
+      // Без Fintech или без скидки — обычная цена
+      viewVariants = ['default', 'Default'];
+    } else {
+      // Fallback: есть скидка, но view не определён — default
+      viewVariants = ['default', 'Default'];
+    }
+    
+    console.log(`🔍 [EPrice] explicitView="${explicitView}", hasDiscount=${hasDiscount}, viewVariants=${viewVariants}`);
     
     let viewPropKey: string | null = null;
     for (const propKey in ePriceInstance.componentProperties) {
@@ -449,15 +463,21 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   }
   
   // Fintech - включаем/выключаем блок рассрочки
+  // ВАЖНО: используем activeEPriceGroup (свежую ссылку после изменения вариантов)
   const hasFintech = row['#EPriceGroup_Fintech'] === 'true';
-  processVariantProperty(ePriceGroupInstance, `Fintech=${hasFintech}`, '#EPriceGroup_Fintech');
+  processVariantProperty(activeEPriceGroup, `Fintech=${hasFintech}`, '#EPriceGroup_Fintech');
+  
+  // После изменения Fintech variant нужно пере-найти EPriceGroup
+  const freshEPriceGroupAfterFintech = findInstanceByName(container, 'EPriceGroup');
+  const ePriceGroupForFintech = freshEPriceGroupAfterFintech || activeEPriceGroup;
+  console.log(`🔄 [EPriceGroup] После Fintech: ${freshEPriceGroupAfterFintech ? 'найден свежий' : 'используем старый'}`);
   
   if (hasFintech) {
-    // Находим инстанс Fintech — сначала внутри EPriceGroup, потом в контейнере
-    let fintechInstance = findInstanceByName(ePriceGroupInstance, 'Fintech') ||
-                          findInstanceByName(ePriceGroupInstance, 'MetaFintech') ||
-                          findInstanceByName(ePriceGroupInstance, 'Meta / Fintech') ||
-                          findInstanceByName(ePriceGroupInstance, 'Meta / Fintech '); // с пробелом
+    // Находим инстанс Fintech — сначала внутри СВЕЖЕГО EPriceGroup, потом в контейнере
+    let fintechInstance = findInstanceByName(ePriceGroupForFintech, 'Fintech') ||
+                          findInstanceByName(ePriceGroupForFintech, 'MetaFintech') ||
+                          findInstanceByName(ePriceGroupForFintech, 'Meta / Fintech') ||
+                          findInstanceByName(ePriceGroupForFintech, 'Meta / Fintech '); // с пробелом
     
     // Если не нашли внутри EPriceGroup, ищем в контейнере
     if (!fintechInstance) {
@@ -515,7 +535,7 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   }
 }
 
-// Обработка EPrice view (special и др.)
+// Обработка EPrice view (special, default и др.)
 export function handleEPriceView(context: HandlerContext): void {
   const { container, row } = context;
   if (!container || !row) return;
@@ -523,16 +543,45 @@ export function handleEPriceView(context: HandlerContext): void {
   const priceView = row['#EPrice_View'];
   if (!priceView) return;
   
-  // Находим инстанс EPrice внутри контейнера
-  const ePriceInstance = findInstanceByName(container, 'EPrice');
+  // Находим EPriceGroup сначала, потом EPrice внутри него
+  const ePriceGroupInstance = findInstanceByName(container, 'EPriceGroup');
+  let ePriceInstance: InstanceNode | null = null;
+  
+  // Ищем EPrice внутри EPriceGroup (приоритет)
+  if (ePriceGroupInstance) {
+    ePriceInstance = findInstanceByName(ePriceGroupInstance, 'EPrice');
+  }
+  
+  // Fallback: ищем EPrice напрямую в контейнере
+  if (!ePriceInstance) {
+    ePriceInstance = findInstanceByName(container, 'EPrice');
+  }
+  
   if (ePriceInstance) {
-    processStringProperty(ePriceInstance, 'view', priceView, '#EPrice_View');
-    Logger.debug(`   💰 [EPrice] view=${priceView}`);
+    console.log(`🔍 [EPrice View] Найден EPrice, устанавливаем view=${priceView}`);
+    
+    // Пробуем как Variant Property
+    let viewSet = processVariantProperty(ePriceInstance, `view=${priceView}`, '#EPrice_View');
+    
+    // Fallback: пробуем с большой буквы
+    if (!viewSet) {
+      viewSet = processVariantProperty(ePriceInstance, `View=${priceView}`, '#EPrice_View');
+    }
+    
+    // Fallback: пробуем как String Property
+    if (!viewSet) {
+      processStringProperty(ePriceInstance, 'view', priceView, '#EPrice_View');
+    }
+    
+    Logger.debug(`   💰 [EPrice] view=${priceView}, результат: ${viewSet}`);
+  } else {
+    console.log(`⚠️ [EPrice View] EPrice не найден в контейнере "${container.name}"`);
   }
 }
 
 // Обработка LabelDiscount view и prefix
-export function handleLabelDiscountView(context: HandlerContext): void {
+// ВАЖНО: async функция для корректной загрузки шрифтов
+export async function handleLabelDiscountView(context: HandlerContext): Promise<void> {
   const { container, row } = context;
   if (!container || !row) return;
 
@@ -543,92 +592,91 @@ export function handleLabelDiscountView(context: HandlerContext): void {
   // Находим EPriceGroup сначала, затем LabelDiscount внутри него
   const ePriceGroupInstance = findInstanceByName(container, 'EPriceGroup');
   
-  // Пробуем найти LabelDiscount в разных местах с разными именами
-  let labelDiscountInstance: InstanceNode | null = null;
+  // Вспомогательная функция для поиска LabelDiscount
+  const findLabelDiscount = (searchIn: BaseNode | null): InstanceNode | null => {
+    if (!searchIn) return null;
+    return findInstanceByName(searchIn, 'LabelDiscount') ||
+           findInstanceByName(searchIn, 'Label') ||
+           findInstanceByName(searchIn, 'Discount');
+  };
   
-  if (ePriceGroupInstance) {
-    // Ищем внутри EPriceGroup
-    labelDiscountInstance = findInstanceByName(ePriceGroupInstance, 'LabelDiscount') ||
-                            findInstanceByName(ePriceGroupInstance, 'Label') ||
-                            findInstanceByName(ePriceGroupInstance, 'Discount');
-  }
+  // Пробуем найти LabelDiscount в EPriceGroup или контейнере
+  let labelDiscountInstance = findLabelDiscount(ePriceGroupInstance) || findLabelDiscount(container);
   
-  // Fallback: ищем напрямую в контейнере
   if (!labelDiscountInstance) {
-    labelDiscountInstance = findInstanceByName(container, 'LabelDiscount') ||
-                            findInstanceByName(container, 'Label') ||
-                            findInstanceByName(container, 'Discount');
+    if (labelView || discountPrefix) {
+      Logger.warn(`   ⚠️ [LabelDiscount] Инстанс не найден в контейнере "${container.name}"`);
+    }
+    return;
   }
   
-  if (labelDiscountInstance) {
-    Logger.debug(`   🏷️ [LabelDiscount] Найден инстанс: "${labelDiscountInstance.name}"`);
+  Logger.debug(`   🏷️ [LabelDiscount] Найден инстанс: "${labelDiscountInstance.name}"`);
+  
+  // 1. Устанавливаем View variant (если есть)
+  if (labelView) {
+    Logger.debug(`   🏷️ [LabelDiscount] Пробуем View=${labelView}...`);
+    let viewSet = processVariantProperty(labelDiscountInstance, `View=${labelView}`, '#LabelDiscount_View');
     
-    if (labelView) {
-      // В Figma свойство называется "View" с большой буквы
-      Logger.debug(`   🏷️ [LabelDiscount] Пробуем View=${labelView}...`);
-      let viewSet = processVariantProperty(labelDiscountInstance, `View=${labelView}`, '#LabelDiscount_View');
-      
-      if (!viewSet) {
-        // Fallback на view с маленькой буквы
-        viewSet = processVariantProperty(labelDiscountInstance, `view=${labelView}`, '#LabelDiscount_View');
-      }
-      if (!viewSet) {
-        // Fallback на String Property
-        processStringProperty(labelDiscountInstance, 'View', labelView, '#LabelDiscount_View');
-      }
-      Logger.debug(`   🏷️ [LabelDiscount] View=${labelView} результат: ${viewSet}`);
+    if (!viewSet) {
+      viewSet = processVariantProperty(labelDiscountInstance, `view=${labelView}`, '#LabelDiscount_View');
     }
+    if (!viewSet) {
+      processStringProperty(labelDiscountInstance, 'View', labelView, '#LabelDiscount_View');
+    }
+    Logger.debug(`   🏷️ [LabelDiscount] View=${labelView} результат: ${viewSet}`);
     
-    // Текст скидки — устанавливаем напрямую в TEXT node внутри LabelDiscount
-    // processTextLayers может не найти слой, если он не называется #discount
-    // ВАЖНО: discountValue уже содержит "Вам –X%" если есть prefix (сформировано в snippet-parser.ts)
-    if (discountValue) {
-      const discountText = discountValue; // Уже отформатировано!
-      Logger.debug(`   🏷️ [LabelDiscount] Устанавливаем текст скидки: "${discountText}"`);
-      
-      // Ищем TEXT node внутри LabelDiscount
-      const findDiscountTextNode = (node: BaseNode): TextNode | null => {
-        if (node.type === 'TEXT' && !node.removed) {
-          const textNode = node as TextNode;
-          // Ищем слой с числовым содержимым (скидка) или подходящим именем
-          if (textNode.name.toLowerCase().includes('content') ||
-              textNode.name.toLowerCase().includes('discount') ||
-              textNode.name.toLowerCase().includes('value') ||
-              /\d/.test(textNode.characters)) {
-            return textNode;
-          }
-        }
-        if ('children' in node && node.children) {
-          for (const child of node.children) {
-            const found = findDiscountTextNode(child);
-            if (found) return found;
-          }
-        }
-        return null;
-      };
-      
-      const textNode = findDiscountTextNode(labelDiscountInstance);
-      if (textNode) {
-        try {
-          if (textNode.fontName !== figma.mixed) {
-            figma.loadFontAsync(textNode.fontName as FontName).then(() => {
-              textNode.characters = discountText;
-              console.log(`✅ [LabelDiscount] Текст установлен: "${discountText}"`);
-            }).catch(e => {
-              console.log(`⚠️ [LabelDiscount] Ошибка загрузки шрифта: ${e}`);
-            });
-          } else {
-            console.log(`⚠️ [LabelDiscount] Mixed fonts, пропускаем установку текста`);
-          }
-        } catch (e) {
-          console.log(`⚠️ [LabelDiscount] Ошибка установки текста: ${e}`);
-        }
-      } else {
-        Logger.debug(`   ⚠️ [LabelDiscount] TEXT node не найден внутри LabelDiscount`);
-      }
+    // КРИТИЧНО: После setProperties структура компонента могла измениться!
+    // Пере-находим LabelDiscount после изменения View variant
+    const freshLabelDiscount = findLabelDiscount(ePriceGroupInstance) || findLabelDiscount(container);
+    if (freshLabelDiscount) {
+      labelDiscountInstance = freshLabelDiscount;
+      console.log(`🔄 [LabelDiscount] Пере-поиск после View: найден свежий`);
     }
-  } else if (labelView || discountPrefix) {
-    Logger.warn(`   ⚠️ [LabelDiscount] Инстанс не найден в контейнере "${container.name}"`);
+  }
+  
+  // 2. Устанавливаем текст скидки
+  // ВАЖНО: discountValue уже содержит "Вам –X%" если есть prefix (сформировано в snippet-parser.ts)
+  if (discountValue) {
+    const discountText = discountValue;
+    Logger.debug(`   🏷️ [LabelDiscount] Устанавливаем текст скидки: "${discountText}"`);
+    
+    // Ищем TEXT node внутри СВЕЖЕГО LabelDiscount
+    const findDiscountTextNode = (node: BaseNode): TextNode | null => {
+      if (node.type === 'TEXT' && !node.removed) {
+        const textNode = node as TextNode;
+        if (textNode.name.toLowerCase().includes('content') ||
+            textNode.name.toLowerCase().includes('discount') ||
+            textNode.name.toLowerCase().includes('value') ||
+            /\d/.test(textNode.characters)) {
+          return textNode;
+        }
+      }
+      if ('children' in node && node.children) {
+        for (const child of node.children) {
+          const found = findDiscountTextNode(child);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    
+    const textNode = findDiscountTextNode(labelDiscountInstance);
+    if (textNode) {
+      try {
+        if (textNode.fontName !== figma.mixed) {
+          // ВАЖНО: await вместо .then() для гарантии выполнения
+          await figma.loadFontAsync(textNode.fontName as FontName);
+          textNode.characters = discountText;
+          console.log(`✅ [LabelDiscount] Текст установлен: "${discountText}"`);
+        } else {
+          console.log(`⚠️ [LabelDiscount] Mixed fonts, пропускаем установку текста`);
+        }
+      } catch (e) {
+        console.log(`⚠️ [LabelDiscount] Ошибка установки текста: ${e}`);
+      }
+    } else {
+      Logger.debug(`   ⚠️ [LabelDiscount] TEXT node не найден внутри LabelDiscount`);
+    }
   }
 }
 
@@ -860,6 +908,52 @@ export function handleOfficialShop(context: HandlerContext): void {
               Logger.error(`   ❌ Ошибка установки visible для After:`, e);
             }
             break;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Обработка BUTTON - кнопка "Купить в 1 клик" (MarketCheckout)
+// Устанавливает Variant Property BUTTON=true/false на контейнере сниппета
+export function handleMarketCheckoutButton(context: HandlerContext): void {
+  const { container, row } = context;
+  if (!container || !row) return;
+
+  const hasButton = row['#BUTTON'] === 'true';
+  
+  // Устанавливаем BUTTON variant property на контейнере
+  if (container.type === 'INSTANCE' && !container.removed) {
+    const instance = container as InstanceNode;
+    
+    // Пробуем разные варианты названия свойства
+    let buttonSet = processVariantProperty(instance, `BUTTON=${hasButton}`, '#BUTTON');
+    if (!buttonSet) buttonSet = processVariantProperty(instance, `Button=${hasButton}`, '#BUTTON');
+    if (!buttonSet) buttonSet = processVariantProperty(instance, `button=${hasButton}`, '#BUTTON');
+    
+    if (buttonSet) {
+      Logger.debug(`   🛒 [BUTTON] BUTTON=${hasButton} для контейнера "${container.name}"`);
+    }
+  }
+  
+  // Также ищем вложенные инстансы с BUTTON property
+  if ('children' in container) {
+    for (const child of container.children) {
+      if (child.type === 'INSTANCE' && !child.removed) {
+        const childInstance = child as InstanceNode;
+        
+        // Проверяем, есть ли у этого инстанса свойство BUTTON
+        const props = childInstance.componentProperties;
+        for (const propKey in props) {
+          if (propKey.toLowerCase().includes('button')) {
+            try {
+              const propName = propKey.split('#')[0]; // Убираем хеш из имени
+              processVariantProperty(childInstance, `${propName}=${hasButton}`, '#BUTTON');
+              Logger.debug(`   🛒 [BUTTON] ${propName}=${hasButton} для инстанса "${childInstance.name}"`);
+            } catch (e) {
+              // ignore
+            }
           }
         }
       }

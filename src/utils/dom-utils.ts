@@ -3,10 +3,20 @@
 import { STYLE_TAG_REGEX, STYLE_TAG_CONTENT_REGEX } from './regex';
 
 // Находит все контейнеры сниппетов в документе
-// ОПТИМИЗИРОВАНО (Phase 5): один комбинированный селектор вместо трёх
+// Главный критерий: наличие цены в сниппете
+// ОПТИМИЗИРОВАНО (Phase 5): один комбинированный селектор
 export function findSnippetContainers(doc: Document): Element[] {
-  // Один комбинированный селектор — эффективнее трёх отдельных querySelectorAll
-  const combinedSelector = '[class*="Organic_withOfferInfo"], [class*="EProductSnippet2"], [class*="EShopItem"]';
+  // Комбинированный селектор для всех типов сниппетов с ценой
+  // ВАЖНО: для EShopItem используем .EShopItem (точный класс), 
+  // а не [class*="EShopItem"] — последний захватывает дочерние элементы типа EShopItem-Title
+  const combinedSelector = [
+    '[class*="Organic_withOfferInfo"]',   // Органик с офером (цена, магазин)
+    '[class*="EProductSnippet2"]',        // Сниппеты товаров (новый формат)
+    '.EShopItem',                         // Карточки магазинов Маркета (точный класс!)
+    '.ProductTile-Item',                  // Карточки в плитке товаров
+    '[class*="ProductTile-Item"]'
+  ].join(', ');
+  
   const containers = doc.querySelectorAll(combinedSelector);
   
   // Дедупликация через Set
@@ -19,19 +29,32 @@ export function findSnippetContainers(doc: Document): Element[] {
 }
 
 // Фильтрует контейнеры, оставляя только верхнеуровневые (не вложенные)
+// ОПТИМИЗИРОВАНО: использует Set для быстрой проверки + сортировку по глубине DOM
 export function filterTopLevelContainers(containers: Element[]): Element[] {
+  if (containers.length <= 1) return containers;
+  
+  // Создаём Set для быстрой проверки принадлежности
+  const containerSet = new Set(containers);
   const topLevelContainers: Element[] = [];
   
   for (const container of containers) {
+    // Проверяем родителей до корня — если встретим другой контейнер, значит вложенный
     let isNested = false;
-    // Проверяем, не находится ли этот контейнер внутри другого контейнера
-    for (const otherContainer of containers) {
-      if (container === otherContainer) continue;
-      if (otherContainer.contains(container)) {
+    let parent: Element | null = container.parentElement;
+    
+    // Ограничиваем глубину поиска для производительности
+    let depth = 0;
+    const maxDepth = 50;
+    
+    while (parent && depth < maxDepth) {
+      if (containerSet.has(parent)) {
         isNested = true;
         break;
       }
+      parent = parent.parentElement;
+      depth++;
     }
+    
     if (!isNested) {
       topLevelContainers.push(container);
     }
@@ -65,6 +88,12 @@ export function extractProductURL(container: Element): string {
     container.querySelector('.EShopItem-ButtonLink[href], [class*="EShopItem-ButtonLink"][href]') ||
     container.querySelector('.EShopItem-Title a[href], [class*="EShopItem-Title"] a[href]') ||
     container.querySelector('.EShopItem a[href]') ||
+    // Organic_withOfferInfo — ссылка в заголовке (OrganicTitle) или кнопке Checkout
+    container.querySelector('.OrganicTitle a[href], [class*="OrganicTitle"] a[href]') ||
+    container.querySelector('.Organic-Title a[href], [class*="Organic-Title"] a[href]') ||
+    container.querySelector('.Organic-Checkout a[href], [class*="Organic-Checkout"] a[href]') ||
+    // ProductTile-Item — ссылка в карточке
+    container.querySelector('.ProductTile-Item a[href], [class*="ProductTile"] a[href]') ||
     // Общий fallback
     container.querySelector('a[href], [data-href]');
 

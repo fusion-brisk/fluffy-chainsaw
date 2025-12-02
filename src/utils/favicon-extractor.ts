@@ -582,6 +582,53 @@ const ImgSrcExtractor: FaviconExtractor = {
   }
 };
 
+/**
+ * Экстрактор 6: Fallback на домен из ShopName/OrganicHost
+ * Для Favicon_outer элементов, где нет CSS спрайта — строим URL по домену
+ * Работает для Organic_withOfferInfo сниппетов
+ */
+const DomainFallbackExtractor: FaviconExtractor = {
+  name: 'DomainFallbackExtractor',
+
+  extract(ctx: FaviconContext, prevResult: ExtractorResult): ExtractorResult {
+    if (prevResult.bgUrl) {
+      return prevResult;
+    }
+
+    const result = { ...prevResult };
+    
+    // Проверяем, что это Favicon_outer (характерно для Organic_withOfferInfo)
+    const isFaviconOuter = ctx.favEl.className.includes('Favicon_outer');
+    if (!isFaviconOuter) {
+      return prevResult;
+    }
+
+    console.log(`🔍 [${this.name}] Favicon_outer без bgUrl, пробуем получить из домена...`);
+
+    // Получаем домен из уже извлеченных данных
+    let domain = ctx.row['#OrganicHost'] || ctx.row['#ShopName'] || '';
+    
+    // Очищаем домен от пути и протокола
+    domain = domain.replace(/^https?:\/\//i, '').split('/')[0].split('?')[0].trim();
+    
+    // Убираем www. для нормализации
+    if (domain.startsWith('www.')) {
+      domain = domain.substring(4);
+    }
+
+    if (domain && domain.includes('.')) {
+      result.bgUrl = `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(domain)}?size=32&stub=1`;
+      result.found = true;
+      result.isInlineUrl = true; // Маркируем как единичный URL (не спрайт)
+      console.log(`✅ [${this.name}] Построен URL из домена "${domain}": ${result.bgUrl}`);
+    } else {
+      console.log(`⚠️ [${this.name}] Домен не найден или невалидный: "${domain}"`);
+    }
+
+    return result;
+  }
+};
+
 // ============================================================================
 // CHAIN OF RESPONSIBILITY
 // ============================================================================
@@ -592,7 +639,8 @@ const extractorChain: FaviconExtractor[] = [
   SpriteClassExtractor,
   CssRuleExtractor,
   RawHtmlExtractor,
-  ImgSrcExtractor
+  ImgSrcExtractor,
+  DomainFallbackExtractor  // Fallback на домен для Favicon_outer
 ];
 
 /**

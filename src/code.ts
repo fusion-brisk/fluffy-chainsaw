@@ -1,6 +1,6 @@
 import { Logger } from './logger';
 import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES } from './config';
-import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel, handleOfficialShop, handleEDeliveryGroup, handleEPriceView, handleLabelDiscountView } from './component-handlers';
+import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel, handleOfficialShop, handleEDeliveryGroup, handleLabelDiscountView, handleMarketCheckoutButton } from './component-handlers';
 import { ImageProcessor } from './image-handlers';
 import { loadFonts, processTextLayers } from './text-handlers';
 import { LayerDataItem } from './types';
@@ -522,8 +522,9 @@ figma.ui.onmessage = async (msg) => {
           handleEPriceBarometer(context);
           handleEMarketCheckoutLabel(context);
           handleOfficialShop(context);
-          handleEPriceView(context);
-          handleLabelDiscountView(context);
+          handleMarketCheckoutButton(context); // Кнопка "Купить в 1 клик"
+          // handleEPriceView убран - view уже обрабатывается в handleEPriceGroup
+          await handleLabelDiscountView(context); // async для корректной загрузки шрифтов
           componentPromises.push(handleELabelGroup(context).catch(e => Logger.error(`Error in handleELabelGroup:`, e)));
           componentPromises.push(handleEDeliveryGroup(context).catch(e => Logger.error(`Error in handleEDeliveryGroup:`, e)));
         } catch (e) {

@@ -39,10 +39,12 @@ export interface DOMCache {
  */
 const CLASS_PATTERNS = {
   // Контейнеры сниппетов
+  // ВАЖНО: для EShopItem использовать точный класс, а не подстроку
+  // чтобы не захватывать дочерние элементы типа EShopItem-Title
   containers: [
     'Organic_withOfferInfo',
     'EProductSnippet2',
-    'EShopItem'
+    'EShopItem'  // Поиск по точному классу, не по подстроке
   ],
   // Часто используемые классы в extractRowData
   frequent: [
@@ -338,10 +340,13 @@ function parseSimpleSelector(selector: string): ParsedSelector | null {
  * Заменяет findSnippetContainers из dom-utils.ts
  */
 export function findSnippetContainersOptimized(doc: Document): Element[] {
-  // Один комбинированный селектор вместо трёх отдельных
-  const combinedSelector = CLASS_PATTERNS.containers
-    .map(c => `[class*="${c}"]`)
-    .join(', ');
+  // ВАЖНО: для EShopItem используем точный класс .EShopItem, 
+  // а не [class*="EShopItem"] — последний захватывает дочерние элементы
+  const combinedSelector = [
+    '[class*="Organic_withOfferInfo"]',
+    '[class*="EProductSnippet2"]',
+    '.EShopItem'  // Точный класс, не подстрока!
+  ].join(', ');
   
   const containers = doc.querySelectorAll(combinedSelector);
   
@@ -392,24 +397,37 @@ export function buildDOMCache(doc: Document): DOMCache {
 
 /**
  * Оптимизированная фильтрация вложенных контейнеров
+ * ОПТИМИЗИРОВАНО: O(n * глубина DOM) вместо O(n²)
+ * Используем Set для быстрой проверки + обход родителей вверх
  */
 function filterTopLevelOptimized(containers: Element[]): Element[] {
   if (containers.length <= 1) return containers;
   
+  // Создаём Set для быстрой проверки принадлежности O(1)
+  const containerSet = new Set(containers);
   const topLevel: Element[] = [];
   
-  // O(n²) в худшем случае, но на практике контейнеров обычно < 100
-  outer:
-  for (let i = 0; i < containers.length; i++) {
-    const current = containers[i];
-    for (let j = 0; j < containers.length; j++) {
-      if (i === j) continue;
-      if (containers[j].contains(current)) {
-        // current вложен в containers[j], пропускаем
-        continue outer;
+  for (const container of containers) {
+    // Проверяем родителей до корня — если встретим другой контейнер, значит вложенный
+    let isNested = false;
+    let parent: Element | null = container.parentElement;
+    
+    // Ограничиваем глубину для защиты от слишком глубокого DOM
+    let depth = 0;
+    const maxDepth = 50;
+    
+    while (parent && depth < maxDepth) {
+      if (containerSet.has(parent)) {
+        isNested = true;
+        break;
       }
+      parent = parent.parentElement;
+      depth++;
     }
-    topLevel.push(current);
+    
+    if (!isNested) {
+      topLevel.push(container);
+    }
   }
   
   return topLevel;

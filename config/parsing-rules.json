@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 4,
   "rules": {
     "#SnippetType": {
       "domSelectors": [],
@@ -16,10 +16,14 @@
       "domSelectors": [
         ".OrganicTitle",
         "[class*=\"OrganicTitle\"]",
+        ".Organic-Title",
+        "[class*=\"Organic-Title\"]",
         ".EProductSnippet2-Title",
         "[class*=\"EProductSnippet2-Title\"]",
         ".EProductSnippet2-Title a",
-        "[class*=\"EProductSnippet2-Title\"] a"
+        "[class*=\"EProductSnippet2-Title\"] a",
+        ".EShopItem-Title",
+        "[class*=\"EShopItem-Title\"]"
       ],
       "jsonKeys": ["title", "name", "headline", "text"],
       "type": "text"
@@ -30,7 +34,15 @@
         "[class*=\"EShopName\"] .Line-AddonContent",
         ".EShopName",
         "[class*=\"EShopName\"]",
-        "[class*=\"ShopName\"]"
+        "[class*=\"ShopName\"]",
+        ".EShopItem-ShopName .Line-AddonContent",
+        "[class*=\"EShopItem-ShopName\"] .Line-AddonContent",
+        ".EShopItem-ShopName .EShopName",
+        "[class*=\"EShopItem-ShopName\"] [class*=\"EShopName\"]",
+        ".EProductSnippet2-ShopInfoTitle",
+        "[class*=\"EProductSnippet2-ShopInfoTitle\"]",
+        ".EProductSnippet2-ShopInfo",
+        "[class*=\"EProductSnippet2-ShopInfo\"]"
       ],
       "jsonKeys": ["shopName", "shop", "vendor", "domain"],
       "type": "text"
@@ -57,18 +69,28 @@
         ".OrganicTextContentSpan",
         "[class*=\"OrganicTextContentSpan\"]",
         ".EProductSnippet2-Text",
-        "[class*=\"EProductSnippet2-Text\"]"
+        "[class*=\"EProductSnippet2-Text\"]",
+        ".EShopItem-Description",
+        "[class*=\"EShopItem-Description\"]"
       ],
       "jsonKeys": ["description", "text", "snippet"],
       "type": "text"
     },
     "#OrganicImage": {
       "domSelectors": [
+        ".Organic-OfferThumb img",
         ".Organic-OfferThumbImage",
+        "[class*=\"Organic-OfferThumb\"] img",
         "[class*=\"Organic-OfferThumbImage\"]",
+        "[class*=\"OfferThumb\"] img",
         ".EProductSnippet2-Thumb img",
         "[class*=\"EProductSnippet2-Thumb\"] img",
-        "img"
+        ".EShopItem-Image img",
+        "[class*=\"EShopItem-Image\"] img",
+        ".EShopItem-Left img",
+        "img.EThumb-Image",
+        ".EThumb-Image",
+        "[class*=\"EThumb\"] img"
       ],
       "jsonKeys": ["image", "thumbnail", "thumb", "img"],
       "type": "image",
@@ -101,6 +123,17 @@
     },
     "#ShopRating": {
       "domSelectors": [
+        ".EShopItemMeta-UgcLine .RatingOneStar .Line-AddonContent",
+        ".EShopItemMeta-ReviewsContainer .RatingOneStar .Line-AddonContent",
+        "[class*=\"EShopItemMeta\"] .RatingOneStar .Line-AddonContent",
+        ".ShopInfo-Ugc .RatingOneStar .Line-AddonContent",
+        "[class*=\"ShopInfo\"] .RatingOneStar .Line-AddonContent",
+        ".OrganicUgcReviews .RatingOneStar .Line-AddonContent",
+        "[class*=\"OrganicUgcReviews\"] .RatingOneStar .Line-AddonContent",
+        ".RatingOneStar .Line-AddonContent",
+        "[class*=\"RatingOneStar\"] .Line-AddonContent",
+        ".RatingOneStar",
+        "[class*=\"RatingOneStar\"]",
         ".Rating",
         "[class*=\"Rating\"]",
         "[aria-label*=\"рейтинг\" i]"
@@ -110,6 +143,13 @@
     },
     "#ReviewsNumber": {
       "domSelectors": [
+        ".EShopItemMeta-ReviewsContainer .Line_inlineBlock",
+        ".EShopItemMeta-Reviews .EReviews",
+        "[class*=\"EShopItemMeta-Reviews\"] .EReviews",
+        ".EShopItemMeta-Reviews",
+        ".OrganicUgcReviews .EReviews",
+        "[class*=\"OrganicUgcReviews\"] .EReviews",
+        ".EReviews",
         "[class*=\"Review\"]",
         ".Reviews",
         "[class*=\"Reviews\"]",
@@ -120,10 +160,9 @@
     },
     "#ProductRating": {
       "domSelectors": [
-        ".ELabelRating",
-        "[class*=\"ELabelRating\"]",
-        "[class*=\"LabelRating\"]",
-        "[class*=\"label-rating\"]"
+        ".ELabelRating:not(.LabelDiscount)",
+        ".ELabelRating:not([class*=\"LabelDiscount\"])",
+        ".ELabelRating"
       ],
       "jsonKeys": ["productRating"],
       "type": "text"
@@ -140,6 +179,8 @@
     },
     "EPriceGroup_Price": {
       "domSelectors": [
+        ".EPrice_size_l:not(.EPrice_view_old) .EPrice-Value",
+        "[class*=\"EPrice_size_l\"]:not([class*=\"EPrice_view_old\"]) .EPrice-Value",
         ".EPriceGroup-Price:not(.EPrice_view_old) .EPrice-Value",
         "[class*=\"EPriceGroup-Price\"]:not([class*=\"EPrice_view_old\"]) .EPrice-Value"
       ],
@@ -167,6 +208,8 @@
     },
     "LabelDiscount_Content": {
       "domSelectors": [
+        ".EPriceGroup-LabelDiscount .Label-Content",
+        "[class*=\"EPriceGroup-LabelDiscount\"] .Label-Content",
         ".LabelDiscount .Label-Content",
         "[class*=\"LabelDiscount\"] .Label-Content",
         ".LabelDiscount [class*=\"Label-Content\"]",
@@ -181,18 +224,45 @@
       "jsonKeys": [],
       "type": "attribute"
     },
+    "EPriceBarometer_Cheap": {
+      "domSelectors": [".EPriceBarometer-Cheap", "[class*=\"EPriceBarometer-Cheap\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EPriceBarometer_Average": {
+      "domSelectors": [".EPriceBarometer-Average", "[class*=\"EPriceBarometer-Average\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EPriceBarometer_Expensive": {
+      "domSelectors": [".EPriceBarometer-Expensive", "[class*=\"EPriceBarometer-Expensive\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
     "EMarketCheckoutLabel": {
-      "domSelectors": [".EMarketCheckoutLabel", "[class*=\"EMarketCheckoutLabel\"]"],
+      "domSelectors": [
+        ".EMarketCheckoutLabel",
+        "[class*=\"EMarketCheckoutLabel\"]",
+        ".EMarketCheckoutButton",
+        "[class*=\"EMarketCheckoutButton\"]"
+      ],
       "jsonKeys": [],
       "type": "boolean"
     },
     "EDeliveryGroup": {
-      "domSelectors": [".EDeliveryGroup:not(.EDeliveryGroup-Item)", "[class*=\"EDeliveryGroup\"]:not([class*=\"EDeliveryGroup-Item\"])"],
+      "domSelectors": [
+        ".EDeliveryGroup:not(.EDeliveryGroup-Item)",
+        "[class*=\"EDeliveryGroup\"]:not([class*=\"EDeliveryGroup-Item\"])",
+        ".MerchantDelivery-MoBlock"
+      ],
       "jsonKeys": [],
       "type": "boolean"
     },
     "EDeliveryGroup-Item": {
-      "domSelectors": [".EDeliveryGroup-Item", "[class*=\"EDeliveryGroup-Item\"]"],
+      "domSelectors": [
+        ".EDeliveryGroup-Item",
+        "[class*=\"EDeliveryGroup-Item\"]"
+      ],
       "jsonKeys": [],
       "type": "text"
     },
@@ -225,7 +295,240 @@
       "domSelectors": [".Fintech_view_extra-short", "[class*=\"Fintech_view_extra-short\"]"],
       "jsonKeys": [],
       "type": "boolean"
+    },
+    "EBnpl": {
+      "domSelectors": [
+        ".EShopItem-Bnpl",
+        "[class*=\"EShopItem-Bnpl\"]",
+        ".EBnpl",
+        "[class*=\"EBnpl\"]:not([class*=\"EBnpl-Icon\"])"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EBnpl-Item": {
+      "domSelectors": [
+        ".EShopItem-BnplItem",
+        "[class*=\"EShopItem-BnplItem\"]",
+        ".EBnpl .Line-AddonContent",
+        "[class*=\"EBnpl\"] .Line-AddonContent"
+      ],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "Quote": {
+      "domSelectors": [
+        ".OrganicUgcReviews .EReviews",
+        "[class*=\"OrganicUgcReviews\"] .EReviews",
+        ".OrganicUgcReviews-Text",
+        "[class*=\"OrganicUgcReviews-Text\"]",
+        ".EQuote",
+        "[class*=\"EQuote\"]",
+        ".OrganicUgcReviews",
+        "[class*=\"OrganicUgcReviews\"]"
+      ],
+      "jsonKeys": ["quote", "review"],
+      "type": "text"
+    },
+    "QuoteImage": {
+      "domSelectors": [
+        ".OrganicUgcReviews img",
+        "[class*=\"OrganicUgcReviews\"] img",
+        ".EQuote-Image",
+        "[class*=\"EQuote-Image\"]"
+      ],
+      "jsonKeys": [],
+      "type": "image",
+      "domAttribute": "src"
+    },
+    "Sitelinks": {
+      "domSelectors": [
+        ".Sitelinks",
+        "[class*=\"Sitelinks\"]",
+        ".Organic-Sitelinks",
+        "[class*=\"Organic-Sitelinks\"]"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Sitelinks-Item": {
+      "domSelectors": [
+        ".Sitelinks-Item",
+        "[class*=\"Sitelinks-Item\"]",
+        ".Sitelinks-Title",
+        "[class*=\"Sitelinks-Title\"]"
+      ],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "Phone": {
+      "domSelectors": [
+        ".CoveredPhone",
+        "[class*=\"CoveredPhone\"]",
+        ".Organic-Phone",
+        "[class*=\"Organic-Phone\"]",
+        "[class*=\"phone\" i]"
+      ],
+      "jsonKeys": ["phone", "telephone"],
+      "type": "text"
+    },
+    "PromoOffer": {
+      "domSelectors": [
+        ".PromoOffer",
+        "[class*=\"PromoOffer\"]",
+        ".Organic-Promo",
+        "[class*=\"Organic-Promo\"]"
+      ],
+      "jsonKeys": ["promo", "promotion"],
+      "type": "text"
+    },
+    "Address": {
+      "domSelectors": [
+        ".Organic-Address",
+        "[class*=\"Organic-Address\"]",
+        ".Address",
+        "[class*=\"Address\"]",
+        ".Geo",
+        "[class*=\"Geo\"]",
+        ".Organic-Meta .Meta-Item"
+      ],
+      "jsonKeys": ["address", "location"],
+      "type": "text"
+    },
+    "WorkHours": {
+      "domSelectors": [".Organic-Meta .Meta-Item"],
+      "jsonKeys": ["workHours", "schedule"],
+      "type": "text"
+    },
+    "Metro": {
+      "domSelectors": [".Organic-Meta .Meta-Item"],
+      "jsonKeys": ["metro", "station"],
+      "type": "text"
+    },
+    "EReviews": {
+      "domSelectors": [
+        ".EReviews-ShopText",
+        "[class*=\"EReviews-ShopText\"]",
+        ".EReviews",
+        "[class*=\"EReviews\"]"
+      ],
+      "jsonKeys": ["reviews", "shopReviews"],
+      "type": "text"
+    },
+    "EQuote": {
+      "domSelectors": [
+        ".EQuote",
+        "[class*=\"EQuote\"]",
+        ".OrganicUgcReviews-QuoteWrapper"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EQuote_Text": {
+      "domSelectors": [".EQuote-Text", "[class*=\"EQuote-Text\"]"],
+      "jsonKeys": ["quoteText"],
+      "type": "text"
+    },
+    "EQuote_Avatar": {
+      "domSelectors": [
+        ".EQuote-AuthorAvatar img",
+        "[class*=\"EQuote-AuthorAvatar\"] img",
+        ".EQuote-AvatarWrapper img"
+      ],
+      "jsonKeys": [],
+      "type": "image",
+      "domAttribute": "src"
+    },
+    "EProductSpecs": {
+      "domSelectors": [".EProductSpecs", "[class*=\"EProductSpecs\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EProductSpecs_Property": {
+      "domSelectors": [".EProductSpecs-Property", "[class*=\"EProductSpecs-Property\"]"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EProductSpecs_PropertyName": {
+      "domSelectors": [
+        ".EProductSpecs-PropertyName",
+        "[class*=\"EProductSpecs-PropertyName\"]",
+        ".EProductSpecs-PropertyNameText"
+      ],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EProductSpecs_PropertyValue": {
+      "domSelectors": [".EProductSpecs-PropertyValue", "[class*=\"EProductSpecs-PropertyValue\"]"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EShopSplitDiscount": {
+      "domSelectors": [".EShopSplitDiscount", "[class*=\"EShopSplitDiscount\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EShopSplitDiscount_Price": {
+      "domSelectors": [".EShopSplitDiscount-Price", "[class*=\"EShopSplitDiscount-Price\"]"],
+      "jsonKeys": [],
+      "type": "price"
+    },
+    "EShopSplitDiscount_DiscountLabel": {
+      "domSelectors": [".EShopSplitDiscount-DiscountLabel", "[class*=\"EShopSplitDiscount-DiscountLabel\"]"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EShopSplitDiscount_PayMethod": {
+      "domSelectors": [".EShopSplitDiscount-PayMethod", "[class*=\"EShopSplitDiscount-PayMethod\"]"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EntityCard": {
+      "domSelectors": [".EntityCard", "[class*=\"EntityCard\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EntityCard_Item": {
+      "domSelectors": [".EntityCard-Item", "[class*=\"EntityCard-Item\"]", ".EntityCardItem"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EProductTabs": {
+      "domSelectors": [".EProductTabs", "[class*=\"EProductTabs\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EProductTabs_Tab": {
+      "domSelectors": [".EProductTabs-Tab", "[class*=\"EProductTabs-Tab\"]"],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EProductTabs_Tab_active": {
+      "domSelectors": [".EProductTabs-Tab_active", "[class*=\"EProductTabs-Tab_active\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EThumb": {
+      "domSelectors": [".EThumb-Image", "[class*=\"EThumb-Image\"]", ".EThumb img"],
+      "jsonKeys": [],
+      "type": "image",
+      "domAttribute": "src"
+    },
+    "Extralinks": {
+      "domSelectors": [".Extralinks", "[class*=\"Extralinks\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "MarketCheckoutButton": {
+      "domSelectors": [
+        "[data-market-url-type=\"market_checkout\"]",
+        ".MarketCheckout-Button",
+        "[class*=\"MarketCheckout-Button\"]",
+        "[id^=\"MarketCheckoutButtonBase__\"]",
+        "[id*=\"MarketCheckoutButton\"]"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
     }
   }
 }
-
