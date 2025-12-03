@@ -105,6 +105,7 @@ const App: React.FC = () => {
       sendMessageToPlugin({ type: 'get-settings' });
       sendMessageToPlugin({ type: 'get-parsing-rules' });
       sendMessageToPlugin({ type: 'get-remote-url' });
+      sendMessageToPlugin({ type: 'check-selection' });
       
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => applyFigmaTheme();

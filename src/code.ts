@@ -109,7 +109,12 @@ figma.ui.onmessage = async (msg) => {
     return;
   }
   
-  // Old check-selection handler removed (using selectionchange event instead)
+  // Обработчик запроса состояния выделения (вызывается UI при монтировании)
+  if (msg.type === 'check-selection') {
+    var hasSelection = figma.currentPage.selection.length > 0;
+    figma.ui.postMessage({ type: 'selection-status', hasSelection: hasSelection });
+    return;
+  }
 
     // --- SETTINGS HANDLERS ---
     if (msg.type === 'get-settings') {
