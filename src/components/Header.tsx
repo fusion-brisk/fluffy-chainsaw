@@ -6,13 +6,17 @@ interface HeaderProps {
   onTabChange: (tab: TabType) => void;
   errorCount?: number;
   isLoading?: boolean;
+  onWhatsNewClick?: () => void;
+  showWhatsNewBadge?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
   activeTab, 
   onTabChange, 
   errorCount,
-  isLoading 
+  isLoading,
+  onWhatsNewClick,
+  showWhatsNewBadge 
 }) => {
   const tabs: { id: TabType; icon: React.ReactNode; label: string }[] = [
     { 
@@ -55,6 +59,30 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
       
       <nav className="app-nav">
+        {/* What's New button */}
+        {onWhatsNewClick && (
+          <button
+            className={`app-nav-item whats-new-trigger ${showWhatsNewBadge ? 'has-update' : ''}`}
+            onClick={onWhatsNewClick}
+            title="Что нового"
+            aria-label="Что нового"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path 
+                d="M8 2L9.5 6.5L14 8L9.5 9.5L8 14L6.5 9.5L2 8L6.5 6.5L8 2Z" 
+                stroke="currentColor" 
+                strokeWidth="1.5" 
+                strokeLinecap="round" 
+                strokeLinejoin="round"
+              />
+            </svg>
+            {showWhatsNewBadge && <span className="app-nav-dot" />}
+          </button>
+        )}
+        
+        {/* Divider */}
+        {onWhatsNewClick && <div className="app-nav-divider" />}
+        
         {tabs.map(tab => (
           <button
             key={tab.id}

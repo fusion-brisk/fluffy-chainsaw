@@ -80,12 +80,18 @@ export function extractRowData(
     }
     
   
+  // Определяем тип сниппета
+  // ВАЖНО: EOfferItem проверяем ПЕРВЫМ, так как он может быть вложен в другие контейнеры
+  const snippetTypeValue = 
+    container.className.includes('EOfferItem') ? 'EOfferItem' :
+    container.className.includes('EProductSnippet2') ? 'EProductSnippet2' : 
+    container.className.includes('EShopItem') ? 'EShopItem' : 
+    container.className.includes('ProductTile-Item') ? 'ProductTile-Item' :
+    container.className.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
+    'Organic';
+  
   const row: CSVRow = {
-    '#SnippetType': container.className.includes('EProductSnippet2') ? 'EProductSnippet2' : 
-                    container.className.includes('EShopItem') ? 'EShopItem' : 
-                    container.className.includes('ProductTile-Item') ? 'ProductTile-Item' :
-                    container.className.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
-                    'Organic',
+    '#SnippetType': snippetTypeValue,
     '#ProductURL': '',
     '#OrganicTitle': '',
     '#ShopName': '',
@@ -128,6 +134,132 @@ export function extractRowData(
   
   // #OrganicTitle — ОПТИМИЗИРОВАНО (Phase 5): queryFirstMatch вместо querySelector
   const snippetType = row['#SnippetType'];
+  
+  // === СПЕЦИАЛЬНАЯ ОБРАБОТКА ДЛЯ EOfferItem ===
+  // EOfferItem — карточка предложения магазина в попапе "Цены в магазинах"
+  if (snippetType === 'EOfferItem') {
+    // Извлекаем данные из EOfferItem используя специальные селекторы
+    const eofferRules = rules;
+    
+    // #OrganicTitle — для EOfferItem это может быть название товара (если есть отдельный title)
+    const offerTitleEl = queryFirstMatch(cache, eofferRules['EOfferItem_Title']?.domSelectors || ['.EOfferItem-Title']);
+    if (offerTitleEl) {
+      row['#OrganicTitle'] = getTextContent(offerTitleEl);
+    }
+    
+    // #ShopName — название магазина
+    const offerShopEl = queryFirstMatch(cache, eofferRules['EOfferItem_ShopName']?.domSelectors || ['.EOfferItem-ShopName']);
+    if (offerShopEl) {
+      row['#ShopName'] = getTextContent(offerShopEl);
+      row['#OrganicHost'] = row['#ShopName']; // Для EOfferItem магазин = хост
+    }
+    
+    // #OrganicPrice — цена из EOfferItem
+    const offerPriceEl = queryFirstMatch(cache, eofferRules['EOfferItem_Price']?.domSelectors || ['.EOfferItem .EPrice-Value']);
+    if (offerPriceEl) {
+      const priceText = offerPriceEl.textContent?.trim() || '';
+      const priceDigits = priceText.replace(PRICE_DIGITS_REGEX, '');
+      if (priceDigits.length >= 1) {
+        row['#OrganicPrice'] = formatPriceWithThinSpace(priceDigits);
+        row['#Currency'] = '₽'; // Яндекс Маркет всегда в рублях
+      }
+    }
+    
+    // #ReviewsNumber — отзывы/рейтинг магазина
+    const offerReviewsEl = queryFirstMatch(cache, eofferRules['EOfferItem_Reviews']?.domSelectors || ['.EOfferItem-Reviews']);
+    if (offerReviewsEl) {
+      const reviewsText = getTextContent(offerReviewsEl);
+      row['#ReviewsNumber'] = reviewsText;
+      // Пробуем извлечь рейтинг из текста (формат "4.8 · 1234 отзыва")
+      const ratingMatch = reviewsText.match(RATING_REGEX);
+      if (ratingMatch) {
+        row['#ShopRating'] = ratingMatch[1];
+      }
+    }
+    
+    // #DeliveryList — условия доставки
+    const offerDeliveryEl = queryFirstMatch(cache, eofferRules['EOfferItem_Delivery']?.domSelectors || ['.EOfferItem-Deliveries']);
+    if (offerDeliveryEl) {
+      row['#DeliveryList'] = getTextContent(offerDeliveryEl);
+    }
+    
+    // #BUTTON и #ButtonView — кнопка "Купить" / "В магазин"
+    // EOfferItem: красная кнопка → primaryShort, белая кнопка → white
+    const offerButtonEl = queryFirstMatch(cache, eofferRules['EOfferItem_Button']?.domSelectors || ['.EOfferItem-Button']);
+    if (offerButtonEl) {
+      row['#BUTTON'] = 'true';
+      const btnClasses = offerButtonEl.className || '';
+      const href = offerButtonEl.getAttribute('href') || '';
+      
+      // Проверяем тип кнопки по классам и href
+      const isCheckoutButton = btnClasses.includes('Button_view_primary') || 
+                               href.includes('/cart') || 
+                               href.includes('/express');
+      const isWhiteButton = btnClasses.includes('Button_view_white');
+      
+      if (isCheckoutButton) {
+        row['#ButtonView'] = 'primaryShort';
+        row['#ButtonType'] = 'checkout';
+        console.log(`✅ [EOfferItem] Красная кнопка чекаута → ButtonView='primaryShort' для "${row['#ShopName']}"`);
+      } else if (isWhiteButton) {
+        row['#ButtonView'] = 'white';
+        row['#ButtonType'] = 'shop';
+        console.log(`✅ [EOfferItem] Белая кнопка "В магазин" → ButtonView='white' для "${row['#ShopName']}"`);
+      } else {
+        // Fallback: если не определили тип, считаем белой кнопкой
+        row['#ButtonView'] = 'white';
+        row['#ButtonType'] = 'shop';
+        console.log(`✅ [EOfferItem] Кнопка (fallback) → ButtonView='white' для "${row['#ShopName']}"`);
+      }
+    } else {
+      row['#BUTTON'] = 'false';
+    }
+    
+    // EPriceBarometer — барометр цен (определяем view)
+    const barometerEl = queryFirstMatch(cache, eofferRules['EPriceBarometer']?.domSelectors || ['.EPriceBarometer']);
+    if (barometerEl) {
+      row['#ELabelGroup_Barometer'] = 'true';
+      const barometerClasses = barometerEl.className || '';
+      if (barometerClasses.includes('EPriceBarometer-Cheap')) {
+        row['#EPriceBarometer_View'] = 'below-market';
+      } else if (barometerClasses.includes('EPriceBarometer-Average')) {
+        row['#EPriceBarometer_View'] = 'in-market';
+      } else if (barometerClasses.includes('EPriceBarometer-Expensive')) {
+        row['#EPriceBarometer_View'] = 'above-market';
+      }
+      console.log(`✅ Найден EPriceBarometer в EOfferItem: view="${row['#EPriceBarometer_View']}"`);
+    }
+    
+    // Модификаторы EOfferItem (для Figma Variant Properties)
+    if (container.classList.contains('EOfferItem_defaultOffer') || container.className.includes('EOfferItem_defaultOffer')) {
+      row['#EOfferItem_defaultOffer'] = 'true';
+    }
+    if (container.classList.contains('EOfferItem_button') || container.className.includes('EOfferItem_button')) {
+      row['#EOfferItem_hasButton'] = 'true';
+    }
+    if (container.classList.contains('EOfferItem_reviews') || container.className.includes('EOfferItem_reviews')) {
+      row['#EOfferItem_hasReviews'] = 'true';
+    }
+    if (container.classList.contains('EOfferItem_delivery') || container.className.includes('EOfferItem_delivery')) {
+      row['#EOfferItem_hasDelivery'] = 'true';
+    }
+    
+    // Валидация: для EOfferItem требуем хотя бы магазин
+    if (!row['#ShopName']) {
+      console.log('⚠️ Пропущен EOfferItem без названия магазина');
+      return { row: null, spriteState: spriteState };
+    }
+    
+    // Для EOfferItem используем ShopName как Title если Title пустой
+    if (!row['#OrganicTitle'] && row['#ShopName']) {
+      row['#OrganicTitle'] = row['#ShopName'];
+    }
+    
+    console.log(`✅ Извлечен EOfferItem: магазин="${row['#ShopName']}", цена="${row['#OrganicPrice']}", кнопка=${row['#BUTTON']}`);
+    return { row: row, spriteState: spriteState };
+  }
+  
+  // === СТАНДАРТНАЯ ОБРАБОТКА ДЛЯ ДРУГИХ ТИПОВ СНИППЕТОВ ===
   let titleEl: Element | null = queryFirstMatch(cache, rules['#OrganicTitle'].domSelectors);
   if (!titleEl) {
     // Fallback: ищем ссылку внутри заголовка (если не найдено по основным селекторам)
@@ -183,6 +315,62 @@ export function extractRowData(
       row['#ShopName'] = getTextContent(shopNameAlt);
     } else if (row['#OrganicHost']) {
       row['#ShopName'] = row['#OrganicHost'];
+    }
+  }
+  
+  // === FALLBACK для #OrganicHost если ещё не установлен ===
+  if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
+    // 1. Из href ссылки .Path-Item
+    const pathItemLink = container.querySelector('.Path-Item[href], [class*="Path-Item"][href], a.path__item[href]') as HTMLAnchorElement | null;
+    if (pathItemLink && pathItemLink.href) {
+      try {
+        const u = new URL(pathItemLink.href);
+        row['#OrganicHost'] = u.hostname.replace(/^www\./, '');
+        console.log(`✅ [OrganicHost] Извлечён из Path-Item href: ${row['#OrganicHost']}`);
+      } catch (e) {
+        // ignore
+      }
+    }
+    
+    // 2. Из текста <b> внутри Path (обычно содержит домен)
+    if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
+      const pathBold = container.querySelector('.Path b, .Path-Item b, .path__item b');
+      if (pathBold) {
+        const boldText = pathBold.textContent?.trim() || '';
+        // Проверяем что это похоже на домен (содержит точку)
+        if (boldText && boldText.includes('.') && !boldText.includes(' ')) {
+          row['#OrganicHost'] = boldText.replace(/^www\./, '');
+          console.log(`✅ [OrganicHost] Извлечён из Path <b>: ${row['#OrganicHost']}`);
+        }
+      }
+    }
+    
+    // 3. Из любой внешней ссылки в сниппете (кроме yandex.ru)
+    if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
+      const externalLinks = container.querySelectorAll('a[href^="http"]');
+      for (let i = 0; i < externalLinks.length; i++) {
+        const link = externalLinks[i] as HTMLAnchorElement;
+        try {
+          const u = new URL(link.href);
+          // Пропускаем яндексовые домены
+          if (!u.hostname.includes('yandex') && !u.hostname.includes('yastatic')) {
+            row['#OrganicHost'] = u.hostname.replace(/^www\./, '');
+            console.log(`✅ [OrganicHost] Извлечён из внешней ссылки: ${row['#OrganicHost']}`);
+            break;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    
+    // 4. Последний fallback — из ShopName если он похож на домен
+    if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
+      const shopName = row['#ShopName'] || '';
+      if (shopName.includes('.') && !shopName.includes(' ')) {
+        row['#OrganicHost'] = shopName.replace(/^www\./, '');
+        console.log(`✅ [OrganicHost] Использован ShopName как домен: ${row['#OrganicHost']}`);
+      }
     }
   }
   
@@ -716,6 +904,13 @@ export function extractRowData(
     } else {
       console.warn(`⚠️ Не удалось определить view для EPriceBarometer. Классы: ${barometerClasses.join(', ')}`);
     }
+    
+    // Определяем isCompact по типу сниппета
+    // EShopItem — компактные карточки магазинов, используем isCompact=true
+    // EOfferItem, Organic и другие — полноразмерные, isCompact=false
+    const isCompact = snippetType === 'EShopItem';
+    row['#EPriceBarometer_isCompact'] = isCompact ? 'true' : 'false';
+    console.log(`📐 [EPriceBarometer] isCompact=${isCompact} (тип сниппета: ${snippetType})`);
   } else {
     // Если EPriceBarometer не найден, устанавливаем Barometer=false для ELabelGroup
     row['#ELabelGroup_Barometer'] = 'false';
@@ -806,33 +1001,135 @@ export function extractRowData(
     }
   }
   
-  // #BUTTON - кнопка "Купить в 1 клик" (MarketCheckout)
-  // Эвристика: ищем блок MarketCheckoutButton по характерным признакам:
-  // 1. data-market-url-type="market_checkout" - атрибут ссылки на корзину Маркета
-  // 2. .MarketCheckout-Button - точный класс кнопки
-  // 3. id^="MarketCheckoutButtonBase__" - ID контейнера кнопки
-  // 4. Текст "Купить в 1 клик" внутри кнопки
-  const marketCheckoutSelectors = rules['MarketCheckoutButton']?.domSelectors || [
+  // #BUTTON и #ButtonView - логика кнопок для разных типов сниппетов
+  // 
+  // EOfferItem:
+  //   - Красная кнопка чекаута (Button_view_primary, market_checkout) → ButtonView='primaryShort'
+  //   - Белая кнопка "В магазин" (Button_view_white) → ButtonView='white'
+  // 
+  // EShopItem:
+  //   - Красная кнопка чекаута (EMarketCheckoutButton) → ButtonView='primaryShort'
+  //   - Дефолтная кнопка (Button_view_default) → ButtonView='secondary'
+  // 
+  // ESnippet/Organic:
+  //   - Кнопка чекаута → ButtonView='primaryShort', EButton_visible='true'
+  //   - Нет кнопки → EButton_visible='false'
+  
+  // Селекторы для красной кнопки чекаута (приоритет)
+  const checkoutButtonSelectors = [
     '[data-market-url-type="market_checkout"]',
     '.MarketCheckout-Button',
     '[class*="MarketCheckout-Button"]',
     '[id^="MarketCheckoutButtonBase__"]',
-    '[id*="MarketCheckoutButton"]'
+    '.EMarketCheckoutButton-Container',
+    '.EMarketCheckoutButton-Button',
+    '.Button_view_primary[href*="/cart"]',
+    '.Button_view_primary[href*="/express"]',
+    'a[href*="market.yandex.ru/my/cart"]',
+    'a[href*="checkout.kit.yandex.ru/express"]'
   ];
-  const marketCheckoutBtn = queryFirstMatch(cache, marketCheckoutSelectors);
   
-  if (marketCheckoutBtn) {
-    row['#BUTTON'] = 'true';
-    console.log(`✅ Найдена кнопка "Купить в 1 клик" в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
-  } else {
-    // Fallback: ищем по тексту "Купить в 1 клик" внутри Button-Text
-    const buttonTextEl = container.querySelector('.Button-Text');
-    if (buttonTextEl && buttonTextEl.textContent?.includes('Купить в 1 клик')) {
+  // Селекторы для белой кнопки "В магазин" (EOfferItem)
+  const whiteButtonSelectors = rules['Button_view_white']?.domSelectors || [
+    '.Button_view_white',
+    '[class*="Button_view_white"]',
+    '.EOfferItem-Button.Button_view_white'
+  ];
+  
+  // Селекторы для дефолтной кнопки (EShopItem)
+  const defaultButtonSelectors = rules['Button_view_default']?.domSelectors || [
+    '.Button_view_default',
+    '[class*="Button_view_default"]',
+    '.EShopItem-ButtonLink.Button_view_default'
+  ];
+  
+  // Ищем кнопки в порядке приоритета
+  const checkoutBtn = queryFirstMatch(cache, checkoutButtonSelectors);
+  const whiteBtn = queryFirstMatch(cache, whiteButtonSelectors);
+  const defaultBtn = queryFirstMatch(cache, defaultButtonSelectors);
+  
+  // Также проверяем модификатор EShopItem_withCheckout
+  const hasCheckoutModifier = container.classList.contains('EShopItem_withCheckout') || 
+                              container.className.includes('EShopItem_withCheckout');
+  
+  // Проверяем модификатор Organic-Checkout (для Organic сниппетов)
+  const hasOrganicCheckout = container.classList.contains('Organic-Checkout') || 
+                             container.className.includes('Organic-Checkout');
+  
+  // Fallback: ищем по тексту "Купить в 1 клик"
+  const buttonTextEl = container.querySelector('.Button-Text');
+  const hasCheckoutText = buttonTextEl && buttonTextEl.textContent?.includes('Купить в 1 клик');
+  
+  // Определяем наличие и тип кнопки
+  // ВАЖНО: для Organic используем hasOrganicCheckout, для остальных — общую логику
+  const hasCheckoutButton = checkoutBtn !== null || hasCheckoutModifier || hasCheckoutText;
+  const hasWhiteButton = whiteBtn !== null;
+  const hasDefaultButton = defaultBtn !== null;
+  
+  // Определяем #ButtonView и видимость в зависимости от типа сниппета
+  // 
+  // ЛОГИКА КНОПОК:
+  // - EOfferItem: кнопка ВСЕГДА видна (красная → primaryShort, иначе → white)
+  // - EShopItem: кнопка ВСЕГДА видна (красная → primaryShort, иначе → secondary)
+  // - ESnippet/Organic: кнопка скрывается если нет красной (красная → primaryShort + visible, иначе → hidden)
+  //
+  if (snippetType === 'EOfferItem') {
+    // EOfferItem: кнопка ВСЕГДА видна
+    // Красная кнопка → primaryShort, иначе → white
+    row['#BUTTON'] = 'true';  // Кнопка всегда есть
+    if (hasCheckoutButton) {
+      row['#ButtonView'] = 'primaryShort';
+      console.log(`✅ [EOfferItem] Красная кнопка чекаута → ButtonView='primaryShort'`);
+    } else {
+      row['#ButtonView'] = 'white';
+      console.log(`✅ [EOfferItem] Нет красной кнопки → ButtonView='white'`);
+    }
+  } else if (snippetType === 'EShopItem') {
+    // EShopItem: кнопка ВСЕГДА видна
+    // Красная кнопка → primaryShort, иначе → secondary
+    row['#BUTTON'] = 'true';  // Кнопка всегда есть
+    if (hasCheckoutButton) {
+      row['#ButtonView'] = 'primaryShort';
+      console.log(`✅ [EShopItem] Красная кнопка чекаута → ButtonView='primaryShort'`);
+    } else {
+      row['#ButtonView'] = 'secondary';
+      console.log(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
+    }
+  } else if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
+    // ESnippet/Organic: логика как у EProductSnippet2
+    // Кнопка показывается ТОЛЬКО если есть Organic-Checkout или EMarketCheckoutLabel
+    // ВАЖНО: используем hasOrganicCheckout (класс на контейнере), а не общий hasCheckoutButton
+    const checkoutLabel = queryFirstMatch(cache, ['.EMarketCheckoutLabel', '.EThumb-LabelsCheckoutContainer']);
+    const hasRealCheckout = hasOrganicCheckout || checkoutLabel !== null;
+    
+    if (hasRealCheckout) {
       row['#BUTTON'] = 'true';
-      console.log(`✅ Найдена кнопка "Купить в 1 клик" (по тексту) в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+      row['#ButtonView'] = 'primaryShort';
+      row['#EButton_visible'] = 'true';
+      console.log(`✅ [ESnippet] Organic-Checkout найден → ButtonView='primaryShort', visible='true'`);
+    } else {
+      row['#BUTTON'] = 'false';
+      row['#EButton_visible'] = 'false';
+      console.log(`ℹ️ [ESnippet] Нет Organic-Checkout → кнопка скрыта`);
+    }
+  } else if (snippetType === 'EProductSnippet2') {
+    // EProductSnippet2: проверяем EMarketCheckoutLabel или красную кнопку
+    const checkoutLabel = queryFirstMatch(cache, ['.EMarketCheckoutLabel', '.EThumb-LabelsCheckoutContainer']);
+    if (checkoutLabel || hasCheckoutButton) {
+      row['#BUTTON'] = 'true';
+      row['#ButtonView'] = 'primaryShort';
+      console.log(`✅ [EProductSnippet2] Лейбл/кнопка чекаута → ButtonView='primaryShort'`);
     } else {
       row['#BUTTON'] = 'false';
     }
+  } else {
+    // Другие типы сниппетов — по умолчанию без кнопки
+    row['#BUTTON'] = (hasCheckoutButton || hasWhiteButton || hasDefaultButton) ? 'true' : 'false';
+  }
+  
+  // Логируем итог
+  if (row['#BUTTON'] === 'true') {
+    console.log(`🛒 [BUTTON] ${snippetType}: BUTTON=true, ButtonView='${row['#ButtonView'] || 'не задан'}' для "${row['#OrganicTitle']?.substring(0, 30)}..."`);
   }
   
   // Валидация: требуем заголовок и хотя бы один источник

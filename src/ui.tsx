@@ -13,6 +13,7 @@ import { Header } from './components/Header';
 import { ScopeControl } from './components/ScopeControl';
 import { DropZone } from './components/DropZone';
 import { UpdateDialog } from './components/UpdateDialog';
+import { WhatsNewDialog } from './components/WhatsNewDialog';
 // Import tab components
 import { LiveProgressView } from './components/import/LiveProgressView';
 import { CompletionCard } from './components/import/CompletionCard';
@@ -48,6 +49,11 @@ const App: React.FC = () => {
     hash: string;
   } | null>(null);
   const [remoteUrl, setRemoteUrl] = useState<string>('');
+  
+  // What's New state
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [whatsNewBadge, setWhatsNewBadge] = useState(false);
+  const [pluginVersion, setPluginVersion] = useState<string>('');
   // Last completion stats for showing after returning to idle
   const [lastCompletionStats, setLastCompletionStats] = useState<{
     stats: ProcessingStats;
@@ -106,6 +112,7 @@ const App: React.FC = () => {
       sendMessageToPlugin({ type: 'get-parsing-rules' });
       sendMessageToPlugin({ type: 'get-remote-url' });
       sendMessageToPlugin({ type: 'check-selection' });
+      sendMessageToPlugin({ type: 'check-whats-new' });
       
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => applyFigmaTheme();
@@ -384,6 +391,14 @@ const App: React.FC = () => {
         setUiState('idle');
         setProgress(null);
       }
+      else if (msg.type === 'whats-new-status') {
+        setPluginVersion(msg.currentVersion);
+        if (msg.shouldShow) {
+          setWhatsNewBadge(true);
+          // Автоматически показываем при первом запуске после обновления
+          setShowWhatsNew(true);
+        }
+      }
     };
   }, [addLog, scope, processingStartTime]);
 
@@ -440,6 +455,20 @@ const App: React.FC = () => {
     setLastError(null);
   }, []);
 
+  // What's New handlers
+  const handleOpenWhatsNew = useCallback(() => {
+    setShowWhatsNew(true);
+  }, []);
+
+  const handleCloseWhatsNew = useCallback(() => {
+    setShowWhatsNew(false);
+    // Mark as seen when closing
+    if (pluginVersion) {
+      sendMessageToPlugin({ type: 'mark-whats-new-seen', version: pluginVersion });
+      setWhatsNewBadge(false);
+    }
+  }, [pluginVersion]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -482,6 +511,8 @@ const App: React.FC = () => {
         onTabChange={setActiveTab}
         errorCount={stats?.failedImages || lastCompletionStats?.stats.failedImages || 0}
         isLoading={isLoading}
+        onWhatsNewClick={handleOpenWhatsNew}
+        showWhatsNewBadge={whatsNewBadge}
       />
 
       {/* Tab: Import */}
@@ -575,6 +606,13 @@ const App: React.FC = () => {
           hash={updateAvailable.hash}
           onApply={handleApplyUpdate}
           onDismiss={handleDismissUpdate}
+        />
+      )}
+
+      {showWhatsNew && pluginVersion && (
+        <WhatsNewDialog
+          currentVersion={pluginVersion}
+          onClose={handleCloseWhatsNew}
         />
       )}
     </>

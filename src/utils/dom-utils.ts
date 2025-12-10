@@ -14,7 +14,8 @@ export function findSnippetContainers(doc: Document): Element[] {
     '[class*="EProductSnippet2"]',        // Сниппеты товаров (новый формат)
     '.EShopItem',                         // Карточки магазинов Маркета (точный класс!)
     '.ProductTile-Item',                  // Карточки в плитке товаров
-    '[class*="ProductTile-Item"]'
+    '[class*="ProductTile-Item"]',
+    '.EOfferItem'                         // Карточки предложений в попапе "Цены в магазинах"
   ].join(', ');
   
   const containers = doc.querySelectorAll(combinedSelector);
@@ -88,6 +89,10 @@ export function extractProductURL(container: Element): string {
     container.querySelector('.EShopItem-ButtonLink[href], [class*="EShopItem-ButtonLink"][href]') ||
     container.querySelector('.EShopItem-Title a[href], [class*="EShopItem-Title"] a[href]') ||
     container.querySelector('.EShopItem a[href]') ||
+    // EOfferItem — ссылка на магазин/корзину (кнопка "В магазин" или "Купить")
+    container.querySelector('.EOfferItem-Button[href], [class*="EOfferItem-Button"][href]') ||
+    container.querySelector('.EOfferItem-ShopName a[href], [class*="EOfferItem-ShopName"] a[href]') ||
+    container.querySelector('.EOfferItem a[href]') ||
     // Organic_withOfferInfo — ссылка в заголовке (OrganicTitle) или кнопке Checkout
     container.querySelector('.OrganicTitle a[href], [class*="OrganicTitle"] a[href]') ||
     container.querySelector('.Organic-Title a[href], [class*="Organic-Title"] a[href]') ||

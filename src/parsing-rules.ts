@@ -21,7 +21,7 @@ export interface ParsingSchema {
 }
 
 export const DEFAULT_PARSING_RULES: ParsingSchema = {
-  version: 3,  // Updated: new components from iPhone 17 HTML analysis (EQuote, EProductSpecs, EShopSplitDiscount, etc.)
+  version: 6,  // Updated: EButton view logic (primaryShort/white/secondary) + Button_view_* selectors
   rules: {
     '#SnippetType': {
       domSelectors: [], // Определяется логикой классов контейнера
@@ -672,18 +672,169 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
         type: 'boolean'
     },
     
-    // MarketCheckoutButton - кнопка "Купить в 1 клик" (для ESnippet)
+    // MarketCheckoutButton - кнопка "Купить в 1 клик" / "Купить" (для разных форматов сниппетов)
     // Эвристика: ищем по data-атрибуту, классу или ID кнопки Маркета
+    // Форматы: Organic (Поиск), EShopItem (Товары), EProductSnippet2 (сетка), EOfferItem (попап)
     'MarketCheckoutButton': {
         domSelectors: [
-          '[data-market-url-type="market_checkout"]',
+          // === Формат Organic (вкладка "Поиск") ===
+          '[data-market-url-type="market_checkout"]',  // ⭐ Самый надёжный
           '.MarketCheckout-Button',
           '[class*="MarketCheckout-Button"]',
           '[id^="MarketCheckoutButtonBase__"]',
-          '[id*="MarketCheckoutButton"]'
+          
+          // === Формат EShopItem (вкладка "Товары") ===
+          '.EMarketCheckoutButton-Container',
+          '.EMarketCheckoutButton-Button',
+          '.EShopItem_withCheckout',  // Модификатор-индикатор наличия кнопки
+          
+          // === Формат EProductSnippet2 (товарная сетка/карусель) ===
+          '.EMarketCheckoutLabel',
+          '.EThumb-LabelsCheckoutContainer',
+          
+          // === Формат EOfferItem (попап "Цены в магазинах") ===
+          '.EOfferItem-Button[href*="/cart"]',
+          '.EOfferItem-Button[href*="/express"]',
+          
+          // === Универсальные fallback ===
+          '[class*="MarketCheckout"]',
+          'a[href*="market.yandex.ru/my/cart"]',
+          'a[href*="checkout.kit.yandex.ru/express"]'
         ],
         jsonKeys: [],
         type: 'boolean'
+    },
+    
+    // Button_view_white - белая кнопка "В магазин" в EOfferItem
+    'Button_view_white': {
+        domSelectors: [
+          '.Button_view_white',
+          '[class*="Button_view_white"]',
+          '.EOfferItem-Button.Button_view_white'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    
+    // Button_view_default - дефолтная кнопка "В магазин" в EShopItem
+    'Button_view_default': {
+        domSelectors: [
+          '.Button_view_default',
+          '[class*="Button_view_default"]',
+          '.EShopItem-ButtonLink.Button_view_default'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    
+    // Button_view_primary - красная кнопка чекаута (primaryShort)
+    'Button_view_primary': {
+        domSelectors: [
+          '.Button_view_primary',
+          '[class*="Button_view_primary"]',
+          '.MarketCheckout-Button.Button_view_primary'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    
+    // ========== EOfferItem — карточка предложения магазина в попапе ==========
+    
+    // EOfferItem - контейнер предложения магазина
+    'EOfferItem': {
+        domSelectors: [
+          '.EOfferItem',
+          '[class*="EOfferItem"]'
+        ],
+        jsonKeys: [],
+        type: 'boolean'
+    },
+    // EOfferItem модификаторы
+    'EOfferItem_defaultOffer': {
+        domSelectors: ['.EOfferItem_defaultOffer', '[class*="EOfferItem_defaultOffer"]'],
+        jsonKeys: [],
+        type: 'boolean'  // Основное предложение (первое в списке)
+    },
+    'EOfferItem_button': {
+        domSelectors: ['.EOfferItem_button', '[class*="EOfferItem_button"]'],
+        jsonKeys: [],
+        type: 'boolean'  // С кнопкой
+    },
+    'EOfferItem_reviews': {
+        domSelectors: ['.EOfferItem_reviews', '[class*="EOfferItem_reviews"]'],
+        jsonKeys: [],
+        type: 'boolean'  // С отзывами
+    },
+    'EOfferItem_delivery': {
+        domSelectors: ['.EOfferItem_delivery', '[class*="EOfferItem_delivery"]'],
+        jsonKeys: [],
+        type: 'boolean'  // С доставкой
+    },
+    'EOfferItem_title': {
+        domSelectors: ['.EOfferItem_title', '[class*="EOfferItem_title"]'],
+        jsonKeys: [],
+        type: 'boolean'  // С отдельным названием товара
+    },
+    // EOfferItem данные
+    'EOfferItem_ShopName': {
+        domSelectors: [
+          '.EOfferItem-ShopName',
+          '[class*="EOfferItem-ShopName"]'
+        ],
+        jsonKeys: ['shopName'],
+        type: 'text'
+    },
+    'EOfferItem_Price': {
+        domSelectors: [
+          '.EOfferItem-PriceContainer .EPrice-Value',
+          '.EOfferItem .EPrice-Value',
+          '[class*="EOfferItem-PriceContainer"] .EPrice-Value'
+        ],
+        jsonKeys: ['price'],
+        type: 'price'
+    },
+    'EOfferItem_PriceNum': {
+        domSelectors: [
+          '.EOfferItem-PriceContainer .EPrice-A11yValue',
+          '.EOfferItem .EPrice-A11yValue'
+        ],
+        jsonKeys: [],
+        type: 'text'
+    },
+    'EOfferItem_Reviews': {
+        domSelectors: [
+          '.EOfferItem-Reviews',
+          '[class*="EOfferItem-Reviews"]'
+        ],
+        jsonKeys: ['rating', 'reviews'],
+        type: 'text'
+    },
+    'EOfferItem_Delivery': {
+        domSelectors: [
+          '.EOfferItem-Deliveries',
+          '[class*="EOfferItem-Deliveries"]',
+          '.EOfferItem-DeliveriesBnpl'
+        ],
+        jsonKeys: ['delivery'],
+        type: 'text'
+    },
+    'EOfferItem_Title': {
+        domSelectors: [
+          '.EOfferItem-Title',
+          '[class*="EOfferItem-Title"]'
+        ],
+        jsonKeys: ['title'],
+        type: 'text'
+    },
+    'EOfferItem_Button': {
+        domSelectors: [
+          '.EOfferItem-Button',
+          '[class*="EOfferItem-Button"]',
+          '.EOfferItem-ButtonContainer'
+        ],
+        jsonKeys: [],
+        type: 'attribute',
+        domAttribute: 'href'
     }
   }
 };

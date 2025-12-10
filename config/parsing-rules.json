@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 6,
   "rules": {
     "#SnippetType": {
       "domSelectors": [],
@@ -525,10 +525,127 @@
         ".MarketCheckout-Button",
         "[class*=\"MarketCheckout-Button\"]",
         "[id^=\"MarketCheckoutButtonBase__\"]",
-        "[id*=\"MarketCheckoutButton\"]"
+        ".EMarketCheckoutButton-Container",
+        ".EMarketCheckoutButton-Button",
+        ".EShopItem_withCheckout",
+        ".EMarketCheckoutLabel",
+        ".EThumb-LabelsCheckoutContainer",
+        ".EOfferItem-Button[href*=\"/cart\"]",
+        ".EOfferItem-Button[href*=\"/express\"]",
+        "[class*=\"MarketCheckout\"]",
+        "a[href*=\"market.yandex.ru/my/cart\"]",
+        "a[href*=\"checkout.kit.yandex.ru/express\"]"
       ],
       "jsonKeys": [],
       "type": "boolean"
+    },
+    "Button_view_white": {
+      "domSelectors": [
+        ".Button_view_white",
+        "[class*=\"Button_view_white\"]",
+        ".EOfferItem-Button.Button_view_white"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Button_view_default": {
+      "domSelectors": [
+        ".Button_view_default",
+        "[class*=\"Button_view_default\"]",
+        ".EShopItem-ButtonLink.Button_view_default"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "Button_view_primary": {
+      "domSelectors": [
+        ".Button_view_primary",
+        "[class*=\"Button_view_primary\"]",
+        ".MarketCheckout-Button.Button_view_primary"
+      ],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem": {
+      "domSelectors": [".EOfferItem", "[class*=\"EOfferItem\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem_defaultOffer": {
+      "domSelectors": [".EOfferItem_defaultOffer", "[class*=\"EOfferItem_defaultOffer\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem_button": {
+      "domSelectors": [".EOfferItem_button", "[class*=\"EOfferItem_button\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem_reviews": {
+      "domSelectors": [".EOfferItem_reviews", "[class*=\"EOfferItem_reviews\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem_delivery": {
+      "domSelectors": [".EOfferItem_delivery", "[class*=\"EOfferItem_delivery\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem_title": {
+      "domSelectors": [".EOfferItem_title", "[class*=\"EOfferItem_title\"]"],
+      "jsonKeys": [],
+      "type": "boolean"
+    },
+    "EOfferItem_ShopName": {
+      "domSelectors": [".EOfferItem-ShopName", "[class*=\"EOfferItem-ShopName\"]"],
+      "jsonKeys": ["shopName"],
+      "type": "text"
+    },
+    "EOfferItem_Price": {
+      "domSelectors": [
+        ".EOfferItem-PriceContainer .EPrice-Value",
+        ".EOfferItem .EPrice-Value",
+        "[class*=\"EOfferItem-PriceContainer\"] .EPrice-Value"
+      ],
+      "jsonKeys": ["price"],
+      "type": "price"
+    },
+    "EOfferItem_PriceNum": {
+      "domSelectors": [
+        ".EOfferItem-PriceContainer .EPrice-A11yValue",
+        ".EOfferItem .EPrice-A11yValue"
+      ],
+      "jsonKeys": [],
+      "type": "text"
+    },
+    "EOfferItem_Reviews": {
+      "domSelectors": [".EOfferItem-Reviews", "[class*=\"EOfferItem-Reviews\"]"],
+      "jsonKeys": ["rating", "reviews"],
+      "type": "text"
+    },
+    "EOfferItem_Delivery": {
+      "domSelectors": [
+        ".EOfferItem-Deliveries",
+        "[class*=\"EOfferItem-Deliveries\"]",
+        ".EOfferItem-DeliveriesBnpl"
+      ],
+      "jsonKeys": ["delivery"],
+      "type": "text"
+    },
+    "EOfferItem_Title": {
+      "domSelectors": [".EOfferItem-Title", "[class*=\"EOfferItem-Title\"]"],
+      "jsonKeys": ["title"],
+      "type": "text"
+    },
+    "EOfferItem_Button": {
+      "domSelectors": [
+        ".EOfferItem-Button",
+        "[class*=\"EOfferItem-Button\"]",
+        ".EOfferItem-ButtonContainer"
+      ],
+      "jsonKeys": [],
+      "type": "attribute",
+      "domAttribute": "href"
     }
   }
 }

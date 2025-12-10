@@ -91,7 +91,9 @@ export type UIMessage =
   | { type: 'dismiss-rules-update' }
   | { type: 'reset-rules-cache' }
   | { type: 'get-remote-url' }
-  | { type: 'set-remote-url'; url: string };
+  | { type: 'set-remote-url'; url: string }
+  | { type: 'check-whats-new' }
+  | { type: 'mark-whats-new-seen'; version: string };
 
 // Messages sent from Code to UI
 export type CodeMessage = 
@@ -105,7 +107,8 @@ export type CodeMessage =
   | { type: 'settings-loaded'; settings: UserSettings }
   | { type: 'parsing-rules-loaded'; metadata: ParsingRulesMetadata }
   | { type: 'rules-update-available'; newVersion: number; currentVersion: number; hash: string }
-  | { type: 'remote-url-loaded'; url: string };
+  | { type: 'remote-url-loaded'; url: string }
+  | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string };
 
 // Combined type
 export type PluginMessage = UIMessage | CodeMessage;

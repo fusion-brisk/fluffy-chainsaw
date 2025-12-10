@@ -593,11 +593,12 @@ export async function handleLabelDiscountView(context: HandlerContext): Promise<
   const ePriceGroupInstance = findInstanceByName(container, 'EPriceGroup');
   
   // Вспомогательная функция для поиска LabelDiscount
+  // ВАЖНО: НЕ используем fallback на 'Label' — слишком широкий, может найти EPriceBarometer-Label
   const findLabelDiscount = (searchIn: BaseNode | null): InstanceNode | null => {
     if (!searchIn) return null;
     return findInstanceByName(searchIn, 'LabelDiscount') ||
-           findInstanceByName(searchIn, 'Label') ||
-           findInstanceByName(searchIn, 'Discount');
+           findInstanceByName(searchIn, 'Discount') ||
+           findInstanceByName(searchIn, 'Label / Discount'); // специфичное имя
   };
   
   // Пробуем найти LabelDiscount в EPriceGroup или контейнере
@@ -739,17 +740,29 @@ export function handleEPriceBarometer(context: HandlerContext): void {
   const barometerVal = row['#ELabelGroup_Barometer']; // Зависимость от поля ELabelGroup
   const hasBarometer = barometerVal === 'true';
   const viewVal = row[config.properties.view.dataField];
+  const isCompactVal = row[config.properties.isCompact.dataField];
   
   if (hasBarometer && viewVal) {
     const ePriceBarometerInstance = findInstanceByName(container, config.name);
     if (ePriceBarometerInstance) {
-      // Используем processStringProperty для свойства View, так как это может быть Variant Property или String
+      // Устанавливаем View (below-market, in-market, above-market)
       processStringProperty(
         ePriceBarometerInstance,
         config.properties.view.variantName,
         viewVal,
         config.properties.view.dataField
       );
+      
+      // Устанавливаем isCompact (true для EShopItem, false для остальных)
+      if (isCompactVal) {
+        const isCompact = isCompactVal === 'true';
+        processVariantProperty(
+          ePriceBarometerInstance,
+          `${config.properties.isCompact.variantName}=${isCompact}`,
+          config.properties.isCompact.dataField
+        );
+        Logger.debug(`   📐 [EPriceBarometer] isCompact=${isCompact}`);
+      }
     }
   }
 }
@@ -915,6 +928,48 @@ export function handleOfficialShop(context: HandlerContext): void {
   }
 }
 
+// Обработка EOfferItem - карточка предложения магазина в попапе "Цены в магазинах"
+// Устанавливает модификаторы: defaultOffer, hasButton, hasReviews, hasDelivery
+export function handleEOfferItem(context: HandlerContext): void {
+  const { container, row } = context;
+  if (!container || !row) return;
+  
+  // Проверяем, что это EOfferItem
+  const snippetType = row['#SnippetType'];
+  if (snippetType !== 'EOfferItem') return;
+  
+  Logger.debug(`   📦 [EOfferItem] Обработка модификаторов для "${row['#ShopName']}"`);
+  
+  // Устанавливаем модификаторы как Variant Properties
+  if (container.type === 'INSTANCE' && !container.removed) {
+    const instance = container as InstanceNode;
+    
+    // defaultOffer — основное предложение (первое в списке)
+    const isDefaultOffer = row['#EOfferItem_defaultOffer'] === 'true';
+    processVariantProperty(instance, `defaultOffer=${isDefaultOffer}`, '#EOfferItem_defaultOffer');
+    
+    // hasButton — с кнопкой "Купить"/"В магазин"
+    const hasButton = row['#EOfferItem_hasButton'] === 'true' || row['#BUTTON'] === 'true';
+    let buttonSet = processVariantProperty(instance, `button=${hasButton}`, '#EOfferItem_hasButton');
+    if (!buttonSet) buttonSet = processVariantProperty(instance, `Button=${hasButton}`, '#EOfferItem_hasButton');
+    if (!buttonSet) buttonSet = processVariantProperty(instance, `hasButton=${hasButton}`, '#EOfferItem_hasButton');
+    
+    // hasReviews — с отзывами
+    const hasReviews = row['#EOfferItem_hasReviews'] === 'true' || (row['#ReviewsNumber'] && row['#ReviewsNumber'].trim() !== '');
+    let reviewsSet = processVariantProperty(instance, `reviews=${hasReviews}`, '#EOfferItem_hasReviews');
+    if (!reviewsSet) reviewsSet = processVariantProperty(instance, `Reviews=${hasReviews}`, '#EOfferItem_hasReviews');
+    if (!reviewsSet) reviewsSet = processVariantProperty(instance, `hasReviews=${hasReviews}`, '#EOfferItem_hasReviews');
+    
+    // hasDelivery — с доставкой
+    const hasDelivery = row['#EOfferItem_hasDelivery'] === 'true' || (row['#DeliveryList'] && row['#DeliveryList'].trim() !== '');
+    let deliverySet = processVariantProperty(instance, `delivery=${hasDelivery}`, '#EOfferItem_hasDelivery');
+    if (!deliverySet) deliverySet = processVariantProperty(instance, `Delivery=${hasDelivery}`, '#EOfferItem_hasDelivery');
+    if (!deliverySet) deliverySet = processVariantProperty(instance, `hasDelivery=${hasDelivery}`, '#EOfferItem_hasDelivery');
+    
+    Logger.debug(`   📦 [EOfferItem] Модификаторы: defaultOffer=${isDefaultOffer}, button=${hasButton}, reviews=${hasReviews}, delivery=${hasDelivery}`);
+  }
+}
+
 // Обработка BUTTON - кнопка "Купить в 1 клик" (MarketCheckout)
 // Устанавливает Variant Property BUTTON=true/false на контейнере сниппета
 export function handleMarketCheckoutButton(context: HandlerContext): void {
@@ -958,6 +1013,129 @@ export function handleMarketCheckoutButton(context: HandlerContext): void {
         }
       }
     }
+  }
+}
+
+// Обработка EButton - кнопка внутри сниппета (view и visible)
+// 
+// Логика по типам сниппетов:
+// - EOfferItem: красная кнопка → view='primaryShort', белая → view='white'
+// - EShopItem: красная кнопка → view='primaryShort', дефолтная → view='secondary'
+// - ESnippet/Organic: кнопка есть → view='primaryShort' + visible=true, нет → visible=false
+export function handleEButton(context: HandlerContext): void {
+  const { container, row } = context;
+  if (!container || !row) return;
+  
+  const snippetType = row['#SnippetType'];
+  const hasButton = row['#BUTTON'] === 'true';
+  const buttonView = row['#ButtonView']; // primaryShort, white, secondary
+  const eButtonVisible = row['#EButton_visible'];
+  
+  // Находим EButton внутри контейнера
+  const eButtonInstance = findInstanceByName(container, 'EButton');
+  
+  if (!eButtonInstance) {
+    // Если EButton не найден, пробуем альтернативные имена
+    const altNames = ['Button', 'MarketButton', 'CheckoutButton'];
+    let foundButton: InstanceNode | null = null;
+    for (const name of altNames) {
+      foundButton = findInstanceByName(container, name);
+      if (foundButton) break;
+    }
+    
+    if (!foundButton) {
+      // Логируем только для сниппетов где ожидается кнопка
+      if (hasButton && (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic')) {
+        Logger.debug(`   ⚠️ [EButton] EButton не найден в контейнере "${container.name}"`);
+      }
+      return;
+    }
+    
+    // Используем найденную альтернативу
+    handleButtonInstance(foundButton, snippetType, hasButton, buttonView, eButtonVisible);
+    return;
+  }
+  
+  handleButtonInstance(eButtonInstance, snippetType, hasButton, buttonView, eButtonVisible);
+}
+
+// Вспомогательная функция для обработки найденного инстанса кнопки
+function handleButtonInstance(
+  buttonInstance: InstanceNode, 
+  snippetType: string, 
+  hasButton: boolean, 
+  buttonView: string | undefined,
+  eButtonVisible: string | undefined
+): void {
+  Logger.debug(`   🔘 [EButton] Найден инстанс "${buttonInstance.name}" в ${snippetType}`);
+  
+  // === Логика для ESnippet/Organic ===
+  if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
+    // Управляем видимостью кнопки
+    const shouldBeVisible = eButtonVisible === 'true' || hasButton;
+    
+    try {
+      buttonInstance.visible = shouldBeVisible;
+      Logger.debug(`   🔘 [EButton] visible=${shouldBeVisible} для ESnippet`);
+    } catch (e) {
+      Logger.error(`   ❌ [EButton] Ошибка установки visible:`, e);
+    }
+    
+    // Если кнопка видима, устанавливаем view
+    if (shouldBeVisible && buttonView) {
+      setButtonView(buttonInstance, buttonView);
+    }
+    return;
+  }
+  
+  // === Логика для EOfferItem и EShopItem ===
+  // Кнопка ВСЕГДА видна для этих типов сниппетов
+  if (snippetType === 'EOfferItem' || snippetType === 'EShopItem') {
+    // Показываем кнопку
+    try {
+      buttonInstance.visible = true;
+      Logger.debug(`   🔘 [EButton] visible=true для ${snippetType}`);
+    } catch (e) {
+      Logger.error(`   ❌ [EButton] Ошибка установки visible:`, e);
+    }
+    
+    // Устанавливаем view
+    if (buttonView) {
+      setButtonView(buttonInstance, buttonView);
+    }
+    return;
+  }
+  
+  // === Логика для EProductSnippet2 ===
+  if (snippetType === 'EProductSnippet2') {
+    if (hasButton && buttonView) {
+      setButtonView(buttonInstance, buttonView);
+    }
+  }
+}
+
+// Устанавливает view property для кнопки
+function setButtonView(buttonInstance: InstanceNode, viewValue: string): void {
+  // Пробуем разные варианты названия свойства view
+  const viewVariants = [
+    `view=${viewValue}`,
+    `View=${viewValue}`,
+    `VIEW=${viewValue}`
+  ];
+  
+  let viewSet = false;
+  for (const variant of viewVariants) {
+    viewSet = processVariantProperty(buttonInstance, variant, '#ButtonView');
+    if (viewSet) {
+      Logger.debug(`   🔘 [EButton] Установлен ${variant}`);
+      break;
+    }
+  }
+  
+  // Fallback: пробуем как String Property
+  if (!viewSet) {
+    processStringProperty(buttonInstance, 'view', viewValue, '#ButtonView');
+    Logger.debug(`   🔘 [EButton] Установлен view="${viewValue}" (String Property)`);
   }
 }
 

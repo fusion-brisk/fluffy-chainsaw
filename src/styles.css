@@ -1650,3 +1650,283 @@ button:disabled {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--figma-color-text-tertiary);
 }
+
+/* ============================================
+   WHAT'S NEW DIALOG
+   ============================================ */
+.whats-new-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+  animation: fadeIn 0.25s ease;
+}
+
+.whats-new-dialog {
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-xl);
+  width: calc(100% - 32px);
+  max-width: 340px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg), 0 0 40px rgba(88, 101, 242, 0.15);
+  animation: dialogIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+/* Header */
+.whats-new-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px;
+  border-bottom: 1px solid var(--figma-color-border);
+  background: var(--gradient-surface), var(--figma-color-bg-secondary);
+}
+
+.whats-new-header-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.whats-new-icon {
+  font-size: 28px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.whats-new-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.whats-new-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--figma-color-text);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.whats-new-version {
+  font-size: 11px;
+  color: var(--figma-color-text-secondary);
+  font-weight: 500;
+}
+
+.whats-new-close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: var(--figma-color-bg-tertiary);
+  color: var(--figma-color-text-tertiary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.whats-new-close:hover {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-text);
+  transform: rotate(90deg);
+}
+
+/* Content */
+.whats-new-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Entry */
+.whats-new-entry {
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-medium);
+  padding: 14px;
+  transition: all 0.2s ease;
+}
+
+.whats-new-entry-latest {
+  background: var(--figma-color-bg-selected);
+  border-color: var(--figma-color-border-brand);
+  box-shadow: 0 0 0 1px rgba(88, 101, 242, 0.1);
+}
+
+.whats-new-entry-header {
+  margin-bottom: 10px;
+}
+
+.whats-new-entry-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.whats-new-entry-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.whats-new-entry-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--figma-color-text);
+  flex: 1;
+}
+
+.whats-new-new-badge {
+  background: var(--gradient-brand);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}
+
+.whats-new-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.whats-new-type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--figma-color-bg-tertiary);
+  color: var(--figma-color-text-secondary);
+}
+
+.whats-new-badge-major {
+  background: rgba(88, 101, 242, 0.15);
+  color: var(--figma-color-bg-brand);
+}
+
+.whats-new-badge-feature {
+  background: rgba(35, 165, 90, 0.15);
+  color: var(--figma-color-text-success);
+}
+
+.whats-new-badge-fix {
+  background: rgba(242, 63, 67, 0.15);
+  color: var(--figma-color-text-danger);
+}
+
+.whats-new-badge-improvement {
+  background: rgba(240, 177, 50, 0.15);
+  color: var(--figma-color-text-warning);
+}
+
+.whats-new-entry-date {
+  font-size: 10px;
+  color: var(--figma-color-text-tertiary);
+}
+
+/* Highlights list */
+.whats-new-highlights {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.whats-new-highlight {
+  font-size: 11px;
+  color: var(--figma-color-text-secondary);
+  line-height: 1.5;
+  padding-left: 4px;
+  border-left: 2px solid var(--figma-color-border);
+  transition: all 0.15s ease;
+}
+
+.whats-new-entry-latest .whats-new-highlight {
+  border-left-color: var(--figma-color-bg-brand);
+}
+
+/* Footer */
+.whats-new-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--figma-color-border);
+  background: var(--figma-color-bg-secondary);
+}
+
+.whats-new-btn-primary {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--gradient-brand);
+  color: var(--figma-color-text-onbrand);
+  border: none;
+  border-radius: var(--radius-medium);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.whats-new-btn-primary:hover {
+  box-shadow: var(--shadow-md), var(--shadow-glow);
+  transform: translateY(-1px);
+}
+
+.whats-new-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Header trigger button */
+.whats-new-trigger.has-update {
+  color: var(--figma-color-bg-brand);
+}
+
+.app-nav-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  background: var(--figma-color-bg-brand);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--figma-color-bg);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+.app-nav-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--figma-color-border);
+  margin: 0 4px;
+}

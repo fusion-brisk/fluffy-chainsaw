@@ -1,10 +1,13 @@
 import { Logger } from './logger';
-import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES } from './config';
-import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel, handleOfficialShop, handleEDeliveryGroup, handleLabelDiscountView, handleMarketCheckoutButton } from './component-handlers';
+import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES, PLUGIN_VERSION } from './config';
+import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel, handleOfficialShop, handleEDeliveryGroup, handleLabelDiscountView, handleMarketCheckoutButton, handleEOfferItem, handleEButton } from './component-handlers';
 import { ImageProcessor } from './image-handlers';
 import { loadFonts, processTextLayers } from './text-handlers';
 import { LayerDataItem } from './types';
 import { ParsingRulesManager } from './parsing-rules-manager';
+
+// Ключ для хранения последней просмотренной версии
+const WHATS_NEW_STORAGE_KEY = 'contentify_whats_new_seen_version';
 
 console.log('🚀 Плагин Contentify загружен');
 
@@ -215,6 +218,40 @@ figma.ui.onmessage = async (msg) => {
         checkRulesUpdates().catch(function(err) {
           Logger.error('Ошибка проверки обновлений:', err);
         });
+      }
+      return;
+    }
+
+    // --- WHAT'S NEW HANDLERS ---
+    if (msg.type === 'check-whats-new') {
+      try {
+        const seenVersion = await figma.clientStorage.getAsync(WHATS_NEW_STORAGE_KEY);
+        const shouldShow = seenVersion !== PLUGIN_VERSION;
+        
+        Logger.debug(`What's New check: seen=${seenVersion}, current=${PLUGIN_VERSION}, shouldShow=${shouldShow}`);
+        
+        figma.ui.postMessage({
+          type: 'whats-new-status',
+          shouldShow: shouldShow,
+          currentVersion: PLUGIN_VERSION
+        });
+      } catch (e) {
+        Logger.error('Failed to check whats-new status:', e);
+        figma.ui.postMessage({
+          type: 'whats-new-status',
+          shouldShow: false,
+          currentVersion: PLUGIN_VERSION
+        });
+      }
+      return;
+    }
+
+    if (msg.type === 'mark-whats-new-seen') {
+      try {
+        await figma.clientStorage.setAsync(WHATS_NEW_STORAGE_KEY, msg.version);
+        Logger.debug(`What's New marked as seen for version ${msg.version}`);
+      } catch (e) {
+        Logger.error('Failed to save whats-new seen status:', e);
       }
       return;
     }
@@ -527,7 +564,9 @@ figma.ui.onmessage = async (msg) => {
           handleEPriceBarometer(context);
           handleEMarketCheckoutLabel(context);
           handleOfficialShop(context);
-          handleMarketCheckoutButton(context); // Кнопка "Купить в 1 клик"
+          handleMarketCheckoutButton(context); // Кнопка "Купить в 1 клик" — BUTTON variant
+          handleEButton(context); // EButton — view и visible для кнопки внутри сниппета
+          handleEOfferItem(context); // EOfferItem — модификаторы карточки предложения
           // handleEPriceView убран - view уже обрабатывается в handleEPriceGroup
           await handleLabelDiscountView(context); // async для корректной загрузки шрифтов
           componentPromises.push(handleELabelGroup(context).catch(e => Logger.error(`Error in handleELabelGroup:`, e)));

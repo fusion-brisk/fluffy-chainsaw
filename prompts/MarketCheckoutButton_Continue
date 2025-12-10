@@ -1,0 +1,64 @@
+# Контекст: Кнопка "Купить" — продолжение работы
+
+## Что было сделано в предыдущем чате
+
+Через Chrome MCP исследованы 4 формата сниппетов Яндекс-выдачи с кнопкой "Купить":
+
+### 1. Organic (вкладка "Поиск")
+- Кнопка: "Купить в 1 клик" (оранжевая)
+- Селекторы: [data-market-url-type="market_checkout"], .MarketCheckout-Button
+- Контейнер: .Organic, [data-cid]
+
+### 2. EShopItem (вкладка "Товары")
+- Кнопка: "Купить" (оранжевая)
+- Селекторы: .EMarketCheckoutButton-Container, .EShopItem_withCheckout
+- Контейнер: .EShopItem
+
+### 3. EProductSnippet2 (товарная сетка/карусель)
+- Лейбл: иконка корзины на миниатюре
+- Селекторы: .EMarketCheckoutLabel, .EThumb-LabelsCheckoutContainer
+- Контейнер: .EProductSnippet2
+
+### 4. EOfferItem (попап "Цены в магазинах")
+- Кнопка: "В магазин" или "Купить"
+- Селекторы: .EOfferItem-Button, .EOfferItem-ButtonContainer
+- Данные: .EOfferItem-ShopName, .EOfferItem-Reviews, .EOfferItem-Deliveries
+- Барометр цен: EPriceBarometer-Cheap (ниже рынка), EPriceBarometer-Average (ОК), EPriceBarometer-Expensive (выше рынка)
+
+## Изменённые файлы
+
+1. src/parsing-rules.ts (version 5)
+   - Расширен MarketCheckoutButton — все 4 формата
+   - Добавлена секция EOfferItem с модификаторами и данными
+
+2. src/utils/snippet-parser.ts
+   - Обновлена логика #BUTTON с поддержкой всех форматов
+   - Добавлен fallback на EShopItem_withCheckout
+
+3. config/parsing-rules.json (version 5)
+   - Синхронизирован с TypeScript версией
+
+## Сборка
+npm run build — успешно
+
+## Тестовые файлы
+- examples/iphone17.html — Organic с кнопкой "Купить в 1 клик"
+- ~/Downloads/kitfort kt-595 — Яндекс.html — EShopItem + EProductSnippet2
+
+## Что можно делать дальше
+1. Протестировать парсинг на реальных HTML-файлах
+2. Добавить полную обработку EOfferItem в snippet-parser.ts (сейчас только селекторы в rules)
+3. Реализовать логику применения #BUTTON в Figma компонентах (component-handlers.ts)
+4. Добавить парсинг барометра цен из EOfferItem
+
+## Chrome MCP команды для проверки
+document.querySelectorAll('[data-market-url-type="market_checkout"]').length
+document.querySelectorAll('.EMarketCheckoutButton-Container').length
+document.querySelectorAll('.EMarketCheckoutLabel').length
+document.querySelectorAll('.EOfferItem').length
+
+## Связанные файлы
+- @prompts/MarketCheckoutButton_Context — исходный контекст с HTML-структурой
+- @src/parsing-rules.ts — правила парсинга
+- @src/utils/snippet-parser.ts — логика парсинга
+- @src/component-handlers.ts — обработчики Figma компонентов
