@@ -9,7 +9,7 @@ import { ParsingRulesManager } from './parsing-rules-manager';
 // Ключ для хранения последней просмотренной версии
 const WHATS_NEW_STORAGE_KEY = 'contentify_whats_new_seen_version';
 
-console.log('🚀 Плагин Contentify загружен');
+console.log('🚀 Плагин EProductSnippet загружен');
 
 // Глобальные экземпляры
 const imageProcessor = new ImageProcessor();
@@ -268,6 +268,10 @@ figma.ui.onmessage = async (msg) => {
     Logger.info(`📊 Получено ${rows.length} строк данных`);
     Logger.info(`📍 Область: ${scope}`);
     
+    // === Global fields (outside snippet containers) ===
+    // Например: глобальный слой "#query" (строка запроса) обычно расположен вне сниппетов.
+    await applyGlobalQuery(rows, scope);
+    
     const logTiming = (stage: string) => {
       const elapsed = Date.now() - startTime;
       Logger.info(`⏱️ [${elapsed}ms] ${stage}`);
@@ -288,6 +292,15 @@ figma.ui.onmessage = async (msg) => {
     }
     
       // 2. Собираем контейнеры и группируем данные (Оптимизированный Top-Down подход)
+    // Начало этапа 1 (5%)
+    figma.ui.postMessage({
+      type: 'progress',
+      current: 5,
+      total: 100,
+      message: 'Поиск контейнеров...',
+      operationType: 'searching'
+    });
+    
     const snippetGroups = new Map<string, SceneNode[]>();
     let allContainers: SceneNode[] = [];
 
@@ -332,6 +345,15 @@ figma.ui.onmessage = async (msg) => {
     
     Logger.info(`📦 Найдено ${allContainers.length} контейнеров-сниппетов`);
     
+    // Промежуточный прогресс после поиска (12%)
+    figma.ui.postMessage({
+      type: 'progress',
+      current: 12,
+      total: 100,
+      message: `Найдено ${allContainers.length} контейнеров, сортировка...`,
+      operationType: 'searching'
+    });
+    
     // Сортировка контейнеров по визуальной позиции (сначала по Y, затем по X)
     // Это гарантирует соответствие порядка контейнеров Figma порядку сниппетов в HTML
     allContainers.sort(function(a, b) {
@@ -347,11 +369,43 @@ figma.ui.onmessage = async (msg) => {
     
     Logger.debug(`🔢 Контейнеры отсортированы по позиции (Y→X)`);
     
+    // Прогресс после сортировки (15%)
+    figma.ui.postMessage({
+      type: 'progress',
+      current: 15,
+      total: 100,
+      message: `Анализ структуры контейнеров...`,
+      operationType: 'searching'
+    });
+    
     // Набор ID всех контейнеров для проверки вложенности
     const containerIds = new Set(allContainers.map(c => c.id));
     
+    // Контейнеры, которые должны обрабатываться даже без data-layers
+    // (нужно для принудительного включения кнопок/вариантов при повторных прогонах)
+    const ALWAYS_PROCESS_CONTAINERS = new Set(['EShopItem', 'EOfferItem']);
+    
+    // Отправляем прогресс во время группировки
+    let containerIndex = 0;
+    const totalContainers = allContainers.length;
+    
     for (const container of allContainers) {
-        if (container.removed) continue;
+        containerIndex++;
+        
+        if (container.removed) {
+          // Обновляем прогресс даже для пропущенных контейнеров
+          if (containerIndex % 10 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 4)) === 0) {
+            const progress = 15 + Math.floor((containerIndex / totalContainers) * 25);
+            figma.ui.postMessage({
+              type: 'progress',
+              current: Math.min(40, progress),
+              total: 100,
+              message: `Обработка контейнеров: ${containerIndex}/${totalContainers}`,
+              operationType: 'grouping'
+            });
+          }
+          continue;
+        }
         
         // Ищем слои данных внутри контейнера
         // Поддерживаем два формата:
@@ -380,7 +434,15 @@ figma.ui.onmessage = async (msg) => {
            });
         }
         
-        if (dataLayers.length === 0) continue;
+        // Если data layers не найдено — обычно пропускаем контейнер.
+        // Но для EShopItem/EOfferItem всё равно включаем контейнер в обработку,
+        // чтобы принудительно выставлять BUTTON/view (частый кейс: повторные прогоны).
+        if (dataLayers.length === 0) {
+          if (ALWAYS_PROCESS_CONTAINERS.has(container.name)) {
+            snippetGroups.set(container.id, []);
+          }
+          continue;
+        }
         
         // Фильтрация: берем только те слои, для которых этот контейнер является БЛИЖАЙШИМ из списка allContainers
         const validLayers: SceneNode[] = [];
@@ -406,11 +468,38 @@ figma.ui.onmessage = async (msg) => {
         
         if (validLayers.length > 0) {
            snippetGroups.set(container.id, validLayers);
+        } else {
+          // Аналогично: если слойные поля отфильтровались (вложенность), но это контейнер,
+          // который должен "сам себя" обрабатывать — добавляем пустую группу.
+          if (ALWAYS_PROCESS_CONTAINERS.has(container.name)) {
+            snippetGroups.set(container.id, []);
+          }
+        }
+        
+        // Обновляем прогресс каждые 10 контейнеров или каждые 5%
+        if (containerIndex % 10 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 4)) === 0) {
+          const progress = 15 + Math.floor((containerIndex / totalContainers) * 25); // 15-40%
+          figma.ui.postMessage({
+            type: 'progress',
+            current: Math.min(40, progress),
+            total: 100,
+            message: `Обработка контейнеров: ${containerIndex}/${totalContainers}`,
+            operationType: 'grouping'
+          });
         }
     }
 
     Logger.info(`📊 Создано ${snippetGroups.size} групп сниппетов`);
     logTiming('Группировка сниппетов завершена (Top-Down)');
+    
+    // Отправляем прогресс: этап 2 завершен (40%)
+    figma.ui.postMessage({
+      type: 'progress',
+      current: 40,
+      total: 100,
+      message: `Создано ${snippetGroups.size} групп сниппетов`,
+      operationType: 'grouping'
+    });
 
       // 4. Создаем layerData (назначаем строки)
     const normalizeFieldName = (name: string): string => name ? String(name).trim().toLowerCase() : '';
@@ -445,16 +534,191 @@ figma.ui.onmessage = async (msg) => {
     let nextRowIndex = 0;
     
       const finalContainerMap = snippetGroups;
-    
-    for (const [_, layers] of finalContainerMap) {
+
+    // --- Типо-осознанное сопоставление строк и контейнеров ---
+    // Жёстко выдаём строки в порядке приоритета типов, чтобы checkout не утекал в Organic.
+    // --- Строгое сопоставление строк и контейнеров по типу ---
+    const buckets = new Map<string, { rows: { [key: string]: string }[]; index: number }>();
+    for (const row of rows) {
+      const typeKey = ((row && row['#SnippetType']) || 'default').trim();
+      if (!buckets.has(typeKey)) {
+        buckets.set(typeKey, { rows: [], index: 0 });
+      }
+      buckets.get(typeKey)!.rows.push(row);
+    }
+
+    const takeNext = (type: string): { [key: string]: string } | null => {
+      const b = buckets.get(type);
+      if (!b || b.rows.length === 0) return null;
+      const idx = b.index % b.rows.length;
+      b.index++;
+      return b.rows[idx];
+    };
+
+    const typeOrder = [
+      'EOfferItem',
+      'EShopItem',
+      'EProductSnippet2',
+      'EProductSnippet',
+      'ProductTile-Item',
+      'Organic_withOfferInfo',
+      'Organic',
+      'ESnippet',
+      'Snippet'
+    ];
+
+    // Контейнер → допустимые типы строк (строго, без кросс-фоллбеков вне этого списка)
+    const allowedTypesMap: { [key: string]: string[] } = {
+      EOfferItem: ['EOfferItem', 'EShopItem'],
+      EShopItem: ['EShopItem', 'EOfferItem'],
+      // Product snippets — допускаем взаимный fallback между EProductSnippet2, EProductSnippet и плиткой
+      EProductSnippet2: ['EProductSnippet2', 'EProductSnippet'],
+      EProductSnippet: ['EProductSnippet', 'EProductSnippet2', 'ProductTile-Item'],
+      'ProductTile-Item': ['ProductTile-Item', 'EProductSnippet2', 'EProductSnippet'],
+      Organic_withOfferInfo: ['Organic_withOfferInfo'],
+      Organic: ['Organic'],
+      ESnippet: ['Organic_withOfferInfo', 'Organic'],
+      Snippet: ['Organic_withOfferInfo', 'Organic']
+    };
+
+    // Нормализация имени контейнера к базовому типу
+    const normalizeContainerName = (name: string): string => {
+      if (!name) return 'unknown';
+      const lower = name.toLowerCase();
+      // прямые совпадения
+      for (const base of SNIPPET_CONTAINER_NAMES) {
+        if (lower === base.toLowerCase()) return base;
+      }
+      // префиксное совпадение: имя начинается с базового типа
+      for (const base of SNIPPET_CONTAINER_NAMES) {
+        if (lower.startsWith(base.toLowerCase())) return base;
+      }
+      return name;
+    };
+
+    // Собираем контейнеры по типу (по нормализованному имени)
+    const containersByType = new Map<string, string[]>();
+    for (const [containerKey, layers] of finalContainerMap) {
+      let container: BaseNode | null = null;
+      for (const layer of layers) {
+        if (layer.removed) continue;
+        let current: BaseNode | null = layer.parent;
+        while (current) {
+          if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
+            container = current;
+            break;
+          }
+          current = current.parent;
+        }
+        if (container) break;
+      }
+      // Если у контейнера нет data-layers (layers пустой), container останется null.
+      // Тогда берем сам контейнер по ID, иначе он уйдет в "unknown" и не получит строку/обработку.
+      if (!container) {
+        try {
+          const byId = figma.getNodeById(containerKey);
+          if (byId && !byId.removed) container = byId as BaseNode;
+        } catch (e) {
+          // ignore
+        }
+      }
+      const name = container && 'name' in container ? container.name : '';
+      const norm = normalizeContainerName(name || '');
+      const key = norm || 'unknown';
+      if (!containersByType.has(key)) containersByType.set(key, []);
+      containersByType.get(key)!.push(containerKey);
+    }
+
+    // Распределяем строки строго по разрешённым типам
+      const containerRowAssignments = new Map<string, { row: { [key: string]: string }; rowIndex: number }>();
+    let globalRowIdx = 0;
+
+    for (const t of typeOrder) {
+      const keys = containersByType.get(t);
+      if (!keys || keys.length === 0) continue;
+      const allowedTypes = allowedTypesMap[t] || [t];
+      for (const ck of keys) {
+        let chosen: { [key: string]: string } | null = null;
+        for (const at of allowedTypes) {
+          chosen = takeNext(at);
+          if (chosen) break;
+        }
+        if (!chosen) {
+          // Для ESnippet/Snippet, если нет подходящих строк, всё равно назначим stub, чтобы скрыть кнопку
+          if (t === 'ESnippet' || t === 'Snippet') {
+            chosen = {
+              '#SnippetType': 'Organic',
+              '#BUTTON': 'false',
+              '#EButton_visible': 'false',
+              '#ButtonView': ''
+            };
+          } else {
+            continue; // нет подходящих строк — пропускаем контейнер на этом шаге
+          }
+        }
+        containerRowAssignments.set(ck, { row: chosen, rowIndex: globalRowIdx });
+        globalRowIdx++;
+      }
+    }
+
+    // Ограниченный fallback: если контейнеры типов, отличных от Organic/ESnippet, остались без строки — выдаём любую доступную
+    const remainingKeys = Array.from(finalContainerMap.keys()).filter(k => !containerRowAssignments.has(k));
+    const nonOrganicTypes = new Set([
+      'EOfferItem',
+      'EShopItem',
+      'EProductSnippet2',
+      'EProductSnippet',
+      'ProductTile-Item'
+    ]);
+    for (const ck of remainingKeys) {
+      const containerNode = ((): BaseNode | null => {
+        const layers = finalContainerMap.get(ck);
+        if (!layers || !layers.length) return null;
+        for (const layer of layers) {
+          if (layer.removed) continue;
+          let current: BaseNode | null = layer.parent;
+          while (current) {
+            if (SNIPPET_CONTAINER_NAMES.includes(current.name)) return current;
+            current = current.parent;
+          }
+        }
+        return null;
+      })();
+      const name = containerNode && 'name' in containerNode ? containerNode.name : '';
+      const norm = normalizeContainerName(name || '');
+      if (!nonOrganicTypes.has(norm)) {
+        continue; // не назначаем fallback для Organic/ESnippet/Snippet
+      }
+      let fallbackRow: { [key: string]: string } | null = null;
+      // Пробуем сначала из разрешённых типов
+      const allowed = allowedTypesMap[norm] || [];
+      for (const at of allowed) {
+        fallbackRow = takeNext(at);
+        if (fallbackRow) break;
+      }
+      // Затем из любых имеющихся rows
+      if (!fallbackRow && rows.length) {
+        fallbackRow = rows[globalRowIdx % rows.length];
+        globalRowIdx++;
+      }
+      if (fallbackRow) {
+        containerRowAssignments.set(ck, { row: fallbackRow, rowIndex: globalRowIdx });
+        globalRowIdx++;
+      }
+    }
+
+    // --- Создание layerData с уже назначенными строками ---
+    for (const [containerKey, layers] of finalContainerMap) {
         const validLayers = layers.filter(layer => !layer.removed);
         if (validLayers.length === 0) {
-          nextRowIndex++;
           continue;
         }
-        
-        const rowIndex = nextRowIndex % rows.length;
-        const row = rows[rowIndex];
+
+        const assignment = containerRowAssignments.get(containerKey);
+        if (!assignment) continue;
+
+        const rowIndex = assignment.rowIndex;
+        const row = assignment.row;
       
       const rowKeyMap: { [key: string]: string } = {};
       try {
@@ -510,7 +774,6 @@ figma.ui.onmessage = async (msg) => {
             row
           });
         }
-        nextRowIndex++;
       }
       
       Logger.info(`📊 Создано ${layerData.length} элементов layerData`);
@@ -520,25 +783,47 @@ figma.ui.onmessage = async (msg) => {
       // 5. Обработка компонентной логики
       const containersToProcess = new Map<string, { row: { [key: string]: string } | null; container: BaseNode | null; }>();
     for (const [containerKey, layers] of finalContainerMap) {
-        if (!layers.length) continue;
       let container: BaseNode | null = null;
-      for (const layer of layers) {
-        if (layer.removed) continue;
-          let current = layer.parent;
-        while (current) {
-            if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
-            container = current;
-            break;
+      if (layers && layers.length) {
+        for (const layer of layers) {
+          if (layer.removed) continue;
+            let current = layer.parent;
+          while (current) {
+              if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
+              container = current;
+              break;
+            }
+            current = current.parent;
           }
-          current = current.parent;
+          if (container) break;
         }
-        if (container) break;
+      } else {
+        // Нет data-layers — используем сам контейнер по ID
+        try {
+          const byId = figma.getNodeById(containerKey);
+          if (byId && !byId.removed) container = byId as BaseNode;
+        } catch (e) {
+          // ignore
+        }
       }
       if (!container) continue;
       
-      const containerIndex = Array.from(finalContainerMap.keys()).indexOf(containerKey);
-      const rowIndex = containerIndex % rows.length;
-        containersToProcess.set(containerKey, { row: rows[rowIndex], container });
+      const assignment = containerRowAssignments.get(containerKey);
+      let assignedRow = assignment ? assignment.row : null;
+      
+      // Кнопки в EShopItem/EOfferItem должны быть всегда доступны.
+      // Если строка не назначена (или назначена не того типа), всё равно запускаем обработчики с stub-строкой,
+      // чтобы восстановить видимость и дефолтный view при повторных прогонах.
+      const containerName = (container && 'name' in container) ? String(container.name) : '';
+      if (!assignedRow && (containerName === 'EShopItem' || containerName === 'EOfferItem')) {
+        assignedRow = {
+          '#SnippetType': containerName,
+          '#BUTTON': 'true',
+          '#ButtonView': containerName === 'EShopItem' ? 'secondary' : 'white',
+          '#ButtonType': 'shop'
+        };
+      }
+        containersToProcess.set(containerKey, { row: assignedRow, container });
       }
       
       Logger.debug(`🔄 Обработка компонентной логики для ${containersToProcess.size} контейнеров...`);
@@ -577,6 +862,15 @@ figma.ui.onmessage = async (msg) => {
       }
       await Promise.all(componentPromises);
       Logger.debug(`✅ Компонентная логика обработана`);
+      
+      // Отправляем прогресс: этап 3 (40-60%)
+      figma.ui.postMessage({
+        type: 'progress',
+        current: 60,
+        total: 100,
+        message: `Обработана компонентная логика`,
+        operationType: 'components'
+      });
 
       // 6. Обработка текста
       const textLayers = filteredLayers.filter(item => {
@@ -602,8 +896,25 @@ figma.ui.onmessage = async (msg) => {
         Logger.info(`🔤 Загрузка шрифтов для ${textLayers.length} текстовых слоев`);
         await loadFonts(textLayers);
         processTextLayers(textLayers);
+        
+        // Отправляем прогресс: этап 4 (60-80%)
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 70,
+          total: 100,
+          message: `Обработано ${textLayers.length} текстовых слоев`,
+          operationType: 'text'
+        });
       } else {
         Logger.info('🔤 Нет текстовых слоев для обновления');
+        // Все равно отправляем прогресс
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 70,
+          total: 100,
+          message: `Пропущена обработка текста (нет изменений)`,
+          operationType: 'text'
+        });
       }
 
       // 7. Обработка изображений
@@ -611,6 +922,15 @@ figma.ui.onmessage = async (msg) => {
     if (imageLayers.length > 0) {
         // Сбрасываем статистику для нового прогона, но кэш остается
         imageProcessor.resetForNewImport();
+        
+        // Отправляем прогресс: этап 5 начинается (75%)
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 75,
+          total: 100,
+          message: `Начинаем обработку ${imageLayers.length} изображений...`,
+          operationType: 'images-start'
+        });
         
         imageProcessor.onUpdateTextLayer = (rowIndex, fieldName, value) => {
           const targets = filteredLayers.filter(l => 
@@ -672,3 +992,114 @@ figma.ui.onmessage = async (msg) => {
     });
   }
 };
+
+// ==========================
+// Global helpers
+// ==========================
+
+// Применяет глобальный поисковый запрос к текстовым слоям "#query" вне сниппетов.
+// Берём значение из первой строки данных (rows[0]['#query']) — оно одинаковое для всех.
+async function applyGlobalQuery(rows: Array<{ [key: string]: string }>, scope: string): Promise<void> {
+  try {
+    if (!rows || !rows.length) return;
+    const first = rows[0] || {};
+    const raw = first['#query'] || first['#Query'] || '';
+    const value = raw ? String(raw).trim() : '';
+    if (!value) return;
+    
+    const targets: SceneNode[] = [];
+    
+    // Поиск в зависимости от scope:
+    // - page: по всей странице
+    // - selection: внутри выделения (и сами выбранные ноды)
+    if (scope === 'page') {
+      if (figma.currentPage.findAll) {
+        targets.push(...figma.currentPage.findAll(n => n.name === '#query'));
+      }
+    } else {
+      const selection = figma.currentPage.selection || [];
+      for (const node of selection) {
+        if (node.removed) continue;
+        if (node.name === '#query') targets.push(node);
+        if ('findAll' in node) {
+          try {
+            const found = (node as SceneNode & ChildrenMixin).findAll((n: SceneNode) => n.name === '#query');
+            if (found && found.length) targets.push(...found);
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+    }
+    
+    // Если прямых совпадений нет, но пользователь положил текст внутрь группы/фрейма "#query",
+    // попробуем найти внутри таких контейнеров первый текстовый слой.
+    const expandedTargets: SceneNode[] = [];
+    for (const t of targets) expandedTargets.push(t);
+    if (!expandedTargets.length) {
+      // Нечего менять
+      Logger.info('🔎 [Global] Слой "#query" не найден в текущем scope');
+      figma.ui.postMessage({ type: 'log', message: '🔎 Не найден слой "#query" в макете' });
+      return;
+    }
+    
+    let applied = 0;
+    for (const node of expandedTargets) {
+      if (node.removed) continue;
+      
+      // 1) Прямой TEXT
+      if (node.type === 'TEXT') {
+        const textNode = node as TextNode;
+        await safeSetText(textNode, value);
+        applied += 1;
+        continue;
+      }
+      
+      // 2) Если это не TEXT, ищем TEXT внутри
+      if ('findAll' in node) {
+        try {
+          const innerTexts = (node as SceneNode & ChildrenMixin).findAll((n: SceneNode) => n.type === 'TEXT') as SceneNode[];
+          if (innerTexts && innerTexts.length) {
+            const firstText = innerTexts[0] as TextNode;
+            await safeSetText(firstText, value);
+            applied += 1;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+    
+    Logger.info(`✅ [Global] "#query" применён: ${applied} слоёв`);
+    figma.ui.postMessage({ type: 'log', message: `✅ Запрос применён к "#query" (${applied})` });
+  } catch (e) {
+    Logger.error('❌ [Global] Ошибка применения #query:', e);
+    figma.ui.postMessage({ type: 'log', message: '❌ Ошибка применения "#query" (см. консоль)' });
+  }
+}
+
+async function safeSetText(textNode: TextNode, value: string): Promise<void> {
+  try {
+    if (textNode.removed) return;
+    const fontName = textNode.fontName;
+    if (fontName !== figma.mixed && fontName && typeof fontName === 'object') {
+      await figma.loadFontAsync(fontName as FontName);
+    } else if (fontName === figma.mixed) {
+      // Берём шрифт первого символа как базовый (аналогично loadFonts)
+      try {
+        const len = (textNode.characters || '').length;
+        if (len > 0) {
+          const first = textNode.getRangeFontName(0, 1);
+          if (first !== figma.mixed && first && typeof first === 'object') {
+            await figma.loadFontAsync(first as FontName);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    textNode.characters = value;
+  } catch (e) {
+    Logger.error('❌ [Global] Ошибка установки текста для "#query":', e);
+  }
+}

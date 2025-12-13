@@ -9,6 +9,7 @@ export class ImageProcessor {
   public successfulImages = 0;
   public failedImages = 0;
   public errors: DetailedError[] = [];
+  private processedCount = 0; // Счетчик для отслеживания прогресса
 
   constructor() {}
   
@@ -16,6 +17,7 @@ export class ImageProcessor {
     this.successfulImages = 0;
     this.failedImages = 0;
     this.errors = [];
+    this.processedCount = 0;
     // We intentionally don't clear cache here to preserve it across runs in same session
   }
 
@@ -511,23 +513,46 @@ export class ImageProcessor {
     // 1. Synchronous pre-processing of favicons
     this.resolveFaviconUrls(items);
     
+    const total = items.length;
     const queue = [...items];
     const workers: Promise<void>[] = [];
     
+    // Функция для отправки прогресса (синхронизированная)
+    const updateProgress = () => {
+      this.processedCount++;
+      const currentCount = this.processedCount;
+      const progress = 75 + Math.floor((currentCount / total) * 25); // 75-100%
+      
+      // Обновляем каждые 3 изображения или каждые 5% или при завершении
+      const updateInterval = Math.max(1, Math.floor(total / 20));
+      if (currentCount % 3 === 0 || currentCount % updateInterval === 0 || currentCount === total) {
+        figma.ui.postMessage({
+          type: 'progress',
+          current: Math.min(100, progress),
+          total: 100,
+          message: `Обработка изображений: ${currentCount}/${total}`,
+          operationType: 'images'
+        });
+      }
+    };
+    
     for (let i = 0; i < IMAGE_CONFIG.MAX_CONCURRENT; i++) {
       workers.push((async () => {
-        let processedCount = 0;
+        let workerProcessedCount = 0;
         while (queue.length > 0) {
           const item = queue.shift();
           if (item) {
             const index = items.length - queue.length - 1;
             await this.processImage(item, index, items.length);
             
+            // Обновляем общий прогресс (в JavaScript операции атомарны в рамках одного потока)
+            updateProgress();
+            
             // ОПТИМИЗАЦИЯ: Smart Batching
             // Каждые 3 картинки даем UI потоку Figma передохнуть ("продышаться"), 
             // чтобы интерфейс не зависал намертво при большом импорте.
-            processedCount++;
-            if (processedCount % 3 === 0) {
+            workerProcessedCount++;
+            if (workerProcessedCount % 3 === 0) {
                await new Promise(resolve => setTimeout(resolve, 10));
             }
           }

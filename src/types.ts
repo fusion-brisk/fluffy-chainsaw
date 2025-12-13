@@ -101,7 +101,7 @@ export type CodeMessage =
   | { type: 'error'; message: string }
   | { type: 'pages'; pages: string[] }
   | { type: 'selection-status'; hasSelection: boolean }
-  | { type: 'progress'; current: number; total: number; operationType?: string }
+  | { type: 'progress'; current: number; total: number; message?: string; operationType?: string }
   | { type: 'stats'; stats: ProcessingStats }
   | { type: 'done'; count: number }
   | { type: 'settings-loaded'; settings: UserSettings }

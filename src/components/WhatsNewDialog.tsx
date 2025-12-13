@@ -15,11 +15,11 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({
 
   const getTypeIcon = (type: ChangelogEntry['type']): string => {
     switch (type) {
-      case 'major': return '🚀';
-      case 'feature': return '✨';
-      case 'fix': return '🐛';
-      case 'improvement': return '💡';
-      default: return '📦';
+      case 'major': return '◆';
+      case 'feature': return '●';
+      case 'fix': return '○';
+      case 'improvement': return '◇';
+      default: return '•';
     }
   };
 
@@ -48,9 +48,9 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({
         {/* Header */}
         <div className="whats-new-header">
           <div className="whats-new-header-content">
-            <span className="whats-new-icon">🎉</span>
+            <span className="whats-new-mark" aria-hidden="true" />
             <div className="whats-new-header-text">
-              <h2 className="whats-new-title">Что нового</h2>
+              <h2 className="whats-new-title">Что нового в EProductSnippet</h2>
               <span className="whats-new-version">Версия {currentVersion}</span>
             </div>
           </div>
@@ -75,12 +75,12 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({
                   <span className="whats-new-entry-icon">{getTypeIcon(entry.type)}</span>
                   <span className="whats-new-entry-title">{entry.title}</span>
                   {index === 0 && (
-                    <span className="whats-new-new-badge">NEW</span>
+                    <span className="whats-new-new-badge">НОВОЕ</span>
                   )}
                 </div>
                 <div className="whats-new-entry-meta">
                   <span className={`whats-new-type-badge ${getTypeBadgeClass(entry.type)}`}>
-                    v{entry.version}
+                    {entry.version}
                   </span>
                   <span className="whats-new-entry-date">{formatDate(entry.date)}</span>
                 </div>
@@ -100,7 +100,7 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({
         {/* Footer */}
         <div className="whats-new-footer">
           <button className="whats-new-btn-primary" onClick={onClose}>
-            Понятно, спасибо!
+            Закрыть
           </button>
         </div>
       </div>

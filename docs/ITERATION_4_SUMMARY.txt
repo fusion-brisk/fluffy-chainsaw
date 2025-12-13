@@ -336,7 +336,7 @@
 │                                                                     │
 │   🎊🎉🎊  CONGRATULATIONS! UI REFACTORING COMPLETE!  🎊🎉🎊        │
 │                                                                     │
-│   The Contentify plugin now has a world-class UI!                  │
+│   The EProductSnippet plugin now has a world-class UI!                  │
 │                                                                     │
 │   What changed:                                                    │
 │   • Tab-based navigation (3 tabs)                                  │

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { memo } from 'react';
+import { UploadIcon } from './Icons';
 
 interface DropZoneProps {
   isDragOver: boolean;
@@ -11,9 +12,11 @@ interface DropZoneProps {
   // Progress overlay props
   isLoading?: boolean;
   progress?: { current: number; total: number };
+  // Drag preview
+  dragFileName?: string | null;
 }
 
-export const DropZone: React.FC<DropZoneProps> = ({
+export const DropZone: React.FC<DropZoneProps> = memo(({
   isDragOver,
   onDragOver,
   onDragLeave,
@@ -22,12 +25,27 @@ export const DropZone: React.FC<DropZoneProps> = ({
   disabled = false,
   fullscreen = false,
   isLoading = false,
-  progress
+  progress,
+  dragFileName
 }) => {
   const isDisabled = disabled || isLoading;
   const percentage = progress && progress.total > 0
     ? Math.round((progress.current / progress.total) * 100)
     : 0;
+
+  const openFilePicker = () => {
+    const input = document.getElementById('file-input') as HTMLInputElement | null;
+    if (input) input.click();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isDisabled) return;
+    // Enter / Space to open file picker
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openFilePicker();
+    }
+  };
 
   return (
     <div
@@ -35,7 +53,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
       onDragOver={isDisabled ? undefined : onDragOver}
       onDragLeave={isDisabled ? undefined : onDragLeave}
       onDrop={isDisabled ? undefined : onDrop}
-      onClick={isDisabled ? undefined : () => document.getElementById('file-input')?.click()}
+      onClick={isDisabled ? undefined : openFilePicker}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={isDisabled ? -1 : 0}
+      aria-disabled={isDisabled}
+      aria-label="Import HTML or MHTML file"
     >
       {/* Progress bar overlay when loading */}
       {isLoading && (
@@ -48,32 +71,30 @@ export const DropZone: React.FC<DropZoneProps> = ({
       )}
 
       {/* Modern upload icon */}
-      <svg className="drop-icon" viewBox="0 0 48 48" fill="none">
-        <path 
-          d="M24 4L24 32M24 4L14 14M24 4L34 14" 
-          stroke="currentColor" 
-          strokeWidth="3" 
-          strokeLinecap="round" 
-          strokeLinejoin="round"
-        />
-        <path 
-          d="M8 28V38C8 40.2091 9.79086 42 12 42H36C38.2091 42 40 40.2091 40 38V28" 
-          stroke="currentColor" 
-          strokeWidth="3" 
-          strokeLinecap="round"
-        />
-      </svg>
+      <UploadIcon className="drop-icon" />
       
       <div className="drop-zone-text">
         {isLoading
           ? `${percentage}%`
           : disabled
-            ? 'Select elements first'
+            ? 'Select layers first'
             : fullscreen
               ? 'Drop file anywhere'
-              : 'Click or drag HTML file'
+              : 'Click or drop HTML/MHTML'
         }
       </div>
+      
+      {/* File name preview during drag */}
+      {fullscreen && dragFileName && (
+        <div className="drop-zone-file-preview">
+          📄 {dragFileName}
+        </div>
+      )}
+      
+      {/* Shortcut hint */}
+      {!isLoading && !disabled && !fullscreen && (
+        <div className="drop-zone-hint">⌘O to open</div>
+      )}
       
       <input 
         type="file" 
@@ -84,4 +105,6 @@ export const DropZone: React.FC<DropZoneProps> = ({
       />
     </div>
   );
-};
+});
+
+DropZone.displayName = 'DropZone';

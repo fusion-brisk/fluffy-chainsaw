@@ -44,7 +44,7 @@
 
   BEFORE (Monolithic):
   ┌──────────────────────────┐
-  │ Contentify    [Rules 🗑] │
+  │ EProductSnippet    [Rules 🗑] │
   ├──────────────────────────┤
   │ Scope: ○ Selection       │
   │ DropZone [BIG]           │
@@ -58,7 +58,7 @@
 
   AFTER (Tab-based):
   ┌──────────────────────────┐
-  │ Contentify  📋* ⚙️  📊   │  ← Tabs!
+  │ EProductSnippet  📋* ⚙️  📊   │  ← Tabs!
   ├──────────────────────────┤
   │                          │
   │   [ACTIVE TAB CONTENT]   │  ← Only one visible
@@ -125,7 +125,7 @@
 ╚═══════════════════════════════════════════════════════════════════╝
 
   1. Open Figma
-  2. Run the Contentify plugin
+  2. Run the EProductSnippet plugin
   3. Try clicking the tabs: 📋 ⚙️ 📊
   4. Import a file → Watch it auto-switch to Logs if errors
   5. Everything should work exactly as before, just better organized!

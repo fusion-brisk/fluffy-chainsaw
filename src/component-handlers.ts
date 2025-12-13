@@ -976,7 +976,11 @@ export function handleMarketCheckoutButton(context: HandlerContext): void {
   const { container, row } = context;
   if (!container || !row) return;
 
-  const hasButton = row['#BUTTON'] === 'true';
+  // ВАЖНО: Для контейнеров EShopItem и EOfferItem кнопка должна быть ВСЕГДА включена,
+  // даже если строка данных не соответствует типу (частый сценарий при fallback назначении строк).
+  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const isAlwaysOnContainer = containerName === 'EShopItem' || containerName === 'EOfferItem';
+  const hasButton = isAlwaysOnContainer ? true : (row['#BUTTON'] === 'true');
   
   // Устанавливаем BUTTON variant property на контейнере
   if (container.type === 'INSTANCE' && !container.removed) {
@@ -1016,20 +1020,63 @@ export function handleMarketCheckoutButton(context: HandlerContext): void {
   }
 }
 
+function findButtonInstanceLoose(container: BaseNode): InstanceNode | null {
+  // Ищем любой INSTANCE внутри контейнера, похожий на кнопку:
+  // - имя содержит "Button" (включая "Control / Button")
+  // - и есть componentProperties с ключом view (или view#...)
+  const queue: BaseNode[] = [container];
+  while (queue.length) {
+    const node = queue.shift();
+    if (!node) break;
+    if (node.type === 'INSTANCE' && !node.removed) {
+      const inst = node as InstanceNode;
+      const n = (inst.name || '').toLowerCase();
+      if (n.includes('button')) {
+        const props = inst.componentProperties || {};
+        for (const key in props) {
+          if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+          if (key === 'view' || key.toLowerCase().startsWith('view#')) {
+            return inst;
+          }
+        }
+        // Даже без view, иногда кнопка управляется другими пропсами — всё равно вернём как fallback
+        return inst;
+      }
+    }
+    if ('children' in node && (node as BaseNode & ChildrenMixin).children) {
+      const kids = (node as BaseNode & ChildrenMixin).children as readonly BaseNode[];
+      for (const k of kids) queue.push(k);
+    }
+  }
+  return null;
+}
+
 // Обработка EButton - кнопка внутри сниппета (view и visible)
 // 
 // Логика по типам сниппетов:
 // - EOfferItem: красная кнопка → view='primaryShort', белая → view='white'
-// - EShopItem: красная кнопка → view='primaryShort', дефолтная → view='secondary'
+// - EShopItem: checkout → view='primaryLong', дефолтная → view='secondary'
 // - ESnippet/Organic: кнопка есть → view='primaryShort' + visible=true, нет → visible=false
 export function handleEButton(context: HandlerContext): void {
   const { container, row } = context;
   if (!container || !row) return;
   
-  const snippetType = row['#SnippetType'];
+  // ВАЖНО: для EShopItem/EOfferItem ориентируемся на ТИП КОНТЕЙНЕРА в Figma,
+  // а не на row['#SnippetType'], потому что rows могут назначаться fallback-ом.
+  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const snippetType = (containerName === 'EShopItem' || containerName === 'EOfferItem')
+    ? containerName
+    : row['#SnippetType'];
+  const allowedForESnippet = ['Organic_withOfferInfo', 'Organic'];
+  const isESnippetContainer = container.name === 'ESnippet' || container.name === 'Snippet';
+  if (isESnippetContainer && !allowedForESnippet.includes(snippetType)) {
+    // Строка не подходит по типу — не трогаем EButton
+    return;
+  }
   const hasButton = row['#BUTTON'] === 'true';
-  const buttonView = row['#ButtonView']; // primaryShort, white, secondary
+  let buttonView = row['#ButtonView']; // primaryShort, white, secondary
   const eButtonVisible = row['#EButton_visible'];
+  const buttonType = row['#ButtonType'] ? String(row['#ButtonType']).trim() : '';
   
   // Находим EButton внутри контейнера
   const eButtonInstance = findInstanceByName(container, 'EButton');
@@ -1043,6 +1090,11 @@ export function handleEButton(context: HandlerContext): void {
       if (foundButton) break;
     }
     
+    // Fallback: ищем любую кнопку по эвристике (важно для EShopItem/EOfferItem, где часто имя "Control / Button")
+    if (!foundButton && (snippetType === 'EShopItem' || snippetType === 'EOfferItem')) {
+      foundButton = findButtonInstanceLoose(container);
+    }
+    
     if (!foundButton) {
       // Логируем только для сниппетов где ожидается кнопка
       if (hasButton && (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic')) {
@@ -1052,11 +1104,16 @@ export function handleEButton(context: HandlerContext): void {
     }
     
     // Используем найденную альтернативу
-    handleButtonInstance(foundButton, snippetType, hasButton, buttonView, eButtonVisible);
+    handleButtonInstance(foundButton, snippetType, hasButton, buttonView, eButtonVisible, buttonType);
     return;
   }
   
-  handleButtonInstance(eButtonInstance, snippetType, hasButton, buttonView, eButtonVisible);
+  // Дефолты для EShopItem/EOfferItem, если ButtonView пуст
+  if ((!buttonView || buttonView.trim() === '') && (snippetType === 'EShopItem' || snippetType === 'EOfferItem')) {
+    buttonView = snippetType === 'EShopItem' ? 'secondary' : 'white';
+  }
+
+  handleButtonInstance(eButtonInstance, snippetType, hasButton, buttonView, eButtonVisible, buttonType);
 }
 
 // Вспомогательная функция для обработки найденного инстанса кнопки
@@ -1065,7 +1122,8 @@ function handleButtonInstance(
   snippetType: string, 
   hasButton: boolean, 
   buttonView: string | undefined,
-  eButtonVisible: string | undefined
+  eButtonVisible: string | undefined,
+  buttonType?: string
 ): void {
   Logger.debug(`   🔘 [EButton] Найден инстанс "${buttonInstance.name}" в ${snippetType}`);
   
@@ -1099,10 +1157,32 @@ function handleButtonInstance(
       Logger.error(`   ❌ [EButton] Ошибка установки visible:`, e);
     }
     
-    // Устанавливаем view
-    if (buttonView) {
-      setButtonView(buttonInstance, buttonView);
+    // Устанавливаем view всегда (важно для повторных прогонов плагина, чтобы не "залипал" старый вариант)
+    // Требования:
+    // - EShopItem: default=secondary, checkout=primaryLong
+    // - EOfferItem: default=white, checkout=primaryShort
+    const normalized = (buttonView || '').trim();
+    const normalizedType = (buttonType || '').trim();
+    const isCheckout =
+      normalizedType === 'checkout' ||
+      normalized === 'primaryLong' ||
+      normalized === 'primaryShort' ||
+      /^primary/i.test(normalized);
+    
+    let desiredView: string;
+    if (snippetType === 'EShopItem') {
+      desiredView = isCheckout ? 'primaryLong' : 'secondary';
+    } else {
+      // EOfferItem
+      desiredView = isCheckout ? 'primaryShort' : 'white';
     }
+    
+    // Если парсер прислал primaryShort для EShopItem (старое поведение) — исправляем на primaryLong
+    if (snippetType === 'EShopItem' && normalized === 'primaryShort') {
+      desiredView = 'primaryLong';
+    }
+    
+    setButtonView(buttonInstance, desiredView);
     return;
   }
   

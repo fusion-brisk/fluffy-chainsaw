@@ -14,6 +14,7 @@ import { ScopeControl } from './components/ScopeControl';
 import { DropZone } from './components/DropZone';
 import { UpdateDialog } from './components/UpdateDialog';
 import { WhatsNewDialog } from './components/WhatsNewDialog';
+import { LazyTab } from './components/LazyTab';
 // Import tab components
 import { LiveProgressView } from './components/import/LiveProgressView';
 import { CompletionCard } from './components/import/CompletionCard';
@@ -36,6 +37,7 @@ const App: React.FC = () => {
   const [hasSelection, setHasSelection] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragFileName, setDragFileName] = useState<string | null>(null);
   const [isParsingFromHtml, setIsParsingFromHtml] = useState(false);
   const [parsingRulesMetadata, setParsingRulesMetadata] = useState<ParsingRulesMetadata | null>(null);
   // Track processing time
@@ -64,6 +66,13 @@ const App: React.FC = () => {
   const [lastError, setLastError] = useState<{
     message: string;
     details?: string;
+  } | null>(null);
+  
+  // Last import data for "Repeat" feature
+  const [lastImportData, setLastImportData] = useState<{
+    rows: CSVRow[];
+    fileName: string;
+    scope: 'selection' | 'page';
   } | null>(null);
   
   // Ref to track latest stats (for closure in message handler)
@@ -196,7 +205,7 @@ const App: React.FC = () => {
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
-        addLog(`✅ Извлечено ${rows.length} результатов из MHTML`);
+        addLog(`📋 Найдено ${rows.length} результатов в файле (начало обработки...)`);
       } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
         addLog('📄 Обнаружен HTML файл');
         setIsParsingFromHtml(true);
@@ -207,7 +216,7 @@ const App: React.FC = () => {
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
-        addLog(`✅ Извлечено ${rows.length} результатов из HTML`);
+        addLog(`📋 Найдено ${rows.length} результатов в файле (начало обработки...)`);
       } else {
         throw new Error('Поддерживаются только HTML и MHTML файлы');
       }
@@ -215,6 +224,13 @@ const App: React.FC = () => {
       if (rows.length === 0) {
         throw new Error('Не найдено данных для импорта');
       }
+
+      // Save import data for "Repeat" feature
+      setLastImportData({
+        rows: rows,
+        fileName: file.name,
+        scope: scope
+      });
 
       addLog(`🚀 Отправка ${rows.length} строк в плагин...`);
       sendMessageToPlugin({
@@ -258,6 +274,34 @@ const App: React.FC = () => {
     const handleWindowDragEnter = (e: DragEvent) => {
       e.preventDefault();
       setIsDragging(true);
+      
+      // Try to extract file name from dataTransfer
+      if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+        const item = e.dataTransfer.items[0];
+        if (item.kind === 'file') {
+          // In dragenter, we can't access the file directly, but we can get the name from types
+          const types = Array.from(e.dataTransfer.types);
+          if (types.includes('Files')) {
+            // File name will be set on dragover where we have more access
+          }
+        }
+      }
+    };
+
+    const handleWindowDragOver = (e: DragEvent) => {
+      e.preventDefault();
+      
+      // Try to get file name on dragover
+      if (e.dataTransfer?.items && e.dataTransfer.items.length > 0) {
+        const item = e.dataTransfer.items[0];
+        if (item.kind === 'file' && item.type) {
+          // We can infer it's an HTML file from the type
+          const isHtml = item.type.includes('html') || item.type === 'text/html';
+          if (isHtml && !dragFileName) {
+            setDragFileName('HTML file');
+          }
+        }
+      }
     };
 
     const handleWindowDragLeave = (e: DragEvent) => {
@@ -265,6 +309,7 @@ const App: React.FC = () => {
       if (e.clientX === 0 && e.clientY === 0) {
         setIsDragging(false);
         setIsDragOver(false);
+        setDragFileName(null);
       }
     };
 
@@ -272,10 +317,7 @@ const App: React.FC = () => {
       e.preventDefault();
       setIsDragging(false);
       setIsDragOver(false);
-    };
-
-    const handleWindowDragOver = (e: DragEvent) => {
-      e.preventDefault();
+      setDragFileName(null);
     };
 
     window.addEventListener('dragenter', handleWindowDragEnter);
@@ -289,7 +331,7 @@ const App: React.FC = () => {
       window.removeEventListener('drop', handleWindowDrop);
       window.removeEventListener('dragover', handleWindowDragOver);
     };
-  }, []);
+  }, [dragFileName]);
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
@@ -342,6 +384,7 @@ const App: React.FC = () => {
         setProgress({
           current: msg.current,
           total: msg.total,
+          message: msg.message,
           operationType: msg.operationType
         });
       } 
@@ -455,6 +498,35 @@ const App: React.FC = () => {
     setLastError(null);
   }, []);
 
+  // Repeat last import
+  const handleRepeatImport = useCallback(() => {
+    if (!lastImportData) return;
+    
+    // Clear previous state
+    setLastCompletionStats(null);
+    setLastError(null);
+    statsRef.current = null;
+    
+    const startTime = Date.now();
+    setProcessingStartTime(startTime);
+    setProcessingTime(null);
+    
+    setIsLoading(true);
+    setUiState('loading');
+    setProgress({ current: 0, total: 100, message: 'Повторный импорт...' });
+    setStats(null);
+    setLogs([]);
+    
+    addLog(`🔄 Повторный импорт: ${lastImportData.fileName}`);
+    addLog(`🚀 Отправка ${lastImportData.rows.length} строк в плагин...`);
+    
+    sendMessageToPlugin({
+      type: 'import-csv',
+      rows: lastImportData.rows,
+      scope: lastImportData.scope
+    });
+  }, [lastImportData, addLog]);
+
   // What's New handlers
   const handleOpenWhatsNew = useCallback(() => {
     setShowWhatsNew(true);
@@ -535,6 +607,7 @@ const App: React.FC = () => {
             fullscreen={(isDragging || isDragOver) && !isLoading}
             isLoading={isLoading}
             progress={progress ? { current: progress.current, total: progress.total } : undefined}
+            dragFileName={dragFileName}
           />
 
           {/* Status area below DropZone */}
@@ -566,6 +639,8 @@ const App: React.FC = () => {
                 processingTime={lastCompletionStats.processingTime || undefined}
                 onViewLogs={handleViewLogsFromCard}
                 onDismiss={handleDismissCompletion}
+                onRepeat={handleRepeatImport}
+                canRepeat={!!lastImportData}
               />
             )}
 
@@ -579,8 +654,8 @@ const App: React.FC = () => {
         </>
       )}
 
-      {/* Tab: Settings */}
-      {activeTab === 'settings' && (
+      {/* Tab: Settings (lazy loaded) */}
+      <LazyTab isActive={activeTab === 'settings'}>
         <SettingsView 
           remoteUrl={remoteUrl}
           parsingRulesMetadata={parsingRulesMetadata}
@@ -588,16 +663,16 @@ const App: React.FC = () => {
           onRefreshRules={handleRefreshRules}
           onResetCache={handleResetCache}
         />
-      )}
+      </LazyTab>
 
-      {/* Tab: Logs */}
-      {activeTab === 'logs' && (
+      {/* Tab: Logs (lazy loaded, keep mounted for performance) */}
+      <LazyTab isActive={activeTab === 'logs'} keepMounted={true}>
         <LogsView 
           logs={logs}
           onClearLogs={() => setLogs([])}
           onCopyLogs={copyLogs}
         />
-      )}
+      </LazyTab>
 
       {updateAvailable && (
         <UpdateDialog

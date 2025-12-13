@@ -1,4 +1,4 @@
-# UX/UI Quick Wins - Contentify Plugin
+# UX/UI Quick Wins - EProductSnippet Plugin
 
 ## 🎯 Top 10 Quick Wins (< 1 hour each)
 

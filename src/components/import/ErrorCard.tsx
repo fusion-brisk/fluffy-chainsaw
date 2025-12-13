@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { memo } from 'react';
+import { WarningIcon } from '../Icons';
 
 interface ErrorCardProps {
   message: string;
@@ -7,7 +8,7 @@ interface ErrorCardProps {
   onViewLogs?: () => void;
 }
 
-export const ErrorCard: React.FC<ErrorCardProps> = ({
+export const ErrorCard: React.FC<ErrorCardProps> = memo(({
   message,
   details,
   onDismiss,
@@ -19,11 +20,7 @@ export const ErrorCard: React.FC<ErrorCardProps> = ({
       <div className="status-error-header">
         <div className="status-error-badge">
           <span className="status-error-icon">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M8 4v5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              <circle cx="8" cy="11.5" r="0.75" fill="currentColor"/>
-            </svg>
+            <WarningIcon />
           </span>
           <span className="status-error-text">Error</span>
         </div>
@@ -60,5 +57,6 @@ export const ErrorCard: React.FC<ErrorCardProps> = ({
       )}
     </div>
   );
-};
+});
 
+ErrorCard.displayName = 'ErrorCard';

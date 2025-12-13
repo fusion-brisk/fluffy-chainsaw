@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Contentify - Push Remote Config to GitHub
+# EProductSnippet - Push Remote Config to GitHub
 # Этот скрипт добавит файлы конфигурации в репозиторий
 
 echo "📦 Adding config files..."

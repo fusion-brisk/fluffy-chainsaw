@@ -92,6 +92,7 @@ export function extractRowData(
   
   const row: CSVRow = {
     '#SnippetType': snippetTypeValue,
+    '#query': '',
     '#ProductURL': '',
     '#OrganicTitle': '',
     '#ShopName': '',
@@ -212,7 +213,11 @@ export function extractRowData(
         console.log(`✅ [EOfferItem] Кнопка (fallback) → ButtonView='white' для "${row['#ShopName']}"`);
       }
     } else {
-      row['#BUTTON'] = 'false';
+      // ВАЖНО: В EOfferItem кнопка должна быть всегда (по требованиям к Figma компоненту).
+      // Если не нашли элемент кнопки в DOM — всё равно включаем кнопку с дефолтным view=white.
+      row['#BUTTON'] = 'true';
+      row['#ButtonView'] = 'white';
+      row['#ButtonType'] = 'shop';
     }
     
     // EPriceBarometer — барометр цен (определяем view)
@@ -1070,7 +1075,7 @@ export function extractRowData(
   // 
   // ЛОГИКА КНОПОК:
   // - EOfferItem: кнопка ВСЕГДА видна (красная → primaryShort, иначе → white)
-  // - EShopItem: кнопка ВСЕГДА видна (красная → primaryShort, иначе → secondary)
+  // - EShopItem: кнопка ВСЕГДА видна (checkout → primaryLong, иначе → secondary)
   // - ESnippet/Organic: кнопка скрывается если нет красной (красная → primaryShort + visible, иначе → hidden)
   //
   if (snippetType === 'EOfferItem') {
@@ -1086,11 +1091,11 @@ export function extractRowData(
     }
   } else if (snippetType === 'EShopItem') {
     // EShopItem: кнопка ВСЕГДА видна
-    // Красная кнопка → primaryShort, иначе → secondary
+    // Checkout → primaryLong, иначе → secondary
     row['#BUTTON'] = 'true';  // Кнопка всегда есть
     if (hasCheckoutButton) {
-      row['#ButtonView'] = 'primaryShort';
-      console.log(`✅ [EShopItem] Красная кнопка чекаута → ButtonView='primaryShort'`);
+      row['#ButtonView'] = 'primaryLong';
+      console.log(`✅ [EShopItem] Checkout → ButtonView='primaryLong'`);
     } else {
       row['#ButtonView'] = 'secondary';
       console.log(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
@@ -1104,9 +1109,10 @@ export function extractRowData(
     
     if (hasRealCheckout) {
       row['#BUTTON'] = 'true';
-      row['#ButtonView'] = 'primaryShort';
+      // Для Organic/ESnippet по новой логике используем удлинённую кнопку
+      row['#ButtonView'] = 'primaryLong';
       row['#EButton_visible'] = 'true';
-      console.log(`✅ [ESnippet] Organic-Checkout найден → ButtonView='primaryShort', visible='true'`);
+      console.log(`✅ [ESnippet] Organic-Checkout найден → ButtonView='primaryLong', visible='true'`);
     } else {
       row['#BUTTON'] = 'false';
       row['#EButton_visible'] = 'false';
@@ -1118,9 +1124,13 @@ export function extractRowData(
     if (checkoutLabel || hasCheckoutButton) {
       row['#BUTTON'] = 'true';
       row['#ButtonView'] = 'primaryShort';
+      // При checkout показываем лейбл EMarketCheckoutLabel в Figma
+      row['#EMarketCheckoutLabel'] = 'true';
       console.log(`✅ [EProductSnippet2] Лейбл/кнопка чекаута → ButtonView='primaryShort'`);
     } else {
       row['#BUTTON'] = 'false';
+      // При отсутствии checkout скрываем лейбл EMarketCheckoutLabel
+      row['#EMarketCheckoutLabel'] = 'false';
     }
   } else {
     // Другие типы сниппетов — по умолчанию без кнопки
@@ -1199,6 +1209,23 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
+  // === Global field: #query (search request) ===
+  // Важно: input часто находится ВНЕ контейнера сниппета, поэтому извлекаем 1 раз на документ.
+  let globalQuery = '';
+  try {
+    const queryEl = doc.querySelector('.HeaderForm-Input') as HTMLInputElement | null;
+    if (queryEl) {
+      globalQuery = (queryEl.value || queryEl.getAttribute('value') || '').trim();
+    }
+  } catch (e) {
+    // ignore
+  }
+  if (globalQuery) {
+    console.log(`🔎 [PARSE] Найден #query: "${globalQuery.substring(0, 120)}"`);
+  } else {
+    console.log('🔎 [PARSE] #query не найден (HeaderForm-Input)');
+  }
+  
   // PHASE 4 OPTIMIZATION: Строим CSS кэш ОДИН РАЗ при инициализации
   const cssCache = buildCSSCache(doc, fullMhtml || html);
   console.log(`✅ [CSS CACHE] Построен: ${cssCache.stats.totalRules} правил, ${cssCache.stats.faviconRules} favicon, ${cssCache.stats.spriteRules} спрайтов`);
@@ -1236,6 +1263,8 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
     const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html, containerCache, parsingRules);
     spriteState = result.spriteState; // Обновляем состояние спрайта
     if (result.row) {
+      // Прокидываем global #query во все строки (дальше маппится в Figma слой "#query")
+      if (globalQuery) result.row['#query'] = globalQuery;
       results.push(result.row);
     }
   }

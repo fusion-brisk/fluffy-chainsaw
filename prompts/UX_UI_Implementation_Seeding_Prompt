@@ -2,7 +2,7 @@
 
 ## 🎯 Mission Context
 
-You are implementing UX/UI improvements for the Contentify Figma plugin using a **seeding approach** with **thread memory tracking**. This method starts with one impactful change that serves as a foundation for subsequent improvements.
+You are implementing UX/UI improvements for the EProductSnippet Figma plugin using a **seeding approach** with **thread memory tracking**. This method starts with one impactful change that serves as a foundation for subsequent improvements.
 
 **Current Plugin State:** Tab-based UI with state machine (idle→loading→completed), professional animations, keyboard shortcuts, but missing critical UX improvements identified in the expert analysis.
 

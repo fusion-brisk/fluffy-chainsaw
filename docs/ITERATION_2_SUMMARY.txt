@@ -235,7 +235,7 @@
 ║  HOW TO TEST                                                      ║
 ╚═══════════════════════════════════════════════════════════════════╝
 
-  1. Open Figma, run Contentify plugin
+  1. Open Figma, run EProductSnippet plugin
 
   2. STATE: IDLE
      → Should see DropZone and tip message

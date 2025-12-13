@@ -1,18 +1,23 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ProcessingStats } from '../../types';
+import { CheckIcon } from '../Icons';
 
 interface CompletionCardProps {
   stats: ProcessingStats;
   processingTime?: number; // in milliseconds
   onViewLogs?: () => void;
   onDismiss?: () => void;
+  onRepeat?: () => void;
+  canRepeat?: boolean;
 }
 
-export const CompletionCard: React.FC<CompletionCardProps> = ({
+export const CompletionCard: React.FC<CompletionCardProps> = memo(({
   stats,
   processingTime,
   onViewLogs,
-  onDismiss
+  onDismiss,
+  onRepeat,
+  canRepeat = false
 }) => {
   const hasErrors = stats.failedImages > 0;
   
@@ -36,17 +41,7 @@ export const CompletionCard: React.FC<CompletionCardProps> = ({
       <div className="status-completion-header">
         <div className={`status-completion-badge ${hasErrors ? 'has-errors' : 'success'}`}>
           <span className="status-completion-icon">
-            {hasErrors ? '⚠️' : (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path 
-                  d="M3 8.5L6.5 12L13 4" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                />
-              </svg>
-            )}
+            {hasErrors ? '⚠️' : <CheckIcon />}
           </span>
           <span className="status-completion-text">
             {hasErrors ? 'Completed with issues' : 'Done'}
@@ -114,13 +109,22 @@ export const CompletionCard: React.FC<CompletionCardProps> = ({
       )}
 
       {/* Actions row */}
-      {onViewLogs && (
+      {(onViewLogs || (onRepeat && canRepeat)) && (
         <div className="status-completion-actions">
-          <button className="status-completion-link" onClick={onViewLogs}>
-            View logs
-          </button>
+          {onRepeat && canRepeat && (
+            <button className="status-completion-repeat" onClick={onRepeat}>
+              ↻ Repeat
+            </button>
+          )}
+          {onViewLogs && (
+            <button className="status-completion-link" onClick={onViewLogs}>
+              View logs
+            </button>
+          )}
         </div>
       )}
     </div>
   );
-};
+});
+
+CompletionCard.displayName = 'CompletionCard';

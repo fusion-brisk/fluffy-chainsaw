@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { TabType } from '../types';
+import { ImportIcon, SettingsIcon, LogsIcon, StarIcon } from './Icons';
 
 interface HeaderProps {
   activeTab: TabType;
@@ -10,7 +11,7 @@ interface HeaderProps {
   showWhatsNewBadge?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
+export const Header: React.FC<HeaderProps> = memo(({ 
   activeTab, 
   onTabChange, 
   errorCount,
@@ -18,44 +19,37 @@ export const Header: React.FC<HeaderProps> = ({
   onWhatsNewClick,
   showWhatsNewBadge 
 }) => {
-  const tabs: { id: TabType; icon: React.ReactNode; label: string }[] = [
+  const tabs: { id: TabType; icon: React.ReactNode; label: string; shortcut: string }[] = [
     { 
       id: 'import', 
       label: 'Import',
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M8 2v8M8 2L5 5M8 2l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M3 10v3a1 1 0 001 1h8a1 1 0 001-1v-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      )
+      shortcut: '1',
+      icon: <ImportIcon />
     },
     { 
       id: 'settings', 
       label: 'Settings',
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.41 1.41M11.66 11.66l1.41 1.41M2.93 13.07l1.41-1.41M11.66 4.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      )
+      shortcut: '2',
+      icon: <SettingsIcon />
     },
     { 
       id: 'logs', 
       label: 'Logs',
-      icon: (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M5 6h6M5 8h6M5 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      )
+      shortcut: '3',
+      icon: <LogsIcon />
     }
   ];
 
   return (
     <header className="app-header">
       <div className="app-header-left">
-        <h1 className="app-title">Contentify</h1>
-        {isLoading && <span className="app-status">Working...</span>}
+        <span className="app-mark" aria-hidden="true" />
+        <div className="app-title-stack">
+          <h1 className="app-title">
+            EProductSnippet
+          </h1>
+          {isLoading && <span className="app-status">Working…</span>}
+        </div>
       </div>
       
       <nav className="app-nav">
@@ -67,15 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Что нового"
             aria-label="Что нового"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path 
-                d="M8 2L9.5 6.5L14 8L9.5 9.5L8 14L6.5 9.5L2 8L6.5 6.5L8 2Z" 
-                stroke="currentColor" 
-                strokeWidth="1.5" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              />
-            </svg>
+            <StarIcon />
             {showWhatsNewBadge && <span className="app-nav-dot" />}
           </button>
         )}
@@ -89,8 +75,8 @@ export const Header: React.FC<HeaderProps> = ({
             className={`app-nav-item ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => onTabChange(tab.id)}
             disabled={isLoading}
-            title={tab.label}
-            aria-label={tab.label}
+            title={`${tab.label} (${tab.shortcut})`}
+            aria-label={`${tab.label} (${tab.shortcut})`}
             aria-current={activeTab === tab.id ? 'page' : undefined}
           >
             {tab.icon}
@@ -102,4 +88,6 @@ export const Header: React.FC<HeaderProps> = ({
       </nav>
     </header>
   );
-};
+});
+
+Header.displayName = 'Header';

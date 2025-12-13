@@ -1,14 +1,14 @@
-# UX/UI Expert Analysis Prompt for Contentify Plugin
+# UX/UI Expert Analysis Prompt for EProductSnippet Plugin
 
 ## 🎯 Context
 
-You are a senior UX/UI expert analyzing a Figma plugin called "Contentify" that has just undergone a complete UI refactoring. Your task is to evaluate the current implementation and suggest further improvements for better usability, visual polish, and user experience.
+You are a senior UX/UI expert analyzing a Figma plugin called "EProductSnippet" that has just undergone a complete UI refactoring. Your task is to evaluate the current implementation and suggest further improvements for better usability, visual polish, and user experience.
 
 ---
 
 ## 📋 Project Overview
 
-**Plugin Name:** Contentify  
+**Plugin Name:** EProductSnippet  
 **Purpose:** Auto-fill Figma layouts with data from HTML/MHTML files  
 **Platform:** Figma Plugin (280px default width window)  
 **Tech Stack:** React 18.2, TypeScript, Rollup, ES5 (code.js), Figma Plugin API  
@@ -159,7 +159,7 @@ src/components/
 **State: IDLE**
 ```
 ┌─────────────────────────────────┐
-│ Contentify    📋* ⚙️  📊       │
+│ EProductSnippet    📋* ⚙️  📊       │
 ├─────────────────────────────────┤
 │ Scope: ● Selection ○ Page       │
 ├─────────────────────────────────┤
@@ -173,7 +173,7 @@ src/components/
 **State: LOADING**
 ```
 ┌─────────────────────────────────┐
-│ Contentify    📋* ⚙️  📊       │
+│ EProductSnippet    📋* ⚙️  📊       │
 ├─────────────────────────────────┤
 │ Scope: ● Selection ○ Page       │
 ├─────────────────────────────────┤
@@ -191,7 +191,7 @@ src/components/
 **State: COMPLETED**
 ```
 ┌─────────────────────────────────┐
-│ Contentify    📋* ⚙️  📊       │
+│ EProductSnippet    📋* ⚙️  📊       │
 ├─────────────────────────────────┤
 │ Scope: ● Selection ○ Page       │
 ├─────────────────────────────────┤
@@ -345,7 +345,7 @@ All implementation details are in:
 
 ## 🚀 Ready for Analysis!
 
-Please review the described implementation and provide your expert UX/UI analysis with actionable recommendations for making Contentify an even better user experience.
+Please review the described implementation and provide your expert UX/UI analysis with actionable recommendations for making EProductSnippet an even better user experience.
 
 Focus on practical improvements that:
 - Enhance usability

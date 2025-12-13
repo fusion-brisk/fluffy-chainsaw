@@ -1,6 +1,6 @@
-# Contentify - Remote Configuration
+# EProductSnippet - Remote Configuration
 
-This directory contains remote configuration files for the Contentify Figma plugin.
+This directory contains remote configuration files for the EProductSnippet Figma plugin.
 
 ## 📄 Files
 

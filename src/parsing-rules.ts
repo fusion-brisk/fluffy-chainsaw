@@ -23,6 +23,12 @@ export interface ParsingSchema {
 export const DEFAULT_PARSING_RULES: ParsingSchema = {
   version: 6,  // Updated: EButton view logic (primaryShort/white/secondary) + Button_view_* selectors
   rules: {
+    '#query': {
+      domSelectors: ['.HeaderForm-Input'],
+      jsonKeys: ['query', 'searchQuery', 'q'],
+      type: 'attribute',
+      domAttribute: 'value'
+    },
     '#SnippetType': {
       domSelectors: [], // Определяется логикой классов контейнера
       jsonKeys: ['type', 'snippetType'],

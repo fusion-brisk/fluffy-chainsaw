@@ -24,6 +24,187 @@ KNOWN_COMPONENTS = [
     'OrganicUgcReviews', 'CoveredPhone', 'PromoOffer'
 ]
 
+CHECKOUT_MARKERS = {
+    # The most reliable checkout marker used in snippet-parser.ts
+    "data-market-url-type": "market_checkout",
+    # Common classes used in snippet-parser.ts
+    "classes": [
+        "MarketCheckout-Button",
+        "EMarketCheckoutButton-Container",
+        "EMarketCheckoutButton-Button",
+        "EMarketCheckoutLabel",
+        "EThumb-LabelsCheckoutContainer",
+        "Organic-Checkout",
+        "Button_view_primary",
+        "Button_view_white",
+        "Button_view_default",
+    ],
+    # Common href patterns used in snippet-parser.ts
+    "href_contains": [
+        "/cart",
+        "/express",
+        "market.yandex.ru/my/cart",
+        "checkout.kit.yandex.ru/express",
+    ],
+    # Common id prefix used in snippet-parser.ts
+    "id_prefixes": [
+        "MarketCheckoutButtonBase__",
+    ],
+    # UI copy fallback used in snippet-parser.ts
+    "text_contains": [
+        "Купить в 1 клик",
+    ],
+}
+
+
+def _get_class_list(tag) -> list:
+    try:
+        cls = tag.get("class", [])
+        return cls if isinstance(cls, list) else [str(cls)]
+    except Exception:
+        return []
+
+
+def _class_str(tag, limit: int = 120) -> str:
+    s = " ".join(_get_class_list(tag)).strip()
+    if len(s) > limit:
+        return s[:limit] + "..."
+    return s
+
+
+def _find_nearest_container(tag):
+    """Walk up to nearest known snippet container by class string."""
+    cur = tag
+    while cur is not None and getattr(cur, "name", None) is not None:
+        classes = " ".join(_get_class_list(cur))
+        for c in KNOWN_CONTAINERS:
+            if c in classes:
+                return c, cur
+        cur = cur.parent
+    return None, None
+
+
+def analyze_checkout_buttons(soup, max_examples: int = 12):
+    """Analyze checkout-related markers in iphone17.html for debugging snippet-parser.ts."""
+    print("\n" + "=" * 80)
+    print("🛒 CHECKOUT BUTTONS / LABELS ANALYSIS (iphone17.html)")
+    print("=" * 80)
+
+    # 1) data-market-url-type="market_checkout"
+    checkout_by_data = soup.find_all(attrs={"data-market-url-type": CHECKOUT_MARKERS["data-market-url-type"]})
+    print(f"\n1) [data-market-url-type=\"{CHECKOUT_MARKERS['data-market-url-type']}\"] найдено: {len(checkout_by_data)}")
+    for idx, el in enumerate(checkout_by_data[:max_examples]):
+        container_type, container = _find_nearest_container(el)
+        href = el.get("href", "") if hasattr(el, "get") else ""
+        text = el.get_text(strip=True) if hasattr(el, "get_text") else ""
+        print(f"  - #{idx+1}: <{el.name}> container={container_type or 'N/A'} class='{_class_str(el)}' href='{href[:80]}' text='{text[:60]}'")
+
+    # 2) id prefixes (MarketCheckoutButtonBase__)
+    id_prefix = CHECKOUT_MARKERS["id_prefixes"][0]
+    checkout_by_id = soup.find_all(id=re.compile(rf"^{re.escape(id_prefix)}"))
+    print(f"\n2) [id^=\"{id_prefix}\"] найдено: {len(checkout_by_id)}")
+    for idx, el in enumerate(checkout_by_id[:max_examples]):
+        container_type, _ = _find_nearest_container(el)
+        print(f"  - #{idx+1}: <{el.name}> container={container_type or 'N/A'} id='{str(el.get('id', ''))[:80]}' class='{_class_str(el)}'")
+
+    # 3) Class markers (presence-based)
+    print("\n3) Маркеры по классам (presence):")
+    for cls in CHECKOUT_MARKERS["classes"]:
+        # Exact class is safest (matches our parser intent best),
+        # but many YM classes are BEM-like and may appear with modifiers.
+        exact = soup.find_all(class_=re.compile(rf"(^|\s){re.escape(cls)}(\s|$)"))
+        partial = soup.find_all(class_=re.compile(re.escape(cls)))
+        print(f"  - {cls}: exact={len(exact)}, partial={len(partial)}")
+
+    # 4) href contains
+    print("\n4) Ссылки, похожие на checkout (href contains):")
+    href_hits = []
+    for a in soup.find_all("a"):
+        href = a.get("href", "") or ""
+        for needle in CHECKOUT_MARKERS["href_contains"]:
+            if needle in href:
+                href_hits.append((needle, href, a))
+                break
+    print(f"  найдено ссылок: {len(href_hits)}")
+    for idx, (needle, href, a) in enumerate(href_hits[:max_examples]):
+        container_type, _ = _find_nearest_container(a)
+        text = a.get_text(strip=True)
+        print(f"  - #{idx+1}: needle='{needle}' container={container_type or 'N/A'} href='{href[:90]}' text='{text[:50]}' class='{_class_str(a)}'")
+
+    # 5) Text contains "Купить в 1 клик"
+    # We do a cheap scan: find Button-Text nodes and check text.
+    text_hits = []
+    for el in soup.find_all(class_=re.compile(r"Button-Text")):
+        t = el.get_text(strip=True)
+        if any(s in t for s in CHECKOUT_MARKERS["text_contains"]):
+            text_hits.append(el)
+    print(f"\n5) Текстовые маркеры (Button-Text содержит {CHECKOUT_MARKERS['text_contains']}): {len(text_hits)}")
+    for idx, el in enumerate(text_hits[:max_examples]):
+        container_type, _ = _find_nearest_container(el)
+        print(f"  - #{idx+1}: container={container_type or 'N/A'} text='{el.get_text(strip=True)[:80]}' class='{_class_str(el)}'")
+
+    # 6) Container-level coverage summary: does each container have checkout/label/organic-checkout?
+    print("\n6) Сводка по контейнерам: наличие checkout/label/Organic-Checkout")
+    container_selector = re.compile(r"(EProductSnippet2|Organic_withOfferInfo|Organic|EShopItem)")
+    containers = soup.find_all(class_=container_selector)
+
+    def has_marker(container_tag, marker_cls: str) -> bool:
+        # check class of container itself or any child
+        if marker_cls in " ".join(_get_class_list(container_tag)):
+            return True
+        return container_tag.find(class_=re.compile(re.escape(marker_cls))) is not None
+
+    summary = Counter()
+    examples = { "checkout": [], "label": [], "organic_checkout": [] }
+
+    for c in containers:
+        classes = " ".join(_get_class_list(c))
+        # Pick an inferred container type (best effort)
+        ctype = None
+        for t in ["EShopItem", "EProductSnippet2", "Organic_withOfferInfo", "Organic"]:
+            if t in classes:
+                ctype = t
+                break
+        if not ctype:
+            continue
+
+        # Markers aligned with snippet-parser.ts logic
+        has_label = has_marker(c, "EMarketCheckoutLabel") or has_marker(c, "EThumb-LabelsCheckoutContainer")
+        has_organic_checkout = has_marker(c, "Organic-Checkout")
+        has_data_checkout = c.find(attrs={"data-market-url-type": CHECKOUT_MARKERS["data-market-url-type"]}) is not None
+        has_primary_btn = c.find(class_=re.compile(r"Button_view_primary")) is not None
+        has_checkout = has_label or has_organic_checkout or has_data_checkout or has_primary_btn
+
+        summary[(ctype, "total")] += 1
+        if has_checkout:
+            summary[(ctype, "has_checkout")] += 1
+            if len(examples["checkout"]) < 6:
+                examples["checkout"].append((ctype, _class_str(c, 140)))
+        if has_label:
+            summary[(ctype, "has_label")] += 1
+            if len(examples["label"]) < 6:
+                examples["label"].append((ctype, _class_str(c, 140)))
+        if has_organic_checkout:
+            summary[(ctype, "has_organic_checkout")] += 1
+            if len(examples["organic_checkout"]) < 6:
+                examples["organic_checkout"].append((ctype, _class_str(c, 140)))
+
+    for t in ["EProductSnippet2", "Organic_withOfferInfo", "Organic", "EShopItem"]:
+        total = summary[(t, "total")]
+        if total == 0:
+            continue
+        print(
+            f"  - {t}: total={total}, "
+            f"has_checkout={summary[(t, 'has_checkout')]}, "
+            f"has_label={summary[(t, 'has_label')]}, "
+            f"has_organic_checkout={summary[(t, 'has_organic_checkout')]}"
+        )
+
+    if examples["checkout"]:
+        print("\n  Примеры контейнеров с checkout-маркерами:")
+        for ctype, ccls in examples["checkout"]:
+            print(f"   - {ctype}: class='{ccls}'")
+
 
 def analyze_html(html_path: str):
     """Анализирует HTML и находит новые типы сниппетов и компонентов."""
@@ -194,4 +375,12 @@ if __name__ == "__main__":
         exit(1)
     
     analyze_html(html_path)
+
+    # Extra: checkout buttons / labels analysis aligned with snippet-parser.ts
+    try:
+        with open(html_path, 'r', encoding='utf-8') as f:
+            soup = BeautifulSoup(f.read(), 'html.parser')
+        analyze_checkout_buttons(soup)
+    except Exception as e:
+        print(f"❌ Ошибка анализа checkout-кнопок: {e}")
 

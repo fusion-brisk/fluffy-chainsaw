@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, memo } from 'react';
 import { ParsingRulesMetadata } from '../../types';
+import { debounce } from '../../utils';
 
 interface SettingsViewProps {
   remoteUrl: string;
@@ -9,7 +10,7 @@ interface SettingsViewProps {
   onResetCache: () => void;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({
+export const SettingsView: React.FC<SettingsViewProps> = memo(({
   remoteUrl,
   onUpdateUrl,
   parsingRulesMetadata,
@@ -19,7 +20,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [localUrl, setLocalUrl] = useState(remoteUrl);
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const [filterText, setFilterText] = useState('');
+  const [debouncedFilter, setDebouncedFilter] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'json'>('table');
+  
+  // Debounced filter update
+  const updateDebouncedFilter = useMemo(
+    () => debounce((text: string) => setDebouncedFilter(text), 150),
+    []
+  );
+  
+  // Update debounced filter when text changes
+  useEffect(() => {
+    updateDebouncedFilter(filterText);
+  }, [filterText, updateDebouncedFilter]);
 
   React.useEffect(() => {
     setLocalUrl(remoteUrl);
@@ -56,10 +69,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
   const getSourceIcon = (source: string): string => {
     switch (source) {
-      case 'remote': return '🌐';
-      case 'cached': return '💾';
-      case 'embedded': return '📦';
-      default: return '❓';
+      case 'remote': return '↗';
+      case 'cached': return '•';
+      case 'embedded': return '○';
+      default: return '?';
     }
   };
 
@@ -73,11 +86,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   const rules = parsingRulesMetadata?.rules;
-  const filteredRules = rules 
-    ? Object.entries(rules.rules).filter(([key]) => 
-        key.toLowerCase().includes(filterText.toLowerCase())
-      )
-    : [];
+  const filteredRules = useMemo(() => {
+    if (!rules) return [];
+    return Object.entries(rules.rules).filter(([key]) => 
+      key.toLowerCase().includes(debouncedFilter.toLowerCase())
+    );
+  }, [rules, debouncedFilter]);
 
   const renderTableView = () => (
     <div className="settings-rules-table">
@@ -123,7 +137,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       {/* Remote Config Section */}
       <section className="settings-section">
         <div className="settings-section-header">
-          <h3 className="settings-section-title">🔗 Remote Config</h3>
+          <h3 className="settings-section-title">Remote Config</h3>
         </div>
         
         <div className="settings-section-content">
@@ -147,13 +161,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   className="settings-btn settings-btn-primary"
                   onClick={handleSaveUrl}
                 >
-                  ✓ Save
+                  Save
                 </button>
                 <button
                   className="settings-btn"
                   onClick={handleCancelUrl}
                 >
-                  ✕ Cancel
+                  Cancel
                 </button>
               </div>
             </div>
@@ -165,8 +179,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <button
                 className="settings-btn settings-btn-icon"
                 onClick={() => setIsEditingUrl(true)}
+                title="Edit"
               >
-                ✏️
+                Edit
               </button>
             </div>
           )}
@@ -182,24 +197,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <section className="settings-section">
           <div className="settings-section-header">
             <h3 className="settings-section-title">
-              ⚙️ Parsing Rules
+              Parsing Rules
               <span className="settings-version-badge">v{rules?.version}</span>
             </h3>
             <div className="settings-section-actions">
               <button 
-                className="settings-btn settings-btn-icon" 
+                className="settings-btn" 
                 onClick={onRefreshRules}
                 title="Check for updates"
               >
-                🔄
+                Refresh
               </button>
               {parsingRulesMetadata.source !== 'embedded' && (
                 <button 
-                  className="settings-btn settings-btn-icon settings-btn-danger" 
+                  className="settings-btn settings-btn-danger" 
                   onClick={onResetCache}
                   title="Reset to defaults"
                 >
-                  🗑️
+                  Reset
                 </button>
               )}
             </div>
@@ -268,4 +283,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       )}
     </div>
   );
-};
+});
+
+SettingsView.displayName = 'SettingsView';

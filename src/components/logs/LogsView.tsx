@@ -1,4 +1,6 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback, memo } from 'react';
+import { debounce } from '../../utils';
+import { VirtualList } from '../VirtualList';
 
 interface LogsViewProps {
   logs: string[];
@@ -6,20 +8,53 @@ interface LogsViewProps {
   onCopyLogs: () => void;
 }
 
-type LogFilter = 'all' | 'errors' | 'warnings' | 'success' | 'info';
+type LogFilter = 'all' | 'errors' | 'warnings' | 'success';
 
-export const LogsView: React.FC<LogsViewProps> = ({
+// Threshold for switching to virtual scroll
+const VIRTUAL_SCROLL_THRESHOLD = 100;
+const LOG_ITEM_HEIGHT = 28; // Height of each log entry in pixels
+
+export const LogsView: React.FC<LogsViewProps> = memo(({
   logs,
   onClearLogs,
   onCopyLogs
 }) => {
   const [activeFilter, setActiveFilter] = useState<LogFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [containerHeight, setContainerHeight] = useState(300);
+  
+  // Debounced search update
+  const updateDebouncedQuery = useMemo(
+    () => debounce((query: string) => setDebouncedQuery(query), 150),
+    []
+  );
+  
+  // Update debounced query when search changes
+  useEffect(() => {
+    updateDebouncedQuery(searchQuery);
+  }, [searchQuery, updateDebouncedQuery]);
 
-  // [SEED-IMPLEMENTATION] Auto-scroll functionality
+  // Auto-scroll functionality (for non-virtual mode)
   const logsContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Measure container height for virtual scroll
+  const containerWrapperRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    const updateHeight = () => {
+      if (containerWrapperRef.current) {
+        const rect = containerWrapperRef.current.getBoundingClientRect();
+        setContainerHeight(Math.max(200, rect.height - 20)); // -20 for padding
+      }
+    };
+    
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, []);
 
-  // Filter logs based on selected filter
+  // Filter logs based on selected filter (uses debounced query for search)
   const filteredLogs = useMemo(() => {
     let filtered = logs;
 
@@ -33,22 +68,20 @@ export const LogsView: React.FC<LogsViewProps> = ({
             return log.includes('⚠️') || log.toLowerCase().includes('warning') || log.toLowerCase().includes('warn');
           case 'success':
             return log.includes('✅') || log.toLowerCase().includes('success') || log.toLowerCase().includes('готово');
-          case 'info':
-            return log.includes('ℹ️') || log.includes('📂') || log.includes('📄') || log.includes('🔍');
           default:
             return true;
         }
       });
     }
 
-    // Apply search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Apply debounced search query
+    if (debouncedQuery.trim()) {
+      const query = debouncedQuery.toLowerCase();
       filtered = filtered.filter(log => log.toLowerCase().includes(query));
     }
 
     return filtered;
-  }, [logs, activeFilter, searchQuery]);
+  }, [logs, activeFilter, debouncedQuery]);
 
   // Count logs by category
   const counts = useMemo(() => {
@@ -56,14 +89,16 @@ export const LogsView: React.FC<LogsViewProps> = ({
       all: logs.length,
       errors: logs.filter(log => log.includes('❌') || log.toLowerCase().includes('error')).length,
       warnings: logs.filter(log => log.includes('⚠️') || log.toLowerCase().includes('warning')).length,
-      success: logs.filter(log => log.includes('✅') || log.toLowerCase().includes('success')).length,
-      info: logs.filter(log => log.includes('ℹ️') || log.includes('📂') || log.includes('📄')).length
+      success: logs.filter(log => log.includes('✅') || log.toLowerCase().includes('success') || log.toLowerCase().includes('готово')).length
     };
   }, [logs]);
 
-  // [SEED-IMPLEMENTATION] Auto-scroll to bottom when new logs arrive
+  // Decide whether to use virtual scroll
+  const useVirtualScroll = filteredLogs.length > VIRTUAL_SCROLL_THRESHOLD;
+
+  // Auto-scroll to bottom when new logs arrive (only for non-virtual mode)
   useEffect(() => {
-    if (logsContainerRef.current && filteredLogs.length > 0) {
+    if (!useVirtualScroll && logsContainerRef.current && filteredLogs.length > 0) {
       const container = logsContainerRef.current;
       // Scroll to bottom with smooth animation for better UX
       container.scrollTo({
@@ -71,22 +106,29 @@ export const LogsView: React.FC<LogsViewProps> = ({
         behavior: 'smooth'
       });
     }
-  }, [filteredLogs]);
+  }, [filteredLogs, useVirtualScroll]);
 
-  const getLogClass = (log: string): string => {
+  const getLogClass = useCallback((log: string): string => {
     if (log.includes('❌') || log.toLowerCase().includes('error')) return 'error';
     if (log.includes('⚠️') || log.toLowerCase().includes('warning')) return 'warning';
     if (log.includes('✅') || log.toLowerCase().includes('success')) return 'success';
     return '';
-  };
+  }, []);
+  
+  // Render function for virtual list
+  const renderLogItem = useCallback((log: string, index: number) => (
+    <div className={`logs-view-entry ${getLogClass(log)}`}>
+      {log}
+    </div>
+  ), [getLogClass]);
 
   return (
     <div className="logs-view">
       {/* Header with controls */}
       <div className="logs-view-header">
         <div className="logs-view-title">
-          📊 Logs
-          <span className="logs-view-count">({filteredLogs.length} {filteredLogs.length !== logs.length ? `of ${logs.length}` : ''})</span>
+          Logs
+          <span className="logs-view-count">({filteredLogs.length}{filteredLogs.length !== logs.length ? ` of ${logs.length}` : ''})</span>
         </div>
         <div className="logs-view-actions">
           <button 
@@ -95,7 +137,7 @@ export const LogsView: React.FC<LogsViewProps> = ({
             disabled={logs.length === 0}
             title="Copy all logs to clipboard"
           >
-            📋 Copy
+            Copy
           </button>
           <button 
             className="logs-view-btn logs-view-btn-danger"
@@ -103,7 +145,7 @@ export const LogsView: React.FC<LogsViewProps> = ({
             disabled={logs.length === 0}
             title="Clear all logs"
           >
-            🗑️ Clear
+            Clear
           </button>
         </div>
       </div>
@@ -122,28 +164,21 @@ export const LogsView: React.FC<LogsViewProps> = ({
             onClick={() => setActiveFilter('errors')}
             disabled={counts.errors === 0}
           >
-            ❌ Errors {counts.errors > 0 && <span className="logs-filter-badge error">{counts.errors}</span>}
+            Errors {counts.errors > 0 && <span className="logs-filter-badge">{counts.errors}</span>}
           </button>
           <button
             className={`logs-filter-btn ${activeFilter === 'warnings' ? 'active' : ''}`}
             onClick={() => setActiveFilter('warnings')}
             disabled={counts.warnings === 0}
           >
-            ⚠️ Warnings {counts.warnings > 0 && <span className="logs-filter-badge warning">{counts.warnings}</span>}
+            Warnings {counts.warnings > 0 && <span className="logs-filter-badge">{counts.warnings}</span>}
           </button>
           <button
             className={`logs-filter-btn ${activeFilter === 'success' ? 'active' : ''}`}
             onClick={() => setActiveFilter('success')}
             disabled={counts.success === 0}
           >
-            ✅ Success {counts.success > 0 && <span className="logs-filter-badge success">{counts.success}</span>}
-          </button>
-          <button
-            className={`logs-filter-btn ${activeFilter === 'info' ? 'active' : ''}`}
-            onClick={() => setActiveFilter('info')}
-            disabled={counts.info === 0}
-          >
-            ℹ️ Info {counts.info > 0 && <span className="logs-filter-badge">{counts.info}</span>}
+            Success {counts.success > 0 && <span className="logs-filter-badge">{counts.success}</span>}
           </button>
         </div>
 
@@ -168,12 +203,12 @@ export const LogsView: React.FC<LogsViewProps> = ({
       </div>
 
       {/* Logs content */}
-      <div className="logs-view-content" ref={logsContainerRef}>
+      <div className="logs-view-content" ref={containerWrapperRef}>
         {filteredLogs.length === 0 ? (
           <div className="logs-view-empty">
             {logs.length === 0 ? (
               <>
-                <div className="logs-view-empty-icon">📝</div>
+                <div className="logs-view-empty-icon">—</div>
                 <div className="logs-view-empty-title">No logs yet</div>
                 <div className="logs-view-empty-subtitle">
                   Import a file to see processing logs
@@ -181,16 +216,28 @@ export const LogsView: React.FC<LogsViewProps> = ({
               </>
             ) : (
               <>
-                <div className="logs-view-empty-icon">🔍</div>
-                <div className="logs-view-empty-title">No logs match your filters</div>
+                <div className="logs-view-empty-icon">—</div>
+                <div className="logs-view-empty-title">No matching logs</div>
                 <div className="logs-view-empty-subtitle">
                   Try changing the filter or search query
                 </div>
               </>
             )}
           </div>
+        ) : useVirtualScroll ? (
+          /* Virtual scroll for large log lists */
+          <VirtualList
+            items={filteredLogs}
+            itemHeight={LOG_ITEM_HEIGHT}
+            containerHeight={containerHeight}
+            renderItem={renderLogItem}
+            overscan={10}
+            className="logs-view-virtual"
+            autoScrollToBottom={true}
+          />
         ) : (
-          <div className="logs-view-entries">
+          /* Regular rendering for small lists */
+          <div className="logs-view-entries" ref={logsContainerRef}>
             {filteredLogs.map((log, index) => (
               <div 
                 key={index} 
@@ -225,4 +272,6 @@ export const LogsView: React.FC<LogsViewProps> = ({
       )}
     </div>
   );
-};
+});
+
+LogsView.displayName = 'LogsView';

@@ -13,7 +13,7 @@ export default [
     output: {
       file: 'dist/ui.js',
       format: 'iife',
-      name: 'ContentifyUI',
+      name: 'EProductSnippetUI',
       sourcemap: !isProduction
     },
     plugins: [
@@ -47,7 +47,7 @@ export default [
     output: {
       file: 'dist/code.js',
       format: 'iife',
-      name: 'ContentifyCode',
+      name: 'EProductSnippetCode',
       sourcemap: !isProduction
     },
     plugins: [
