@@ -1,0 +1,118 @@
+# Component Handlers Decomposition
+
+## Контекст
+
+Ты — senior Figma Plugin developer. Мы рефакторим плагин "EProductSnippet".
+
+**Файл:** `src/component-handlers.ts` — 1962 строки  
+**Задача:** Декомпозиция монолитного файла на модули
+
+## Предварительный анализ (уже проведён)
+
+### Статистика
+- 17 экспортируемых функций
+- 16 приватных helper-функций
+- 88 использований find* helpers
+- 55 использований processVariant*
+
+### Топ-5 по размеру
+1. `handleEPriceGroup` — **452 строки** (критично!)
+2. `handleEDeliveryGroup` — 187 строк
+3. `handleShopInfoBnpl` — 138 строк
+4. `handleShopInfoUgcAndEReviewsShopText` — 101 строка
+5. `handleLabelDiscountView` — 98 строк
+
+### Группы handlers
+1. **Price Handlers** (~600 строк): EPriceGroup, LabelDiscount, EPriceView, EPriceBarometer
+2. **Shop Info Handlers** (~340 строк): ShopInfoBnpl, ShopInfoUgc, ShopInfoDeliveryBnpl, OfficialShop
+3. **Button Handlers** (~150 строк): EButton, MarketCheckoutButton, handleButtonInstance
+4. **Delivery Handlers** (~200 строк): EDeliveryGroup
+5. **Organic Handlers** (~120 строк): OrganicTextFallback, OrganicHostFromFavicon
+6. **Label/Brand Handlers** (~100 строк): ELabelGroup, BrandLogic, EMarketCheckoutLabel
+7. **Other** (~50 строк): EOfferItem
+
+### Проблемные места
+1. `handleEPriceGroup` — 452 строки, много дублирования
+2. Паттерн "Try variants" повторяется 30+ раз
+3. Debug-логи в production (`console.log [DEBUG]`)
+4. 88 find* вызовов — нет кэширования
+
+## План декомпозиции
+
+### Этап 1: Helpers → figma-helpers.ts (~200 строк)
+```
+find* функции (16 шт)
+safeSetTextNode
+```
+
+### Этап 2: Утилита tryVariantNames → variant-utils.ts
+Заменит 30+ повторений паттерна:
+```ts
+// Было:
+let set = processVariantProperty(inst, `Discount=true`, f);
+if (!set) set = processVariantProperty(inst, `Discount=True`, f);
+if (!set) set = processVariantProperty(inst, `discount=true`, f);
+
+// Стало:
+set = tryVariantNames(inst, 'Discount', true, ['Discount', 'discount']);
+```
+
+### Этап 3: Разбить по группам → handlers/
+```
+src/handlers/
+├── index.ts
+├── price-handlers.ts
+├── shop-handlers.ts
+├── button-handlers.ts
+├── delivery-handlers.ts
+├── organic-handlers.ts
+└── label-handlers.ts
+```
+
+### Этап 4: Рефакторинг handleEPriceGroup
+- Разбить на под-функции
+- Вынести mapping в config
+
+## Ограничения
+
+1. **ES5 на выходе** — Babel транспилирует
+2. **Figma Sandbox** — ограниченное окружение
+3. **Инкрементальные изменения** — после каждого этапа проверка сборки
+4. **Сохранить обратную совместимость** — все exports должны работать
+
+## Порядок работы
+
+1. Прочитай `component-handlers.ts` полностью
+2. Начни с Этапа 1 (helpers) — минимальный риск
+3. После каждого этапа:
+   - Проверка сборки `npm run build`
+   - Обновление imports в code.ts
+4. Документируй изменения
+
+## Команда для начала
+
+```
+Прочитай src/component-handlers.ts и src/property-utils.ts,
+затем выполни Этап 1: вынеси все find* и helper функции 
+в новый файл src/figma-helpers.ts
+```
+
+## Зависимости
+
+component-handlers.ts импортирует:
+- `./config` — COMPONENT_CONFIG, SNIPPET_CONTAINER_NAMES
+- `./logger` — Logger
+- `./property-utils` — processVariantProperty, processStringProperty, processVariantPropertyRecursive
+
+component-handlers.ts экспортирует:
+- 17 функций, используемых в code.ts
+
+## Критерии успеха
+
+- [ ] component-handlers.ts < 1000 строк
+- [ ] handleEPriceGroup < 150 строк
+- [ ] 0 дублирований паттерна "try variants"
+- [ ] 0 console.log в production (только Logger)
+- [ ] Сборка без ошибок
+- [ ] Все тесты проходят (если есть)
+

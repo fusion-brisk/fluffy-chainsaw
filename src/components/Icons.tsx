@@ -103,3 +103,30 @@ export const UploadIcon = memo<IconProps>(({ className }) => (
   </svg>
 ));
 UploadIcon.displayName = 'UploadIcon';
+
+// Action Icons
+export const ResetIcon = memo<IconProps>(({ className, size = 14 }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 16 16" fill="none">
+    <path 
+      d="M2 8C2 4.68629 4.68629 2 8 2C10.5 2 12.5 3.5 13.5 5.5M14 8C14 11.3137 11.3137 14 8 14C5.5 14 3.5 12.5 2.5 10.5" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round"
+    />
+    <path 
+      d="M13.5 2V5.5H10" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M2.5 14V10.5H6" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+  </svg>
+));
+ResetIcon.displayName = 'ResetIcon';

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, memo } from 'react';
 import { ProgressData } from '../../types';
+import { PROCESSING_TIPS, STAGE_LABELS } from '../../config';
 
 interface LiveProgressViewProps {
   progress: ProgressData | null;
@@ -8,17 +9,6 @@ interface LiveProgressViewProps {
   fileSize?: number;
 }
 
-// Подсказки, объясняющие процесс обработки
-const PROCESSING_TIPS = [
-  '🔍 Плагин анализирует структуру макета, ищет все контейнеры сниппетов на странице. Это может занять время при большом количестве элементов.',
-  '📊 Каждый контейнер проверяется на наличие полей данных (текст, изображения, цены). Плагин определяет, какие данные к каким слоям относятся.',
-  '🎨 Применяется компонентная логика: настраиваются варианты компонентов, скрываются/показываются элементы в зависимости от данных.',
-  '🔤 Загружаются и применяются шрифты для текстовых слоев. Figma требует загрузки каждого используемого шрифта перед применением.',
-  '🖼️ Изображения загружаются из интернета, кэшируются и применяются к слоям. При большом количестве изображений это может занять время.',
-  '⚡ Плагин обрабатывает элементы последовательно, чтобы не перегрузить Figma. Это обеспечивает стабильную работу даже с большими макетами.',
-  '💾 Загруженные изображения сохраняются в кэш, поэтому повторные запуски будут работать быстрее.'
-];
-
 export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
   progress,
   recentLogs,
@@ -26,7 +16,6 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
   fileSize
 }) => {
   const [visibleLogs, setVisibleLogs] = useState<string[]>([]);
-  const [animatingOut, setAnimatingOut] = useState<string | null>(null);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const tipIntervalRef = useRef<number | null>(null);
@@ -38,23 +27,10 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  // Get human-readable stage label
+  // Get human-readable stage label from config
   const getStageLabel = (operationType?: string): string => {
-    switch (operationType) {
-      case 'searching':
-        return 'Этап 1/5: Поиск контейнеров';
-      case 'grouping':
-        return 'Этап 2/5: Группировка сниппетов';
-      case 'components':
-        return 'Этап 3/5: Компонентная логика';
-      case 'text':
-        return 'Этап 4/5: Обработка текста';
-      case 'images-start':
-      case 'images':
-        return 'Этап 5/5: Обработка изображений';
-      default:
-        return 'Обработка';
-    }
+    if (!operationType) return STAGE_LABELS.default;
+    return STAGE_LABELS[operationType] || STAGE_LABELS.default;
   };
 
   // Get the last 5 meaningful log entries (strip timestamp)
@@ -105,12 +81,24 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
             {progress?.operationType ? getStageLabel(progress.operationType) : 'Обработка...'}
           </span>
           <span className="status-thinking-label">
-            {currentOperation || progress?.message || 'Processing...'}
+            {currentOperation || progress?.message || 'Обработка...'}
           </span>
         </div>
         <span className="status-thinking-meta">
           {percentage}%{fileSize ? ` • ${formatFileSize(fileSize)}` : ''}
         </span>
+      </div>
+
+      {/* Visual progress bar */}
+      <div className="status-thinking-progress-bar">
+        <div 
+          className="status-thinking-progress-fill"
+          style={{ width: `${percentage}%` }}
+        />
+        {/* Animated shimmer effect when progress is slow */}
+        {percentage < 100 && (
+          <div className="status-thinking-progress-shimmer" />
+        )}
       </div>
 
       {/* Подсказка */}
@@ -121,17 +109,17 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
         </div>
       </div>
 
-      {/* Recent Activity */}
+      {/* Последние действия */}
       <div className="status-thinking-activity">
         <div className="status-thinking-activity-header">
-          <span className="status-thinking-activity-title">Activity</span>
+          <span className="status-thinking-activity-title">Активность</span>
           <span className="status-thinking-activity-count">{visibleLogs.length}</span>
         </div>
         <div className="status-thinking-activity-list">
           {visibleLogs.map((log, index) => (
             <div 
               key={`${index}-${log.substring(0, 20)}`}
-              className={`status-thinking-activity-item ${index === visibleLogs.length - 1 ? 'latest' : ''} ${animatingOut === log ? 'fade-out' : 'fade-in'}`}
+              className={`status-thinking-activity-item ${index === visibleLogs.length - 1 ? 'latest' : ''} fade-in`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               {log}

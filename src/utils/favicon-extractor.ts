@@ -1104,13 +1104,19 @@ export function extractFavicon(
     }
 
     // Проверяем валидность URL — если невалидный, оставляем пустым
-    if (!finalUrl || (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://'))) {
+    // Поддерживаем: http://, https://, data:image/ (base64)
+    const isValidUrl = finalUrl && (
+      finalUrl.startsWith('http://') || 
+      finalUrl.startsWith('https://') ||
+      finalUrl.startsWith('data:image/')
+    );
+    if (!isValidUrl) {
       console.log(`⚠️ [FAVICON EXTRACT] bgUrl имеет невалидный формат: "${(finalUrl || '').substring(0, 100)}...", поле остается пустым`);
       return spriteState; // Возвращаем кэш без изменений
     }
 
-    // Записываем результат
-    row['#FaviconImage'] = finalUrl;
+    // Записываем результат (finalUrl гарантированно строка после isValidUrl проверки)
+    row['#FaviconImage'] = finalUrl as string;
     console.log(`✅ [FAVICON EXTRACT] Установлен URL (${result.isInlineUrl ? 'inline, единичный' : 'обычный'}): ${row['#FaviconImage'].substring(0, 100)}...`);
 
     // Возвращаем обновленный кэш спрайта (для оптимизации повторных поисков)

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { TabType } from '../types';
-import { ImportIcon, SettingsIcon, LogsIcon, StarIcon } from './Icons';
+import { ImportIcon, LogsIcon, StarIcon } from './Icons';
 
 interface HeaderProps {
   activeTab: TabType;
@@ -22,20 +22,14 @@ export const Header: React.FC<HeaderProps> = memo(({
   const tabs: { id: TabType; icon: React.ReactNode; label: string; shortcut: string }[] = [
     { 
       id: 'import', 
-      label: 'Import',
+      label: 'Импорт',
       shortcut: '1',
       icon: <ImportIcon />
     },
     { 
-      id: 'settings', 
-      label: 'Settings',
-      shortcut: '2',
-      icon: <SettingsIcon />
-    },
-    { 
       id: 'logs', 
-      label: 'Logs',
-      shortcut: '3',
+      label: 'Логи',
+      shortcut: '2',
       icon: <LogsIcon />
     }
   ];
@@ -48,7 +42,7 @@ export const Header: React.FC<HeaderProps> = memo(({
           <h1 className="app-title">
             EProductSnippet
           </h1>
-          {isLoading && <span className="app-status">Working…</span>}
+          {isLoading && <span className="app-status">Обработка…</span>}
         </div>
       </div>
       

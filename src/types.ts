@@ -75,52 +75,104 @@ export interface ParsingRulesMetadata {
   remoteUrl?: string;
 }
 
-// Messages sent from UI to Code
+// ============================================================================
+// PLUGIN MESSAGE PROTOCOL
+// ============================================================================
+// Communication between UI (iframe) and Code (Figma sandbox) via postMessage.
+// UI sends UIMessage, Code responds with CodeMessage.
+// ============================================================================
+
+/**
+ * Messages sent from UI → Code (via parent.postMessage)
+ * 
+ * Categories:
+ * - IMPORT: import-csv (main action)
+ * - LIFECYCLE: close, get-theme, test
+ * - SELECTION: check-selection, get-pages
+ * - SETTINGS: get-settings, save-settings, get-remote-url, set-remote-url
+ * - PARSING RULES: get-parsing-rules, check-remote-rules-update, apply-remote-rules, 
+ *                  dismiss-rules-update, reset-rules-cache
+ * - WHATS NEW: check-whats-new, mark-whats-new-seen
+ */
 export type UIMessage = 
-  | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string }
+  // === IMPORT ===
+  | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string; resetBeforeImport?: boolean }
+  // === RESET ===
+  | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
+  // === LIFECYCLE ===
   | { type: 'test'; message: string }
-  | { type: 'get-theme' }
+  | { type: 'get-theme' }  // Theme detected via prefers-color-scheme, handler is no-op
   | { type: 'close' }
-  | { type: 'get-pages' }
-  | { type: 'check-selection' }
+  // === SELECTION ===
+  | { type: 'get-pages' }  // Response: 'pages'
+  | { type: 'check-selection' }  // Response: 'selection-status'
+  // === SETTINGS ===
   | { type: 'save-settings'; settings: UserSettings }
-  | { type: 'get-settings' }
-  | { type: 'get-parsing-rules' }
-  | { type: 'check-remote-rules-update' }
+  | { type: 'get-settings' }  // Response: 'settings-loaded'
+  | { type: 'get-remote-url' }  // Response: 'remote-url-loaded'
+  | { type: 'set-remote-url'; url: string }
+  // === PARSING RULES ===
+  | { type: 'get-parsing-rules' }  // Response: 'parsing-rules-loaded'
+  | { type: 'check-remote-rules-update' }  // Response: 'rules-update-available' (if update exists)
   | { type: 'apply-remote-rules'; hash: string }
   | { type: 'dismiss-rules-update' }
   | { type: 'reset-rules-cache' }
-  | { type: 'get-remote-url' }
-  | { type: 'set-remote-url'; url: string }
-  | { type: 'check-whats-new' }
+  // === WHATS NEW ===
+  | { type: 'check-whats-new' }  // Response: 'whats-new-status'
   | { type: 'mark-whats-new-seen'; version: string };
 
-// Messages sent from Code to UI
+/**
+ * Messages sent from Code → UI (via figma.ui.postMessage)
+ * 
+ * Categories:
+ * - LOGGING: log, error
+ * - PROGRESS: progress, stats, done
+ * - STATE: selection-status, pages
+ * - SETTINGS: settings-loaded, remote-url-loaded
+ * - PARSING RULES: parsing-rules-loaded, rules-update-available
+ * - WHATS NEW: whats-new-status
+ */
 export type CodeMessage = 
+  // === LOGGING ===
   | { type: 'log'; message: string }
   | { type: 'error'; message: string }
+  // === STATE ===
   | { type: 'pages'; pages: string[] }
   | { type: 'selection-status'; hasSelection: boolean }
+  // === PROGRESS ===
   | { type: 'progress'; current: number; total: number; message?: string; operationType?: string }
   | { type: 'stats'; stats: ProcessingStats }
   | { type: 'done'; count: number }
+  // === RESET ===
+  | { type: 'reset-done'; count: number }  // Response to reset-snippets
+  // === SETTINGS ===
   | { type: 'settings-loaded'; settings: UserSettings }
+  | { type: 'remote-url-loaded'; url: string }
+  // === PARSING RULES ===
   | { type: 'parsing-rules-loaded'; metadata: ParsingRulesMetadata }
   | { type: 'rules-update-available'; newVersion: number; currentVersion: number; hash: string }
-  | { type: 'remote-url-loaded'; url: string }
+  // === WHATS NEW ===
   | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string };
 
-// Combined type
+/** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;
 
 // [REFACTOR-CHECKPOINT-1] Tab-based UI types
-export type TabType = 'import' | 'settings' | 'logs';
+export type TabType = 'import' | 'logs';
 
-export type UIState = 'idle' | 'loading' | 'completed';
+export type UIState = 'idle' | 'loading';
 
-export interface TabConfig {
-  id: TabType;
-  label: string;
-  icon: string;
-  badge?: number;
+// ============================================================================
+// HANDLER CONTEXT
+// ============================================================================
+// Context passed to component handlers during processing
+// ============================================================================
+
+/**
+ * Context object passed to all component handlers
+ */
+export interface HandlerContext {
+  container: BaseNode;
+  containerKey: string;
+  row: { [key: string]: string } | null;
 }

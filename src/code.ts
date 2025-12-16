@@ -1,10 +1,29 @@
 import { Logger } from './logger';
 import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES, PLUGIN_VERSION } from './config';
-import { handleBrandLogic, handleEPriceGroup, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel, handleOfficialShop, handleEDeliveryGroup, handleLabelDiscountView, handleMarketCheckoutButton, handleEOfferItem, handleEButton } from './component-handlers';
+import { 
+  handleBrandLogic, 
+  handleEPriceGroup, 
+  handleELabelGroup, 
+  handleEPriceBarometer, 
+  handleEMarketCheckoutLabel, 
+  handleOfficialShop, 
+  handleEDeliveryGroup, 
+  handleLabelDiscountView, 
+  handleMarketCheckoutButton, 
+  handleEOfferItem, 
+  handleEButton,
+  handleShopInfoUgcAndEReviewsShopText,
+  handleShopInfoBnpl,
+  handleShopInfoDeliveryBnplContainer,
+  handleESnippetOrganicTextFallback,
+  handleESnippetOrganicHostFromFavicon
+} from './component-handlers';
 import { ImageProcessor } from './image-handlers';
 import { loadFonts, processTextLayers } from './text-handlers';
 import { LayerDataItem } from './types';
 import { ParsingRulesManager } from './parsing-rules-manager';
+import { safeGetLayerName, safeGetLayerType } from './utils/node-search';
+import { findSnippetContainers, sortContainersByPosition, normalizeContainerName, findContainerForLayers, getContainerName } from './utils/container-search';
 
 // Ключ для хранения последней просмотренной версии
 const WHATS_NEW_STORAGE_KEY = 'contentify_whats_new_seen_version';
@@ -63,24 +82,6 @@ figma.on('selectionchange', () => {
   figma.ui.postMessage({ type: 'selection-status', hasSelection: hasSelection });
 });
 
-// Вспомогательные функции
-const safeGetLayerName = (layer: SceneNode): string | null => {
-  try {
-    if (layer.removed) return null;
-    return layer.name;
-  } catch {
-    return null;
-  }
-};
-
-const safeGetLayerType = (layer: SceneNode): string | null => {
-  try {
-    if (layer.removed) return null;
-    return layer.type;
-  } catch {
-    return null;
-  }
-};
 
 figma.ui.onmessage = async (msg) => {
   // Глобальный перехват ошибок
@@ -94,8 +95,8 @@ figma.ui.onmessage = async (msg) => {
   }
   
   if (msg.type === 'get-theme') {
-      Logger.info('🎨 Запрос темы от UI');
-      figma.ui.postMessage({ type: 'log', message: 'Тема применена автоматически' });
+    // Theme detection handled by UI via prefers-color-scheme
+    // This handler exists for compatibility but doesn't return theme data
     return;
   }
   
@@ -256,6 +257,22 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
     // -------------------------
+
+  // === RESET SNIPPETS ===
+  if (msg.type === 'reset-snippets') {
+    const scope = msg.scope || 'page';
+    Logger.info(`🔄 Сброс сниппетов (${scope})`);
+    
+    try {
+      const resetCount = await resetAllSnippets(scope);
+      figma.ui.postMessage({ type: 'reset-done', count: resetCount });
+      figma.notify(`✅ Сброшено ${resetCount} сниппетов`);
+    } catch (e) {
+      Logger.error('Reset error:', e);
+      figma.ui.postMessage({ type: 'error', message: 'Ошибка при сбросе сниппетов' });
+    }
+    return;
+  }
   
   if (msg.type === 'import-csv') {
     const startTime = Date.now();
@@ -263,10 +280,34 @@ figma.ui.onmessage = async (msg) => {
     
     const rows = msg.rows || [];
     const scope = msg.scope || 'page';
+    const resetBeforeImport = msg.resetBeforeImport || false;
       // const filter = msg.filter || ''; 
 
     Logger.info(`📊 Получено ${rows.length} строк данных`);
     Logger.info(`📍 Область: ${scope}`);
+    
+    // Начальный прогресс (1%)
+    figma.ui.postMessage({
+      type: 'progress',
+      current: 1,
+      total: 100,
+      message: `Подготовка к обработке ${rows.length} строк...`,
+      operationType: 'searching'
+    });
+    
+    // === Reset snippets before import if requested ===
+    if (resetBeforeImport) {
+      Logger.info('🔄 Сброс сниппетов перед импортом...');
+      figma.ui.postMessage({
+        type: 'progress',
+        current: 1,
+        total: 100,
+        message: 'Сброс сниппетов...',
+        operationType: 'resetting'
+      });
+      const resetCount = await resetAllSnippets(scope);
+      Logger.info(`✅ Сброшено ${resetCount} сниппетов`);
+    }
     
     // === Global fields (outside snippet containers) ===
     // Например: глобальный слой "#query" (строка запроса) обычно расположен вне сниппетов.
@@ -291,57 +332,29 @@ figma.ui.onmessage = async (msg) => {
       Logger.info(`🎯 Поиск по всей странице: ${searchNodes.length} элементов`);
     }
     
+    // Прогресс после определения области (3%)
+    figma.ui.postMessage({
+      type: 'progress',
+      current: 3,
+      total: 100,
+      message: `Область определена: ${searchNodes.length} элементов`,
+      operationType: 'searching'
+    });
+    
       // 2. Собираем контейнеры и группируем данные (Оптимизированный Top-Down подход)
     // Начало этапа 1 (5%)
     figma.ui.postMessage({
       type: 'progress',
       current: 5,
       total: 100,
-      message: 'Поиск контейнеров...',
+      message: 'Поиск контейнеров сниппетов...',
       operationType: 'searching'
     });
     
     const snippetGroups = new Map<string, SceneNode[]>();
-    let allContainers: SceneNode[] = [];
-
-    if (scope === 'page') {
-      // Быстрый поиск по всей странице через нативный findAll
-      if (figma.currentPage.findAll) {
-         allContainers = figma.currentPage.findAll(n => SNIPPET_CONTAINER_NAMES.includes(n.name));
-      } else {
-         // Fallback
-         figma.currentPage.children.forEach(child => {
-             if (SNIPPET_CONTAINER_NAMES.includes(child.name)) allContainers.push(child);
-             if ('findAll' in child) {
-               allContainers.push(...(child as SceneNode & ChildrenMixin).findAll((n: SceneNode) => SNIPPET_CONTAINER_NAMES.includes(n.name)));
-             }
-         });
-      }
-    } else {
-      // Поиск в выделении
-      const visited = new Set<string>();
-      
-      for (const node of searchNodes) {
-         if (node.removed) continue;
-         
-         // Проверяем сам узел
-         if (SNIPPET_CONTAINER_NAMES.includes(node.name) && !visited.has(node.id)) {
-            allContainers.push(node);
-            visited.add(node.id);
-         }
-         
-         // Ищем внутри узла
-         if ('findAll' in node) {
-            const found = (node as SceneNode & ChildrenMixin).findAll((n: SceneNode) => SNIPPET_CONTAINER_NAMES.includes(n.name));
-            for (const item of found) {
-               if (!visited.has(item.id)) {
-                   allContainers.push(item);
-                   visited.add(item.id);
-               }
-            }
-         }
-      }
-    }
+    
+    // Используем общие функции поиска и сортировки контейнеров
+    const allContainers = findSnippetContainers(scope === 'page' ? 'page' : 'selection');
     
     Logger.info(`📦 Найдено ${allContainers.length} контейнеров-сниппетов`);
     
@@ -354,18 +367,8 @@ figma.ui.onmessage = async (msg) => {
       operationType: 'searching'
     });
     
-    // Сортировка контейнеров по визуальной позиции (сначала по Y, затем по X)
-    // Это гарантирует соответствие порядка контейнеров Figma порядку сниппетов в HTML
-    allContainers.sort(function(a, b) {
-      var ay = a.absoluteTransform ? a.absoluteTransform[1][2] : a.y;
-      var by = b.absoluteTransform ? b.absoluteTransform[1][2] : b.y;
-      // Если разница по Y больше 10px — это разные строки
-      if (Math.abs(ay - by) > 10) return ay - by;
-      // Одна строка — сортируем по X
-      var ax = a.absoluteTransform ? a.absoluteTransform[0][2] : a.x;
-      var bx = b.absoluteTransform ? b.absoluteTransform[0][2] : b.x;
-      return ax - bx;
-    });
+    // Сортировка контейнеров по визуальной позиции (Y→X)
+    sortContainersByPosition(allContainers);
     
     Logger.debug(`🔢 Контейнеры отсортированы по позиции (Y→X)`);
     
@@ -393,14 +396,14 @@ figma.ui.onmessage = async (msg) => {
         containerIndex++;
         
         if (container.removed) {
-          // Обновляем прогресс даже для пропущенных контейнеров
-          if (containerIndex % 10 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 4)) === 0) {
+          // Обновляем прогресс даже для пропущенных контейнеров (каждые 3 или 10%)
+          if (containerIndex % 3 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 10)) === 0) {
             const progress = 15 + Math.floor((containerIndex / totalContainers) * 25);
             figma.ui.postMessage({
               type: 'progress',
               current: Math.min(40, progress),
               total: 100,
-              message: `Обработка контейнеров: ${containerIndex}/${totalContainers}`,
+              message: `Анализ контейнеров: ${containerIndex}/${totalContainers}`,
               operationType: 'grouping'
             });
           }
@@ -476,14 +479,14 @@ figma.ui.onmessage = async (msg) => {
           }
         }
         
-        // Обновляем прогресс каждые 10 контейнеров или каждые 5%
-        if (containerIndex % 10 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 4)) === 0) {
+        // Обновляем прогресс каждые 3 контейнера или каждые 10%
+        if (containerIndex % 3 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 10)) === 0) {
           const progress = 15 + Math.floor((containerIndex / totalContainers) * 25); // 15-40%
           figma.ui.postMessage({
             type: 'progress',
             current: Math.min(40, progress),
             total: 100,
-            message: `Обработка контейнеров: ${containerIndex}/${totalContainers}`,
+            message: `Группировка сниппетов: ${containerIndex}/${totalContainers}`,
             operationType: 'grouping'
           });
         }
@@ -567,62 +570,27 @@ figma.ui.onmessage = async (msg) => {
       'Snippet'
     ];
 
-    // Контейнер → допустимые типы строк (строго, без кросс-фоллбеков вне этого списка)
+    // Контейнер → допустимые типы строк с приоритетами
+    // Универсальный маппинг: любой контейнер может получить данные из любого типа с приоритетом своего
     const allowedTypesMap: { [key: string]: string[] } = {
-      EOfferItem: ['EOfferItem', 'EShopItem'],
-      EShopItem: ['EShopItem', 'EOfferItem'],
+      EOfferItem: ['EOfferItem', 'EShopItem', 'EProductSnippet2', 'EProductSnippet'],
+      EShopItem: ['EShopItem', 'EOfferItem', 'EProductSnippet2', 'EProductSnippet'],
       // Product snippets — допускаем взаимный fallback между EProductSnippet2, EProductSnippet и плиткой
-      EProductSnippet2: ['EProductSnippet2', 'EProductSnippet'],
-      EProductSnippet: ['EProductSnippet', 'EProductSnippet2', 'ProductTile-Item'],
-      'ProductTile-Item': ['ProductTile-Item', 'EProductSnippet2', 'EProductSnippet'],
-      Organic_withOfferInfo: ['Organic_withOfferInfo'],
-      Organic: ['Organic'],
-      ESnippet: ['Organic_withOfferInfo', 'Organic'],
-      Snippet: ['Organic_withOfferInfo', 'Organic']
-    };
-
-    // Нормализация имени контейнера к базовому типу
-    const normalizeContainerName = (name: string): string => {
-      if (!name) return 'unknown';
-      const lower = name.toLowerCase();
-      // прямые совпадения
-      for (const base of SNIPPET_CONTAINER_NAMES) {
-        if (lower === base.toLowerCase()) return base;
-      }
-      // префиксное совпадение: имя начинается с базового типа
-      for (const base of SNIPPET_CONTAINER_NAMES) {
-        if (lower.startsWith(base.toLowerCase())) return base;
-      }
-      return name;
+      EProductSnippet2: ['EProductSnippet2', 'EProductSnippet', 'ProductTile-Item', 'EShopItem'],
+      EProductSnippet: ['EProductSnippet', 'EProductSnippet2', 'ProductTile-Item', 'EShopItem'],
+      'ProductTile-Item': ['ProductTile-Item', 'EProductSnippet2', 'EProductSnippet', 'EShopItem'],
+      Organic_withOfferInfo: ['Organic_withOfferInfo', 'Organic', 'EShopItem', 'EProductSnippet2'],
+      Organic: ['Organic', 'Organic_withOfferInfo', 'EShopItem', 'EProductSnippet2'],
+      // ESnippet/Snippet — универсальные контейнеры, берут любые данные
+      ESnippet: ['Organic_withOfferInfo', 'Organic', 'EShopItem', 'EProductSnippet2', 'EOfferItem'],
+      Snippet: ['Organic_withOfferInfo', 'Organic', 'EShopItem', 'EProductSnippet2', 'EOfferItem']
     };
 
     // Собираем контейнеры по типу (по нормализованному имени)
     const containersByType = new Map<string, string[]>();
     for (const [containerKey, layers] of finalContainerMap) {
-      let container: BaseNode | null = null;
-      for (const layer of layers) {
-        if (layer.removed) continue;
-        let current: BaseNode | null = layer.parent;
-        while (current) {
-          if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
-            container = current;
-            break;
-          }
-          current = current.parent;
-        }
-        if (container) break;
-      }
-      // Если у контейнера нет data-layers (layers пустой), container останется null.
-      // Тогда берем сам контейнер по ID, иначе он уйдет в "unknown" и не получит строку/обработку.
-      if (!container) {
-        try {
-          const byId = figma.getNodeById(containerKey);
-          if (byId && !byId.removed) container = byId as BaseNode;
-        } catch (e) {
-          // ignore
-        }
-      }
-      const name = container && 'name' in container ? container.name : '';
+      const container = findContainerForLayers(layers, containerKey);
+      const name = getContainerName(container);
       const norm = normalizeContainerName(name || '');
       const key = norm || 'unknown';
       if (!containersByType.has(key)) containersByType.set(key, []);
@@ -671,20 +639,9 @@ figma.ui.onmessage = async (msg) => {
       'ProductTile-Item'
     ]);
     for (const ck of remainingKeys) {
-      const containerNode = ((): BaseNode | null => {
-        const layers = finalContainerMap.get(ck);
-        if (!layers || !layers.length) return null;
-        for (const layer of layers) {
-          if (layer.removed) continue;
-          let current: BaseNode | null = layer.parent;
-          while (current) {
-            if (SNIPPET_CONTAINER_NAMES.includes(current.name)) return current;
-            current = current.parent;
-          }
-        }
-        return null;
-      })();
-      const name = containerNode && 'name' in containerNode ? containerNode.name : '';
+      const layers = finalContainerMap.get(ck) || [];
+      const containerNode = findContainerForLayers(layers, ck);
+      const name = getContainerName(containerNode);
       const norm = normalizeContainerName(name || '');
       if (!nonOrganicTypes.has(norm)) {
         continue; // не назначаем fallback для Organic/ESnippet/Snippet
@@ -774,38 +731,19 @@ figma.ui.onmessage = async (msg) => {
             row
           });
         }
+        
+        // Инкрементируем счётчик обработанных контейнеров
+        nextRowIndex++;
       }
       
-      Logger.info(`📊 Создано ${layerData.length} элементов layerData`);
+      Logger.info(`📊 Создано ${layerData.length} элементов layerData, обработано ${nextRowIndex} контейнеров`);
       
       const filteredLayers = layerData.filter(item => !item.layer.removed && !item.layer.locked && item.layer.visible);
       
       // 5. Обработка компонентной логики
       const containersToProcess = new Map<string, { row: { [key: string]: string } | null; container: BaseNode | null; }>();
     for (const [containerKey, layers] of finalContainerMap) {
-      let container: BaseNode | null = null;
-      if (layers && layers.length) {
-        for (const layer of layers) {
-          if (layer.removed) continue;
-            let current = layer.parent;
-          while (current) {
-              if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
-              container = current;
-              break;
-            }
-            current = current.parent;
-          }
-          if (container) break;
-        }
-      } else {
-        // Нет data-layers — используем сам контейнер по ID
-        try {
-          const byId = figma.getNodeById(containerKey);
-          if (byId && !byId.removed) container = byId as BaseNode;
-        } catch (e) {
-          // ignore
-        }
-      }
+      const container = findContainerForLayers(layers, containerKey);
       if (!container) continue;
       
       const assignment = containerRowAssignments.get(containerKey);
@@ -814,7 +752,7 @@ figma.ui.onmessage = async (msg) => {
       // Кнопки в EShopItem/EOfferItem должны быть всегда доступны.
       // Если строка не назначена (или назначена не того типа), всё равно запускаем обработчики с stub-строкой,
       // чтобы восстановить видимость и дефолтный view при повторных прогонах.
-      const containerName = (container && 'name' in container) ? String(container.name) : '';
+      const containerName = getContainerName(container);
       if (!assignedRow && (containerName === 'EShopItem' || containerName === 'EOfferItem')) {
         assignedRow = {
           '#SnippetType': containerName,
@@ -829,6 +767,17 @@ figma.ui.onmessage = async (msg) => {
       Logger.debug(`🔄 Обработка компонентной логики для ${containersToProcess.size} контейнеров...`);
       const componentPromises: Promise<void>[] = [];
       var processingIndex = 0;
+      const totalToProcess = containersToProcess.size;
+      
+      // Начальный прогресс компонентной логики (40%)
+      figma.ui.postMessage({
+        type: 'progress',
+        current: 40,
+        total: 100,
+        message: `Компонентная логика: 0/${totalToProcess}`,
+        operationType: 'components'
+      });
+      
       for (const [containerKey, data] of containersToProcess) {
         if (!data.container || !data.row) continue;
         const context = { container: data.container, containerKey, row: data.row };
@@ -843,17 +792,43 @@ figma.ui.onmessage = async (msg) => {
         Logger.info(`📍 [${processingIndex}] ${containerName}: Shop="${shopName}", Price="${price}", Fintech=${fintechEnabled} (${fintechType}), EPrice_View=${priceView}`);
         processingIndex++;
         
+        // Обновляем прогресс каждые 2 контейнера или каждые 10%
+        if (processingIndex % 2 === 0 || processingIndex % Math.max(1, Math.floor(totalToProcess / 10)) === 0) {
+          const progress = 40 + Math.floor((processingIndex / totalToProcess) * 20); // 40-60%
+          figma.ui.postMessage({
+            type: 'progress',
+            current: Math.min(60, progress),
+            total: 100,
+            message: `Компонентная логика: ${processingIndex}/${totalToProcess}`,
+            operationType: 'components'
+          });
+        }
+        
         try {
+          // === Синхронные обработчики (быстрые) ===
           handleBrandLogic(context);
-          await handleEPriceGroup(context);
           handleEPriceBarometer(context);
           handleEMarketCheckoutLabel(context);
           handleOfficialShop(context);
           handleMarketCheckoutButton(context); // Кнопка "Купить в 1 клик" — BUTTON variant
           handleEButton(context); // EButton — view и visible для кнопки внутри сниппета
           handleEOfferItem(context); // EOfferItem — модификаторы карточки предложения
-          // handleEPriceView убран - view уже обрабатывается в handleEPriceGroup
-          await handleLabelDiscountView(context); // async для корректной загрузки шрифтов
+          handleShopInfoBnpl(context); // BNPL иконки
+          handleShopInfoDeliveryBnplContainer(context); // Контейнер доставки/BNPL
+          
+          // === Async обработчики: запускаем независимые параллельно ===
+          // handleEPriceGroup должен быть первым (от него может зависеть LabelDiscount)
+          await handleEPriceGroup(context);
+          
+          // Эти обработчики независимы друг от друга — запускаем параллельно
+          await Promise.all([
+            handleLabelDiscountView(context),
+            handleShopInfoUgcAndEReviewsShopText(context),
+            handleESnippetOrganicTextFallback(context),
+            handleESnippetOrganicHostFromFavicon(context)
+          ]);
+          
+          // Эти добавляем в общий пул для ожидания в конце
           componentPromises.push(handleELabelGroup(context).catch(e => Logger.error(`Error in handleELabelGroup:`, e)));
           componentPromises.push(handleEDeliveryGroup(context).catch(e => Logger.error(`Error in handleEDeliveryGroup:`, e)));
         } catch (e) {
@@ -893,11 +868,30 @@ figma.ui.onmessage = async (msg) => {
       });
       
       if (textLayers.length > 0) {
+        // Прогресс: начало загрузки шрифтов (62%)
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 62,
+          total: 100,
+          message: `Загрузка шрифтов для ${textLayers.length} слоев...`,
+          operationType: 'text'
+        });
+        
         Logger.info(`🔤 Загрузка шрифтов для ${textLayers.length} текстовых слоев`);
         await loadFonts(textLayers);
+        
+        // Прогресс: шрифты загружены, начинаем обработку текста (66%)
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 66,
+          total: 100,
+          message: `Шрифты загружены, обработка текста...`,
+          operationType: 'text'
+        });
+        
         processTextLayers(textLayers);
         
-        // Отправляем прогресс: этап 4 (60-80%)
+        // Отправляем прогресс: этап 4 завершен (70%)
         figma.ui.postMessage({
           type: 'progress',
           current: 70,
@@ -973,6 +967,19 @@ figma.ui.onmessage = async (msg) => {
             errors: imageProcessor.errors
           }
         });
+      } else {
+        // Отправляем пустую статистику если нет изображений
+        figma.ui.postMessage({
+          type: 'stats',
+          stats: {
+            processedInstances: nextRowIndex,
+            totalInstances: finalContainerMap.size,
+            successfulImages: 0,
+            skippedImages: 0,
+            failedImages: 0,
+            errors: []
+          }
+        });
       }
       
     const totalTime = Date.now() - startTime;
@@ -996,6 +1003,56 @@ figma.ui.onmessage = async (msg) => {
 // ==========================
 // Global helpers
 // ==========================
+
+// Сбрасывает все сниппеты (instances) в области к дефолтному состоянию.
+// Использует Figma API resetOverrides() для возврата к master component.
+async function resetAllSnippets(scope: string): Promise<number> {
+  let resetCount = 0;
+  
+  // Используем общую функцию поиска контейнеров
+  const containers = findSnippetContainers(scope === 'page' ? 'page' : 'selection');
+  
+  Logger.info(`🔍 Найдено ${containers.length} сниппетов для сброса`);
+  
+  // Сбрасываем каждый instance
+  for (let i = 0; i < containers.length; i++) {
+    const container = containers[i];
+    
+    // Отправляем прогресс каждые 10 сниппетов
+    if (i % 10 === 0) {
+      figma.ui.postMessage({
+        type: 'progress',
+        current: Math.round((i / containers.length) * 100),
+        total: 100,
+        message: `Сброс сниппетов... ${i}/${containers.length}`,
+        operationType: 'resetting'
+      });
+    }
+    
+    try {
+      if (container.type === 'INSTANCE' && !container.removed) {
+        // Сбрасываем все overrides на instance
+        (container as InstanceNode).resetOverrides();
+        resetCount++;
+        Logger.debug(`  ↩️ Сброшен: ${container.name}`);
+      } else if ('children' in container) {
+        // Если это не instance, но имеет children — ищем вложенные instances
+        const instances = (container as SceneNode & ChildrenMixin).findAll(n => n.type === 'INSTANCE');
+        for (const inst of instances) {
+          if (!inst.removed && inst.type === 'INSTANCE') {
+            (inst as InstanceNode).resetOverrides();
+            resetCount++;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.error(`Ошибка сброса ${container.name}:`, e);
+    }
+  }
+  
+  Logger.info(`✅ Сброшено ${resetCount} инстансов`);
+  return resetCount;
+}
 
 // Применяет глобальный поисковый запрос к текстовым слоям "#query" вне сниппетов.
 // Берём значение из первой строки данных (rows[0]['#query']) — оно одинаковое для всех.

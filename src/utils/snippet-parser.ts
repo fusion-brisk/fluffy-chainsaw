@@ -109,7 +109,9 @@ export function extractRowData(
     '#OldPrice': '',
     '#DiscountPercent': '',
     '#ShopRating': '',
+    '#ShopInfo-Ugc': '',
     '#ReviewsNumber': '',
+    '#EReviews_shopText': '',
     '#ProductRating': '',
     '#LabelsList': '',
     '#DeliveryList': '',
@@ -406,6 +408,22 @@ export function extractRowData(
   if (textContent) {
     row['#OrganicText'] = getTextContent(textContent);
   }
+
+  // Fallback: если для EShopItem / Organic не пришёл #OrganicText — подставляем #OrganicTitle
+  // (чтобы не было пустых блоков текста в макете).
+  const organicText = (row['#OrganicText'] || '').trim();
+  const organicTitle = (row['#OrganicTitle'] || '').trim();
+  if (!organicText && organicTitle) {
+    if (
+      snippetType === 'EShopItem' ||
+      snippetType === 'Organic' ||
+      snippetType === 'Organic_withOfferInfo' ||
+      snippetType === 'ESnippet' ||
+      snippetType === 'Snippet'
+    ) {
+      row['#OrganicText'] = organicTitle;
+    }
+  }
   
   // #OrganicImage — ОПТИМИЗИРОВАНО (Phase 5)
   const image = queryFirstMatch(cache, rules['#OrganicImage'].domSelectors);
@@ -512,23 +530,32 @@ export function extractRowData(
     if (discountContentEl) {
       const discountText = discountContentEl.textContent?.trim() || '';
       // Извлекаем число из текста вида "−51%" или "–51%" (может быть минус U+2212 или дефис)
-      // Ищем последовательность цифр (с поддержкой математических пробелов)
+      // DISCOUNT_VALUE_REGEX теперь требует минус ИЛИ процент, чтобы не захватить цену
       const discountMatch = discountText.match(DISCOUNT_VALUE_REGEX);
       if (discountMatch) {
+        // Группа 1: после минуса, Группа 2: перед процентом (без минуса)
+        const rawValue = (discountMatch[1] || discountMatch[2] || '').trim();
         // Оставляем только цифры и пробелы, убираем запятые и другие символы
-        const discountValue = discountMatch[1].replace(/[^\d\s\u2009\u00A0]/g, '').trim();
-        // Форматируем как "–{значение}%" (используем обычные пробелы, если были математические)
-        const formattedDiscount = `–${discountValue.replace(/[\u2009\u00A0]/g, ' ')}%`;
-        row['#discount'] = formattedDiscount;
-        row['#EPriceGroup_Discount'] = 'true';  // ← Только если есть данные
-        // Также сохраняем в DiscountPercent для совместимости
-        const discountNumber = discountValue.replace(/\s/g, '');
-        if (discountNumber) {
-          row['#DiscountPercent'] = discountNumber;
+        const discountValue = rawValue.replace(/[^\d\s\u2009\u00A0]/g, '').trim();
+        if (discountValue) {
+          // Форматируем как "–{значение}%" (используем обычные пробелы, если были математические)
+          const formattedDiscount = `–${discountValue.replace(/[\u2009\u00A0]/g, ' ')}%`;
+          row['#discount'] = formattedDiscount;
+          row['#EPriceGroup_Discount'] = 'true';  // ← Только если есть данные
+          // Также сохраняем в DiscountPercent для совместимости
+          const discountNumber = discountValue.replace(/\s/g, '');
+          if (discountNumber) {
+            row['#DiscountPercent'] = discountNumber;
+          }
+          console.log(`✅ Извлечена скидка из Label-Content: ${formattedDiscount} (исходный текст: "${discountText}")`);
+        } else {
+          console.warn(`⚠️ Скидка не является числом: "${discountText}"`);
         }
-        console.log(`✅ Извлечена скидка из Label-Content: ${formattedDiscount} (исходный текст: "${discountText}")`);
       } else {
-        console.warn(`⚠️ Не удалось извлечь число из Label-Content: "${discountText}"`);
+        // Текст не содержит скидку (например "ОК") — это нормально, не логируем как ошибку
+        if (discountText && discountText !== 'ОК' && discountText !== 'OK') {
+          console.warn(`⚠️ Не удалось извлечь скидку из Label-Content: "${discountText}"`);
+        }
       }
     } else {
       // Fallback: если не нашли .Label-Content, пробуем весь элемент LabelDiscount
@@ -538,15 +565,19 @@ export function extractRowData(
         const discountText = discountLabelEl.textContent?.trim() || '';
         const discountMatch = discountText.match(DISCOUNT_VALUE_REGEX);
         if (discountMatch) {
-          const discountValue = discountMatch[1].replace(/[^\d\s\u2009\u00A0]/g, '').trim();
-          const formattedDiscount = `–${discountValue.replace(/[\u2009\u00A0]/g, ' ')}%`;
-          row['#discount'] = formattedDiscount;
-          row['#EPriceGroup_Discount'] = 'true';  // ← Только если есть данные
-          const discountNumber = discountValue.replace(/\s/g, '');
-          if (discountNumber) {
-            row['#DiscountPercent'] = discountNumber;
+          // Группа 1: после минуса, Группа 2: перед процентом (без минуса)
+          const rawValue = (discountMatch[1] || discountMatch[2] || '').trim();
+          const discountValue = rawValue.replace(/[^\d\s\u2009\u00A0]/g, '').trim();
+          if (discountValue) {
+            const formattedDiscount = `–${discountValue.replace(/[\u2009\u00A0]/g, ' ')}%`;
+            row['#discount'] = formattedDiscount;
+            row['#EPriceGroup_Discount'] = 'true';  // ← Только если есть данные
+            const discountNumber = discountValue.replace(/\s/g, '');
+            if (discountNumber) {
+              row['#DiscountPercent'] = discountNumber;
+            }
+            console.log(`✅ Извлечена скидка из LabelDiscount (fallback): ${formattedDiscount}`);
           }
-          console.log(`✅ Извлечена скидка из LabelDiscount (fallback): ${formattedDiscount}`);
         }
       }
     }
@@ -607,6 +638,29 @@ export function extractRowData(
     if (match) row['#ShopRating'] = match[1];
   }
   
+  // #ShopInfo-Ugc — рейтинг магазина из блока ShopInfo-Ugc (например "4.8")
+  // Важно: это отдельное поле для маппинга в Figma слой "#ShopInfo-Ugc"
+  const shopInfoUgc = queryFirstMatch(cache, ['.ShopInfo-Ugc', '[class*="ShopInfo-Ugc"]']);
+  if (shopInfoUgc) {
+    let ugcText = '';
+    
+    // Приоритет: RatingOneStar .Line-AddonContent (чистое число)
+    const ugcAddon = shopInfoUgc.querySelector('.RatingOneStar .Line-AddonContent, [class*="RatingOneStar"] .Line-AddonContent');
+    if (ugcAddon) {
+      ugcText = getTextContent(ugcAddon);
+    } else {
+      ugcText = getTextContent(shopInfoUgc);
+    }
+    
+    ugcText = (ugcText || '').trim();
+    // Достаём первое число вида 4.8 / 4,8
+    const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
+    if (ugcMatch) {
+      row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
+      console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}"`);
+    }
+  }
+  
   // #ReviewsNumber — ОПТИМИЗИРОВАНО (Phase 5)
   const reviews = queryFirstMatch(cache, rules['#ReviewsNumber'].domSelectors) ||
                   container.querySelector('[aria-label*="отзыв" i]');
@@ -614,6 +668,21 @@ export function extractRowData(
     const revText = reviews.textContent?.trim() || '';
     const match = revText.match(REVIEWS_REGEX);
     if (match) row['#ReviewsNumber'] = match[1].trim();
+  }
+  
+  // #EReviews_shopText — соседний блок текста с отзывами магазина (например "584 отзыва на магазин")
+  // Важно: это поле НЕ равно #ReviewsNumber — в макете часто нужен именно полный текст.
+  const eReviewsShopText = queryFirstMatch(cache, [
+    '.EReviews_shopText',
+    '.EReviews-ShopText',
+    '[class*="EReviews_shopText"]',
+    '[class*="EReviews-ShopText"]'
+  ]);
+  if (eReviewsShopText) {
+    row['#EReviews_shopText'] = getTextContent(eReviewsShopText);
+    if (row['#EReviews_shopText']) {
+      console.log(`✅ [EReviews_shopText] "${row['#EReviews_shopText'].substring(0, 80)}..."`);
+    }
   }
   
   // #ProductRating - парсим из ELabelRating
@@ -731,19 +800,29 @@ export function extractRowData(
   const deliveryGroup = queryFirstMatch(cache, deliveryGroupSelectors);
   
   if (deliveryGroup) {
-    row['#EDeliveryGroup'] = 'true';
+    // Выставим флаг позже: только если реально нашли >= 1 вид доставки
     
-    // Извлекаем все EDeliveryGroup-Item из этого контейнера
-    const itemSelector = '.EDeliveryGroup-Item';
-    const items = queryAllFromCache(cache, itemSelector);
+    // Извлекаем все EDeliveryGroup-Item ТОЛЬКО внутри найденного контейнера (чтобы не брать элементы из других мест страницы)
+    const items = Array.prototype.slice.call(
+      deliveryGroup.querySelectorAll('.EDeliveryGroup-Item, [class*="EDeliveryGroup-Item"]')
+    ) as Element[];
     
-    // Фильтруем только те, что внутри EDeliveryGroup (не A11yHidden)
+    // Фильтруем скрытые элементы (A11yHidden) и собираем уникальные значения в DOM-порядке
     const deliveryItems: string[] = [];
-    for (let i = 0; i < items.length && i < 5; i++) {
+    for (let i = 0; i < items.length && deliveryItems.length < 3; i++) {
       const item = items[i];
-      // Пропускаем скрытые элементы (A11yHidden)
-      const parentClasses = item.parentElement?.className || '';
-      if (parentClasses.includes('A11yHidden')) continue;
+      // Пропускаем скрытые элементы (A11yHidden) — проверяем по цепочке родителей
+      let p: Element | null = item;
+      let hidden = false;
+      while (p) {
+        const cls = (p as any).className || '';
+        if (typeof cls === 'string' && cls.indexOf('A11yHidden') !== -1) {
+          hidden = true;
+          break;
+        }
+        p = p.parentElement;
+      }
+      if (hidden) continue;
       
       const itemText = item.textContent?.trim();
       if (itemText && !deliveryItems.includes(itemText)) {
@@ -759,10 +838,43 @@ export function extractRowData(
     // Также сохраняем количество items
     row['#EDeliveryGroup-Count'] = String(deliveryItems.length);
     
+    row['#EDeliveryGroup'] = deliveryItems.length > 0 ? 'true' : 'false';
     console.log(`✅ Найден EDeliveryGroup с ${deliveryItems.length} items: ${deliveryItems.join(', ')}`);
   } else {
     row['#EDeliveryGroup'] = 'false';
     row['#EDeliveryGroup-Count'] = '0';
+  }
+
+  // ShopInfo-Bnpl - BNPL иконки/лейблы в сниппете (используются для управления инстансами внутри #ShopInfo-Bnpl)
+  const shopInfoBnplEl = queryFirstMatch(cache, ['.ShopInfo-Bnpl', '[class*="ShopInfo-Bnpl"]']);
+  if (shopInfoBnplEl) {
+    const bnplTypes: string[] = [];
+    // В реальном HTML ярлыки могут быть не только в p/span/a, иногда это div
+    const textNodes = Array.prototype.slice.call(shopInfoBnplEl.querySelectorAll('p, span, a, div')) as Element[];
+    for (let i = 0; i < textNodes.length && bnplTypes.length < 5; i++) {
+      const t = (textNodes[i].textContent || '').trim();
+      if (!t) continue;
+      const tl = t.toLowerCase();
+      let normalized: string | null = null;
+      // Нормализация под runtime-маппинг (mapBnplLabelToType)
+      if (tl.indexOf('сплит') !== -1) normalized = 'Сплит';
+      else if (tl.indexOf('плайт') !== -1) normalized = 'Плайт';
+      else if (tl.indexOf('долями') !== -1) normalized = 'Долями';
+      else if (tl.indexOf('плати частями') !== -1) normalized = 'Плати частями';
+      else if (tl.indexOf('мокка') !== -1) normalized = 'Мокка';
+      else if (tl.indexOf('подели') !== -1) normalized = 'Подели';
+      else if (tl.indexOf('мтс') !== -1 && (tl.indexOf('пэй') !== -1 || tl.indexOf('pay') !== -1)) normalized = 'МТС Пэй';
+      if (normalized && !bnplTypes.includes(normalized)) bnplTypes.push(normalized);
+    }
+    for (let i = 0; i < bnplTypes.length; i++) {
+      row[`#ShopInfo-Bnpl-Item-${i + 1}`] = bnplTypes[i];
+    }
+    row['#ShopInfo-Bnpl-Count'] = String(bnplTypes.length);
+    row['#ShopInfo-Bnpl'] = bnplTypes.length > 0 ? 'true' : 'false';
+    console.log(`✅ Найден ShopInfo-Bnpl с ${bnplTypes.length} опциями: ${bnplTypes.join(', ')}`);
+  } else {
+    row['#ShopInfo-Bnpl'] = 'false';
+    row['#ShopInfo-Bnpl-Count'] = '0';
   }
   
   // #EPrice_view_special - специальный вид цены (зелёная)
@@ -855,11 +967,15 @@ export function extractRowData(
   const ebnplSelectors = rules['EBnpl']?.domSelectors || ['.EShopItem-Bnpl', '[class*="EShopItem-Bnpl"]', '.EBnpl'];
   const ebnplContainer = queryFirstMatch(cache, ebnplSelectors);
   if (ebnplContainer) {
-    row['#EBnpl'] = 'true';
+    // Выставим флаг позже: только если реально нашли >= 1 опцию BNPL
     
     // Извлекаем список BNPL опций (Сплит, Долями и т.д.)
-    const ebnplItemSelectors = rules['EBnpl-Item']?.domSelectors || ['.EBnpl .Line-AddonContent', '[class*="EBnpl"] .Line-AddonContent'];
-    const ebnplItems = queryAllFromCache(cache, ebnplItemSelectors[0]);
+    // Важно: в реальном HTML контейнер может быть .EShopItem-Bnpl без класса .EBnpl,
+    // поэтому ищем items ВНУТРИ найденного контейнера (а не только ".EBnpl ...").
+    // Берём Line-AddonContent в DOM-порядке, максимум 5.
+    const ebnplItems = Array.prototype.slice.call(
+      ebnplContainer.querySelectorAll('.Line-AddonContent, [class*="Line-AddonContent"]')
+    ) as Element[];
     const bnplOptions: string[] = [];
     
     for (let i = 0; i < ebnplItems.length && i < 5; i++) {
@@ -874,6 +990,7 @@ export function extractRowData(
       row[`#EBnpl-Item-${i + 1}`] = bnplOptions[i];
     }
     row['#EBnpl-Count'] = String(bnplOptions.length);
+    row['#EBnpl'] = bnplOptions.length > 0 ? 'true' : 'false';
     
     console.log(`✅ Найден EBnpl с ${bnplOptions.length} опциями: ${bnplOptions.join(', ')}`);
   } else {
@@ -1095,9 +1212,11 @@ export function extractRowData(
     row['#BUTTON'] = 'true';  // Кнопка всегда есть
     if (hasCheckoutButton) {
       row['#ButtonView'] = 'primaryLong';
+      row['#ButtonType'] = 'checkout';
       console.log(`✅ [EShopItem] Checkout → ButtonView='primaryLong'`);
     } else {
       row['#ButtonView'] = 'secondary';
+      row['#ButtonType'] = 'shop';
       console.log(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
     }
   } else if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
@@ -1112,10 +1231,12 @@ export function extractRowData(
       // Для Organic/ESnippet по новой логике используем удлинённую кнопку
       row['#ButtonView'] = 'primaryLong';
       row['#EButton_visible'] = 'true';
+      row['#ButtonType'] = 'checkout';
       console.log(`✅ [ESnippet] Organic-Checkout найден → ButtonView='primaryLong', visible='true'`);
     } else {
       row['#BUTTON'] = 'false';
       row['#EButton_visible'] = 'false';
+      row['#ButtonType'] = 'shop';
       console.log(`ℹ️ [ESnippet] Нет Organic-Checkout → кнопка скрыта`);
     }
   } else if (snippetType === 'EProductSnippet2') {
@@ -1124,11 +1245,13 @@ export function extractRowData(
     if (checkoutLabel || hasCheckoutButton) {
       row['#BUTTON'] = 'true';
       row['#ButtonView'] = 'primaryShort';
+      row['#ButtonType'] = 'checkout';
       // При checkout показываем лейбл EMarketCheckoutLabel в Figma
       row['#EMarketCheckoutLabel'] = 'true';
       console.log(`✅ [EProductSnippet2] Лейбл/кнопка чекаута → ButtonView='primaryShort'`);
     } else {
       row['#BUTTON'] = 'false';
+      row['#ButtonType'] = 'shop';
       // При отсутствии checkout скрываем лейбл EMarketCheckoutLabel
       row['#EMarketCheckoutLabel'] = 'false';
     }
@@ -1140,6 +1263,39 @@ export function extractRowData(
   // Логируем итог
   if (row['#BUTTON'] === 'true') {
     console.log(`🛒 [BUTTON] ${snippetType}: BUTTON=true, ButtonView='${row['#ButtonView'] || 'не задан'}' для "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+  }
+  
+  // === ФИЛЬТР ДЛЯ ORGANIC: пропускаем если нет цены ===
+  // Organic сниппеты без EPrice не являются товарными карточками
+  if ((snippetType === 'Organic' || snippetType === 'Organic_withOfferInfo') && 
+      (!row['#OrganicPrice'] || row['#OrganicPrice'].trim() === '')) {
+    console.log(`⚠️ Пропущен ${snippetType} без цены: "${row['#OrganicTitle']?.substring(0, 40)}..."`);
+    return { row: null, spriteState: spriteState };
+  }
+  
+  // === FALLBACK-ЦЕПОЧКИ ДЛЯ ПОЛЕЙ ===
+  // OrganicText ← OrganicTitle (обязательно для ESnippet)
+  if (!row['#OrganicText'] || row['#OrganicText'].trim() === '') {
+    row['#OrganicText'] = row['#OrganicTitle'] || '';
+  }
+  
+  // OrganicHost ← ShopName (если не извлечён из URL)
+  if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
+    row['#OrganicHost'] = row['#ShopName'] || '';
+  }
+  
+  // ShopName ← OrganicHost (обратный fallback)
+  if (!row['#ShopName'] || row['#ShopName'].trim() === '') {
+    row['#ShopName'] = row['#OrganicHost'] || '';
+  }
+  
+  // === ЭВРИСТИКА: Favicon из Host ===
+  if ((!row['#FaviconImage'] || row['#FaviconImage'].trim() === '') && 
+      row['#OrganicHost'] && row['#OrganicHost'].trim() !== '') {
+    // Генерируем URL фавикона из хоста
+    const host = row['#OrganicHost'].replace(/^www\./, '');
+    row['#FaviconImage'] = `https://${host}/favicon.ico`;
+    console.log(`🔧 [FALLBACK] FaviconImage сгенерирован из Host: ${row['#FaviconImage']}`);
   }
   
   // Валидация: требуем заголовок и хотя бы один источник

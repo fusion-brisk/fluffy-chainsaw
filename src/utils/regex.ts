@@ -70,7 +70,9 @@ export const CURRENCY_RUB_REGEX = /₽|руб/i;
 export const CURRENCY_USD_REGEX = /\$/i;
 export const CURRENCY_EUR_REGEX = /€/;
 export const DISCOUNT_PERCENT_REGEX = /([\d,]+)\s*%/;
-export const DISCOUNT_VALUE_REGEX = /([\d\s\u2009\u00A0,]+)/;
+// DISCOUNT_VALUE_REGEX требует наличие минуса ИЛИ процента, чтобы не захватить цену
+// Минусы: U+2212 (−), U+002D (-), U+2013 (–), U+2014 (—)
+export const DISCOUNT_VALUE_REGEX = /[\u2212\u002D\u2013\u2014]\s*([\d\s\u2009\u00A0,]+)\s*%?|([\d\s\u2009\u00A0,]+)\s*%/;
 export const RATING_REGEX = /([\d,]+)/;
 export const REVIEWS_REGEX = /([\d\s,]+)\s*К?\s*(?:отзыв|review)/i;
 

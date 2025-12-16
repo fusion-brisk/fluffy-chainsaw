@@ -29,9 +29,8 @@ export {
   applyFigmaTheme, 
   sendMessageToPlugin, 
   closePlugin,
-  loadPagesList,
-  loadSheetsList,
   shuffleArray
+  // loadPagesList, loadSheetsList - not used, kept internal for future use
 } from './plugin-bridge';
 
 // DOM utilities

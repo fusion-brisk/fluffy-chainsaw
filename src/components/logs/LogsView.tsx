@@ -10,9 +10,9 @@ interface LogsViewProps {
 
 type LogFilter = 'all' | 'errors' | 'warnings' | 'success';
 
-// Threshold for switching to virtual scroll
+// Порог для переключения на виртуальный скролл
 const VIRTUAL_SCROLL_THRESHOLD = 100;
-const LOG_ITEM_HEIGHT = 28; // Height of each log entry in pixels
+const LOG_ITEM_HEIGHT = 28; // Высота каждой записи лога в пикселях
 
 export const LogsView: React.FC<LogsViewProps> = memo(({
   logs,
@@ -24,28 +24,27 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [containerHeight, setContainerHeight] = useState(300);
   
-  // Debounced search update
+  // Отложенное обновление поиска
   const updateDebouncedQuery = useMemo(
     () => debounce((query: string) => setDebouncedQuery(query), 150),
     []
   );
   
-  // Update debounced query when search changes
   useEffect(() => {
     updateDebouncedQuery(searchQuery);
   }, [searchQuery, updateDebouncedQuery]);
 
-  // Auto-scroll functionality (for non-virtual mode)
+  // Авто-скролл (для обычного режима)
   const logsContainerRef = useRef<HTMLDivElement>(null);
   
-  // Measure container height for virtual scroll
+  // Измерение высоты контейнера для виртуального скролла
   const containerWrapperRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     const updateHeight = () => {
       if (containerWrapperRef.current) {
         const rect = containerWrapperRef.current.getBoundingClientRect();
-        setContainerHeight(Math.max(200, rect.height - 20)); // -20 for padding
+        setContainerHeight(Math.max(200, rect.height - 20));
       }
     };
     
@@ -54,18 +53,18 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
     return () => window.removeEventListener('resize', updateHeight);
   }, []);
 
-  // Filter logs based on selected filter (uses debounced query for search)
+  // Фильтрация логов
   const filteredLogs = useMemo(() => {
     let filtered = logs;
 
-    // Apply category filter
+    // Фильтр по категории
     if (activeFilter !== 'all') {
       filtered = filtered.filter(log => {
         switch (activeFilter) {
           case 'errors':
-            return log.includes('❌') || log.toLowerCase().includes('error');
+            return log.includes('❌') || log.toLowerCase().includes('error') || log.toLowerCase().includes('ошибка');
           case 'warnings':
-            return log.includes('⚠️') || log.toLowerCase().includes('warning') || log.toLowerCase().includes('warn');
+            return log.includes('⚠️') || log.toLowerCase().includes('warning') || log.toLowerCase().includes('внимание');
           case 'success':
             return log.includes('✅') || log.toLowerCase().includes('success') || log.toLowerCase().includes('готово');
           default:
@@ -74,7 +73,7 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
       });
     }
 
-    // Apply debounced search query
+    // Поиск
     if (debouncedQuery.trim()) {
       const query = debouncedQuery.toLowerCase();
       filtered = filtered.filter(log => log.toLowerCase().includes(query));
@@ -83,24 +82,23 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
     return filtered;
   }, [logs, activeFilter, debouncedQuery]);
 
-  // Count logs by category
+  // Подсчёт логов по категориям
   const counts = useMemo(() => {
     return {
       all: logs.length,
-      errors: logs.filter(log => log.includes('❌') || log.toLowerCase().includes('error')).length,
-      warnings: logs.filter(log => log.includes('⚠️') || log.toLowerCase().includes('warning')).length,
+      errors: logs.filter(log => log.includes('❌') || log.toLowerCase().includes('error') || log.toLowerCase().includes('ошибка')).length,
+      warnings: logs.filter(log => log.includes('⚠️') || log.toLowerCase().includes('warning') || log.toLowerCase().includes('внимание')).length,
       success: logs.filter(log => log.includes('✅') || log.toLowerCase().includes('success') || log.toLowerCase().includes('готово')).length
     };
   }, [logs]);
 
-  // Decide whether to use virtual scroll
+  // Использовать виртуальный скролл?
   const useVirtualScroll = filteredLogs.length > VIRTUAL_SCROLL_THRESHOLD;
 
-  // Auto-scroll to bottom when new logs arrive (only for non-virtual mode)
+  // Авто-скролл вниз при новых логах (только для обычного режима)
   useEffect(() => {
     if (!useVirtualScroll && logsContainerRef.current && filteredLogs.length > 0) {
       const container = logsContainerRef.current;
-      // Scroll to bottom with smooth animation for better UX
       container.scrollTo({
         top: container.scrollHeight,
         behavior: 'smooth'
@@ -109,14 +107,14 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
   }, [filteredLogs, useVirtualScroll]);
 
   const getLogClass = useCallback((log: string): string => {
-    if (log.includes('❌') || log.toLowerCase().includes('error')) return 'error';
-    if (log.includes('⚠️') || log.toLowerCase().includes('warning')) return 'warning';
-    if (log.includes('✅') || log.toLowerCase().includes('success')) return 'success';
+    if (log.includes('❌') || log.toLowerCase().includes('error') || log.toLowerCase().includes('ошибка')) return 'error';
+    if (log.includes('⚠️') || log.toLowerCase().includes('warning') || log.toLowerCase().includes('внимание')) return 'warning';
+    if (log.includes('✅') || log.toLowerCase().includes('success') || log.toLowerCase().includes('готово')) return 'success';
     return '';
   }, []);
   
-  // Render function for virtual list
-  const renderLogItem = useCallback((log: string, index: number) => (
+  // Рендер элемента для виртуального списка
+  const renderLogItem = useCallback((log: string, _index: number) => (
     <div className={`logs-view-entry ${getLogClass(log)}`}>
       {log}
     </div>
@@ -124,61 +122,61 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
 
   return (
     <div className="logs-view">
-      {/* Header with controls */}
+      {/* Заголовок с кнопками */}
       <div className="logs-view-header">
         <div className="logs-view-title">
-          Logs
-          <span className="logs-view-count">({filteredLogs.length}{filteredLogs.length !== logs.length ? ` of ${logs.length}` : ''})</span>
+          Логи
+          <span className="logs-view-count">({filteredLogs.length}{filteredLogs.length !== logs.length ? ` из ${logs.length}` : ''})</span>
         </div>
         <div className="logs-view-actions">
           <button 
             className="logs-view-btn"
             onClick={onCopyLogs}
             disabled={logs.length === 0}
-            title="Copy all logs to clipboard"
+            title="Скопировать все логи в буфер обмена"
           >
-            Copy
+            Копировать
           </button>
           <button 
             className="logs-view-btn logs-view-btn-danger"
             onClick={onClearLogs}
             disabled={logs.length === 0}
-            title="Clear all logs"
+            title="Очистить все логи"
           >
-            Clear
+            Очистить
           </button>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Фильтры */}
       <div className="logs-view-filters">
         <div className="logs-view-filter-buttons">
           <button
             className={`logs-filter-btn ${activeFilter === 'all' ? 'active' : ''}`}
             onClick={() => setActiveFilter('all')}
           >
-            All {counts.all > 0 && <span className="logs-filter-badge">{counts.all}</span>}
+            Все {counts.all > 0 && <span className="logs-filter-badge">{counts.all}</span>}
           </button>
           <button
             className={`logs-filter-btn ${activeFilter === 'errors' ? 'active' : ''}`}
             onClick={() => setActiveFilter('errors')}
             disabled={counts.errors === 0}
           >
-            Errors {counts.errors > 0 && <span className="logs-filter-badge">{counts.errors}</span>}
+            Ошибки {counts.errors > 0 && <span className="logs-filter-badge">{counts.errors}</span>}
           </button>
           <button
             className={`logs-filter-btn ${activeFilter === 'warnings' ? 'active' : ''}`}
             onClick={() => setActiveFilter('warnings')}
             disabled={counts.warnings === 0}
           >
-            Warnings {counts.warnings > 0 && <span className="logs-filter-badge">{counts.warnings}</span>}
+            Внимание {counts.warnings > 0 && <span className="logs-filter-badge">{counts.warnings}</span>}
           </button>
           <button
             className={`logs-filter-btn ${activeFilter === 'success' ? 'active' : ''}`}
             onClick={() => setActiveFilter('success')}
             disabled={counts.success === 0}
           >
-            Success {counts.success > 0 && <span className="logs-filter-badge">{counts.success}</span>}
+            Успех {counts.success > 0 && <span className="logs-filter-badge">{counts.success}</span>}
           </button>
         </div>
 
@@ -186,7 +184,7 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
           <input
             type="text"
             className="logs-search-input"
-            placeholder="Search logs..."
+            placeholder="Поиск по логам..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -194,7 +192,7 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
             <button
               className="logs-search-clear"
               onClick={() => setSearchQuery('')}
-              title="Clear search"
+              title="Очистить поиск"
             >
               ✕
             </button>
@@ -202,30 +200,30 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
         </div>
       </div>
 
-      {/* Logs content */}
+      {/* Содержимое логов */}
       <div className="logs-view-content" ref={containerWrapperRef}>
         {filteredLogs.length === 0 ? (
           <div className="logs-view-empty">
             {logs.length === 0 ? (
               <>
                 <div className="logs-view-empty-icon">—</div>
-                <div className="logs-view-empty-title">No logs yet</div>
+                <div className="logs-view-empty-title">Пока нет логов</div>
                 <div className="logs-view-empty-subtitle">
-                  Import a file to see processing logs
+                  Импортируйте файл, чтобы увидеть логи обработки
                 </div>
               </>
             ) : (
               <>
                 <div className="logs-view-empty-icon">—</div>
-                <div className="logs-view-empty-title">No matching logs</div>
+                <div className="logs-view-empty-title">Ничего не найдено</div>
                 <div className="logs-view-empty-subtitle">
-                  Try changing the filter or search query
+                  Попробуйте изменить фильтр или поисковый запрос
                 </div>
               </>
             )}
           </div>
         ) : useVirtualScroll ? (
-          /* Virtual scroll for large log lists */
+          /* Виртуальный скролл для больших списков */
           <VirtualList
             items={filteredLogs}
             itemHeight={LOG_ITEM_HEIGHT}
@@ -236,7 +234,7 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
             autoScrollToBottom={true}
           />
         ) : (
-          /* Regular rendering for small lists */
+          /* Обычный рендер для небольших списков */
           <div className="logs-view-entries" ref={logsContainerRef}>
             {filteredLogs.map((log, index) => (
               <div 
@@ -250,21 +248,21 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
         )}
       </div>
 
-      {/* Footer with stats */}
+      {/* Футер со статистикой */}
       {logs.length > 0 && (
         <div className="logs-view-footer">
           <div className="logs-view-stats">
             <span className="logs-view-stat">
-              Total: {logs.length}
+              Всего: {logs.length}
             </span>
             {counts.errors > 0 && (
               <span className="logs-view-stat error">
-                Errors: {counts.errors}
+                Ошибок: {counts.errors}
               </span>
             )}
             {counts.warnings > 0 && (
               <span className="logs-view-stat warning">
-                Warnings: {counts.warnings}
+                Внимание: {counts.warnings}
               </span>
             )}
           </div>

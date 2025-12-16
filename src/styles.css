@@ -105,8 +105,6 @@ body {
 /* Typography */
 h1, h2, h3 { margin: 0; font-weight: 600; color: var(--figma-color-text); }
 p { margin: 0; line-height: 1.5; }
-.text-secondary { color: var(--figma-color-text-secondary); }
-.text-small { font-size: var(--font-size-sm); }
 
 /* ============================================
    HEADER - Minimal top bar
@@ -228,10 +226,16 @@ p { margin: 0; line-height: 1.5; }
    ============================================ */
 .segmented-control {
   display: flex;
-  background-color: var(--figma-color-bg-secondary);
+  background-color: var(--figma-color-bg-tertiary);
   padding: 3px;
-  border-radius: var(--radius-medium);
+  border-radius: var(--radius-small);
+}
+
+/* Standalone segmented control (outside panel) */
+.segmented-control:not(.scope-panel .segmented-control) {
   border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-medium);
+  background-color: var(--figma-color-bg-secondary);
 }
 
 .segmented-option {
@@ -264,11 +268,89 @@ p { margin: 0; line-height: 1.5; }
   outline-offset: 1px;
 }
 
-/* Scope Control Container */
-.scope-control {
+/* ============================================
+   SCOPE PANEL - Unified control panel
+   ============================================ */
+.scope-panel {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-medium);
+}
+
+/* Options row (checkbox + reset button) */
+.scope-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+}
+
+/* Inline checkbox style */
+.checkbox-inline {
+  display: flex;
+  align-items: center;
   gap: 6px;
+  font-size: var(--font-size-xs);
+  color: var(--figma-color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--figma-color-bg-brand);
+  cursor: pointer;
+}
+
+.checkbox-inline input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkbox-inline:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Small text button */
+.btn-text-sm {
+  padding: 4px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-small);
+  color: var(--figma-color-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-text-sm:hover:not(:disabled) {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-text);
+  border-color: var(--figma-color-text-tertiary);
+}
+
+.btn-text-sm:active:not(:disabled) {
+  background: var(--figma-color-bg-pressed);
+}
+
+.btn-text-sm:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-text-sm:focus-visible {
+  outline: 2px solid var(--figma-color-border-brand);
+  outline-offset: 1px;
 }
 
 /* Selection hint (no selection) */
@@ -277,41 +359,17 @@ p { margin: 0; line-height: 1.5; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 8px 12px;
-  font-size: var(--font-size-sm);
+  padding: 6px 10px;
+  font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--figma-color-text-secondary);
-  background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
-  border-radius: var(--radius-medium);
+  background: var(--figma-color-bg-tertiary);
+  border-radius: var(--radius-small);
 }
 
 .scope-hint svg {
   flex-shrink: 0;
   opacity: 0.6;
-}
-
-/* Legacy warning banner */
-.warning-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--figma-color-text-tertiary);
-  background: var(--figma-color-bg-secondary);
-  border: 1px dashed var(--figma-color-border);
-  border-radius: var(--radius-medium);
-}
-
-.warning-banner .icon-svg,
-.icon-svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
-  flex-shrink: 0;
 }
 
 /* ============================================
@@ -523,6 +581,54 @@ p { margin: 0; line-height: 1.5; }
 }
 
 /* ============================================
+   ROTATING TIPS - What's New highlights
+   ============================================ */
+.rotating-tips {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-medium);
+}
+
+.rotating-tips-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.rotating-tips-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.rotating-tips-content.fade-out {
+  opacity: 0;
+  transform: translateY(-3px);
+}
+
+.rotating-tips-content.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.rotating-tips-text {
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text);
+  line-height: 1.35;
+}
+
+.rotating-tips-version {
+  font-size: var(--font-size-xs);
+  color: var(--figma-color-text-tertiary);
+}
+
+/* ============================================
    THINKING STATUS - Processing indicator
    ============================================ */
 .status-thinking {
@@ -538,6 +644,48 @@ p { margin: 0; line-height: 1.5; }
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+/* Progress bar */
+.status-thinking-progress-bar {
+  position: relative;
+  height: 4px;
+  background: var(--figma-color-bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.status-thinking-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--figma-color-bg-brand);
+  border-radius: 2px;
+  transition: width 0.3s ease-out;
+  min-width: 2px;
+}
+
+/* Shimmer animation when waiting */
+.status-thinking-progress-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 .status-thinking-indicator {

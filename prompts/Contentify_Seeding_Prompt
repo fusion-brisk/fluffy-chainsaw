@@ -1,0 +1,320 @@
+# Contentify / EProductSnippet — Сидинг-контекст для отладки
+
+## 1. ОБЗОР ПЛАГИНА
+
+**Название:** EProductSnippet (ранее Contentify)  
+**Версия:** 2.2.0  
+**Назначение:** Figma-плагин для автозаполнения макетов карточек товаров данными из CSV/HTML.
+
+### Основная логика работы:
+1. Пользователь загружает CSV или вставляет HTML в UI плагина
+2. Парсер извлекает данные и формирует массив `rows` с полями `#FieldName`
+3. Плагин ищет контейнеры-сниппеты в Figma по именам из `SNIPPET_CONTAINER_NAMES`
+4. Каждому контейнеру назначается строка данных по типу (`#SnippetType`)
+5. Применяется компонентная логика (variant properties, visibility)
+6. Устанавливаются тексты и загружаются изображения
+
+---
+
+## 2. АРХИТЕКТУРА ФАЙЛОВ
+
+### Точка входа
+- `src/code.ts` — sandbox-код плагина (~1205 строк)
+  - `figma.ui.onmessage` — обработка сообщений от UI
+  - Основной flow: import-csv → поиск контейнеров → группировка → обработчики → текст → изображения
+
+### Обработчики компонентов (src/handlers/)
+- `types.ts` — `HandlerContext` интерфейс
+- `label-handlers.ts` — Brand, ELabelGroup, EPriceBarometer, EMarketCheckoutLabel
+- `button-handlers.ts` — EButton, MarketCheckoutButton
+- `price-handlers.ts` — EPriceGroup, EPrice, LabelDiscount
+- `snippet-handlers.ts` — ESnippet fallbacks, ShopInfo, OfficialShop, EOfferItem
+- `delivery-handlers.ts` — EDeliveryGroup, ShopInfoBnpl
+
+### Точка входа обработчиков
+- `src/component-handlers.ts` — re-export hub всех обработчиков
+
+### Утилиты (src/utils/)
+- `node-search.ts` — функции поиска узлов в Figma дереве
+- `container-search.ts` — поиск/сортировка контейнеров сниппетов
+- `snippet-parser.ts` — парсинг HTML в CSV-структуру
+
+### Конфигурация
+- `src/config.ts` — SNIPPET_CONTAINER_NAMES, COMPONENT_CONFIG, TEXT_FIELD_NAMES
+- `src/types.ts` — типы данных, протокол сообщений UI↔Code
+
+### Вспомогательные модули
+- `src/property-utils.ts` — работа с Variant/Boolean/String properties
+- `src/image-handlers.ts` — загрузка и применение изображений
+- `src/text-handlers.ts` — загрузка шрифтов и установка текста
+- `src/logger.ts` — унифицированное логирование
+
+---
+
+## 3. КЛЮЧЕВЫЕ ТИПЫ КОНТЕЙНЕРОВ
+
+```typescript
+SNIPPET_CONTAINER_NAMES = [
+  'EShopItem',           // Карточки магазинов Яндекс.Маркета
+  'EProductSnippet2',    // Сниппеты товаров (новый формат)
+  'ESnippet',            // Общий сниппет
+  'EProductSnippet',     // Устаревший формат
+  'EOfferItem',          // Офер
+  'Snippet',             // Базовый сниппет
+  'Organic_withOfferInfo', // Органик с офером
+  'ProductTile-Item',    // Карточка товара в плитке
+];
+```
+
+---
+
+## 4. ГЛАВНЫЕ ПОЛЯ ДАННЫХ (CSV-колонки)
+
+### Текстовые поля
+| Поле | Описание |
+|------|----------|
+| `#OrganicTitle` | Заголовок товара |
+| `#OrganicText` | Описание/текст сниппета |
+| `#OrganicHost` | Домен магазина |
+| `#OrganicPrice` | Текущая цена |
+| `#OldPrice` | Старая цена (зачёркнутая) |
+| `#ShopName` | Название магазина |
+| `#ProductRating` | Рейтинг товара (0.0-5.0) |
+| `#discount` | Процент скидки |
+| `#query` | Поисковый запрос (глобальный) |
+
+### Изображения
+| Поле | Описание |
+|------|----------|
+| `#OrganicImage` | Основное изображение товара |
+| `#FaviconImage` | Иконка магазина |
+| `#ThumbImage` | Превью товара |
+
+### Variant Properties (boolean-флаги)
+| Поле | Что управляет |
+|------|---------------|
+| `#EPriceGroup_Discount` | Показать скидку |
+| `#EPriceGroup_OldPrice` | Показать старую цену |
+| `#EPriceGroup_Fintech` | Показать Fintech (кредит/рассрочка) |
+| `#ELabelGroup_Barometer` | Показать барометр цен |
+| `#BUTTON` | Показать кнопку |
+| `#OfficialShop` | Галочка "официальный" |
+| `#EDeliveryGroup` | Показать блок доставки |
+| `#ShopInfo-Bnpl` | Показать BNPL иконки |
+
+### Мета-поля
+| Поле | Описание |
+|------|----------|
+| `#SnippetType` | Тип сниппета для маппинга |
+| `#ButtonView` | Вид кнопки (primary, secondary, white) |
+| `#ButtonType` | Тип кнопки (checkout, shop) |
+| `#EPrice_View` | Вид цены (default, special) |
+| `#LabelDiscount_View` | Вид лейбла скидки |
+
+---
+
+## 5. ОБРАБОТЧИКИ КОМПОНЕНТОВ — ДЕТАЛИ
+
+### handleEPriceGroup (price-handlers.ts)
+Самый сложный обработчик. Управляет:
+- `Discount` variant (true/false)
+- `Old Price` variant (true/false)
+- `DISCOUNT + OLD PRICE` комбинированный variant
+- `Fintech` variant + type/view внутри
+- `EPrice` — value и view
+
+**Особенности:**
+- После изменения variant нужен пере-поиск EPriceGroup (пересоздаётся)
+- EPrice ищется отдельно, исключая "Old" в родителях
+- Цена форматируется с пробелами: `12345` → `12 345`
+
+### handleEButton (button-handlers.ts)
+Логика зависит от типа контейнера:
+- **EShopItem**: `view=primaryLong` (checkout) или `secondary` (default)
+- **EOfferItem**: `view=primaryShort` (checkout) или `white` (default)
+- **ESnippet/Organic**: `visible` управляется флагом `#BUTTON`
+
+### handleEDeliveryGroup (delivery-handlers.ts)
+- Два режима: "named targets" (#EDeliveryGroup-Item-N) и "Line groups"
+- До 3 items доставки
+- Bullet prefix `· ` добавляется ко 2+ items
+
+### handleShopInfoBnpl (delivery-handlers.ts)
+- Поддержка: Split, Dolyami, Plait, Mokka, MTS Pay, Podeli
+- Маппинг по тексту и вложенным графикам
+
+---
+
+## 6. АЛГОРИТМ МАППИНГА СТРОК → КОНТЕЙНЕРЫ
+
+```
+1. Группировка строк по #SnippetType в buckets
+2. Контейнеры группируются по нормализованному имени
+3. Распределение по приоритету (typeOrder):
+   EOfferItem → EShopItem → EProductSnippet2 → EProductSnippet → 
+   ProductTile-Item → Organic_withOfferInfo → Organic → ESnippet → Snippet
+4. allowedTypesMap определяет кросс-fallback:
+   - EShopItem ↔ EOfferItem (взаимозаменяемы)
+   - EProductSnippet2 ↔ EProductSnippet
+   - ESnippet/Snippet принимают Organic_withOfferInfo, Organic
+```
+
+---
+
+## 7. PROPERTY UTILS — УСТАНОВКА СВОЙСТВ
+
+### processVariantProperty(instance, "PropertyName=value", fieldName)
+- Парсит `PropertyName=value` формат
+- Ищет свойство по имени (с поддержкой `#ID` суффикса)
+- Нормализует значение (регистр, boolean)
+- Вызывает `instance.setProperties({...})`
+
+### processStringProperty(instance, propertyName, value, fieldName)
+- Для строковых свойств без options
+- Собирает все текущие свойства и устанавливает одновременно
+
+### processVariantPropertyRecursive(node, value, fieldName, allowedNames?)
+- Рекурсивный обход дерева
+- Применяет variant property ко всем подходящим инстансам
+
+---
+
+## 8. ПОИСК УЗЛОВ (node-search.ts)
+
+| Функция | Описание |
+|---------|----------|
+| `findInstanceByName(node, name)` | Первый инстанс с точным именем |
+| `findTextLayerByName(node, name)` | Первый TEXT с точным именем |
+| `findFirstNodeByName(node, name)` | Первый узел любого типа |
+| `findFirstTextByPredicate(node, fn)` | Первый TEXT по условию |
+| `findAllNodesByName(node, name)` | Все узлы с именем |
+| `findAllNodesByNameContains(node, needle)` | Все узлы, содержащие подстроку |
+| `findNearestNamedAncestor(node, stopAt, name)` | Ближайший предок с именем |
+| `findAllInstances(node)` | Все инстансы внутри |
+| `safeSetTextNode(textNode, value)` | Установка текста с загрузкой шрифта |
+
+---
+
+## 9. ТИПИЧНЫЕ ПРОБЛЕМЫ И ОТЛАДКА
+
+### Проблема: Variant Property не применяется
+**Причины:**
+1. Значение не в списке options (регистр, пробелы)
+2. Комбинация свойств не существует в компоненте
+3. Property key содержит `#ID` суффикс
+
+**Диагностика:**
+- Логи `[Variant Property]` показывают все доступные свойства
+- `debugComponentProperties(instance)` — полный дамп
+
+### Проблема: Кнопка не появляется в EShopItem/EOfferItem
+**Причины:**
+1. `#BUTTON` не равен `'true'`
+2. Контейнер не в списке `ALWAYS_PROCESS_CONTAINERS`
+3. Инстанс кнопки не найден (другое имя)
+
+**Отладка:**
+- Логи `[EButton]` и `[BUTTON]`
+- Проверить имена: EButton, Button, MarketButton, CheckoutButton
+
+### Проблема: Цена не устанавливается
+**Причины:**
+1. EPrice находится внутри "Old" родителя (пропускается)
+2. Нет value property (используется TEXT node fallback)
+3. Шрифт не загружен
+
+**Отладка:**
+- Логи `[EPrice DEBUG]` показывают найденные инстансы
+- Проверить иерархию: EPriceGroup → EPrice (не Old)
+
+### Проблема: Изображения не загружаются
+**Причины:**
+1. CORS блокировка
+2. URL битый или пустой
+3. Формат не поддерживается
+
+**Отладка:**
+- Логи `[Image]` с URL и ошибками
+- Красная подсветка слоя при ошибке
+
+---
+
+## 10. ПРОТОКОЛ СООБЩЕНИЙ UI ↔ CODE
+
+### UI → Code (msg.type)
+| Тип | Описание |
+|-----|----------|
+| `import-csv` | Импорт данных (rows, scope, resetBeforeImport) |
+| `reset-snippets` | Сброс всех сниппетов к дефолту |
+| `get-settings` / `save-settings` | Настройки |
+| `check-selection` | Проверка выделения |
+| `get-parsing-rules` | Получить правила парсинга |
+
+### Code → UI (msg.type)
+| Тип | Описание |
+|-----|----------|
+| `progress` | Прогресс обработки (current, total, message) |
+| `stats` | Статистика (images, errors) |
+| `done` | Завершение импорта |
+| `error` | Ошибка |
+| `selection-status` | Статус выделения |
+
+---
+
+## 11. ВАЖНЫЕ СОГЛАШЕНИЯ
+
+### ES5 Совместимость
+- `code.ts` транспилируется в ES5 через Babel
+- Никаких стрелочных функций в for-in циклах
+- `Object.prototype.hasOwnProperty.call()` вместо `obj.hasOwnProperty()`
+
+### Логирование
+- `Logger.debug()` — детальная отладка
+- `Logger.info()` — основные этапы
+- `Logger.warn()` — предупреждения
+- `Logger.error()` — ошибки
+
+### Именование слоёв
+- Поля данных начинаются с `#`: `#OrganicTitle`, `#ShopName`
+- ESnippet формат: `Block / Snippet-staff / OrganicTitle`
+- Оба формата поддерживаются через `extractDataFieldName()`
+
+---
+
+## 12. QUICK DEBUG CHECKLIST
+
+1. **Контейнер не найден?**
+   - Проверить имя в `SNIPPET_CONTAINER_NAMES`
+   - Проверить scope (selection vs page)
+
+2. **Данные не применяются?**
+   - Проверить `#SnippetType` в CSV
+   - Проверить `allowedTypesMap` для кросс-маппинга
+
+3. **Variant не переключается?**
+   - Смотреть логи `[Variant Property]`
+   - Проверить exact match значения в options
+
+4. **Кнопка/цена/доставка не видны?**
+   - Проверить флаги: `#BUTTON`, `#EPriceGroup_Discount`, `#EDeliveryGroup`
+   - Проверить `visible` property
+
+5. **Изображение не грузится?**
+   - Проверить URL в логах
+   - Проверить CORS proxy
+
+---
+
+## 13. РАСШИРЕНИЕ КОНТЕКСТА
+
+Для более глубокой отладки можно добавить в контекст:
+1. **snippet-parser.ts** — логика парсинга HTML → CSV
+2. **image-handlers.ts** — пайплайн загрузки изображений
+3. **parsing-rules.ts** — схема правил парсинга
+4. **UI компоненты** (src/components/) — для отладки интерфейса
+
+При необходимости запросить:
+- "Покажи handleEPriceGroup полностью"
+- "Покажи логику парсинга EShopItem"
+- "Как работает маппинг BNPL типов"
+

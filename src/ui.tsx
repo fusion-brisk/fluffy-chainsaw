@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom/client';
-import { CSVRow, ProcessingStats, ProgressData, PluginMessage, ParsingRulesMetadata, TabType, UIState } from './types';
+import { CSVRow, ProcessingStats, ProgressData, ParsingRulesMetadata, TabType, UIState } from './types';
 import { 
   applyFigmaTheme, 
   sendMessageToPlugin, 
   parseYandexSearchResults,
   parseMhtmlFile
 } from './utils/index';
+import { usePluginMessages, PluginMessageHandlers } from './hooks';
 
 // Components
 import { Header } from './components/Header';
 import { ScopeControl } from './components/ScopeControl';
 import { DropZone } from './components/DropZone';
-import { UpdateDialog } from './components/UpdateDialog';
 import { WhatsNewDialog } from './components/WhatsNewDialog';
 import { LazyTab } from './components/LazyTab';
 // Import tab components
 import { LiveProgressView } from './components/import/LiveProgressView';
 import { CompletionCard } from './components/import/CompletionCard';
 import { ErrorCard } from './components/import/ErrorCard';
-// Settings & Logs views
-import { SettingsView } from './components/settings/SettingsView';
+import { RotatingTips } from './components/import/RotatingTips';
+// Logs view
 import { LogsView } from './components/logs/LogsView';
 
 // Main App Component
@@ -38,19 +38,21 @@ const App: React.FC = () => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragFileName, setDragFileName] = useState<string | null>(null);
-  const [isParsingFromHtml, setIsParsingFromHtml] = useState(false);
-  const [parsingRulesMetadata, setParsingRulesMetadata] = useState<ParsingRulesMetadata | null>(null);
-  // Track processing time
-  const [processingTime, setProcessingTime] = useState<number | null>(null);
+  // Parsing rules metadata (kept for potential future use)
+  const [, setParsingRulesMetadata] = useState<ParsingRulesMetadata | null>(null);
+  // Track processing time (stored for potential future use, currently only via lastCompletionStats)
+  const [_processingTime, setProcessingTime] = useState<number | null>(null);
   const [processingStartTime, setProcessingStartTime] = useState<number | null>(null);
   // Track file size
   const [currentFileSize, setCurrentFileSize] = useState<number | null>(null);
-  const [updateAvailable, setUpdateAvailable] = useState<{
+  // Rules update state (kept for message handler compatibility)
+  const [, setUpdateAvailable] = useState<{
     currentVersion: number;
     newVersion: number;
     hash: string;
   } | null>(null);
-  const [remoteUrl, setRemoteUrl] = useState<string>('');
+  // Remote URL (kept for potential future use)
+  const [, setRemoteUrl] = useState<string>('');
   
   // What's New state
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -74,6 +76,10 @@ const App: React.FC = () => {
     fileName: string;
     scope: 'selection' | 'page';
   } | null>(null);
+  
+  // Reset snippets options
+  const [resetBeforeImport, setResetBeforeImport] = useState(true);
+  const [isResetting, setIsResetting] = useState(false);
   
   // Ref to track latest stats (for closure in message handler)
   const statsRef = useRef<ProcessingStats | null>(null);
@@ -128,14 +134,14 @@ const App: React.FC = () => {
       if (typeof mql.addEventListener === 'function') {
         mql.addEventListener('change', handler);
       } else {
-        // @ts-ignore
+        // Fallback for older browsers without addEventListener
         mql.addListener(handler);
       }
       return () => {
         if (typeof mql.removeEventListener === 'function') {
           mql.removeEventListener('change', handler);
         } else {
-          // @ts-ignore
+          // Fallback for older browsers without removeEventListener
           mql.removeListener(handler);
         }
       };
@@ -195,7 +201,6 @@ const App: React.FC = () => {
 
       if (file.name.endsWith('.mhtml') || file.name.endsWith('.mht')) {
         addLog('📄 Обнаружен MHTML файл');
-        setIsParsingFromHtml(true);
         const text = await file.text();
         const htmlContent = parseMhtmlFile(text);
         if (!htmlContent) throw new Error('Не удалось извлечь HTML из MHTML');
@@ -208,7 +213,6 @@ const App: React.FC = () => {
         addLog(`📋 Найдено ${rows.length} результатов в файле (начало обработки...)`);
       } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
         addLog('📄 Обнаружен HTML файл');
-        setIsParsingFromHtml(true);
         const text = await file.text();
         
         addLog('🔍 Парсинг HTML контента...');
@@ -232,11 +236,15 @@ const App: React.FC = () => {
         scope: scope
       });
 
+      if (resetBeforeImport) {
+        addLog(`🔄 Сброс сниппетов перед импортом...`);
+      }
       addLog(`🚀 Отправка ${rows.length} строк в плагин...`);
       sendMessageToPlugin({
         type: 'import-csv',
         rows: rows,
-        scope: scope
+        scope: scope,
+        resetBeforeImport: resetBeforeImport
       });
 
     } catch (error) {
@@ -253,8 +261,6 @@ const App: React.FC = () => {
       setIsLoading(false);
       setUiState('idle');
       setProgress(null);
-    } finally {
-      setIsParsingFromHtml(false);
     }
   };
 
@@ -347,103 +353,104 @@ const App: React.FC = () => {
     }
   };
 
-  // Handle messages from plugin
-  useEffect(() => {
-    window.onmessage = (event) => {
-      const msg = event.data.pluginMessage as PluginMessage;
+  // Plugin message handlers (memoized to avoid recreating on every render)
+  const messageHandlers: PluginMessageHandlers = useMemo(() => ({
+    // Settings
+    onSettingsLoaded: (settings) => {
+      if (settings.scope) {
+        setScope(settings.scope);
+        console.log('Loaded settings:', settings);
+      }
+    },
+    onRemoteUrlLoaded: (url) => {
+      setRemoteUrl(url);
+      console.log('Loaded remote URL:', url);
+    },
+    
+    // Parsing Rules
+    onParsingRulesLoaded: (metadata) => {
+      setParsingRulesMetadata(metadata);
+      console.log('Loaded parsing rules:', metadata);
+    },
+    onRulesUpdateAvailable: ({ currentVersion, newVersion, hash }) => {
+      setUpdateAvailable({ currentVersion, newVersion, hash });
+      addLog(`🌐 Доступно обновление правил: v${currentVersion} → v${newVersion}`);
+    },
+    
+    // Selection
+    onSelectionStatus: (hasSelection) => {
+      setHasSelection(hasSelection);
+    },
+    
+    // Processing
+    onLog: (message) => {
+      addLog(message);
+    },
+    onProgress: (progressData) => {
+      setProgress(progressData);
+    },
+    onStats: (newStats) => {
+      setStats(newStats);
+      statsRef.current = newStats;
+      if (newStats.errors && newStats.errors.length > 0) {
+        addLog(`⚠️ Найдено ${newStats.errors.length} ошибок:`);
+        newStats.errors.forEach(err => {
+          addLog(`❌ [${err.type}] Слой "${err.layerName}" (Строка ${err.rowIndex !== undefined ? err.rowIndex + 1 : '—'}): ${err.message}`);
+          if (err.url) addLog(`   🔗 URL: ${err.url}`);
+        });
+      }
+    },
+    onDone: (count, elapsedTime) => {
+      if (elapsedTime) {
+        setProcessingTime(elapsedTime);
+        addLog(`⏱️ Время обработки: ${Math.round(elapsedTime / 1000)} сек`);
+      }
       
-      if (msg.type === 'settings-loaded') {
-        if (msg.settings.scope) {
-          setScope(msg.settings.scope);
-          console.log('Loaded settings:', msg.settings);
-        }
-      }
-      else if (msg.type === 'parsing-rules-loaded') {
-        setParsingRulesMetadata(msg.metadata);
-        console.log('Loaded parsing rules:', msg.metadata);
-      }
-      else if (msg.type === 'rules-update-available') {
-        setUpdateAvailable({
-          currentVersion: msg.currentVersion,
-          newVersion: msg.newVersion,
-          hash: msg.hash
+      const currentStats = statsRef.current;
+      if (currentStats) {
+        setLastCompletionStats({
+          stats: currentStats,
+          processingTime: elapsedTime
         });
-        addLog(`🌐 Доступно обновление правил: v${msg.currentVersion} → v${msg.newVersion}`);
       }
-      else if (msg.type === 'remote-url-loaded') {
-        setRemoteUrl(msg.url);
-        console.log('Loaded remote URL:', msg.url);
-      }
-      else if (msg.type === 'selection-status') {
-        setHasSelection(msg.hasSelection);
-      } 
-      else if (msg.type === 'log') {
-        addLog(msg.message);
-      } 
-      else if (msg.type === 'progress') {
-        setProgress({
-          current: msg.current,
-          total: msg.total,
-          message: msg.message,
-          operationType: msg.operationType
-        });
-      } 
-      else if (msg.type === 'stats') {
-        setStats(msg.stats);
-        statsRef.current = msg.stats; // Keep ref updated for done handler
-        if (msg.stats.errors && msg.stats.errors.length > 0) {
-          addLog(`⚠️ Found ${msg.stats.errors.length} errors:`);
-          msg.stats.errors.forEach(err => {
-            addLog(`❌ [${err.type}] Layer "${err.layerName}" (Row ${err.rowIndex ? err.rowIndex + 1 : 'N/A'}): ${err.message}`);
-            if (err.url) addLog(`   🔗 URL: ${err.url}`);
-          });
-        }
-      } 
-      else if (msg.type === 'done') {
-        // Calculate processing time
-        let elapsedTime: number | null = null;
-        if (processingStartTime) {
-          elapsedTime = Date.now() - processingStartTime;
-          setProcessingTime(elapsedTime);
-          addLog(`⏱️ Время обработки: ${Math.round(elapsedTime / 1000)} сек`);
-        }
 
-        // Store completion stats for display (use ref to get latest stats)
-        const currentStats = statsRef.current;
-        if (currentStats) {
-          setLastCompletionStats({
-            stats: currentStats,
-            processingTime: elapsedTime
-          });
-        }
+      setIsLoading(false);
+      setUiState('idle');
+      setProgress(null);
+      addLog(`✅ Готово! Обработано ${count} элементов.`);
+    },
+    onError: (message) => {
+      addLog(`❌ Ошибка плагина: ${message}`);
+      setLastError({ message });
+      setIsLoading(false);
+      setIsResetting(false);
+      setUiState('idle');
+      setProgress(null);
+    },
+    
+    // Reset
+    onResetDone: (count) => {
+      addLog(`🔄 Сброшено ${count} сниппетов`);
+      setIsResetting(false);
+      setUiState('idle');
+      setProgress(null);
+    },
+    
+    // What's New
+    onWhatsNewStatus: ({ shouldShow, currentVersion }) => {
+      setPluginVersion(currentVersion);
+      if (shouldShow) {
+        setWhatsNewBadge(true);
+        setShowWhatsNew(true);
+      }
+    }
+  }), [addLog]);
 
-        setIsLoading(false);
-        setUiState('idle'); // Return to idle state (not 'completed')
-        setProgress(null);
-        addLog(`✅ Готово! Обработано ${msg.count} элементов.`);
-      } 
-      else if (msg.type === 'error') {
-        addLog(`❌ Ошибка плагина: ${msg.message}`);
-        
-        // Save error for display in status area
-        setLastError({
-          message: msg.message
-        });
-        
-        setIsLoading(false);
-        setUiState('idle');
-        setProgress(null);
-      }
-      else if (msg.type === 'whats-new-status') {
-        setPluginVersion(msg.currentVersion);
-        if (msg.shouldShow) {
-          setWhatsNewBadge(true);
-          // Автоматически показываем при первом запуске после обновления
-          setShowWhatsNew(true);
-        }
-      }
-    };
-  }, [addLog, scope, processingStartTime]);
+  // Use custom hook for plugin message handling
+  usePluginMessages({
+    handlers: messageHandlers,
+    processingStartTime
+  });
 
   const handleScopeChange = (newScope: 'selection' | 'page') => {
     setScope(newScope);
@@ -452,36 +459,6 @@ const App: React.FC = () => {
       settings: { scope: newScope }
     });
   };
-
-  const handleRefreshRules = useCallback(() => {
-    sendMessageToPlugin({ type: 'check-remote-rules-update' });
-    addLog('🔄 Проверка обновлений правил парсинга...');
-  }, [addLog]);
-
-  const handleResetCache = useCallback(() => {
-    if (confirm('Reset parsing rules to default values?')) {
-      sendMessageToPlugin({ type: 'reset-rules-cache' });
-      addLog('🔄 Сброс правил к значениям по умолчанию...');
-    }
-  }, [addLog]);
-
-  const handleApplyUpdate = useCallback((hash: string) => {
-    sendMessageToPlugin({ type: 'apply-remote-rules', hash });
-    setUpdateAvailable(null);
-    addLog('✅ Применение обновлённых правил...');
-  }, [addLog]);
-
-  const handleDismissUpdate = useCallback(() => {
-    sendMessageToPlugin({ type: 'dismiss-rules-update' });
-    setUpdateAvailable(null);
-    addLog('❌ Обновление правил отклонено');
-  }, [addLog]);
-
-  const handleUpdateUrl = useCallback((url: string) => {
-    sendMessageToPlugin({ type: 'set-remote-url', url });
-    setRemoteUrl(url);
-    addLog('🔗 Remote config URL обновлён');
-  }, [addLog]);
 
   // View logs from completion
   const handleViewLogsFromCard = useCallback(() => {
@@ -517,15 +494,39 @@ const App: React.FC = () => {
     setStats(null);
     setLogs([]);
     
+    if (resetBeforeImport) {
+      addLog(`🔄 Сброс сниппетов перед импортом...`);
+    }
     addLog(`🔄 Повторный импорт: ${lastImportData.fileName}`);
     addLog(`🚀 Отправка ${lastImportData.rows.length} строк в плагин...`);
     
     sendMessageToPlugin({
       type: 'import-csv',
       rows: lastImportData.rows,
-      scope: lastImportData.scope
+      scope: lastImportData.scope,
+      resetBeforeImport: resetBeforeImport
     });
-  }, [lastImportData, addLog]);
+  }, [lastImportData, addLog, resetBeforeImport]);
+
+  // Reset snippets now (without import)
+  const handleResetNow = useCallback(() => {
+    if (scope === 'selection' && !hasSelection) {
+      addLog('⚠️ Выберите слои для сброса');
+      return;
+    }
+    
+    setIsResetting(true);
+    setUiState('loading');
+    setProgress({ current: 0, total: 100, message: 'Сброс сниппетов...' });
+    setLogs([]);
+    
+    addLog(`🔄 Сброс сниппетов (${scope === 'selection' ? 'выделение' : 'страница'})...`);
+    
+    sendMessageToPlugin({
+      type: 'reset-snippets',
+      scope: scope
+    });
+  }, [scope, hasSelection, addLog]);
 
   // What's New handlers
   const handleOpenWhatsNew = useCallback(() => {
@@ -541,16 +542,13 @@ const App: React.FC = () => {
     }
   }, [pluginVersion]);
 
-  // Keyboard shortcuts
+  // Горячие клавиши
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === '1' && !e.metaKey && !e.ctrlKey) {
         setActiveTab('import');
         e.preventDefault();
       } else if (e.key === '2' && !e.metaKey && !e.ctrlKey) {
-        setActiveTab('settings');
-        e.preventDefault();
-      } else if (e.key === '3' && !e.metaKey && !e.ctrlKey) {
         setActiveTab('logs');
         e.preventDefault();
       }
@@ -562,7 +560,7 @@ const App: React.FC = () => {
       }
       else if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         if (activeTab === 'logs' && logs.length > 0) {
-          if (confirm('Clear all logs?')) {
+          if (confirm('Очистить все логи?')) {
             setLogs([]);
           }
           e.preventDefault();
@@ -574,7 +572,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, uiState, isLoading, logs.length]);
 
-  const isDropZoneDisabled = (scope === 'selection' && !hasSelection) || isLoading;
+  const isDropZoneDisabled = (scope === 'selection' && !hasSelection) || isLoading || isResetting;
 
   return (
     <>
@@ -593,7 +591,12 @@ const App: React.FC = () => {
           <ScopeControl 
             scope={scope} 
             hasSelection={hasSelection} 
-            onScopeChange={handleScopeChange} 
+            onScopeChange={handleScopeChange}
+            resetBeforeImport={resetBeforeImport}
+            onResetBeforeImportChange={setResetBeforeImport}
+            onResetNow={handleResetNow}
+            isLoading={isLoading}
+            isResetting={isResetting}
           />
 
           {/* DropZone - always visible */}
@@ -612,8 +615,8 @@ const App: React.FC = () => {
 
           {/* Status area below DropZone */}
           <div className="status-area">
-            {/* Loading status - GPT thinking style */}
-            {isLoading && (
+            {/* Loading/Resetting status - GPT thinking style */}
+            {(isLoading || isResetting) && (
               <LiveProgressView
                 progress={progress}
                 recentLogs={logs}
@@ -623,7 +626,7 @@ const App: React.FC = () => {
             )}
 
             {/* Error - shows when file processing fails */}
-            {!isLoading && lastError && (
+            {!isLoading && !isResetting && lastError && (
               <ErrorCard
                 message={lastError.message}
                 details={lastError.details}
@@ -633,7 +636,7 @@ const App: React.FC = () => {
             )}
 
             {/* Completion summary - shows after successful processing */}
-            {!isLoading && !lastError && lastCompletionStats && (
+            {!isLoading && !isResetting && !lastError && lastCompletionStats && (
               <CompletionCard
                 stats={lastCompletionStats.stats}
                 processingTime={lastCompletionStats.processingTime || undefined}
@@ -644,26 +647,13 @@ const App: React.FC = () => {
               />
             )}
 
-            {/* Tip - only show when no status to display */}
-            {!isLoading && !lastError && !lastCompletionStats && (
-              <div className="import-tip">
-                💡 <strong>Tip:</strong> Supports HTML & MHTML files from Yandex search results
-              </div>
+            {/* Ротирующиеся подсказки из What's New */}
+            {!isLoading && !isResetting && !lastError && !lastCompletionStats && (
+              <RotatingTips intervalMs={6000} />
             )}
           </div>
         </>
       )}
-
-      {/* Tab: Settings (lazy loaded) */}
-      <LazyTab isActive={activeTab === 'settings'}>
-        <SettingsView 
-          remoteUrl={remoteUrl}
-          parsingRulesMetadata={parsingRulesMetadata}
-          onUpdateUrl={handleUpdateUrl}
-          onRefreshRules={handleRefreshRules}
-          onResetCache={handleResetCache}
-        />
-      </LazyTab>
 
       {/* Tab: Logs (lazy loaded, keep mounted for performance) */}
       <LazyTab isActive={activeTab === 'logs'} keepMounted={true}>
@@ -673,16 +663,6 @@ const App: React.FC = () => {
           onCopyLogs={copyLogs}
         />
       </LazyTab>
-
-      {updateAvailable && (
-        <UpdateDialog
-          currentVersion={updateAvailable.currentVersion}
-          newVersion={updateAvailable.newVersion}
-          hash={updateAvailable.hash}
-          onApply={handleApplyUpdate}
-          onDismiss={handleDismissUpdate}
-        />
-      )}
 
       {showWhatsNew && pluginVersion && (
         <WhatsNewDialog

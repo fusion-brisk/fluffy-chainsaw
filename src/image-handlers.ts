@@ -70,14 +70,34 @@ export class ImageProcessor {
     const imagePromise = (async () => {
       const cacheKey = `img:${url}`;
       
-      // 2. Check persistent storage (clientStorage)
+      // 2. Check persistent storage (clientStorage) with TTL
       try {
-        const cachedHash = await figma.clientStorage.getAsync(cacheKey);
-        if (cachedHash && typeof cachedHash === 'string') {
-          const image = figma.getImageByHash(cachedHash);
-          if (image) {
-            Logger.debug(`   💾 Found in persistent cache: ${url.substring(0, 50)}...`);
-            return image;
+        const cached = await figma.clientStorage.getAsync(cacheKey);
+        if (cached) {
+          // Поддержка старого формата (просто hash) и нового (объект с TTL)
+          let hash: string | null = null;
+          let isExpired = false;
+          
+          if (typeof cached === 'string') {
+            // Старый формат — считаем валидным (миграция)
+            hash = cached;
+          } else if (cached && typeof cached === 'object' && 'hash' in cached) {
+            // Новый формат с TTL
+            hash = cached.hash;
+            const timestamp = cached.timestamp || 0;
+            isExpired = (Date.now() - timestamp) > IMAGE_CONFIG.CACHE_TTL_MS;
+          }
+          
+          if (hash && !isExpired) {
+            const image = figma.getImageByHash(hash);
+            if (image) {
+              Logger.debug(`   💾 Found in persistent cache: ${url.substring(0, 50)}...`);
+              return image;
+            }
+          } else if (isExpired) {
+            Logger.debug(`   ⏰ Cache expired for: ${url.substring(0, 50)}...`);
+            // Удаляем устаревшую запись
+            figma.clientStorage.deleteAsync(cacheKey).catch(() => {});
           }
         }
       } catch (e) {
@@ -140,9 +160,13 @@ export class ImageProcessor {
         throw new Error('Не удалось создать изображение (возможно, неподдерживаемый формат)');
       }
 
-      // 5. Save hash to persistent storage
+      // 5. Save hash to persistent storage with TTL timestamp
       try {
-        figma.clientStorage.setAsync(cacheKey, image.hash).catch(e => {
+        const cacheEntry = {
+          hash: image.hash,
+          timestamp: Date.now()
+        };
+        figma.clientStorage.setAsync(cacheKey, cacheEntry).catch(e => {
           Logger.warn('Error writing to clientStorage:', e);
         });
       } catch (e) {
@@ -154,6 +178,74 @@ export class ImageProcessor {
 
     // Store promise in memory cache
     this.imageCache[url] = imagePromise;
+    return imagePromise;
+  }
+
+  // Base64 декодер для Figma plugin sandbox (atob не доступен)
+  private base64ToBytes(base64: string): Uint8Array {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    const lookup = new Uint8Array(256);
+    for (let i = 0; i < chars.length; i++) {
+      lookup[chars.charCodeAt(i)] = i;
+    }
+
+    // Удаляем padding и пробелы
+    const cleanBase64 = base64.replace(/[^A-Za-z0-9+/]/g, '');
+    const len = cleanBase64.length;
+    const bufferLength = Math.floor(len * 3 / 4);
+    const bytes = new Uint8Array(bufferLength);
+
+    let p = 0;
+    for (let i = 0; i < len; i += 4) {
+      const encoded1 = lookup[cleanBase64.charCodeAt(i)];
+      const encoded2 = lookup[cleanBase64.charCodeAt(i + 1)];
+      const encoded3 = lookup[cleanBase64.charCodeAt(i + 2)];
+      const encoded4 = lookup[cleanBase64.charCodeAt(i + 3)];
+
+      bytes[p++] = (encoded1 << 2) | (encoded2 >> 4);
+      if (i + 2 < len && cleanBase64[i + 2] !== '=') {
+        bytes[p++] = ((encoded2 & 15) << 4) | (encoded3 >> 2);
+      }
+      if (i + 3 < len && cleanBase64[i + 3] !== '=') {
+        bytes[p++] = ((encoded3 & 3) << 6) | encoded4;
+      }
+    }
+
+    return bytes.slice(0, p);
+  }
+
+  // Конвертирует data:image/... URL в Figma Image
+  private async getImageFromDataUrl(dataUrl: string): Promise<Image> {
+    // Проверяем кеш по первым 100 символам data URL (достаточно для уникальности)
+    const cacheKey = 'data_' + dataUrl.substring(0, 100);
+    if (this.imageCache[cacheKey]) {
+      Logger.debug(`   📦 Data URL из кеша`);
+      return this.imageCache[cacheKey];
+    }
+
+    const imagePromise = (async (): Promise<Image> => {
+      // Парсим data URL: data:image/png;base64,XXXXXX
+      const match = dataUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+      if (!match) {
+        throw new Error('Некорректный формат data URL');
+      }
+
+      const base64Data = match[2];
+      
+      // Декодируем base64 в Uint8Array (без atob, который недоступен в Figma sandbox)
+      const bytes = this.base64ToBytes(base64Data);
+
+      // Создаём Figma Image
+      const image = figma.createImage(bytes);
+      if (!image || !image.hash) {
+        throw new Error('Не удалось создать изображение из data URL');
+      }
+
+      Logger.debug(`   ✅ Data URL декодирован (${bytes.length} bytes)`);
+      return image;
+    })();
+
+    this.imageCache[cacheKey] = imagePromise;
     return imagePromise;
   }
 
@@ -187,6 +279,140 @@ export class ImageProcessor {
     });
   }
 
+  // Находит подходящий слой для изображения внутри контейнера (INSTANCE, FRAME, GROUP)
+  // Поддерживает: RECTANGLE, ELLIPSE, POLYGON, VECTOR (все поддерживают fills)
+  private findImageTargetInContainer(container: SceneNode & ChildrenMixin): RectangleNode | EllipseNode | PolygonNode | VectorNode | null {
+    if (!container || !('children' in container)) return null;
+    
+    // Проверяем, есть ли дети вообще
+    if (!container.children || container.children.length === 0) {
+      // Для INSTANCE без прямых детей — пробуем findAll (находит все вложенные ноды)
+      if (container.type === 'INSTANCE' && 'findAll' in container) {
+        const instance = container as InstanceNode;
+        const allNodes = instance.findAll(n => 
+          n.type === 'RECTANGLE' || n.type === 'ELLIPSE' || n.type === 'POLYGON' || n.type === 'VECTOR'
+        );
+        if (allNodes.length > 0) {
+          Logger.debug(`   🔍 [findAll] Найдено ${allNodes.length} fillable нод в INSTANCE через findAll`);
+          return allNodes[0] as RectangleNode | EllipseNode | PolygonNode | VectorNode;
+        }
+        Logger.debug(`   ⚠️ [findImageTarget] INSTANCE ${container.name} пуст даже через findAll`);
+      } else {
+        Logger.debug(`   ⚠️ [findImageTarget] Контейнер ${container.name} не имеет детей`);
+      }
+      return null;
+    }
+    
+    // Сначала ищем прямых детей
+    for (const child of container.children) {
+      if (child.removed) continue;
+      
+      // Приоритет: Rectangle > Ellipse > Polygon > Vector
+      if (child.type === 'RECTANGLE') {
+        return child as RectangleNode;
+      }
+      if (child.type === 'ELLIPSE') {
+        return child as EllipseNode;
+      }
+      if (child.type === 'POLYGON') {
+        return child as PolygonNode;
+      }
+      if (child.type === 'VECTOR') {
+        return child as VectorNode;
+      }
+    }
+    
+    // Если не нашли прямых детей — ищем рекурсивно
+    for (const child of container.children) {
+      if (child.removed) continue;
+      
+      if ('children' in child) {
+        const found = this.findImageTargetInContainer(child as SceneNode & ChildrenMixin);
+        if (found) return found;
+      }
+    }
+    
+    // Логируем типы детей для отладки, если ничего не нашли
+    const childTypes = container.children.map(c => c.type).join(', ');
+    Logger.debug(`   ⚠️ [findImageTarget] В ${container.name} не найден подходящий слой. Типы детей: ${childTypes}`);
+    
+    return null;
+  }
+
+  // Ищет FRAME внутри контейнера (FRAME поддерживает fills)
+  private findFrameInContainer(container: SceneNode & ChildrenMixin): FrameNode | null {
+    if (!container || !('children' in container) || !container.children) return null;
+    
+    for (const child of container.children) {
+      if (child.removed) continue;
+      
+      if (child.type === 'FRAME') {
+        return child as FrameNode;
+      }
+    }
+    
+    // Рекурсивный поиск
+    for (const child of container.children) {
+      if (child.removed) continue;
+      
+      if ('children' in child) {
+        const found = this.findFrameInContainer(child as SceneNode & ChildrenMixin);
+        if (found) return found;
+      }
+    }
+    
+    return null;
+  }
+
+  // Fallback: ищет любой слой с поддержкой fills внутри контейнера
+  private findAnyFillableInContainer(container: SceneNode & ChildrenMixin): (RectangleNode | EllipseNode | PolygonNode | VectorNode | FrameNode) | null {
+    if (!container || !('children' in container) || !container.children) return null;
+    
+    for (const child of container.children) {
+      if (child.removed) continue;
+      
+      // Проверяем типы, которые поддерживают fills
+      if (child.type === 'RECTANGLE') return child as RectangleNode;
+      if (child.type === 'ELLIPSE') return child as EllipseNode;
+      if (child.type === 'POLYGON') return child as PolygonNode;
+      if (child.type === 'VECTOR') return child as VectorNode;
+      if (child.type === 'FRAME') return child as FrameNode;
+      
+      // Рекурсивно ищем внутри вложенных контейнеров
+      if ('children' in child) {
+        const found = this.findAnyFillableInContainer(child as SceneNode & ChildrenMixin);
+        if (found) return found;
+      }
+    }
+    
+    return null;
+  }
+
+  // Собирает структуру контейнера для отладки (рекурсивно, до 2 уровней)
+  private getContainerStructure(layer: SceneNode, depth: number = 0): string {
+    if (!('children' in layer)) {
+      return `${layer.name}(${layer.type})`;
+    }
+    
+    const container = layer as SceneNode & ChildrenMixin;
+    if (!container.children || container.children.length === 0) {
+      return `${layer.name}(${layer.type}:пусто)`;
+    }
+    
+    if (depth >= 2) {
+      return `${layer.name}(${layer.type}:${container.children.length} детей)`;
+    }
+    
+    const childrenInfo = container.children.map(c => {
+      if ('children' in c && depth < 1) {
+        return this.getContainerStructure(c, depth + 1);
+      }
+      return `${c.name}(${c.type})`;
+    }).join(', ');
+    
+    return `${layer.name}(${layer.type}): [${childrenInfo}]`;
+  }
+
   public async processImage(item: LayerDataItem, index: number, total: number): Promise<void> {
     Logger.debug(`🖼️ [${index + 1}/${total}] Обработка изображения "${item.fieldName}"`);
     
@@ -217,7 +443,12 @@ export class ImageProcessor {
         Logger.debug(`   🎯 Спрайт: позиция=${spritePosition}${spriteSize ? `, размер=${spriteSize}` : ''}`);
       }
       
-      if (!imgUrl.startsWith('http://') && !imgUrl.startsWith('https://') && !imgUrl.startsWith('//')) {
+      // Валидация URL: http/https/data:image
+      const isValidUrl = imgUrl.startsWith('http://') || 
+                         imgUrl.startsWith('https://') || 
+                         imgUrl.startsWith('//') ||
+                         imgUrl.startsWith('data:image/');
+      if (!isValidUrl) {
         Logger.warn(`⚠️ Некорректный URL: ${imgUrl.substring(0, 50)}...`);
         this.markAsFailed(item, `Некорректный URL: ${imgUrl}`);
         return;
@@ -227,10 +458,14 @@ export class ImageProcessor {
         imgUrl = 'https:' + imgUrl;
       }
       
-      // Get image from cache or network
+      // Get image from cache or network (или из base64)
       let figmaImage: Image;
       try {
-        figmaImage = await this.getImageForUrl(imgUrl);
+        if (imgUrl.startsWith('data:image/')) {
+          figmaImage = await this.getImageFromDataUrl(imgUrl);
+        } else {
+          figmaImage = await this.getImageForUrl(imgUrl);
+        }
       } catch (loadError) {
         const errMsg = loadError instanceof Error ? loadError.message : String(loadError);
         Logger.error(`   ❌ Ошибка загрузки:`, loadError);
@@ -240,24 +475,66 @@ export class ImageProcessor {
       
       if (item.layer.removed) {
         Logger.warn(`   ⚠️ Слой удален`);
-        this.failedImages++; 
+        this.markAsFailed(item, 'Слой был удалён');
         return;
       }
       
+      // Находим слой для применения изображения
+      // Для INSTANCE/FRAME — ищем внутри подходящую фигуру
+      let targetLayer: RectangleNode | EllipseNode | PolygonNode | VectorNode | FrameNode | null = null;
       const layerType = item.layer.type;
-      if (layerType !== 'RECTANGLE' && layerType !== 'ELLIPSE' && layerType !== 'POLYGON') {
-        Logger.warn(`   ⚠️ Неподдерживаемый тип слоя: ${layerType}`);
-        this.failedImages++; 
-        // Не считаем это критической ошибкой для отчета, но можно добавить
+      
+      if (layerType === 'RECTANGLE' || layerType === 'ELLIPSE' || layerType === 'POLYGON' || layerType === 'VECTOR') {
+        targetLayer = item.layer as RectangleNode | EllipseNode | PolygonNode | VectorNode;
+      } else if (layerType === 'FRAME') {
+        // FRAME может сам принимать fills — проверяем, есть ли внутри фигуры
+        const innerTarget = this.findImageTargetInContainer(item.layer as FrameNode);
+        if (innerTarget) {
+          targetLayer = innerTarget;
+          Logger.debug(`   🔍 Найден целевой слой внутри FRAME: ${innerTarget.name} (${innerTarget.type})`);
+        } else {
+          // Если внутри нет фигур — применяем к самому FRAME
+          targetLayer = item.layer as FrameNode;
+          Logger.debug(`   🔍 Применяем изображение к самому FRAME: ${item.layer.name}`);
+        }
+      } else if (layerType === 'INSTANCE' || layerType === 'GROUP') {
+        // Ищем внутри первую подходящую фигуру
+        targetLayer = this.findImageTargetInContainer(item.layer as SceneNode & ChildrenMixin);
+        if (targetLayer) {
+          Logger.debug(`   🔍 Найден целевой слой внутри ${layerType}: ${targetLayer.name} (${targetLayer.type})`);
+        } else {
+          // Fallback 1: ищем FRAME внутри INSTANCE (FRAME поддерживает fills)
+          const frameTarget = this.findFrameInContainer(item.layer as SceneNode & ChildrenMixin);
+          if (frameTarget) {
+            targetLayer = frameTarget;
+            Logger.debug(`   🔍 Найден FRAME внутри ${layerType}: ${frameTarget.name}`);
+          } else {
+            // Fallback 2: ищем любой слой с поддержкой fills (рекурсивно)
+            const anyFillable = this.findAnyFillableInContainer(item.layer as SceneNode & ChildrenMixin);
+            if (anyFillable) {
+              targetLayer = anyFillable;
+              Logger.debug(`   🔍 Найден fillable слой внутри ${layerType}: ${anyFillable.name} (${anyFillable.type})`);
+            } else if (layerType === 'INSTANCE') {
+              // Fallback 3: INSTANCE сам поддерживает fills (через GeometryMixin)
+              // Применяем изображение напрямую к INSTANCE как к FrameNode
+              targetLayer = item.layer as unknown as FrameNode;
+              Logger.debug(`   🔍 Применяем изображение напрямую к INSTANCE: ${item.layer.name}`);
+            }
+          }
+        }
+      }
+      
+      if (!targetLayer) {
+        // Собираем структуру для отладки и включаем в сообщение об ошибке
+        const structure = this.getContainerStructure(item.layer as SceneNode);
+        this.markAsFailed(item, `Не найден fillable в ${layerType}. Структура: ${structure}`);
         return;
       }
       
       // Применение изображения
       try {
-        const layer = item.layer as RectangleNode | EllipseNode | PolygonNode;
-        
         if (spritePosition) {
-          await this.applySpriteImage(layer, figmaImage, spritePosition, spriteSize);
+          await this.applySpriteImage(targetLayer, figmaImage, spritePosition, spriteSize);
         } else {
           // Определяем режим масштабирования: для #OrganicImage используем FIT, для остальных FILL
           const isOrganicImage = item.fieldName.toLowerCase().includes('organicimage');
@@ -268,7 +545,7 @@ export class ImageProcessor {
             scaleMode: scaleMode,
             imageHash: figmaImage.hash
           };
-          layer.fills = [newPaint];
+          targetLayer.fills = [newPaint];
           Logger.debug(`   ✅ Изображение применено (${scaleMode})`);
         }
         
@@ -341,7 +618,7 @@ export class ImageProcessor {
   }
 
   private async applySpriteImage(
-    layer: RectangleNode | EllipseNode | PolygonNode, 
+    layer: RectangleNode | EllipseNode | PolygonNode | VectorNode | FrameNode, 
     figmaImage: Image, 
     spritePosition: string, 
     spriteSize: string | null

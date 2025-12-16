@@ -1,6 +1,6 @@
 // Plugin communication utilities
 
-import { SheetData } from '../types';
+import { SheetData, UIMessage } from '../types';
 import { fetchWithRetry, APPS_SCRIPT_URL, SPREADSHEET_ID } from './network';
 
 // Logging function with timestamp
@@ -31,8 +31,8 @@ export function applyFigmaTheme(): void {
   }
 }
 
-// Send message to plugin
-export function sendMessageToPlugin(message: any): void {
+// Send message to plugin (typed for compile-time validation)
+export function sendMessageToPlugin(message: UIMessage): void {
   try {
     if (typeof parent.postMessage !== 'function') {
       console.error('parent.postMessage is not available!');
@@ -40,7 +40,7 @@ export function sendMessageToPlugin(message: any): void {
     }
     
     parent.postMessage({ pluginMessage: message }, '*');
-    console.log('Message sent to plugin:', message);
+    console.log('Message sent to plugin:', message.type);
   } catch (error) {
     console.error('Error sending message:', error);
   }
@@ -66,7 +66,7 @@ export async function loadPagesList(): Promise<string[]> {
       const handleMessage = (event: MessageEvent) => {
         console.log('📄 Received message:', event.data);
         const msg = event.data.pluginMessage;
-        if (msg && msg.type === 'pages-list') {
+        if (msg && msg.type === 'pages') {
           clearTimeout(timeout);
           window.removeEventListener('message', handleMessage);
           console.log('📄 Received pages list:', msg.pages);

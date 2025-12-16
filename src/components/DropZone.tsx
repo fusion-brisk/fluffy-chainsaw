@@ -58,7 +58,7 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
       role="button"
       tabIndex={isDisabled ? -1 : 0}
       aria-disabled={isDisabled}
-      aria-label="Import HTML or MHTML file"
+      aria-label="Импортировать HTML или MHTML файл"
     >
       {/* Progress bar overlay when loading */}
       {isLoading && (
@@ -77,23 +77,23 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
         {isLoading
           ? `${percentage}%`
           : disabled
-            ? 'Select layers first'
+            ? 'Сначала выберите слои'
             : fullscreen
-              ? 'Drop file anywhere'
-              : 'Click or drop HTML/MHTML'
+              ? 'Отпустите файл'
+              : 'Нажмите или перетащите HTML/MHTML'
         }
       </div>
       
-      {/* File name preview during drag */}
+      {/* Превью имени файла при перетаскивании */}
       {fullscreen && dragFileName && (
         <div className="drop-zone-file-preview">
           📄 {dragFileName}
         </div>
       )}
       
-      {/* Shortcut hint */}
+      {/* Подсказка с горячей клавишей */}
       {!isLoading && !disabled && !fullscreen && (
-        <div className="drop-zone-hint">⌘O to open</div>
+        <div className="drop-zone-hint">⌘O для открытия</div>
       )}
       
       <input 

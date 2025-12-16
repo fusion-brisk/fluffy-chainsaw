@@ -16,42 +16,42 @@ export const ErrorCard: React.FC<ErrorCardProps> = memo(({
 }) => {
   return (
     <div className="status-error">
-      {/* Header with close button */}
+      {/* Заголовок с кнопкой закрытия */}
       <div className="status-error-header">
         <div className="status-error-badge">
           <span className="status-error-icon">
             <WarningIcon />
           </span>
-          <span className="status-error-text">Error</span>
+          <span className="status-error-text">Ошибка</span>
         </div>
         {onDismiss && (
           <button 
             className="status-error-close" 
             onClick={onDismiss}
-            title="Dismiss"
+            title="Закрыть"
           >
             ×
           </button>
         )}
       </div>
 
-      {/* Error message */}
+      {/* Сообщение об ошибке */}
       <div className="status-error-message">
         {message}
       </div>
 
-      {/* Details if any */}
+      {/* Детали, если есть */}
       {details && (
         <div className="status-error-details">
           {details}
         </div>
       )}
 
-      {/* Actions */}
+      {/* Действия */}
       {onViewLogs && (
         <div className="status-error-actions">
           <button className="status-error-link" onClick={onViewLogs}>
-            View logs
+            Смотреть логи
           </button>
         </div>
       )}
