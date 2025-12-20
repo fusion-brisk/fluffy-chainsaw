@@ -67,6 +67,13 @@ export {
   parseMhtmlFile 
 } from './mhtml-parser';
 
+// Streaming MHTML parser (Phase 8 optimization)
+export {
+  parseMhtmlStreaming,
+  parseMhtmlStreamingAsync
+} from './mhtml-streaming';
+export type { MhtmlParseProgress, MhtmlParseResult, MhtmlParseOptions } from './mhtml-streaming';
+
 // JSON parsing utilities
 export { 
   parseJsonFromNoframes,

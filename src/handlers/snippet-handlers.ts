@@ -74,7 +74,8 @@ export async function handleESnippetOrganicTextFallback(context: HandlerContext)
 }
 
 /**
- * ESnippet: если #OrganicHost пустой, извлекаем домен из #FaviconImage
+ * ESnippet: применяет #OrganicHost к слою Path
+ * Если хост пустой — пытается извлечь из #FaviconImage
  */
 export async function handleESnippetOrganicHostFromFavicon(context: HandlerContext): Promise<void> {
   const { container, row } = context;
@@ -84,12 +85,7 @@ export async function handleESnippetOrganicHostFromFavicon(context: HandlerConte
   const isESnippetContainer = containerName === 'ESnippet' || containerName === 'Snippet';
   if (!isESnippetContainer) return;
 
-  const existing = (row['#OrganicHost'] || '').trim();
-  if (existing) return;
-
-  const fav = (row['#FaviconImage'] || '').trim();
-  if (!fav) return;
-
+  // Функция извлечения хоста из Yandex Favicon URL
   function hostFromFaviconUrl(url: string): string {
     try {
       const s = String(url || '');
@@ -109,30 +105,43 @@ export async function handleESnippetOrganicHostFromFavicon(context: HandlerConte
       hostname = String(hostname || '').trim();
       if (!hostname) return '';
       if (hostname.length > 80) hostname = hostname.substring(0, 80);
-      return hostname;
+      return hostname.replace(/^www\./, '');
     } catch (e) {
       return '';
     }
   }
 
-  const host = hostFromFaviconUrl(fav);
+  // Определяем хост: сначала из row, потом fallback из FaviconImage
+  let host = (row['#OrganicHost'] || '').trim();
+  
+  if (!host) {
+    const fav = (row['#FaviconImage'] || '').trim();
+    if (fav) {
+      host = hostFromFaviconUrl(fav);
+      if (host) {
+        row['#OrganicHost'] = host;
+        Logger.debug(`   🔧 [ESnippet] OrganicHost извлечён из FaviconImage: "${host}"`);
+      }
+    }
+  }
+  
   if (!host) return;
 
-  row['#OrganicHost'] = host;
-
-  // Try to set host visually in Path block
+  // Применяем хост к текстовому слою в блоке Path
   const pathBlock =
     findFirstNodeByName(container, 'Block / Snippet-staff / Path') ||
     findFirstNodeByName(container, 'Path');
   if (pathBlock) {
+    // Ищем первый текстовый слой с паттерном домена (например "yandex.ru", "example.com")
     const hostNode = findFirstTextByPredicate(pathBlock, (t) => {
       const s = (t.characters || '').trim();
       if (!s) return false;
+      // Проверяем что текст похож на домен
       return /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(s);
     });
     if (hostNode) {
       await safeSetTextNode(hostNode, host);
-      Logger.debug(`   🌐 [ESnippet] OrganicHost from favicon applied: "${host}"`);
+      Logger.debug(`   🌐 [ESnippet] OrganicHost applied to Path: "${host}"`);
     }
   }
 }
@@ -159,14 +168,30 @@ export async function handleShopInfoUgcAndEReviewsShopText(context: HandlerConte
   
   const ratingRaw = (row['#ShopInfo-Ugc'] || '').trim();
   const reviewsTextRaw = (row['#EReviews_shopText'] || '').trim();
+  const ratingDisplay = formatRatingOneDecimal(ratingRaw);
+  
+  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const hasRating = !!ratingDisplay;
+  
+  // EShopItem: скрываем EShopItemMeta-UgcLine если нет рейтинга
+  if (containerName === 'EShopItem') {
+    const ugcLine = findFirstNodeByName(container, 'EShopItemMeta-UgcLine');
+    if (ugcLine && 'visible' in ugcLine) {
+      try {
+        (ugcLine as SceneNode).visible = hasRating;
+        Logger.debug(`   ⭐ [EShopItemMeta-UgcLine] visible=${hasRating} (rating=${ratingDisplay || 'empty'})`);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
 
   // Управляем видимостью EReviewsLabel
   const reviewsLabelGroup = findFirstNodeByName(container, 'EReviewsLabel');
-  const ratingDisplay = formatRatingOneDecimal(ratingRaw);
   if (reviewsLabelGroup) {
     try {
-      (reviewsLabelGroup as SceneNode).visible = !!ratingDisplay;
-      Logger.debug(`   ⭐ [ShopInfo-Ugc] EReviewsLabel.visible=${!!ratingDisplay}`);
+      (reviewsLabelGroup as SceneNode).visible = hasRating;
+      Logger.debug(`   ⭐ [ShopInfo-Ugc] EReviewsLabel.visible=${hasRating}`);
     } catch (e) {
       // ignore
     }
@@ -317,6 +342,67 @@ export function handleEOfferItem(context: HandlerContext): void {
     if (!deliverySet) deliverySet = processVariantProperty(instance, `hasDelivery=${hasDelivery}`, '#EOfferItem_hasDelivery');
     
     Logger.debug(`   📦 [EOfferItem] Модификаторы: defaultOffer=${isDefaultOffer}, button=${hasButton}, reviews=${hasReviews}, delivery=${hasDelivery}`);
+  }
+}
+
+/**
+ * Обработка ShopOfflineRegion — адрес магазина (#addressText, #addressLink)
+ * Скрывает блок Address если данных нет
+ */
+export async function handleShopOfflineRegion(context: HandlerContext): Promise<void> {
+  const { container, row } = context;
+  if (!container || !row) return;
+
+  const hasShopOfflineRegion = row['#hasShopOfflineRegion'] === 'true';
+  const addressText = (row['#addressText'] || '').trim();
+  const addressLink = (row['#addressLink'] || '').trim();
+  
+  // Ищем контейнер Address в разных вариантах именования
+  const addressContainerNames = ['Address', 'ShopOfflineRegion', 'AddressBlock', 'Geo'];
+  let addressContainer: SceneNode | null = null;
+  
+  for (const name of addressContainerNames) {
+    const found = findFirstNodeByName(container, name);
+    if (found && 'visible' in found) {
+      addressContainer = found as SceneNode;
+      break;
+    }
+  }
+  
+  // Если нет данных — скрываем контейнер
+  if (!hasShopOfflineRegion || (!addressText && !addressLink)) {
+    if (addressContainer && 'visible' in addressContainer) {
+      try {
+        addressContainer.visible = false;
+        Logger.debug(`   📍 [ShopOfflineRegion] Скрыт (нет данных)`);
+      } catch (e) { /* ignore */ }
+    }
+    return;
+  }
+  
+  // Показываем контейнер
+  if (addressContainer && 'visible' in addressContainer) {
+    try {
+      addressContainer.visible = true;
+    } catch (e) { /* ignore */ }
+  }
+  
+  // Применяем #addressText
+  if (addressText) {
+    const addressTextNode = findTextLayerByName(container, '#addressText');
+    if (addressTextNode) {
+      await safeSetTextNode(addressTextNode, addressText);
+      Logger.debug(`   📍 [ShopOfflineRegion] addressText: "${addressText}"`);
+    }
+  }
+  
+  // Применяем #addressLink
+  if (addressLink) {
+    const addressLinkNode = findTextLayerByName(container, '#addressLink');
+    if (addressLinkNode) {
+      await safeSetTextNode(addressLinkNode, addressLink);
+      Logger.debug(`   📍 [ShopOfflineRegion] addressLink: "${addressLink}"`);
+    }
   }
 }
 

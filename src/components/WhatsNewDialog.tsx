@@ -1,5 +1,5 @@
 import React from 'react';
-import { CHANGELOG, ChangelogEntry } from '../config';
+import { CHANGELOG, ChangelogEntry, LIBRARY_UPDATE_NOTICE } from '../config';
 
 interface WhatsNewDialogProps {
   currentVersion: string;
@@ -12,6 +12,7 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({
 }) => {
   // Показываем только последние 3 версии
   const recentChanges = CHANGELOG.slice(0, 3);
+  const showLibraryNotice = LIBRARY_UPDATE_NOTICE.show;
 
   const getTypeIcon = (type: ChangelogEntry['type']): string => {
     switch (type) {
@@ -62,6 +63,16 @@ export const WhatsNewDialog: React.FC<WhatsNewDialogProps> = ({
             ×
           </button>
         </div>
+
+        {/* Library Update Notice */}
+        {showLibraryNotice && (
+          <div className="whats-new-library-notice">
+            <div className="whats-new-library-notice-icon">⚠️</div>
+            <div className="whats-new-library-notice-text">
+              <strong>Важно:</strong> {LIBRARY_UPDATE_NOTICE.message}
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <div className="whats-new-content">

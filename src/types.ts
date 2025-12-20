@@ -1,9 +1,21 @@
 // Common types shared between UI and Code
 import type { ParsingSchema } from './parsing-rules';
+import type { CSVRow as CSVRowType } from './types/csv-fields';
 
-export interface CSVRow {
-  [key: string]: string;
-}
+// CSVRow реэкспортируется из types/csv-fields.ts (типизированный)
+export type { CSVRow, CSVFields, StrictCSVRow, SnippetType } from './types/csv-fields';
+
+// Локальный alias для использования в этом файле
+type CSVRow = CSVRowType;
+export { REQUIRED_FIELDS, IMAGE_FIELDS, BOOLEAN_FIELDS, NUMERIC_FIELDS } from './types/csv-fields';
+
+// Реэкспорт маппинга
+export type { FieldMappingType, FieldMappingConfig, ComponentMappingGroup } from './types/field-mapping';
+export { FIELD_MAPPINGS, getMappingForComponent, getMappingsForField, getAllDataFields } from './types/field-mapping';
+
+// Реэкспорт валидации
+export type { ValidationResult, ValidationError, ValidationWarning } from './types/validation';
+export { validateRow, validateRows, hasRequiredFields, getMissingRequiredFields } from './types/validation';
 
 export interface LayerDataItem {
   layer: SceneNode;
@@ -58,6 +70,7 @@ export interface SheetData {
 export interface UserSettings {
   scope?: 'selection' | 'page';
   remoteConfigUrl?: string;
+  resetBeforeImport?: boolean;
 }
 
 export interface PluginSettings {
@@ -174,5 +187,5 @@ export type UIState = 'idle' | 'loading';
 export interface HandlerContext {
   container: BaseNode;
   containerKey: string;
-  row: { [key: string]: string } | null;
+  row: CSVRow | null;
 }

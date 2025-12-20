@@ -159,15 +159,20 @@ p { margin: 0; line-height: 1.5; }
   50% { opacity: 0.4; }
 }
 
-/* Navigation - Icon buttons */
+/* Navigation - Icon buttons (Figma UI3: hover border) */
 .app-nav {
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 2px;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
+  transition: border-color 0.15s ease;
+}
+
+.app-nav:hover {
+  border-color: var(--figma-color-border);
 }
 
 .app-nav-item {
@@ -231,11 +236,16 @@ p { margin: 0; line-height: 1.5; }
   border-radius: var(--radius-small);
 }
 
-/* Standalone segmented control (outside panel) */
+/* Standalone segmented control (outside panel) - hover border */
 .segmented-control:not(.scope-panel .segmented-control) {
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
   background-color: var(--figma-color-bg-secondary);
+  transition: border-color 0.15s ease;
+}
+
+.segmented-control:not(.scope-panel .segmented-control):hover {
+  border-color: var(--figma-color-border);
 }
 
 .segmented-option {
@@ -269,7 +279,7 @@ p { margin: 0; line-height: 1.5; }
 }
 
 /* ============================================
-   SCOPE PANEL - Unified control panel
+   SCOPE PANEL - Unified control panel (Figma UI3: minimal borders)
    ============================================ */
 .scope-panel {
   display: flex;
@@ -277,8 +287,13 @@ p { margin: 0; line-height: 1.5; }
   gap: 8px;
   padding: 8px;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
+  transition: border-color 0.15s ease;
+}
+
+.scope-panel:hover {
+  border-color: var(--figma-color-border);
 }
 
 /* Options row (checkbox + reset button) */
@@ -289,43 +304,110 @@ p { margin: 0; line-height: 1.5; }
   padding: 0 4px;
 }
 
-/* Inline checkbox style */
-.checkbox-inline {
+/* ============================================
+   TOGGLE / SWITCH - Figma UI3 style
+   ============================================ */
+.toggle-wrapper {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-secondary);
+  gap: 8px;
   cursor: pointer;
   user-select: none;
 }
 
-.checkbox-inline input[type="checkbox"] {
+.toggle-wrapper.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  outline: none;
+}
+
+.toggle.sm {
+  width: 28px;
+  height: 16px;
+}
+
+.toggle.md {
+  width: 36px;
+  height: 20px;
+}
+
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--figma-color-bg-tertiary);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+}
+
+.toggle:hover:not(.disabled) .toggle-track {
+  background: var(--figma-color-bg-hover);
+}
+
+.toggle.checked .toggle-track {
+  background: var(--figma-color-bg-brand);
+}
+
+.toggle.checked:hover:not(.disabled) .toggle-track {
+  background: var(--figma-color-bg-brand-hover);
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.toggle.sm .toggle-thumb {
   width: 12px;
   height: 12px;
-  margin: 0;
-  accent-color: var(--figma-color-bg-brand);
-  cursor: pointer;
 }
 
-.checkbox-inline input[type="checkbox"]:disabled {
-  opacity: 0.5;
+.toggle.md .toggle-thumb {
+  width: 16px;
+  height: 16px;
+}
+
+.toggle.sm.checked .toggle-thumb {
+  transform: translateX(12px);
+}
+
+.toggle.md.checked .toggle-thumb {
+  transform: translateX(16px);
+}
+
+.toggle:focus-visible .toggle-track {
+  box-shadow: 0 0 0 2px var(--figma-color-bg), 0 0 0 4px var(--figma-color-border-brand);
+}
+
+.toggle.disabled {
   cursor: not-allowed;
 }
 
-.checkbox-inline:has(input:disabled) {
-  opacity: 0.5;
-  cursor: not-allowed;
+.toggle-label {
+  font-size: var(--font-size-xs);
+  color: var(--figma-color-text-secondary);
+  font-weight: 500;
 }
 
-/* Small text button */
+/* Small text button - Figma UI3: no border by default, hover shows border */
 .btn-text-sm {
   padding: 4px 8px;
   font-size: var(--font-size-xs);
   font-weight: 500;
   font-family: inherit;
   background: transparent;
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-small);
   color: var(--figma-color-text-secondary);
   cursor: pointer;
@@ -336,7 +418,7 @@ p { margin: 0; line-height: 1.5; }
 .btn-text-sm:hover:not(:disabled) {
   background: var(--figma-color-bg-hover);
   color: var(--figma-color-text);
-  border-color: var(--figma-color-text-tertiary);
+  border-color: var(--figma-color-border);
 }
 
 .btn-text-sm:active:not(:disabled) {
@@ -377,7 +459,7 @@ p { margin: 0; line-height: 1.5; }
    ============================================ */
 .drop-zone {
   position: relative;
-  border: 1px dashed var(--figma-color-border);
+  border: 1px dashed transparent;
   border-radius: var(--radius-large);
   padding: 32px 20px;
   text-align: center;
@@ -399,6 +481,7 @@ p { margin: 0; line-height: 1.5; }
 }
 
 .drop-zone:hover:not(.disabled):not(.loading) {
+  border-style: dashed;
   border-color: var(--figma-color-border-brand);
   background: var(--figma-color-bg-selected);
 }
@@ -430,23 +513,6 @@ p { margin: 0; line-height: 1.5; }
   border-color: var(--figma-color-border);
   background: var(--figma-color-bg-secondary);
   cursor: wait;
-}
-
-/* Progress overlay */
-.drop-zone-progress-overlay {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background-color: var(--figma-color-bg-tertiary);
-  overflow: hidden;
-}
-
-.drop-zone-progress-bar {
-  height: 100%;
-  background: var(--figma-color-bg-brand);
-  transition: width 0.3s ease;
 }
 
 /* Fullscreen drop */
@@ -496,6 +562,17 @@ p { margin: 0; line-height: 1.5; }
 @keyframes bounce {
   0%, 100% { transform: translateY(-4px); }
   50% { transform: translateY(-8px); }
+}
+
+/* Loading icon pulse animation */
+.drop-icon.loading {
+  animation: iconPulse 1.5s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+@keyframes iconPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
 }
 
 .drop-zone-text {
@@ -564,15 +641,20 @@ p { margin: 0; line-height: 1.5; }
   }
 }
 
-/* Import Tip */
+/* Import Tip - Figma UI3: hover border */
 .import-tip {
   font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
   padding: 10px 12px;
   text-align: center;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
+  transition: border-color 0.15s ease;
+}
+
+.import-tip:hover {
+  border-color: var(--figma-color-border);
 }
 
 .import-tip strong {
@@ -581,62 +663,19 @@ p { margin: 0; line-height: 1.5; }
 }
 
 /* ============================================
-   ROTATING TIPS - What's New highlights
-   ============================================ */
-.rotating-tips {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
-  border-radius: var(--radius-medium);
-}
-
-.rotating-tips-icon {
-  flex-shrink: 0;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.rotating-tips-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.rotating-tips-content.fade-out {
-  opacity: 0;
-  transform: translateY(-3px);
-}
-
-.rotating-tips-content.fade-in {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.rotating-tips-text {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text);
-  line-height: 1.35;
-}
-
-.rotating-tips-version {
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-tertiary);
-}
-
-/* ============================================
-   THINKING STATUS - Processing indicator
+   THINKING STATUS - Processing indicator (Figma UI3: subtle border)
    ============================================ */
 .status-thinking {
   padding: 14px;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
   animation: slideUp 0.25s ease;
+  transition: border-color 0.15s ease;
+}
+
+.status-thinking:hover {
+  border-color: var(--figma-color-border);
 }
 
 .status-thinking-header {
@@ -751,42 +790,10 @@ p { margin: 0; line-height: 1.5; }
 
 /* Подсказка */
 .status-thinking-tip {
-  display: flex;
-  gap: 10px;
-  padding: 12px;
-  margin-top: 12px;
+  padding: 10px 12px;
+  margin-top: 10px;
   background: var(--figma-color-bg);
-  border: 1px solid var(--figma-color-border);
-  border-radius: var(--radius-medium);
-  border-left: 3px solid var(--figma-color-bg-brand);
-  animation: tipFadeIn 0.3s ease;
-}
-
-@keyframes tipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.status-thinking-tip-icon {
-  font-size: 18px;
-  line-height: 1;
-  flex-shrink: 0;
-  animation: tipPulse 2s ease-in-out infinite;
-}
-
-@keyframes tipPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
+  border-radius: var(--radius-small);
 }
 
 .status-thinking-tip-text {
@@ -794,84 +801,33 @@ p { margin: 0; line-height: 1.5; }
   color: var(--figma-color-text-secondary);
   line-height: 1.5;
   flex: 1;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-/* Recent Activity */
-.status-thinking-activity {
-  border-top: 1px solid var(--figma-color-border);
-  padding-top: 10px;
-  margin-top: 12px;
-}
-
-.status-thinking-activity-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.status-thinking-activity-icon {
-  font-size: 12px;
-  opacity: 0.7;
-}
-
-.status-thinking-activity-title {
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  color: var(--figma-color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.status-thinking-activity-count {
-  margin-left: auto;
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-tertiary);
-}
-
-.status-thinking-activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.status-thinking-activity-item {
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-secondary);
-  padding: 6px 10px;
-  background: var(--figma-color-bg);
-  border-radius: var(--radius-small);
-  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  line-height: 1.4;
+.status-thinking-tip-text.fade-out {
   opacity: 0;
-  transform: translateX(-8px);
-  animation: slideIn 0.2s ease forwards;
-  border-left: 2px solid transparent;
+  transform: translateY(-3px);
 }
 
-.status-thinking-activity-item.latest {
-  color: var(--figma-color-text);
-  border-left-color: var(--figma-color-bg-brand);
-}
-
-@keyframes slideIn {
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+.status-thinking-tip-text.fade-in {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* ============================================
-   COMPLETION STATUS - Success
+   COMPLETION STATUS - Success (Figma UI3: subtle border)
    ============================================ */
 .status-completion {
   padding: 14px;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
   animation: completionIn 0.3s ease;
+  transition: border-color 0.15s ease;
+}
+
+.status-completion:hover {
+  border-color: var(--figma-color-border);
 }
 
 @keyframes completionIn {
@@ -1645,14 +1601,16 @@ button:disabled {
   padding: 6px 10px;
   font-size: var(--font-size-sm);
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-small);
   color: var(--figma-color-text-secondary);
+  transition: all 0.15s ease;
 }
 
 .logs-view-btn:hover:not(:disabled) {
   background: var(--figma-color-bg-hover);
   color: var(--figma-color-text);
+  border-color: var(--figma-color-border);
 }
 
 .logs-view-btn-danger:hover:not(:disabled) {
@@ -1665,8 +1623,13 @@ button:disabled {
   gap: 6px;
   padding: 10px;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
+  transition: border-color 0.15s ease;
+}
+
+.logs-view-filters:hover {
+  border-color: var(--figma-color-border);
 }
 
 .logs-view-filter-buttons {
@@ -1679,16 +1642,18 @@ button:disabled {
   padding: 4px 10px;
   font-size: var(--font-size-sm);
   background: var(--figma-color-bg);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-small);
   color: var(--figma-color-text-secondary);
   display: flex;
   align-items: center;
   gap: 4px;
+  transition: all 0.15s ease;
 }
 
-.logs-filter-btn:hover:not(:disabled) {
+.logs-filter-btn:hover:not(:disabled):not(.active) {
   color: var(--figma-color-text);
+  border-color: var(--figma-color-border);
 }
 
 .logs-filter-btn.active {
@@ -1710,11 +1675,16 @@ button:disabled {
 .logs-view-content {
   flex: 1;
   background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-medium);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  transition: border-color 0.15s ease;
+}
+
+.logs-view-content:hover {
+  border-color: var(--figma-color-border);
 }
 
 .logs-view-entries {
@@ -2104,6 +2074,34 @@ button:disabled {
   color: var(--figma-color-text);
 }
 
+/* Library Update Notice */
+.whats-new-library-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  margin: 0;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(255, 152, 0, 0.1) 100%);
+  border-bottom: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.whats-new-library-notice-icon {
+  font-size: 18px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.whats-new-library-notice-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--figma-color-text);
+}
+
+.whats-new-library-notice-text strong {
+  color: var(--figma-color-text);
+  font-weight: 600;
+}
+
 /* Content */
 .whats-new-content {
   flex: 1;
@@ -2262,4 +2260,88 @@ button:disabled {
   height: 16px;
   background: var(--figma-color-border);
   margin: 0 4px;
+}
+
+/* ============================================
+   CONFIRM DIALOG - No selection confirmation
+   ============================================ */
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.confirm-dialog {
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-large);
+  padding: 20px;
+  max-width: 300px;
+  width: calc(100% - 24px);
+  box-shadow: var(--shadow-lg);
+  animation: dialogIn 0.25s ease;
+  text-align: center;
+}
+
+.confirm-dialog-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  line-height: 1;
+}
+
+.confirm-dialog-header {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--figma-color-text);
+}
+
+.confirm-dialog-content {
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.confirm-dialog-btn {
+  padding: 8px 16px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex: 1;
+}
+
+.confirm-dialog-btn-primary {
+  background: var(--figma-color-bg-brand);
+  color: var(--figma-color-text-onbrand);
+  border: none;
+}
+
+.confirm-dialog-btn-primary:hover {
+  background: var(--figma-color-bg-brand-hover);
+}
+
+.confirm-dialog-btn-secondary {
+  background: transparent;
+  color: var(--figma-color-text-secondary);
+  border: 1px solid var(--figma-color-border);
+}
+
+.confirm-dialog-btn-secondary:hover {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-text);
 }

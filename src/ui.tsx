@@ -5,7 +5,9 @@ import {
   applyFigmaTheme, 
   sendMessageToPlugin, 
   parseYandexSearchResults,
-  parseMhtmlFile
+  parseMhtmlFile,
+  parseMhtmlStreamingAsync,
+  MhtmlParseProgress
 } from './utils/index';
 import { usePluginMessages, PluginMessageHandlers } from './hooks';
 
@@ -14,12 +16,12 @@ import { Header } from './components/Header';
 import { ScopeControl } from './components/ScopeControl';
 import { DropZone } from './components/DropZone';
 import { WhatsNewDialog } from './components/WhatsNewDialog';
+import { NoSelectionDialog } from './components/NoSelectionDialog';
 import { LazyTab } from './components/LazyTab';
 // Import tab components
 import { LiveProgressView } from './components/import/LiveProgressView';
 import { CompletionCard } from './components/import/CompletionCard';
 import { ErrorCard } from './components/import/ErrorCard';
-import { RotatingTips } from './components/import/RotatingTips';
 // Logs view
 import { LogsView } from './components/logs/LogsView';
 
@@ -78,8 +80,14 @@ const App: React.FC = () => {
   } | null>(null);
   
   // Reset snippets options
-  const [resetBeforeImport, setResetBeforeImport] = useState(true);
+  const [resetBeforeImport, setResetBeforeImport] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  
+  // Pending files waiting for confirmation (when scope='selection' but nothing selected)
+  const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
+  const [showNoSelectionDialog, setShowNoSelectionDialog] = useState(false);
+  // Ref for pending files (to avoid stale closure in callbacks)
+  const pendingFilesRef = useRef<FileList | null>(null);
   
   // Ref to track latest stats (for closure in message handler)
   const statsRef = useRef<ProcessingStats | null>(null);
@@ -159,6 +167,24 @@ const App: React.FC = () => {
   };
 
   const processFiles = async (files: FileList) => {
+    console.log('[DEBUG] processFiles called, scope:', scope, 'hasSelection:', hasSelection);
+    
+    // Check if scope is 'selection' but nothing is selected
+    if (scope === 'selection' && !hasSelection) {
+      console.log('[DEBUG] Showing no-selection dialog');
+      // Save files and show confirmation dialog
+      setPendingFiles(files);
+      pendingFilesRef.current = files;
+      setShowNoSelectionDialog(true);
+      return;
+    }
+    
+    // Process with current scope
+    await processFilesWithScope(files, scope);
+  };
+  
+  // Process files with a specific scope (used after confirmation dialog)
+  const processFilesWithScope = async (files: FileList, targetScope: 'selection' | 'page') => {
     // Clear last completion stats and errors when starting new processing
     setLastCompletionStats(null);
     setLastError(null);
@@ -202,11 +228,22 @@ const App: React.FC = () => {
       if (file.name.endsWith('.mhtml') || file.name.endsWith('.mht')) {
         addLog('📄 Обнаружен MHTML файл');
         const text = await file.text();
-        const htmlContent = parseMhtmlFile(text);
+        
+        // Streaming MHTML parser с прогрессом (Phase 8)
+        const mhtmlResult = await parseMhtmlStreamingAsync(text, {
+          onProgress: (p: MhtmlParseProgress) => {
+            if (p.stage !== 'done') {
+              addLog(`📦 MHTML: ${p.message} (${p.percent}%)`);
+            }
+          }
+        });
+        
+        const htmlContent = mhtmlResult.html;
         if (!htmlContent) throw new Error('Не удалось извлечь HTML из MHTML');
         
+        addLog(`✅ MHTML извлечён за ${mhtmlResult.stats.parseTimeMs.toFixed(0)}ms (${mhtmlResult.stats.partsScanned} частей)`);
         addLog('🔍 Парсинг HTML контента...');
-        const result = parseYandexSearchResults(htmlContent, text);
+        const result = parseYandexSearchResults(htmlContent, mhtmlResult.fullMhtml);
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
@@ -233,17 +270,17 @@ const App: React.FC = () => {
       setLastImportData({
         rows: rows,
         fileName: file.name,
-        scope: scope
+        scope: targetScope
       });
 
       if (resetBeforeImport) {
         addLog(`🔄 Сброс сниппетов перед импортом...`);
       }
-      addLog(`🚀 Отправка ${rows.length} строк в плагин...`);
+      addLog(`🚀 Отправка ${rows.length} строк в плагин (scope: ${targetScope})...`);
       sendMessageToPlugin({
         type: 'import-csv',
         rows: rows,
-        scope: scope,
+        scope: targetScope,
         resetBeforeImport: resetBeforeImport
       });
 
@@ -359,8 +396,11 @@ const App: React.FC = () => {
     onSettingsLoaded: (settings) => {
       if (settings.scope) {
         setScope(settings.scope);
-        console.log('Loaded settings:', settings);
       }
+      if (typeof settings.resetBeforeImport === 'boolean') {
+        setResetBeforeImport(settings.resetBeforeImport);
+      }
+      console.log('Loaded settings:', settings);
     },
     onRemoteUrlLoaded: (url) => {
       setRemoteUrl(url);
@@ -459,6 +499,14 @@ const App: React.FC = () => {
       settings: { scope: newScope }
     });
   };
+  
+  const handleResetBeforeImportChange = (value: boolean) => {
+    setResetBeforeImport(value);
+    sendMessageToPlugin({
+      type: 'save-settings',
+      settings: { resetBeforeImport: value }
+    });
+  };
 
   // View logs from completion
   const handleViewLogsFromCard = useCallback(() => {
@@ -527,6 +575,122 @@ const App: React.FC = () => {
       scope: scope
     });
   }, [scope, hasSelection, addLog]);
+  
+  // Handle "Apply to page" from no-selection dialog
+  const handleApplyToPage = useCallback(() => {
+    const files = pendingFilesRef.current;
+    setShowNoSelectionDialog(false);
+    setPendingFiles(null);
+    pendingFilesRef.current = null;
+    
+    if (files) {
+      // Process files with page scope - inline to avoid stale closure
+      (async () => {
+        // Clear last completion stats and errors when starting new processing
+        setLastCompletionStats(null);
+        setLastError(null);
+        statsRef.current = null;
+        
+        const startTime = Date.now();
+        setProcessingStartTime(startTime);
+        setProcessingTime(null);
+
+        setIsLoading(true);
+        setUiState('loading');
+        setProgress({ current: 0, total: 100, message: 'Чтение файла...' });
+        setStats(null);
+        setLogs([]);
+        addLog('📂 Начало обработки файла (применяем ко всей странице)...');
+
+        try {
+          const file = files[0];
+          setCurrentFileSize(file.size);
+
+          let rows: CSVRow[] = [];
+
+          if (file.name.endsWith('.mhtml') || file.name.endsWith('.mht')) {
+            addLog('📄 Обнаружен MHTML файл');
+            const text = await file.text();
+            
+            // Streaming MHTML parser с прогрессом (Phase 8)
+            const mhtmlResult = await parseMhtmlStreamingAsync(text, {
+              onProgress: (p: MhtmlParseProgress) => {
+                if (p.stage !== 'done') {
+                  addLog(`📦 MHTML: ${p.message} (${p.percent}%)`);
+                }
+              }
+            });
+            
+            const htmlContent = mhtmlResult.html;
+            if (!htmlContent) throw new Error('Не удалось извлечь HTML из MHTML');
+            
+            addLog(`✅ MHTML извлечён за ${mhtmlResult.stats.parseTimeMs.toFixed(0)}ms (${mhtmlResult.stats.partsScanned} частей)`);
+            addLog('🔍 Парсинг HTML контента...');
+            const result = parseYandexSearchResults(htmlContent, mhtmlResult.fullMhtml);
+            if (result.error) throw new Error(result.error);
+            
+            rows = result.rows;
+            addLog(`📋 Найдено ${rows.length} результатов в файле (начало обработки...)`);
+          } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
+            addLog('📄 Обнаружен HTML файл');
+            const text = await file.text();
+            
+            addLog('🔍 Парсинг HTML контента...');
+            const result = parseYandexSearchResults(text, text);
+            if (result.error) throw new Error(result.error);
+            
+            rows = result.rows;
+            addLog(`📋 Найдено ${rows.length} результатов в файле (начало обработки...)`);
+          } else {
+            throw new Error('Поддерживаются только HTML и MHTML файлы');
+          }
+
+          if (rows.length === 0) {
+            throw new Error('Не найдено данных для импорта');
+          }
+
+          // Save import data for "Repeat" feature
+          setLastImportData({
+            rows: rows,
+            fileName: file.name,
+            scope: 'page'
+          });
+
+          if (resetBeforeImport) {
+            addLog(`🔄 Сброс сниппетов перед импортом...`);
+          }
+          addLog(`🚀 Отправка ${rows.length} строк в плагин (scope: page)...`);
+          sendMessageToPlugin({
+            type: 'import-csv',
+            rows: rows,
+            scope: 'page',
+            resetBeforeImport: resetBeforeImport
+          });
+
+        } catch (error) {
+          console.error('File processing error:', error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          addLog(`❌ Ошибка: ${errorMessage}`);
+          
+          setLastError({
+            message: errorMessage,
+            details: error instanceof Error && error.stack ? error.stack.split('\n')[0] : undefined
+          });
+          
+          setIsLoading(false);
+          setUiState('idle');
+          setProgress(null);
+        }
+      })();
+    }
+  }, [addLog, resetBeforeImport]);
+  
+  // Handle cancel from no-selection dialog
+  const handleCancelNoSelection = useCallback(() => {
+    setShowNoSelectionDialog(false);
+    setPendingFiles(null);
+    pendingFilesRef.current = null;
+  }, []);
 
   // What's New handlers
   const handleOpenWhatsNew = useCallback(() => {
@@ -572,7 +736,9 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, uiState, isLoading, logs.length]);
 
-  const isDropZoneDisabled = (scope === 'selection' && !hasSelection) || isLoading || isResetting;
+  // DropZone is only disabled during loading/resetting
+  // When scope='selection' but nothing selected, we show a confirmation dialog instead of blocking
+  const isDropZoneDisabled = isLoading || isResetting;
 
   return (
     <>
@@ -593,7 +759,7 @@ const App: React.FC = () => {
             hasSelection={hasSelection} 
             onScopeChange={handleScopeChange}
             resetBeforeImport={resetBeforeImport}
-            onResetBeforeImportChange={setResetBeforeImport}
+            onResetBeforeImportChange={handleResetBeforeImportChange}
             onResetNow={handleResetNow}
             isLoading={isLoading}
             isResetting={isResetting}
@@ -615,12 +781,10 @@ const App: React.FC = () => {
 
           {/* Status area below DropZone */}
           <div className="status-area">
-            {/* Loading/Resetting status - GPT thinking style */}
+            {/* Loading/Resetting status */}
             {(isLoading || isResetting) && (
               <LiveProgressView
                 progress={progress}
-                recentLogs={logs}
-                currentOperation={progress?.message}
                 fileSize={currentFileSize || undefined}
               />
             )}
@@ -647,10 +811,6 @@ const App: React.FC = () => {
               />
             )}
 
-            {/* Ротирующиеся подсказки из What's New */}
-            {!isLoading && !isResetting && !lastError && !lastCompletionStats && (
-              <RotatingTips intervalMs={6000} />
-            )}
           </div>
         </>
       )}
@@ -668,6 +828,13 @@ const App: React.FC = () => {
         <WhatsNewDialog
           currentVersion={pluginVersion}
           onClose={handleCloseWhatsNew}
+        />
+      )}
+      
+      {showNoSelectionDialog && (
+        <NoSelectionDialog
+          onApplyToPage={handleApplyToPage}
+          onCancel={handleCancelNoSelection}
         />
       )}
     </>

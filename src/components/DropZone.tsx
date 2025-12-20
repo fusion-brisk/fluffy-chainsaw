@@ -25,13 +25,10 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
   disabled = false,
   fullscreen = false,
   isLoading = false,
-  progress,
+  progress: _progress, // unused now — progress shown in LiveProgressView
   dragFileName
 }) => {
   const isDisabled = disabled || isLoading;
-  const percentage = progress && progress.total > 0
-    ? Math.round((progress.current / progress.total) * 100)
-    : 0;
 
   const openFilePicker = () => {
     const input = document.getElementById('file-input') as HTMLInputElement | null;
@@ -60,22 +57,12 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
       aria-disabled={isDisabled}
       aria-label="Импортировать HTML или MHTML файл"
     >
-      {/* Progress bar overlay when loading */}
-      {isLoading && (
-        <div className="drop-zone-progress-overlay">
-          <div 
-            className="drop-zone-progress-bar" 
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-      )}
-
       {/* Modern upload icon */}
-      <UploadIcon className="drop-icon" />
+      <UploadIcon className={`drop-icon ${isLoading ? 'loading' : ''}`} />
       
       <div className="drop-zone-text">
         {isLoading
-          ? `${percentage}%`
+          ? 'Обработка...'
           : disabled
             ? 'Сначала выберите слои'
             : fullscreen

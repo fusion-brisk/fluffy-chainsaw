@@ -1,6 +1,6 @@
 {
   "name": "EProductSnippet",
-  "version": "1.0.0",
+  "version": "2.4.0",
   "description": "Your Figma Plugin",
   "main": "code.js",
   "scripts": {
@@ -9,7 +9,10 @@
     "build:code": "tsc src/code.ts --outDir dist --target es5 --moduleResolution node",
     "lint": "eslint --ext .ts,.tsx --ignore-pattern node_modules .",
     "lint:fix": "eslint --ext .ts,.tsx --ignore-pattern node_modules --fix .",
-    "dev": "npm run build:watch"
+    "dev": "npm run build:watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "author": "",
   "license": "",
@@ -38,7 +41,8 @@
     "jsdom": "^27.2.0",
     "rollup": "^4.0.0",
     "tslib": "^2.8.1",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "vitest": "^4.0.16"
   },
   "eslintConfig": {
     "extends": [
