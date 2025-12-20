@@ -1,23 +1,18 @@
-import React, { useEffect, useState, useRef, memo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, memo } from 'react';
 import { ProgressData } from '../../types';
-import { PROCESSING_TIPS, STAGE_LABELS } from '../../config';
+import { STAGE_LABELS, CHANGELOG } from '../../config';
 
 interface LiveProgressViewProps {
   progress: ProgressData | null;
-  recentLogs: string[];
-  currentOperation?: string;
   fileSize?: number;
 }
 
 export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
   progress,
-  recentLogs,
-  currentOperation,
   fileSize
 }) => {
-  const [visibleLogs, setVisibleLogs] = useState<string[]>([]);
   const [currentTipIndex, setCurrentTipIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isAnimating, setIsAnimating] = useState(false);
   const tipIntervalRef = useRef<number | null>(null);
 
   // Format file size for display
@@ -33,57 +28,54 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
     return STAGE_LABELS[operationType] || STAGE_LABELS.default;
   };
 
-  // Get the last 5 meaningful log entries (strip timestamp)
-  const getRecentActivities = (): string[] => {
-    return recentLogs
-      .slice(-5)
-      .map(log => log.replace(/^\[\d{1,2}:\d{2}:\d{2}( [AP]M)?\]\s*/, ''));
-  };
+  // Collect What's New highlights from last 3 versions
+  const whatsNewTips = useMemo(() => {
+    const tips: string[] = [];
+    CHANGELOG.slice(0, 3).forEach(entry => {
+      entry.highlights.forEach(highlight => {
+        tips.push(highlight);
+      });
+    });
+    return tips.length > 0 ? tips : ['Плагин обрабатывает данные...'];
+  }, []);
 
-  // Update visible logs with animation
+  // Rotate tips every 5 seconds with fade animation
   useEffect(() => {
-    const activities = getRecentActivities();
-    setVisibleLogs(activities);
-  }, [recentLogs]);
+    if (whatsNewTips.length <= 1) return;
 
-  // Циклическая смена подсказок каждые 20 секунд
-  useEffect(() => {
-    // Сбрасываем индекс при начале новой обработки
-    setCurrentTipIndex(0);
-    
-    // Устанавливаем интервал для смены подсказок
     tipIntervalRef.current = setInterval(() => {
-      setCurrentTipIndex((prev) => (prev + 1) % PROCESSING_TIPS.length);
-    }, 20000); // 20 секунд
+      setIsAnimating(true);
+      setTimeout(() => {
+        setCurrentTipIndex((prev) => (prev + 1) % whatsNewTips.length);
+        setIsAnimating(false);
+      }, 200);
+    }, 5000);
 
     return () => {
       if (tipIntervalRef.current) {
         clearInterval(tipIntervalRef.current);
       }
     };
-  }, [progress?.operationType]); // Перезапускаем при смене этапа
+  }, [whatsNewTips.length]);
 
   const percentage = progress && progress.total > 0
     ? Math.round((progress.current / progress.total) * 100)
     : 0;
 
+  const stageLabel = progress?.operationType 
+    ? getStageLabel(progress.operationType) 
+    : 'Обработка...';
+
   return (
-    <div className="status-thinking" ref={containerRef}>
-      {/* Header with progress info */}
+    <div className="status-thinking">
+      {/* Header: stage + progress */}
       <div className="status-thinking-header">
         <div className="status-thinking-indicator">
           <span className="status-thinking-dot"></span>
           <span className="status-thinking-dot"></span>
           <span className="status-thinking-dot"></span>
         </div>
-        <div className="status-thinking-label-group">
-          <span className="status-thinking-stage">
-            {progress?.operationType ? getStageLabel(progress.operationType) : 'Обработка...'}
-          </span>
-          <span className="status-thinking-label">
-            {currentOperation || progress?.message || 'Обработка...'}
-          </span>
-        </div>
+        <span className="status-thinking-stage">{stageLabel}</span>
         <span className="status-thinking-meta">
           {percentage}%{fileSize ? ` • ${formatFileSize(fileSize)}` : ''}
         </span>
@@ -95,36 +87,15 @@ export const LiveProgressView: React.FC<LiveProgressViewProps> = memo(({
           className="status-thinking-progress-fill"
           style={{ width: `${percentage}%` }}
         />
-        {/* Animated shimmer effect when progress is slow */}
         {percentage < 100 && (
           <div className="status-thinking-progress-shimmer" />
         )}
       </div>
 
-      {/* Подсказка */}
+      {/* What's New tip */}
       <div className="status-thinking-tip">
-        <div className="status-thinking-tip-icon">💡</div>
-        <div className="status-thinking-tip-text">
-          {PROCESSING_TIPS[currentTipIndex]}
-        </div>
-      </div>
-
-      {/* Последние действия */}
-      <div className="status-thinking-activity">
-        <div className="status-thinking-activity-header">
-          <span className="status-thinking-activity-title">Активность</span>
-          <span className="status-thinking-activity-count">{visibleLogs.length}</span>
-        </div>
-        <div className="status-thinking-activity-list">
-          {visibleLogs.map((log, index) => (
-            <div 
-              key={`${index}-${log.substring(0, 20)}`}
-              className={`status-thinking-activity-item ${index === visibleLogs.length - 1 ? 'latest' : ''} fade-in`}
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              {log}
-            </div>
-          ))}
+        <div className={`status-thinking-tip-text ${isAnimating ? 'fade-out' : 'fade-in'}`}>
+          ✨ {whatsNewTips[currentTipIndex]}
         </div>
       </div>
     </div>

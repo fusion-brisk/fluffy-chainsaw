@@ -160,30 +160,65 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
       jsonKeys: ['discount', 'discountPercent'],
       type: 'text'
     },
+    // #ShopRating — рейтинг магазина (legacy поле, используется редко)
     '#ShopRating': {
       domSelectors: [
-        // EShopItem — рейтинг магазина в формате одной звезды (приоритет)
-        // ВАЖНО: извлекаем .Line-AddonContent для чистого числа (не "Рейтинг: X из 5")
-        '.EShopItemMeta-UgcLine .RatingOneStar .Line-AddonContent',
-        '.EShopItemMeta-ReviewsContainer .RatingOneStar .Line-AddonContent',
-        '[class*="EShopItemMeta"] .RatingOneStar .Line-AddonContent',
-        // Organic_withOfferInfo — рейтинг магазина в RatingOneStar
-        '.ShopInfo-Ugc .RatingOneStar .Line-AddonContent',
-        '[class*="ShopInfo"] .RatingOneStar .Line-AddonContent',
-        '.OrganicUgcReviews .RatingOneStar .Line-AddonContent',
-        '[class*="OrganicUgcReviews"] .RatingOneStar .Line-AddonContent',
-        // Общий RatingOneStar — извлекаем .Line-AddonContent
+        // Fallback — извлекаем первое встретившееся значение
         '.RatingOneStar .Line-AddonContent',
         '[class*="RatingOneStar"] .Line-AddonContent',
-        // Fallback на весь RatingOneStar (если нет Line-AddonContent)
         '.RatingOneStar',
-        '[class*="RatingOneStar"]',
-        // Общий fallback
-        '.Rating',
-        '[class*="Rating"]',
         '[aria-label*="рейтинг" i]'
       ],
       jsonKeys: ['rating', 'stars'],
+      type: 'text'
+    },
+    // #ShopInfo-Ugc — рейтинг магазина (основное поле для Figma слоя #ShopInfo-Ugc)
+    // Парсится из разных контейнеров в порядке приоритета
+    '#ShopInfo-Ugc': {
+      domSelectors: [
+        // OrganicUgcReviews — рейтинг магазина в блоке отзывов
+        '.OrganicUgcReviews-RatingContainer .RatingOneStar .Line-AddonContent',
+        '.OrganicUgcReviews .RatingOneStar .Line-AddonContent',
+        '[class*="OrganicUgcReviews"] .RatingOneStar .Line-AddonContent',
+        // EReviewsLabel — рейтинг в кнопке отзывов
+        '.EReviewsLabel-Rating .Line-AddonContent',
+        '.EReviewsLabel .RatingOneStar .Line-AddonContent',
+        '[class*="EReviewsLabel"] .RatingOneStar .Line-AddonContent',
+        // EShopItemMeta — рейтинг в метаданных магазина
+        '.EShopItemMeta-UgcLine .RatingOneStar .Line-AddonContent',
+        '.EShopItemMeta-ReviewsContainer .RatingOneStar .Line-AddonContent',
+        '[class*="EShopItemMeta"] .RatingOneStar .Line-AddonContent',
+        // ShopInfo-Ugc — рейтинг в блоке информации о магазине
+        '.ShopInfo-Ugc .RatingOneStar .Line-AddonContent',
+        '[class*="ShopInfo-Ugc"] .RatingOneStar .Line-AddonContent',
+        // Fallback — любой RatingOneStar (но НЕ ELabelRating — это рейтинг товара!)
+        '.RatingOneStar .Line-AddonContent',
+        '[class*="RatingOneStar"] .Line-AddonContent'
+      ],
+      jsonKeys: ['shopRating', 'storeRating'],
+      type: 'text'
+    },
+    // #EReviews_shopText — текст отзывов магазина ("62,8K отзывов на магазин")
+    '#EReviews_shopText': {
+      domSelectors: [
+        // OrganicUgcReviews-Text — полный формат с "на магазин"
+        '.OrganicUgcReviews-Text',
+        '[class*="OrganicUgcReviews-Text"]',
+        // EReviewsLabel-Text — кнопка с отзывами
+        '.EReviewsLabel-Text',
+        '.EReviewsLabel .EReviews',
+        '[class*="EReviewsLabel-Text"]',
+        // EShopItemMeta-Reviews — метаданные магазина
+        '.EShopItemMeta-Reviews .Line-AddonContent',
+        '[class*="EShopItemMeta-Reviews"] .Line-AddonContent',
+        '.EShopItemMeta-Reviews',
+        // Legacy fallback
+        '.EReviews_shopText',
+        '.EReviews-ShopText',
+        '[class*="EReviews_shopText"]',
+        '[class*="EReviews-ShopText"]'
+      ],
+      jsonKeys: ['shopReviews', 'reviewsText'],
       type: 'text'
     },
     '#ReviewsNumber': {
@@ -395,17 +430,17 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
         type: 'text'
     },
     // Quote - цитата из отзыва (ESnippet)
+    // ВАЖНО: НЕ используем OrganicUgcReviews-Text — это количество отзывов, не цитата!
     'Quote': {
         domSelectors: [
-          // Organic сниппет — текст отзывов в EReviews
-          '.OrganicUgcReviews .EReviews',
-          '[class*="OrganicUgcReviews"] .EReviews',
-          '.OrganicUgcReviews-Text',
-          '[class*="OrganicUgcReviews-Text"]',
+          // EQuote — контейнер цитаты
           '.EQuote',
+          '.OrganicUgcReviews-QuoteWrapper',
           '[class*="EQuote"]',
-          '.OrganicUgcReviews',
-          '[class*="OrganicUgcReviews"]'
+          '[class*="OrganicUgcReviews-QuoteWrapper"]',
+          // Текст внутри цитаты
+          '.EQuote-Text',
+          '[class*="EQuote-Text"]'
         ],
         jsonKeys: ['quote', 'review'],
         type: 'text'
@@ -517,12 +552,35 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     'EQuote': {
         domSelectors: [
           '.EQuote',
+          '.OrganicUgcReviews-QuoteWrapper',
           '[class*="EQuote"]',
-          '.OrganicUgcReviews-QuoteWrapper'
+          '[class*="OrganicUgcReviews-QuoteWrapper"]'
         ],
         jsonKeys: [],
         type: 'boolean'
     },
+    // #EQuote-Text — текст цитаты ("«Отличный магазин...»")
+    '#EQuote-Text': {
+        domSelectors: [
+          '.EQuote-Text',
+          '[class*="EQuote-Text"]'
+        ],
+        jsonKeys: ['quoteText'],
+        type: 'text'
+    },
+    // #EQuote-AuthorAvatar — аватар автора цитаты (предпочтительно retina из srcset)
+    '#EQuote-AuthorAvatar': {
+        domSelectors: [
+          '.EQuote-AuthorAvatar',
+          '[class*="EQuote-AuthorAvatar"]',
+          '.EQuote-AvatarWrapper img',
+          '[class*="EQuote-AvatarWrapper"] img'
+        ],
+        jsonKeys: [],
+        type: 'image',
+        domAttribute: 'srcset'  // Предпочитаем srcset для retina
+    },
+    // Legacy aliases
     'EQuote_Text': {
         domSelectors: [
           '.EQuote-Text',
@@ -533,8 +591,8 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     },
     'EQuote_Avatar': {
         domSelectors: [
-          '.EQuote-AuthorAvatar img',
-          '[class*="EQuote-AuthorAvatar"] img',
+          '.EQuote-AuthorAvatar',
+          '[class*="EQuote-AuthorAvatar"]',
           '.EQuote-AvatarWrapper img'
         ],
         jsonKeys: [],

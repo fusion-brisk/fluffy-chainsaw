@@ -18,10 +18,18 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   const { container, row } = context;
   if (!container || !row) return;
 
+  const containerName = (container && 'name' in container) ? String(container.name) : 'unknown';
   const config = COMPONENT_CONFIG.EPriceGroup;
   const ePriceGroupInstance = findInstanceByName(container, config.name);
   
-  if (!ePriceGroupInstance) return;
+  if (!ePriceGroupInstance) {
+    console.log(`⚠️ [EPriceGroup] Не найден в контейнере "${containerName}"`);
+    return;
+  }
+  
+  const hasFintechData = row['#EPriceGroup_Fintech'] === 'true';
+  const fintechTypeData = row['#Fintech_Type'] || 'N/A';
+  console.log(`✅ [EPriceGroup] Найден в "${containerName}", Fintech=${hasFintechData}, type="${fintechTypeData}"`);
   
   Logger.debug(`      ✅ Найден инстанс "${config.name}"`);
   
@@ -364,52 +372,114 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   const ePriceGroupForFintech = freshEPriceGroupAfterFintech || activeEPriceGroup;
   Logger.debug(`🔄 [EPriceGroup] После Fintech: ${freshEPriceGroupAfterFintech ? 'найден свежий' : 'используем старый'}`);
   
-  if (hasFintech) {
-    let fintechInstance = findInstanceByName(ePriceGroupForFintech, 'Fintech') ||
-                          findInstanceByName(ePriceGroupForFintech, 'MetaFintech') ||
-                          findInstanceByName(ePriceGroupForFintech, 'Meta / Fintech') ||
-                          findInstanceByName(ePriceGroupForFintech, 'Meta / Fintech ');
-    
-    if (!fintechInstance) {
-      fintechInstance = findInstanceByName(container, 'Fintech') ||
-                        findInstanceByName(container, 'MetaFintech') ||
-                        findInstanceByName(container, 'Meta / Fintech') ||
-                        findInstanceByName(container, 'Meta / Fintech ');
+  // Ищем Fintech instance (разные варианты имён)
+  const fintechNames = ['Meta / Fintech', 'Meta/Fintech', 'MetaFintech', 'Fintech', 'Meta / Fintech '];
+  let fintechInstance: InstanceNode | null = null;
+  
+  for (const name of fintechNames) {
+    fintechInstance = findInstanceByName(ePriceGroupForFintech, name);
+    if (fintechInstance) {
+      Logger.debug(`      💳 Найден Fintech в EPriceGroup: "${name}"`);
+      break;
+    }
+  }
+  
+  if (!fintechInstance) {
+    for (const name of fintechNames) {
+      fintechInstance = findInstanceByName(container, name);
+      if (fintechInstance) {
+        Logger.debug(`      💳 Найден Fintech в container: "${name}"`);
+        break;
+      }
+    }
+  }
+  
+  if (fintechInstance) {
+    // Управляем видимостью Fintech wrapper — скрываем если нет данных
+    try {
+      fintechInstance.visible = hasFintech;
+      Logger.debug(`      💳 Fintech wrapper visible=${hasFintech}`);
+    } catch (e) {
+      Logger.error(`      ❌ Fintech visible error:`, e);
     }
     
-    if (fintechInstance) {
-      Logger.debug(`      💳 Найден Fintech: "${fintechInstance.name}"`);
+    if (hasFintech) {
+      console.log(`💳 [Fintech] Найден wrapper: "${fintechInstance.name}"`);
+      
+      // Wrapper может называться "Meta / Fintech ", а внутри него — "MetaFintech" с variant properties
+      // Ищем MetaFintech внутри wrapper'а
+      let metaFintechInstance: InstanceNode | null = null;
+      const innerFintechNames = ['MetaFintech', 'Meta Fintech', 'Fintech'];
+      
+      for (const innerName of innerFintechNames) {
+        metaFintechInstance = findInstanceByName(fintechInstance, innerName);
+        if (metaFintechInstance) {
+          console.log(`💳 [Fintech] Найден MetaFintech внутри wrapper: "${innerName}"`);
+          break;
+        }
+      }
+      
+      // Если не нашли вложенный, используем сам wrapper (на случай если это и есть MetaFintech)
+      const targetInstance = metaFintechInstance || fintechInstance;
+      console.log(`💳 [Fintech] Целевой instance: "${targetInstance.name}"`);
+      
+      // Логируем доступные свойства целевого instance
+      if (targetInstance.componentProperties) {
+        const props = targetInstance.componentProperties;
+        for (const key in props) {
+          const prop = props[key];
+          if (prop && typeof prop === 'object' && 'type' in prop && prop.type === 'VARIANT') {
+            const options = 'options' in prop ? (prop.options as string[]) : [];
+            console.log(`💳 [Fintech] Свойство "${key}": опции=[${options.join(', ')}]`);
+          }
+        }
+      }
     
       const fintechType = row['#Fintech_Type'];
-      Logger.debug(`      💳 Fintech_Type: "${fintechType || 'не задан'}"`);
+      console.log(`💳 [Fintech] #Fintech_Type из данных: "${fintechType || 'не задан'}"`);
       
       if (fintechType) {
-        let typeSet = processVariantProperty(fintechInstance, `type=${fintechType}`, '#Fintech_Type');
-        if (!typeSet) typeSet = processVariantProperty(fintechInstance, `Type=${fintechType}`, '#Fintech_Type');
-        if (!typeSet) processStringProperty(fintechInstance, 'type', fintechType, '#Fintech_Type');
+        console.log(`💳 [Fintech] Пробуем type=${fintechType}...`);
+        let typeSet = processVariantProperty(targetInstance, `type=${fintechType}`, '#Fintech_Type');
+        console.log(`💳 [Fintech] type=${fintechType} результат: ${typeSet}`);
+        if (!typeSet) {
+          console.log(`💳 [Fintech] Пробуем Type=${fintechType}...`);
+          typeSet = processVariantProperty(targetInstance, `Type=${fintechType}`, '#Fintech_Type');
+          console.log(`💳 [Fintech] Type=${fintechType} результат: ${typeSet}`);
+        }
+        if (!typeSet) {
+          console.log(`💳 [Fintech] Пробуем stringProperty...`);
+          processStringProperty(targetInstance, 'type', fintechType, '#Fintech_Type');
+        }
       }
       
       const fintechView = row['#Fintech_View'];
       if (fintechView) {
-        let viewSet = processVariantProperty(fintechInstance, `View=${fintechView}`, '#Fintech_View');
-        if (!viewSet) viewSet = processVariantProperty(fintechInstance, `view=${fintechView}`, '#Fintech_View');
-        if (!viewSet) processStringProperty(fintechInstance, 'View', fintechView, '#Fintech_View');
+        let viewSet = processVariantProperty(targetInstance, `View=${fintechView}`, '#Fintech_View');
+        if (!viewSet) viewSet = processVariantProperty(targetInstance, `view=${fintechView}`, '#Fintech_View');
+        if (!viewSet) processStringProperty(targetInstance, 'View', fintechView, '#Fintech_View');
       }
-    } else {
-      Logger.warn(`      ⚠️ Fintech instance not found`);
     }
+  } else if (!hasFintech) {
+    // Fintech не найден и не нужен — OK
+    Logger.debug(`      💳 Fintech не найден (и не нужен)`);
+  } else {
+    Logger.warn(`      ⚠️ Fintech instance not found (но данные есть)`);
   }
 }
 
 /**
- * Обработка EPrice view (special, default и др.)
+ * Обработка EPrice view (special, undefined и др.)
+ * ВАЖНО: Всегда устанавливаем view — либо special, либо undefined
+ * Это нужно чтобы сбросить предыдущее состояние компонента
  */
 export function handleEPriceView(context: HandlerContext): void {
   const { container, row } = context;
   if (!container || !row) return;
 
-  const priceView = row['#EPrice_View'];
-  if (!priceView) return;
+  // Определяем view: если есть #EPrice_View=special, используем его, иначе undefined
+  const explicitView = row['#EPrice_View'];
+  const priceView = explicitView === 'special' ? 'special' : 'undefined';
   
   const ePriceGroupInstance = findInstanceByName(container, 'EPriceGroup');
   let ePriceInstance: InstanceNode | null = null;
@@ -423,7 +493,7 @@ export function handleEPriceView(context: HandlerContext): void {
   }
   
   if (ePriceInstance) {
-    Logger.debug(`🔍 [EPrice View] Найден EPrice, устанавливаем view=${priceView}`);
+    Logger.debug(`🔍 [EPrice View] Найден EPrice, устанавливаем view=${priceView} (explicit: ${explicitView || 'none'})`);
     
     let viewSet = processVariantProperty(ePriceInstance, `view=${priceView}`, '#EPrice_View');
     if (!viewSet) viewSet = processVariantProperty(ePriceInstance, `View=${priceView}`, '#EPrice_View');

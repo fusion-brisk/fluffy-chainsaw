@@ -7,10 +7,18 @@
  * - snippet-handlers.ts — ESnippet fallbacks, ShopInfo, OfficialShop, EOfferItem
  * - delivery-handlers.ts — EDeliveryGroup, ShopInfoBnpl, ShopInfoDeliveryBnplContainer
  * - price-handlers.ts — EPriceGroup, EPrice, LabelDiscount
+ * - registry.ts — Handler Registry с приоритетами
+ * - field-fallbacks.ts — Декларативные fallback chains
  */
 
 // Re-export types
-export type { HandlerContext } from './handlers/types';
+export type { HandlerContext, HandlerResult, HandlerMetadata, RegisteredHandler } from './handlers/types';
+
+// Re-export registry
+export { handlerRegistry, HandlerPriority } from './handlers/registry';
+
+// Re-export field fallbacks
+export { applyFieldFallbacks, getValueWithFallback, FIELD_FALLBACKS } from './handlers/field-fallbacks';
 
 // Re-export from label-handlers
 export {

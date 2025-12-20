@@ -93,6 +93,7 @@ export async function processCSVRows(rows: CSVRow[]): Promise<CSVRow[]> {
       const imageUrl = row[imageField];
       console.log(`🖼️ Обрабатываем поле изображения "${imageField}": ${imageUrl}`);
       
+      if (!imageUrl) continue;
       const base64Data = await convertImageToBase64(imageUrl);
       if (base64Data) {
         processedRow[imageField + '_base64'] = base64Data;

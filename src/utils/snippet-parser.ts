@@ -118,6 +118,8 @@ export function extractRowData(
     '#FintechList': '',
     '#QuoteImage': '',
     '#QuoteText': '',
+    '#EQuote-Text': '',
+    '#EQuote-AuthorAvatar': '',
     '#Availability': '',
     '#PickupOptions': '',
     '#DeliveryETA': ''
@@ -638,26 +640,53 @@ export function extractRowData(
     if (match) row['#ShopRating'] = match[1];
   }
   
-  // #ShopInfo-Ugc — рейтинг магазина из блока ShopInfo-Ugc (например "4.8")
-  // Важно: это отдельное поле для маппинга в Figma слой "#ShopInfo-Ugc"
-  const shopInfoUgc = queryFirstMatch(cache, ['.ShopInfo-Ugc', '[class*="ShopInfo-Ugc"]']);
-  if (shopInfoUgc) {
-    let ugcText = '';
-    
-    // Приоритет: RatingOneStar .Line-AddonContent (чистое число)
-    const ugcAddon = shopInfoUgc.querySelector('.RatingOneStar .Line-AddonContent, [class*="RatingOneStar"] .Line-AddonContent');
-    if (ugcAddon) {
-      ugcText = getTextContent(ugcAddon);
-    } else {
-      ugcText = getTextContent(shopInfoUgc);
-    }
-    
-    ugcText = (ugcText || '').trim();
-    // Достаём первое число вида 4.8 / 4,8
+  // #ShopInfo-Ugc — рейтинг магазина (например "4.8")
+  // Парсим из разных контейнеров:
+  // 1. OrganicUgcReviews-RatingContainer → RatingOneStar → Line-AddonContent
+  // 2. EReviewsLabel (кнопка) → EReviewsLabel-Rating → Line-AddonContent
+  // 3. EShopItemMeta-UgcLine → RatingOneStar → Line-AddonContent
+  // 4. ShopInfo-Ugc (fallback)
+  
+  const shopRatingSelectors = [
+    // OrganicUgcReviews — рейтинг магазина в блоке отзывов
+    '.OrganicUgcReviews-RatingContainer .RatingOneStar .Line-AddonContent',
+    '.OrganicUgcReviews .RatingOneStar .Line-AddonContent',
+    '[class*="OrganicUgcReviews"] .RatingOneStar .Line-AddonContent',
+    // EReviewsLabel — рейтинг в кнопке отзывов
+    '.EReviewsLabel-Rating .Line-AddonContent',
+    '.EReviewsLabel .RatingOneStar .Line-AddonContent',
+    '[class*="EReviewsLabel"] .RatingOneStar .Line-AddonContent',
+    // EShopItemMeta — рейтинг в метаданных магазина
+    '.EShopItemMeta-UgcLine .RatingOneStar .Line-AddonContent',
+    '.EShopItemMeta-ReviewsContainer .RatingOneStar .Line-AddonContent',
+    '[class*="EShopItemMeta"] .RatingOneStar .Line-AddonContent',
+    // ShopInfo-Ugc — рейтинг в блоке информации о магазине
+    '.ShopInfo-Ugc .RatingOneStar .Line-AddonContent',
+    '[class*="ShopInfo-Ugc"] .RatingOneStar .Line-AddonContent',
+    // Fallback — любой RatingOneStar (но НЕ ELabelRating — это рейтинг товара!)
+    '.RatingOneStar .Line-AddonContent',
+    '[class*="RatingOneStar"] .Line-AddonContent'
+  ];
+  
+  const shopRatingEl = queryFirstMatch(cache, shopRatingSelectors);
+  if (shopRatingEl) {
+    const ugcText = getTextContent(shopRatingEl).trim();
+    // Достаём число вида 4.8 / 4,8 (рейтинг 0-5 с одним знаком после запятой)
     const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
     if (ugcMatch) {
       row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
-      console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}"`);
+      console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}" (из: "${shopRatingEl.className}")`);
+    }
+  } else {
+    // Fallback: ищем в контейнерах напрямую
+    const shopInfoUgcFallback = queryFirstMatch(cache, ['.ShopInfo-Ugc', '[class*="ShopInfo-Ugc"]']);
+    if (shopInfoUgcFallback) {
+      const ugcText = getTextContent(shopInfoUgcFallback).trim();
+      const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
+      if (ugcMatch) {
+        row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
+        console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина (fallback): "${row['#ShopInfo-Ugc']}"`);
+      }
     }
   }
   
@@ -670,19 +699,79 @@ export function extractRowData(
     if (match) row['#ReviewsNumber'] = match[1].trim();
   }
   
-  // #EReviews_shopText — соседний блок текста с отзывами магазина (например "584 отзыва на магазин")
-  // Важно: это поле НЕ равно #ReviewsNumber — в макете часто нужен именно полный текст.
-  const eReviewsShopText = queryFirstMatch(cache, [
-    '.EReviews_shopText',
-    '.EReviews-ShopText',
-    '[class*="EReviews_shopText"]',
-    '[class*="EReviews-ShopText"]'
+  // #EReviews_shopText — текст отзывов магазина (например "62,8K отзывов на магазин")
+  // Парсим из разных контейнеров и формируем полный текст:
+  // 1. OrganicUgcReviews-Text → EReviews + EReviews-ShopText (полный формат: "62,8K отзывов на магазин")
+  // 2. EReviewsLabel-Text → только число (формат: "5,1K отзывов"), нужно добавить "на магазин"
+  // 3. EShopItemMeta-Reviews → Line-AddonContent (формат: "6,3K отзывов"), нужно добавить "на магазин"
+  // 4. EReviews_shopText / EReviews-ShopText (legacy fallback)
+  
+  let shopReviewsText = '';
+  
+  // 1. Полный формат из OrganicUgcReviews-Text (содержит "на магазин")
+  const organicUgcReviewsText = queryFirstMatch(cache, [
+    '.OrganicUgcReviews-Text',
+    '[class*="OrganicUgcReviews-Text"]'
   ]);
-  if (eReviewsShopText) {
-    row['#EReviews_shopText'] = getTextContent(eReviewsShopText);
-    if (row['#EReviews_shopText']) {
-      console.log(`✅ [EReviews_shopText] "${row['#EReviews_shopText'].substring(0, 80)}..."`);
+  if (organicUgcReviewsText) {
+    // Извлекаем весь текст — он уже содержит "X отзывов на магазин"
+    shopReviewsText = getTextContent(organicUgcReviewsText).trim();
+    console.log(`✅ [EReviews_shopText] Из OrganicUgcReviews-Text: "${shopReviewsText}"`);
+  }
+  
+  // 2. EReviewsLabel-Text (кнопка с отзывами) — только число, добавляем "на магазин"
+  if (!shopReviewsText) {
+    const eReviewsLabelText = queryFirstMatch(cache, [
+      '.EReviewsLabel-Text',
+      '.EReviewsLabel .EReviews',
+      '[class*="EReviewsLabel-Text"]',
+      '[class*="EReviewsLabel"] .EReviews'
+    ]);
+    if (eReviewsLabelText) {
+      const rawText = getTextContent(eReviewsLabelText).trim();
+      // Формат: "5,1K отзывов" → "5,1K отзывов на магазин"
+      if (rawText && rawText.toLowerCase().includes('отзыв')) {
+        shopReviewsText = rawText.includes('магазин') ? rawText : `${rawText} на магазин`;
+        console.log(`✅ [EReviews_shopText] Из EReviewsLabel: "${shopReviewsText}"`);
+      }
     }
+  }
+  
+  // 3. EShopItemMeta-Reviews — число отзывов в метаданных
+  if (!shopReviewsText) {
+    const eShopItemMetaReviews = queryFirstMatch(cache, [
+      '.EShopItemMeta-Reviews .Line-AddonContent',
+      '[class*="EShopItemMeta-Reviews"] .Line-AddonContent',
+      '.EShopItemMeta-Reviews',
+      '[class*="EShopItemMeta-Reviews"]'
+    ]);
+    if (eShopItemMetaReviews) {
+      const rawText = getTextContent(eShopItemMetaReviews).trim();
+      if (rawText && rawText.toLowerCase().includes('отзыв')) {
+        shopReviewsText = rawText.includes('магазин') ? rawText : `${rawText} на магазин`;
+        console.log(`✅ [EReviews_shopText] Из EShopItemMeta-Reviews: "${shopReviewsText}"`);
+      }
+    }
+  }
+  
+  // 4. Legacy fallback: EReviews_shopText / EReviews-ShopText
+  if (!shopReviewsText) {
+    const legacyShopText = queryFirstMatch(cache, [
+      '.EReviews_shopText',
+      '.EReviews-ShopText',
+      '[class*="EReviews_shopText"]',
+      '[class*="EReviews-ShopText"]'
+    ]);
+    if (legacyShopText) {
+      shopReviewsText = getTextContent(legacyShopText).trim();
+      if (shopReviewsText) {
+        console.log(`✅ [EReviews_shopText] Из legacy EReviews-ShopText: "${shopReviewsText}"`);
+      }
+    }
+  }
+  
+  if (shopReviewsText) {
+    row['#EReviews_shopText'] = shopReviewsText;
   }
   
   // #ProductRating - парсим из ELabelRating
@@ -844,6 +933,16 @@ export function extractRowData(
     row['#EDeliveryGroup'] = 'false';
     row['#EDeliveryGroup-Count'] = '0';
   }
+  
+  // #EDelivery_abroad - признак доставки из-за границы (ECrossborderInfo / ShopInfo-Crossborder)
+  const crossborderSelectors = ['.ECrossborderInfo', '.ShopInfo-Crossborder', '[class*="Crossborder"]'];
+  const crossborderEl = queryFirstMatch(cache, crossborderSelectors);
+  if (crossborderEl) {
+    row['#EDelivery_abroad'] = 'true';
+    console.log(`✅ Найден Crossborder (доставка из-за границы)`);
+  } else {
+    row['#EDelivery_abroad'] = 'false';
+  }
 
   // ShopInfo-Bnpl - BNPL иконки/лейблы в сниппете (используются для управления инстансами внутри #ShopInfo-Bnpl)
   const shopInfoBnplEl = queryFirstMatch(cache, ['.ShopInfo-Bnpl', '[class*="ShopInfo-Bnpl"]']);
@@ -884,8 +983,12 @@ export function extractRowData(
     console.log(`✅ Найден EPrice_view_special в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
   }
   
-  // #Label_view_outlineSpecial - скидка с outline и словом "Вам"
+  // #LabelDiscount_View - вид лейбла скидки
+  // 1. outlineSpecial — "Вам –X%" (зелёная рамка, спецпредложение Пэй)
+  // 2. outlinePrimary — обычная скидка "–X%" (синяя рамка)
   const labelOutlineSpecial = queryFirstMatch(cache, rules['Label_view_outlineSpecial']?.domSelectors || ['.Label_view_outlineSpecial', '[class*="Label_view_outlineSpecial"]']);
+  const labelOutlinePrimary = queryFirstMatch(cache, ['.Label_view_outlinePrimary', '[class*="Label_view_outlinePrimary"]']);
+  
   if (labelOutlineSpecial) {
     row['#LabelDiscount_View'] = 'outlineSpecial';
     row['#DiscountPrefix'] = 'Вам';
@@ -900,22 +1003,59 @@ export function extractRowData(
     } else {
       console.log(`✅ Найден Label_view_outlineSpecial с префиксом "Вам" в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     }
+  } else if (labelOutlinePrimary) {
+    row['#LabelDiscount_View'] = 'outlinePrimary';
+    console.log(`✅ Найден Label_view_outlinePrimary (обычная скидка)`);
   }
   
-  // #Fintech - блок рассрочки/оплаты (Сплит/Пэй)
+  // #Fintech - блок рассрочки/оплаты (Сплит/Пэй/Ozon и др.)
   const fintechSelectors = ['.Fintech:not(.Fintech-Icon)', '[class*="EPriceGroup-Fintech"]'];
   const fintech = queryFirstMatch(cache, fintechSelectors);
   if (fintech) {
     row['#EPriceGroup_Fintech'] = 'true';
     
-    // Определяем type (Split или Pay)
+    // Определяем type из классов Fintech_type_*
+    // Порядок важен: сначала более специфичные (yandexPay), потом общие (pay)
+    // Маппинг HTML классов → Figma variant values
+    // Figma MetaFintech.type: split, yandexPay, ozon, pay, Dolyami, Mokka, Podeli, Plait, T-Pay, MTS Pay, Wildberries, alfaCard
     const fintechClasses = fintech.className || '';
+    console.log(`🔍 Fintech classes: "${fintechClasses}"`);
     if (fintechClasses.includes('Fintech_type_split')) {
-      row['#Fintech_Type'] = 'Split';
-      console.log(`✅ Найден Fintech type=Split`);
+      row['#Fintech_Type'] = 'split';
+      console.log(`✅ Найден Fintech type=split`);
+    } else if (fintechClasses.includes('Fintech_type_yandexPay')) {
+      row['#Fintech_Type'] = 'yandexPay';
+      console.log(`✅ Найден Fintech type=yandexPay`);
     } else if (fintechClasses.includes('Fintech_type_pay')) {
-      row['#Fintech_Type'] = 'Pay';
-      console.log(`✅ Найден Fintech type=Pay`);
+      row['#Fintech_Type'] = 'pay';
+      console.log(`✅ Найден Fintech type=pay`);
+    } else if (fintechClasses.includes('Fintech_type_ozon')) {
+      row['#Fintech_Type'] = 'ozon';
+      console.log(`✅ Найден Fintech type=ozon`);
+    } else if (fintechClasses.includes('Fintech_type_dolyame')) {
+      row['#Fintech_Type'] = 'Dolyami';
+      console.log(`✅ Найден Fintech type=Dolyami`);
+    } else if (fintechClasses.includes('Fintech_type_plait')) {
+      row['#Fintech_Type'] = 'Plait';
+      console.log(`✅ Найден Fintech type=Plait`);
+    } else if (fintechClasses.includes('Fintech_type_podeli')) {
+      row['#Fintech_Type'] = 'Podeli';
+      console.log(`✅ Найден Fintech type=Podeli`);
+    } else if (fintechClasses.includes('Fintech_type_mokka')) {
+      row['#Fintech_Type'] = 'Mokka';
+      console.log(`✅ Найден Fintech type=Mokka`);
+    } else if (fintechClasses.includes('Fintech_type_mtsPay')) {
+      row['#Fintech_Type'] = 'MTS Pay';
+      console.log(`✅ Найден Fintech type=MTS Pay`);
+    } else if (fintechClasses.includes('Fintech_type_tPay')) {
+      row['#Fintech_Type'] = 'T-Pay';
+      console.log(`✅ Найден Fintech type=T-Pay`);
+    } else if (fintechClasses.includes('Fintech_type_alfa')) {
+      row['#Fintech_Type'] = 'alfaCard';
+      console.log(`✅ Найден Fintech type=alfaCard`);
+    } else if (fintechClasses.includes('Fintech_type_wildberries')) {
+      row['#Fintech_Type'] = 'Wildberries';
+      console.log(`✅ Найден Fintech type=Wildberries`);
     }
     
     // Определяем view (значения с большой буквы как в Figma)
@@ -1038,26 +1178,73 @@ export function extractRowData(
     row['#ELabelGroup_Barometer'] = 'false';
   }
   
-  // #Quote - цитата из отзыва (для ESnippet)
-  const quoteSelectors = rules['Quote']?.domSelectors || ['.OrganicUgcReviews-Text', '[class*="OrganicUgcReviews-Text"]'];
-  const quoteEl = queryFirstMatch(cache, quoteSelectors);
-  if (quoteEl) {
-    const quoteText = quoteEl.textContent?.trim() || '';
-    if (quoteText) {
-      row['#QuoteText'] = quoteText;
-      console.log(`✅ Найдена цитата: "${quoteText.substring(0, 50)}..."`);
-    }
-  }
+  // #EQuote - цитата из отзыва (для ESnippet и Organic)
+  // Парсим из EQuote / OrganicUgcReviews-QuoteWrapper
+  // #EQuote-Text — текст цитаты ("«Отличный магазин...»")
+  // #EQuote-AuthorAvatar — URL изображения аватара (предпочтительно retina из srcset)
   
-  // #QuoteImage - изображение автора цитаты
-  const quoteImageSelectors = rules['QuoteImage']?.domSelectors || ['.OrganicUgcReviews img', '[class*="OrganicUgcReviews"] img'];
-  const quoteImageEl = queryFirstMatch(cache, quoteImageSelectors);
-  if (quoteImageEl) {
-    const src = quoteImageEl.getAttribute('src') || quoteImageEl.getAttribute('data-src');
-    if (src) {
-      row['#QuoteImage'] = src.startsWith('http') ? src : `https:${src}`;
+  const equoteContainer = queryFirstMatch(cache, [
+    '.EQuote',
+    '.OrganicUgcReviews-QuoteWrapper',
+    '[class*="EQuote"]',
+    '[class*="OrganicUgcReviews-QuoteWrapper"]'
+  ]);
+  
+  if (equoteContainer) {
+    // Текст цитаты
+    const quoteTextEl = equoteContainer.querySelector('.EQuote-Text, [class*="EQuote-Text"]');
+    if (quoteTextEl) {
+      const quoteText = quoteTextEl.textContent?.trim() || '';
+      if (quoteText) {
+        row['#EQuote-Text'] = quoteText;
+        // Legacy поле для совместимости
+        row['#QuoteText'] = quoteText;
+        console.log(`✅ [EQuote-Text] Найдена цитата: "${quoteText.substring(0, 50)}..."`);
+      }
+    }
+    
+    // Аватар автора цитаты
+    // Приоритет: srcset (retina), потом src
+    const avatarImg = equoteContainer.querySelector(
+      '.EQuote-AuthorAvatar, [class*="EQuote-AuthorAvatar"], .EQuote-AvatarWrapper img, [class*="EQuote-AvatarWrapper"] img'
+    ) as HTMLImageElement | null;
+    
+    if (avatarImg) {
+      let avatarUrl = '';
+      
+      // Пробуем srcset для retina (2x)
+      const srcset = avatarImg.getAttribute('srcset');
+      if (srcset) {
+        // Формат: "url1 1x, url2 2x" — берём 2x (retina) если есть
+        const srcsetParts = srcset.split(',').map(s => s.trim());
+        for (const part of srcsetParts) {
+          if (part.includes('2x')) {
+            avatarUrl = part.replace(/\s+2x$/, '').trim();
+            break;
+          }
+        }
+        // Если нет 2x, берём первый
+        if (!avatarUrl && srcsetParts.length > 0) {
+          avatarUrl = srcsetParts[0].replace(/\s+\d+x$/, '').trim();
+        }
+      }
+      
+      // Fallback на src
+      if (!avatarUrl) {
+        avatarUrl = avatarImg.getAttribute('src') || avatarImg.getAttribute('data-src') || '';
+      }
+      
+      if (avatarUrl) {
+        row['#EQuote-AuthorAvatar'] = avatarUrl.startsWith('http') ? avatarUrl : `https:${avatarUrl}`;
+        // Legacy поле для совместимости
+        row['#QuoteImage'] = row['#EQuote-AuthorAvatar'];
+        console.log(`✅ [EQuote-AuthorAvatar] Аватар: "${row['#EQuote-AuthorAvatar'].substring(0, 80)}..."`);
+      }
     }
   }
+  // ВАЖНО: Убран fallback на OrganicUgcReviews-Text, т.к. этот класс используется
+  // для количества отзывов (#EReviews_shopText), а не для цитаты.
+  // Цитата парсится ТОЛЬКО из EQuote / OrganicUgcReviews-QuoteWrapper.
   
   // #Sitelinks - ссылки на страницы сайта (для ESnippet)
   const sitelinksSelectors = rules['Sitelinks']?.domSelectors || ['.Sitelinks', '[class*="Sitelinks"]'];
@@ -1121,6 +1308,47 @@ export function extractRowData(
       row['#Address'] = addressText;
       console.log(`✅ Найден адрес: "${addressText}"`);
     }
+  }
+  
+  // #addressText и #addressLink - ShopOfflineRegion (для EShopItem/ESnippet)
+  // Пример 1: "Москва · м. Белорусская" + "Большая Грузинская улица, 69"
+  // Пример 2: "Москва" + "77 филиалов"
+  const shopOfflineRegion = queryFirstMatch(cache, ['.ShopOfflineRegion', '[class*="ShopOfflineRegion"]']);
+  if (shopOfflineRegion) {
+    row['#hasShopOfflineRegion'] = 'true';
+    
+    // Ищем ссылку внутри ShopOfflineRegion
+    const linkEl = shopOfflineRegion.querySelector('.Link, [class*="Link_theme"]');
+    const linkText = linkEl?.textContent?.trim() || '';
+    
+    if (linkText) {
+      row['#addressLink'] = linkText;
+      console.log(`✅ [ShopOfflineRegion] addressLink: "${linkText}"`);
+    }
+    
+    // Собираем текст до ссылки (город, метро и т.д.)
+    // Берём весь текст контейнера и убираем текст ссылки
+    const fullText = shopOfflineRegion.textContent?.trim() || '';
+    let addressTextPart = fullText;
+    
+    if (linkText) {
+      // Убираем текст ссылки из полного текста
+      addressTextPart = fullText.replace(linkText, '').trim();
+    }
+    
+    // Убираем лишние разделители в начале и конце
+    addressTextPart = addressTextPart.replace(/^[·\s]+|[·\s]+$/g, '').trim();
+    // Заменяем множественные разделители на один
+    addressTextPart = addressTextPart.replace(/\s*·\s*/g, ' · ');
+    // Заменяем тонкий пробел на обычный
+    addressTextPart = addressTextPart.replace(/\u2009/g, ' ');
+    
+    if (addressTextPart) {
+      row['#addressText'] = addressTextPart;
+      console.log(`✅ [ShopOfflineRegion] addressText: "${addressTextPart}"`);
+    }
+  } else {
+    row['#hasShopOfflineRegion'] = 'false';
   }
   
   // #BUTTON и #ButtonView - логика кнопок для разных типов сниппетов
@@ -1191,22 +1419,11 @@ export function extractRowData(
   // Определяем #ButtonView и видимость в зависимости от типа сниппета
   // 
   // ЛОГИКА КНОПОК:
-  // - EOfferItem: кнопка ВСЕГДА видна (красная → primaryShort, иначе → white)
+  // - EOfferItem: обрабатывается отдельно выше (строки 143-266) с ранним return
   // - EShopItem: кнопка ВСЕГДА видна (checkout → primaryLong, иначе → secondary)
   // - ESnippet/Organic: кнопка скрывается если нет красной (красная → primaryShort + visible, иначе → hidden)
   //
-  if (snippetType === 'EOfferItem') {
-    // EOfferItem: кнопка ВСЕГДА видна
-    // Красная кнопка → primaryShort, иначе → white
-    row['#BUTTON'] = 'true';  // Кнопка всегда есть
-    if (hasCheckoutButton) {
-      row['#ButtonView'] = 'primaryShort';
-      console.log(`✅ [EOfferItem] Красная кнопка чекаута → ButtonView='primaryShort'`);
-    } else {
-      row['#ButtonView'] = 'white';
-      console.log(`✅ [EOfferItem] Нет красной кнопки → ButtonView='white'`);
-    }
-  } else if (snippetType === 'EShopItem') {
+  if (snippetType === 'EShopItem') {
     // EShopItem: кнопка ВСЕГДА видна
     // Checkout → primaryLong, иначе → secondary
     row['#BUTTON'] = 'true';  // Кнопка всегда есть
@@ -1279,7 +1496,22 @@ export function extractRowData(
     row['#OrganicText'] = row['#OrganicTitle'] || '';
   }
   
-  // OrganicHost ← ShopName (если не извлечён из URL)
+  // OrganicHost ← Извлечение из FaviconImage (приоритет)
+  // URL вида: https://favicon.yandex.net/favicon/v2/www.vseinstrumenti.ru?size=32
+  if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
+    const favUrl = row['#FaviconImage'] || '';
+    if (favUrl) {
+      // Паттерн для Yandex favicon API: /favicon/v2/HOSTNAME
+      const faviconMatch = favUrl.match(/\/favicon\/v2\/([^?/]+)/);
+      if (faviconMatch && faviconMatch[1]) {
+        const extractedHost = decodeURIComponent(faviconMatch[1]).replace(/^www\./, '');
+        row['#OrganicHost'] = extractedHost;
+        console.log(`✅ [OrganicHost] Извлечён из FaviconImage: ${extractedHost}`);
+      }
+    }
+  }
+  
+  // OrganicHost ← ShopName (fallback если ещё не установлен)
   if (!row['#OrganicHost'] || row['#OrganicHost'].trim() === '') {
     row['#OrganicHost'] = row['#ShopName'] || '';
   }

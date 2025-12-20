@@ -414,7 +414,21 @@ export function processVariantProperty(instance: InstanceNode, value: string, fi
     if ('options' in property) {
       options = property.options as readonly string[];
       if (!options || options.length === 0) {
-        Logger.warn(`⚠️ У Variant Property "${propertyName}" нет доступных опций`);
+        // Options пустой — это exposed property. Пробуем setProperties напрямую
+        Logger.debug(`   ⚠️ У Variant Property "${propertyName}" options=[]. Это exposed property, пробуем setProperties...`);
+        try {
+          instance.setProperties({ [propertyKeyForSetProperties]: targetValue });
+          const updatedProperty = instance.componentProperties[foundPropertyKey];
+          const updatedValue = updatedProperty && typeof updatedProperty === 'object' && 'value' in updatedProperty ? updatedProperty.value : 'N/A';
+          if (String(updatedValue) === String(targetValue)) {
+            Logger.debug(`   ✅ Exposed property "${propertyKeyForSetProperties}" = "${targetValue}" успешно (проверка: "${updatedValue}")`);
+            return true;
+          } else {
+            Logger.debug(`   ⚠️ setProperties выполнен, но значение не совпадает: ожидали "${targetValue}", получили "${updatedValue}"`);
+          }
+        } catch (e) {
+          Logger.debug(`   ⚠️ setProperties для exposed property не удался:`, e);
+        }
         return false;
       }
     } else if (propertyType === 'VARIANT') {

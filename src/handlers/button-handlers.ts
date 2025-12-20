@@ -279,25 +279,39 @@ export function handleEButton(context: HandlerContext): void {
     return;
   }
   
-  // Для EShopItem с Platform=Touch: скрывать кнопку и контейнер если нет checkout
+  // Для EShopItem с Platform=Touch: скрывать кнопку и контейнеры если нет checkout
   if (containerName === 'EShopItem' && isTouch) {
     let buttonInstance = findInstanceByName(container, 'EButton');
     if (!buttonInstance) buttonInstance = findInstanceByName(container, 'Ebutton');
     if (!buttonInstance) buttonInstance = findInstanceByName(container, 'Button');
     if (!buttonInstance) buttonInstance = findButtonInstanceLoose(container);
     
-    // Ищем контейнер кнопки EMarketCheckoutButton-Container
-    const buttonContainer = findFirstNodeByName(container, 'EMarketCheckoutButton-Container');
+    // Ищем контейнеры кнопки: EMarketCheckoutButton-Container и EButton_wrapper
+    const buttonContainerNames = [
+      'EMarketCheckoutButton-Container',
+      'EButton_wrapper',
+      'Ebutton_wrapper',
+      'EButtonWrapper',
+      'ButtonWrapper'
+    ];
     
-    Logger.debug(`   🔘 [EButton] EShopItem Touch: hasRealCheckout=${hasRealCheckout}`);
+    const buttonContainers: SceneNode[] = [];
+    for (const name of buttonContainerNames) {
+      const found = findFirstNodeByName(container, name);
+      if (found && 'visible' in found) {
+        buttonContainers.push(found as SceneNode);
+      }
+    }
     
-    // Скрываем/показываем контейнер кнопки
-    if (buttonContainer && 'visible' in buttonContainer) {
+    Logger.debug(`   🔘 [EButton] EShopItem Touch: hasRealCheckout=${hasRealCheckout}, containers=${buttonContainers.length}`);
+    
+    // Скрываем/показываем контейнеры кнопки
+    for (const btnContainer of buttonContainers) {
       try {
-        (buttonContainer as SceneNode).visible = hasRealCheckout;
-        Logger.debug(`   🔘 [EButton] EMarketCheckoutButton-Container visible=${hasRealCheckout}`);
+        btnContainer.visible = hasRealCheckout;
+        Logger.debug(`   🔘 [EButton] "${btnContainer.name}" visible=${hasRealCheckout}`);
       } catch (e) {
-        Logger.error(`   ❌ [EButton] Ошибка установки visible для контейнера:`, e);
+        Logger.error(`   ❌ [EButton] Ошибка установки visible для "${btnContainer.name}":`, e);
       }
     }
     
@@ -342,7 +356,7 @@ export function handleEButton(context: HandlerContext): void {
       return;
     }
     
-    handleButtonInstance(foundButton, snippetType, hasButton, buttonView, eButtonVisible, buttonType, container as SceneNode);
+    handleButtonInstance(foundButton, snippetType || '', hasButton, buttonView, eButtonVisible, buttonType, container as SceneNode);
     return;
   }
   
@@ -351,5 +365,5 @@ export function handleEButton(context: HandlerContext): void {
     buttonView = snippetType === 'EShopItem' ? 'secondary' : 'white';
   }
 
-  handleButtonInstance(eButtonInstance, snippetType, hasButton, buttonView, eButtonVisible, buttonType, container as SceneNode);
+  handleButtonInstance(eButtonInstance, snippetType || '', hasButton, buttonView, eButtonVisible, buttonType, container as SceneNode);
 }

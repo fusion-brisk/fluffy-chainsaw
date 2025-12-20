@@ -108,9 +108,64 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
 
   const itemCount = parseInt(row['#EDeliveryGroup-Count'] || '0', 10);
   const hasDelivery = row['#EDeliveryGroup'] === 'true' && itemCount > 0;
+  const isAbroad = row['#EDelivery_abroad'] === 'true';
+  
+  console.log(`🚚 [EDeliveryGroup] isAbroad=${isAbroad}, hasDelivery=${hasDelivery}, itemCount=${itemCount}`);
+  
   const deliveryGroupInstance = findInstanceByName(container, 'EDeliveryGroup');
   
-  if (!deliveryGroupInstance) return;
+  if (!deliveryGroupInstance) {
+    console.log(`🚚 [EDeliveryGroup] Instance NOT FOUND in container`);
+    return;
+  }
+  
+  console.log(`🚚 [EDeliveryGroup] Instance FOUND: "${deliveryGroupInstance.name}"`);
+  
+  // Обработка доставки из-за границы (Crossborder)
+  // Если abroad=true — сбрасываем overrides и устанавливаем abroad=true
+  if (isAbroad) {
+    try {
+      console.log(`✈️ [EDeliveryGroup] Applying abroad=true...`);
+      
+      // Сбрасываем все overrides на компоненте
+      deliveryGroupInstance.resetOverrides();
+      console.log(`✈️ [EDeliveryGroup] resetOverrides() done`);
+      Logger.debug(`   ✈️ [EDeliveryGroup] resetOverrides() выполнен`);
+      
+      // Логируем доступные свойства
+      if (deliveryGroupInstance.componentProperties) {
+        const props = deliveryGroupInstance.componentProperties;
+        for (const key in props) {
+          const prop = props[key];
+          if (prop && typeof prop === 'object' && 'type' in prop && prop.type === 'VARIANT') {
+            const options = 'options' in prop ? (prop.options as string[]) : [];
+            console.log(`✈️ [EDeliveryGroup] Свойство "${key}": опции=[${options.join(', ')}]`);
+          }
+        }
+      }
+      
+      // Устанавливаем abroad=true
+      let abroadSet = processVariantProperty(deliveryGroupInstance, 'abroad=true', '#EDelivery_abroad');
+      console.log(`✈️ [EDeliveryGroup] abroad=true result: ${abroadSet}`);
+      if (!abroadSet) {
+        abroadSet = processVariantProperty(deliveryGroupInstance, 'Abroad=true', '#EDelivery_abroad');
+        console.log(`✈️ [EDeliveryGroup] Abroad=true result: ${abroadSet}`);
+      }
+      
+      if (abroadSet) {
+        Logger.debug(`   ✈️ [EDeliveryGroup] abroad=true установлен`);
+      } else {
+        Logger.warn(`   ⚠️ [EDeliveryGroup] abroad property не найден`);
+      }
+      
+      deliveryGroupInstance.visible = true;
+      console.log(`✈️ [EDeliveryGroup] visible=true set`);
+    } catch (e) {
+      console.log(`✈️ [EDeliveryGroup] ERROR:`, e);
+      Logger.error(`   ❌ Ошибка обработки abroad для EDeliveryGroup:`, e);
+    }
+    return; // Для abroad не заполняем items — всё берётся из дефолтного состояния компонента
+  }
   
   if (!hasDelivery) {
     try {
@@ -364,7 +419,8 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
   const hasDeliveryByGroup = row['#EDeliveryGroup'] === 'true' && deliveryCount > 0;
   const hasDeliveryByList = !!(row['#DeliveryList'] && String(row['#DeliveryList']).trim() !== '');
   const hasDeliveryByOfferFlag = row['#EOfferItem_hasDelivery'] === 'true';
-  const hasDelivery = hasDeliveryByGroup || hasDeliveryByList || hasDeliveryByOfferFlag;
+  const hasDeliveryAbroad = row['#EDelivery_abroad'] === 'true';
+  const hasDelivery = hasDeliveryByGroup || hasDeliveryByList || hasDeliveryByOfferFlag || hasDeliveryAbroad;
 
   const shopCount = parseInt(row['#ShopInfo-Bnpl-Count'] || '0', 10);
   const shopHas = row['#ShopInfo-Bnpl'] === 'true' && shopCount > 0;
@@ -386,16 +442,8 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
     (target as SceneNode).visible = shouldShow;
     Logger.debug(`   🚚💳 [ShopInfo-DeliveryBnplContainer] visible=${shouldShow}`);
   } catch (e) { /* ignore */ }
-
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
-  if (containerName === 'EShopItem') {
-    const ugcLine = findFirstNodeByName(container, 'EShopItemMeta-UgcLine');
-    if (ugcLine) {
-      try {
-        (ugcLine as SceneNode).visible = shouldShow;
-        Logger.debug(`   ⭐ [EShopItemMeta-UgcLine] visible=${shouldShow}`);
-      } catch (e) { /* ignore */ }
-    }
-  }
+  
+  // Примечание: EShopItemMeta-UgcLine теперь управляется в handleShopInfoUgcAndEReviewsShopText
+  // на основе наличия рейтинга (#ShopInfo-Ugc), а не доставки
 }
 

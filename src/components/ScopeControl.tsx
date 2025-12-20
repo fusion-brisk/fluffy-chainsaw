@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { InfoIcon } from './Icons';
+import { Toggle } from './Toggle';
 
 interface ScopeControlProps {
   scope: 'selection' | 'page';
@@ -50,15 +51,12 @@ export const ScopeControl: React.FC<ScopeControlProps> = memo(({
 
       {/* Опции сброса */}
       <div className="scope-options">
-        <label className="checkbox-inline">
-          <input
-            type="checkbox"
-            checked={resetBeforeImport}
-            onChange={(e) => onResetBeforeImportChange(e.target.checked)}
-            disabled={isDisabled}
-          />
-          <span>Сбросить перед импортом</span>
-        </label>
+        <Toggle
+          checked={resetBeforeImport}
+          onChange={onResetBeforeImportChange}
+          disabled={isDisabled}
+          label="Сбросить перед импортом"
+        />
         <button
           type="button"
           className="btn-text-sm"
