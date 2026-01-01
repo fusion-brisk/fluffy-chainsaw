@@ -68,15 +68,23 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
  * @returns Отсортированный массив (мутирует оригинал)
  */
 export function sortContainersByPosition(containers: SceneNode[]): SceneNode[] {
+  // Кэшируем позиции ПЕРЕД сортировкой — одно обращение к absoluteTransform на контейнер
+  // Это критично, т.к. каждое обращение к absoluteTransform вызывает пересчёт layout в Figma
+  const positionCache = new Map<string, { x: number; y: number }>();
+  
+  for (const c of containers) {
+    const x = c.absoluteTransform ? c.absoluteTransform[0][2] : c.x;
+    const y = c.absoluteTransform ? c.absoluteTransform[1][2] : c.y;
+    positionCache.set(c.id, { x, y });
+  }
+  
   containers.sort((a, b) => {
-    const ay = a.absoluteTransform ? a.absoluteTransform[1][2] : a.y;
-    const by = b.absoluteTransform ? b.absoluteTransform[1][2] : b.y;
+    const posA = positionCache.get(a.id)!;
+    const posB = positionCache.get(b.id)!;
     // Если разница по Y больше 10px — это разные строки
-    if (Math.abs(ay - by) > 10) return ay - by;
+    if (Math.abs(posA.y - posB.y) > 10) return posA.y - posB.y;
     // Одна строка — сортируем по X
-    const ax = a.absoluteTransform ? a.absoluteTransform[0][2] : a.x;
-    const bx = b.absoluteTransform ? b.absoluteTransform[0][2] : b.x;
-    return ax - bx;
+    return posA.x - posB.x;
   });
   return containers;
 }

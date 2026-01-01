@@ -1,0 +1,234 @@
+# Контекст: Отладка производительности после оптимизаций
+
+## Проблема
+После внедрения оптимизаций кэширования плагин стал работать **ДОЛЬШЕ** (617 сек → 10+ минут) вместо ускорения.
+
+## Исходная ситуация (до оптимизаций)
+- 79 контейнеров, 15904 нод
+- Общее время: ~678 сек (11 минут)
+- Bottleneck #1: поиск контейнеров ~180 сек
+- Bottleneck #2: handlers batch ~393 сек
+
+## После оптимизаций
+- Handlers batch: **527 сек** (стало ХУЖЕ на 134 сек!)
+- Общее время: ~617 сек (немного лучше, но handlers медленнее)
+
+---
+
+## Внесённые изменения
+
+### 1. `src/utils/container-cache.ts`
+Расширена структура кэша:
+```typescript
+export interface ContainerStructure {
+  textLayers: Map<string, TextNode>;           // name → node
+  imageLayers: SceneNode[];                    // fillable nodes
+  instances: Map<string, InstanceNode>;        // name → instance
+  allInstances: InstanceNode[];                // ВСЕ инстансы в контейнере (НОВОЕ)
+  allNodes: Map<string, SceneNode>;            // name → node (первый)
+  allNodesByName: Map<string, SceneNode[]>;    // name → все ноды
+  allNodesList: SceneNode[];                   // ВСЕ ноды для поиска по подстроке (НОВОЕ)
+}
+```
+
+Добавлены функции:
+- `findAllCachedNodesByNameContains(containerId, needle)` — линейный поиск
+- `getAllCachedInstances(containerId)` — возврат всех инстансов
+- `getContainerIdForNode(nodeId)` — получение ID контейнера по ID любой вложенной ноды
+
+Кэш `nodeToContainerCache: Map<string, string>` хранит `nodeId → containerId` для всех 15904 нод.
+
+### 2. `src/utils/node-search.ts`
+Добавлен helper:
+```typescript
+function isDescendantOf(candidate: BaseNode, ancestorId: string, maxDepth: number = 10): boolean {
+  let current: BaseNode | null = candidate;
+  let depth = 0;
+  while (current && depth < maxDepth) {
+    if (current.id === ancestorId) return true;
+    current = current.parent;
+    depth++;
+  }
+  return false;
+}
+```
+
+Обновлены ВСЕ функции поиска по единому шаблону:
+```typescript
+export function findAllNodesByName(node: BaseNode, name: string): SceneNode[] {
+  // 1. Если сама нода — контейнер с кэшем
+  if ('id' in node && hasContainerCache(node.id)) {
+    return findAllCachedNodesByName(node.id, name).filter(n => !n.removed);
+  }
+  
+  // 2. Если нода — вложенный элемент закэшированного контейнера
+  if ('id' in node) {
+    const containerId = getContainerIdForNode(node.id);
+    if (containerId) {
+      const allWithName = findAllCachedNodesByName(containerId, name);
+      // ⚠️ ПОТЕНЦИАЛЬНАЯ ПРОБЛЕМА: isDescendantOf() вызывается для КАЖДОЙ ноды
+      return allWithName.filter(n => !n.removed && isDescendantOf(n, node.id, 15));
+    }
+  }
+  
+  // 3. Fallback на рекурсивный поиск
+  // ...
+}
+```
+
+Аналогично обновлены:
+- `findInstanceByName()`
+- `findTextLayerByName()`
+- `findFirstNodeByName()`
+- `findAllNodesByNameContains()`
+- `findAllInstances()`
+
+### 3. `src/handlers/snippet-handlers.ts`
+Добавлен кэш компонентов:
+```typescript
+let componentsCache: Map<string, ComponentNode> | null = null;
+
+function getCachedComponent(name: string): ComponentNode | null {
+  if (!componentsCache) {
+    componentsCache = new Map();
+    const allComponents = figma.currentPage.findAll(n => n.type === 'COMPONENT') as ComponentNode[];
+    for (const comp of allComponents) {
+      if (!componentsCache.has(comp.name)) {
+        componentsCache.set(comp.name, comp);
+      }
+    }
+  }
+  return componentsCache.get(name) || null;
+}
+```
+
+Заменён вызов `figma.currentPage.findAll()` на `getCachedComponent()`.
+
+---
+
+## Гипотезы о причинах замедления
+
+### Гипотеза 1: `isDescendantOf()` слишком дорогой
+При каждом вызове `findAllNodesByName()` на вложенной ноде:
+1. Получаем ВСЕ ноды с таким именем из кэша контейнера (может быть много)
+2. Для КАЖДОЙ вызываем `isDescendantOf()` — это O(depth) операция
+3. Если вызывается 79 раз × 10+ handlers × несколько поисков = **тысячи вызовов isDescendantOf**
+
+### Гипотеза 2: Неэффективное использование кэша
+Если `findInstanceByName()` вызывается на ноде, которая сама есть в кэше — мы всё равно достаём ВСЮ структуру контейнера и фильтруем.
+
+### Гипотеза 3: Лишние проверки
+`getContainerIdForNode()` вызывается для КАЖДОГО поиска, даже если нода не в контейнере — это Map.get() но он вызывается очень часто.
+
+### Гипотеза 4: handlers/delivery-handlers.ts
+Множественные вызовы поиска внутри одного handler:
+```typescript
+const itemLayers = findAllNodesByName(deliveryGroupInstance, '#EDeliveryGroup-Item');
+const lineNodes = findAllNodesByName(deliveryGroupInstance, 'Line');
+// ...
+findAllNodesByName(bnplRoot, '#ShopInfo-Bnpl');
+findAllNodesByName(bnplRoot, 'ShopInfo-Bnpl');
+findAllNodesByNameContains(container, 'EBnpl');
+findAllInstances(bnplRoot);
+// и т.д.
+```
+
+---
+
+## Инструкции по отладке
+
+### Шаг 1: Добавить тайминг-логи
+В `node-search.ts` добавить замеры для диагностики:
+```typescript
+let totalIsDescendantCalls = 0;
+let totalIsDescendantTime = 0;
+
+function isDescendantOf(...) {
+  totalIsDescendantCalls++;
+  const start = Date.now();
+  // ... логика ...
+  totalIsDescendantTime += Date.now() - start;
+  return result;
+}
+
+// Экспортировать функцию для сброса и вывода статистики
+export function logNodeSearchStats() {
+  console.log(`[node-search] isDescendantOf: ${totalIsDescendantCalls} calls, ${totalIsDescendantTime}ms total`);
+}
+```
+
+### Шаг 2: Профилировать handlers
+В `snippet-processor.ts` добавить детальный лог времени каждого handler:
+```typescript
+for (const handler of handlers) {
+  const start = Date.now();
+  await handler(context);
+  const elapsed = Date.now() - start;
+  if (elapsed > 100) { // Логируем медленные handlers
+    console.log(`⚠️ Slow handler: ${handler.name} took ${elapsed}ms`);
+  }
+}
+```
+
+### Шаг 3: Проверить гипотезу isDescendantOf
+Заменить на более быструю проверку через path:
+```typescript
+// Альтернатива: сохранять path в кэше
+// nodePathCache: Map<string, string[]> где value = [nodeId, parentId, grandparentId, ...]
+```
+
+### Шаг 4: Оптимизировать getContainerIdForNode
+Если нода — сам контейнер, не нужно искать родителя:
+```typescript
+export function getContainerIdForNode(nodeId: string): string | undefined {
+  // Если это сам контейнер — вернуть его же
+  if (containerStructureCache.has(nodeId)) return nodeId;
+  return nodeToContainerCache.get(nodeId);
+}
+```
+
+### Шаг 5: Кэшировать результаты isDescendantOf
+```typescript
+const descendantCache = new Map<string, boolean>(); // `${candidateId}:${ancestorId}` → bool
+
+function isDescendantOf(candidate: BaseNode, ancestorId: string, maxDepth: number = 15): boolean {
+  const key = `${candidate.id}:${ancestorId}`;
+  if (descendantCache.has(key)) return descendantCache.get(key)!;
+  // ... вычисление ...
+  descendantCache.set(key, result);
+  return result;
+}
+```
+
+---
+
+## Ключевые файлы для анализа
+
+1. `src/utils/node-search.ts` — все функции поиска
+2. `src/utils/container-cache.ts` — структура и построение кэша
+3. `src/handlers/delivery-handlers.ts` — 13 вызовов findAll*
+4. `src/handlers/snippet-handlers.ts` — кэш компонентов
+5. `src/plugin/snippet-processor.ts` — batch обработка handlers
+
+---
+
+## Метрики для сравнения
+
+| Этап | До оптимизаций | После | Цель |
+|------|----------------|-------|------|
+| Поиск контейнеров | ~180 сек | ~192 сек | <30 сек |
+| Построение кэша | 16 сек | 15 сек | OK |
+| Handlers batch | 393 сек | 527 сек ❌ | <60 сек |
+| Тексты + изображения | 54 сек | 62 сек | OK |
+| **Итого** | 678 сек | 617 сек | <180 сек |
+
+---
+
+## Быстрое решение (rollback)
+Если оптимизация не даёт результата — можно откатить изменения в `node-search.ts`:
+Убрать шаг 2 (поиск в кэше родителя) и оставить только шаги 1 и 3.
+Это вернёт старое поведение, но handlers будут работать через fallback рекурсию.
+
+
+
+

@@ -1,12 +1,34 @@
 /**
  * Утилиты для поиска узлов в Figma документе
  * Выделено из component-handlers.ts для переиспользования
+ * 
+ * Container-cache отключен для экономии памяти — используем прямой поиск
  */
+
+import { Logger } from '../logger';
+
+// === Диагностика ===
+let totalSearchCalls = 0;
+
+/**
+ * Сброс статистики (вызывается в начале новой обработки)
+ */
+export function resetNodeSearchStats(): void {
+  totalSearchCalls = 0;
+}
+
+/**
+ * Вывод статистики поиска (для диагностики)
+ */
+export function logNodeSearchStats(): void {
+  Logger.debug(`[node-search] Total search calls: ${totalSearchCalls}`);
+}
 
 /**
  * Поиск инстанса по точному имени (рекурсивно)
  */
 export function findInstanceByName(node: BaseNode, name: string): InstanceNode | null {
+  totalSearchCalls++;
   if (node.type === 'INSTANCE' && node.name === name && !node.removed) {
     return node as InstanceNode;
   }
@@ -25,6 +47,7 @@ export function findInstanceByName(node: BaseNode, name: string): InstanceNode |
  * Поиск текстового слоя по точному имени (рекурсивно)
  */
 export function findTextLayerByName(node: BaseNode, name: string): TextNode | null {
+  totalSearchCalls++;
   if (node.type === 'TEXT' && node.name === name && !node.removed) {
     return node as TextNode;
   }
@@ -44,6 +67,8 @@ export function findTextLayerByName(node: BaseNode, name: string): TextNode | nu
  */
 export function findFirstNodeByName(node: BaseNode, name: string): BaseNode | null {
   if (!node || (node as SceneNode).removed) return null;
+  totalSearchCalls++;
+  
   if ('name' in node && node.name === name && !(node as SceneNode).removed) {
     return node;
   }
@@ -115,8 +140,9 @@ export function findAllNodesByName(node: BaseNode, name: string): SceneNode[] {
  * Поиск всех узлов, содержащих подстроку в имени (рекурсивно)
  */
 export function findAllNodesByNameContains(node: BaseNode, needle: string): SceneNode[] {
+  if (!node || (node as SceneNode).removed) return [];
+  
   const results: SceneNode[] = [];
-  if (!node || (node as SceneNode).removed) return results;
   
   try {
     if ('name' in node && typeof node.name === 'string') {
@@ -160,8 +186,9 @@ export function findNearestNamedAncestor(
  * Поиск всех инстансов внутри узла (рекурсивно)
  */
 export function findAllInstances(node: BaseNode): InstanceNode[] {
+  if (!node || (node as SceneNode).removed) return [];
+  
   const out: InstanceNode[] = [];
-  if (!node || (node as SceneNode).removed) return out;
   if ((node as SceneNode).type === 'INSTANCE') out.push(node as InstanceNode);
   if ('children' in node && node.children) {
     for (const child of node.children) {
@@ -193,22 +220,51 @@ export function findFirstTextValue(node: BaseNode): string {
   return '';
 }
 
+// Кэш загруженных шрифтов для избежания повторных вызовов figma.loadFontAsync
+const loadedFontsCache = new Set<string>();
+
+/**
+ * Сброс кэша шрифтов
+ */
+export function resetLoadedFontsCache(): void {
+  loadedFontsCache.clear();
+}
+
+/**
+ * Получить ключ шрифта для кэша
+ */
+function getFontKey(fontName: FontName): string {
+  return `${fontName.family}:${fontName.style}`;
+}
+
+/**
+ * Загрузить шрифт с кэшированием
+ */
+async function loadFontCached(fontName: FontName): Promise<void> {
+  const key = getFontKey(fontName);
+  if (loadedFontsCache.has(key)) return;
+  
+  await figma.loadFontAsync(fontName);
+  loadedFontsCache.add(key);
+}
+
 /**
  * Безопасная установка текста с автоматической загрузкой шрифта
+ * ОПТИМИЗАЦИЯ: Кэширует загруженные шрифты
  */
 export async function safeSetTextNode(textNode: TextNode, value: string): Promise<void> {
   try {
     if (!textNode || textNode.removed) return;
     const fontName = textNode.fontName;
     if (fontName && fontName !== figma.mixed && typeof fontName === 'object') {
-      await figma.loadFontAsync(fontName as FontName);
+      await loadFontCached(fontName as FontName);
     } else if (fontName === figma.mixed) {
       // Берем шрифт первого символа
       const len = (textNode.characters || '').length;
       if (len > 0) {
         const first = textNode.getRangeFontName(0, 1);
         if (first && first !== figma.mixed && typeof first === 'object') {
-          await figma.loadFontAsync(first as FontName);
+          await loadFontCached(first as FontName);
         }
       }
     }

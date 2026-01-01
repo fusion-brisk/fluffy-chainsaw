@@ -80,12 +80,15 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
       jsonKeys: ['shopName', 'shop', 'vendor', 'domain'],
       type: 'text'
     },
-    // OfficialShop - метка официального магазина внутри EShopName
+    // OfficialShop - метка официального магазина (только official-vendor)
     'OfficialShop': {
       domSelectors: [
         '.EShopName .OfficialShop',
         '[class*="EShopName"] .OfficialShop',
-        '[class*="EShopName"] [class*="OfficialShop"]'
+        '[class*="EShopName"] [class*="OfficialShop"]',
+        '.Verified_type_official-vendor',
+        '[class*="Verified_type_official-vendor"]',
+        '[class*="official-vendor"]'
       ],
       jsonKeys: [],
       type: 'boolean'

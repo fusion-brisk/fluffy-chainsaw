@@ -110,6 +110,7 @@ export interface ParsingRulesMetadata {
 export type UIMessage = 
   // === IMPORT ===
   | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string; resetBeforeImport?: boolean }
+  | { type: 'cancel-import' }  // Cancel current import operation
   // === RESET ===
   | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
   // === LIFECYCLE ===
@@ -132,7 +133,10 @@ export type UIMessage =
   | { type: 'reset-rules-cache' }
   // === WHATS NEW ===
   | { type: 'check-whats-new' }  // Response: 'whats-new-status'
-  | { type: 'mark-whats-new-seen'; version: string };
+  | { type: 'mark-whats-new-seen'; version: string }
+  // === LOGGING ===
+  | { type: 'set-log-level'; level: number }  // 0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG
+  | { type: 'get-log-level' };  // Response: 'log-level-loaded'
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
@@ -156,6 +160,7 @@ export type CodeMessage =
   | { type: 'progress'; current: number; total: number; message?: string; operationType?: string }
   | { type: 'stats'; stats: ProcessingStats }
   | { type: 'done'; count: number }
+  | { type: 'import-cancelled' }  // Response to cancel-import
   // === RESET ===
   | { type: 'reset-done'; count: number }  // Response to reset-snippets
   // === SETTINGS ===
@@ -165,7 +170,9 @@ export type CodeMessage =
   | { type: 'parsing-rules-loaded'; metadata: ParsingRulesMetadata }
   | { type: 'rules-update-available'; newVersion: number; currentVersion: number; hash: string }
   // === WHATS NEW ===
-  | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string };
+  | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string }
+  // === LOGGING ===
+  | { type: 'log-level-loaded'; level: number };  // Current log level
 
 /** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;

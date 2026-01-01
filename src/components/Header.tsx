@@ -35,52 +35,39 @@ export const Header: React.FC<HeaderProps> = memo(({
   ];
 
   return (
-    <header className="app-header">
-      <div className="app-header-left">
-        <span className="app-mark" aria-hidden="true" />
-        <div className="app-title-stack">
-          <h1 className="app-title">
-            EProductSnippet
-          </h1>
-          {isLoading && <span className="app-status">Обработка…</span>}
-        </div>
-      </div>
+    <footer className="app-toolbar">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          className={`app-toolbar-btn ${activeTab === tab.id ? 'active' : ''}`}
+          onClick={() => onTabChange(tab.id)}
+          disabled={isLoading}
+          title={`${tab.label} (${tab.shortcut})`}
+          aria-label={`${tab.label} (${tab.shortcut})`}
+          aria-current={activeTab === tab.id ? 'page' : undefined}
+        >
+          {tab.icon}
+          <span className="app-toolbar-label">{tab.label}</span>
+          {tab.id === 'logs' && errorCount !== undefined && errorCount > 0 && (
+            <span className="app-toolbar-badge">{errorCount}</span>
+          )}
+        </button>
+      ))}
       
-      <nav className="app-nav">
-        {/* What's New button */}
-        {onWhatsNewClick && (
-          <button
-            className={`app-nav-item whats-new-trigger ${showWhatsNewBadge ? 'has-update' : ''}`}
-            onClick={onWhatsNewClick}
-            title="Что нового"
-            aria-label="Что нового"
-          >
-            <StarIcon />
-            {showWhatsNewBadge && <span className="app-nav-dot" />}
-          </button>
-        )}
-        
-        {/* Divider */}
-        {onWhatsNewClick && <div className="app-nav-divider" />}
-        
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`app-nav-item ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => onTabChange(tab.id)}
-            disabled={isLoading}
-            title={`${tab.label} (${tab.shortcut})`}
-            aria-label={`${tab.label} (${tab.shortcut})`}
-            aria-current={activeTab === tab.id ? 'page' : undefined}
-          >
-            {tab.icon}
-            {tab.id === 'logs' && errorCount !== undefined && errorCount > 0 && (
-              <span className="app-nav-badge">{errorCount}</span>
-            )}
-          </button>
-        ))}
-      </nav>
-    </header>
+      {/* What's New button */}
+      {onWhatsNewClick && (
+        <button
+          className={`app-toolbar-btn whats-new-trigger ${showWhatsNewBadge ? 'has-update' : ''}`}
+          onClick={onWhatsNewClick}
+          title="Что нового"
+          aria-label="Что нового"
+        >
+          <StarIcon />
+          <span className="app-toolbar-label">Новое</span>
+          {showWhatsNewBadge && <span className="app-toolbar-dot" />}
+        </button>
+      )}
+    </footer>
   );
 });
 

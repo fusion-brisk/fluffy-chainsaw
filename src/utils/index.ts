@@ -107,6 +107,37 @@ export {
   parseYandexSearchResults
 } from './snippet-parser';
 
+// Container structure cache (Figma node search optimization)
+export {
+  buildContainerStructureCache,
+  clearContainerStructureCache,
+  getContainerStructure,
+  findCachedNodeByName,
+  findAllCachedNodesByName,
+  findAllCachedNodesByNameContains,
+  getAllCachedInstances,
+  findCachedTextLayer,
+  findCachedInstance,
+  getFirstImageTarget,
+  findImageTargetByName,
+  getContainerIdForNode,
+  hasContainerCache,
+  getCacheStats
+} from './container-cache';
+export type { ContainerStructure } from './container-cache';
+
+// Component properties cache (property lookup optimization)
+export {
+  getOrBuildPropertyCache,
+  findPropertyKey,
+  getPropertyMetadata,
+  validateVariantValue,
+  resetComponentCache,
+  logComponentCacheStats,
+  getCachedPropertyNames
+} from './component-cache';
+export type { PropertyMetadata, ComponentPropertyInfo } from './component-cache';
+
 // ============================================
 // UI Utilities
 // ============================================

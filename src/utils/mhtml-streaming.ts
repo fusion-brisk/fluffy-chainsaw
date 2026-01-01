@@ -8,6 +8,7 @@
  * - Экономия памяти через substring вместо массивов
  */
 
+import { Logger } from '../logger';
 import {
   MHTML_CONTENT_TYPE_REGEX,
   MHTML_BOUNDARY_REGEX,
@@ -169,8 +170,8 @@ export function parseMhtmlStreaming(
     });
   };
   
-  console.log('📦 [Streaming] Парсинг MHTML файла...');
-  console.log('📄 [Streaming] Размер:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+  Logger.debug('📦 [Streaming] Парсинг MHTML файла...');
+  Logger.debug('📄 [Streaming] Размер:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
   
   reportProgress(0, 'boundary', 'Поиск boundary...');
   
@@ -197,7 +198,7 @@ export function parseMhtmlStreaming(
     throw new Error('Не удалось найти HTML в MHTML файле');
   }
   
-  console.log(`✅ [Streaming] Boundary: ${boundary.substring(0, 50)}...`);
+  Logger.debug(`✅ [Streaming] Boundary: ${boundary.substring(0, 50)}...`);
   
   // 2. Определяем разделитель
   const separator = mhtmlContent.includes(`--${boundary}`) ? `--${boundary}` : boundary;
@@ -227,7 +228,7 @@ export function parseMhtmlStreaming(
       html = extractHtmlFromPart(part);
       
       if (html) {
-        console.log(`✅ [Streaming] HTML найден в части ${partsScanned}`);
+        Logger.debug(`✅ [Streaming] HTML найден в части ${partsScanned}`);
         break;
       }
     }
@@ -254,9 +255,9 @@ export function parseMhtmlStreaming(
   
   const parseTimeMs = performance.now() - startTime;
   
-  console.log(`✅ [Streaming] Готово за ${parseTimeMs.toFixed(0)}ms`);
-  console.log(`📊 [Streaming] Просканировано частей: ${partsScanned}`);
-  console.log(`📄 [Streaming] HTML размер: ${(html.length / 1024).toFixed(1)} KB`);
+  Logger.debug(`✅ [Streaming] Готово за ${parseTimeMs.toFixed(0)}ms`);
+  Logger.debug(`📊 [Streaming] Просканировано частей: ${partsScanned}`);
+  Logger.debug(`📄 [Streaming] HTML размер: ${(html.length / 1024).toFixed(1)} KB`);
   
   reportProgress(totalSize, 'done', `Готово (${partsScanned} частей за ${parseTimeMs.toFixed(0)}ms)`);
   
@@ -298,7 +299,7 @@ export async function parseMhtmlStreamingAsync(
   // Yield to event loop каждые N итераций для больших файлов
   const yieldToEventLoop = () => new Promise<void>(resolve => setTimeout(resolve, 0));
   
-  console.log('📦 [Async Streaming] Парсинг MHTML файла...');
+  Logger.debug('📦 [Async Streaming] Парсинг MHTML файла...');
   
   reportProgress(0, 'boundary', 'Поиск boundary...');
   

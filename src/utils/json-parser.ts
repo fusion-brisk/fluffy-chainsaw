@@ -1,6 +1,7 @@
 // JSON parsing utilities for Yandex search results
 
 import { CSVRow } from '../types';
+import { Logger } from '../logger';
 import { ParsingSchema, DEFAULT_PARSING_RULES, FieldRule } from '../parsing-rules';
 import {
   NOFRAMES_JSON_REGEX,
@@ -13,25 +14,25 @@ import {
 
 // Парсит JSON из блока noframes и извлекает данные о сниппетах
 export function parseJsonFromNoframes(html: string): any {
-  console.log('🔍 Поиск блока noframes с JSON данными...');
+  Logger.debug('🔍 Поиск блока noframes с JSON данными...');
   
   // Ищем блок <noframes id="lazy-react-state-post-search">
   const noframesMatch = html.match(NOFRAMES_JSON_REGEX);
   
   if (!noframesMatch || !noframesMatch[1]) {
-    console.log('⚠️ Блок noframes с id="lazy-react-state-post-search" не найден');
+    Logger.debug('⚠️ Блок noframes с id="lazy-react-state-post-search" не найден');
     return null;
   }
   
   const jsonContent = noframesMatch[1].trim();
-  console.log(`✅ Блок noframes найден, размер JSON: ${jsonContent.length} символов`);
+  Logger.debug(`✅ Блок noframes найден, размер JSON: ${jsonContent.length} символов`);
   
   try {
     const jsonData = JSON.parse(jsonContent);
-    console.log('✅ JSON успешно распарсен');
+    Logger.debug('✅ JSON успешно распарсен');
     return jsonData;
   } catch (error) {
-    console.error('❌ Ошибка парсинга JSON:', error);
+    Logger.error('❌ Ошибка парсинга JSON:', error);
     return null;
   }
 }
@@ -92,7 +93,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
       return;
     }
     
-    console.log(`🔍 Фавиконка найдена в поле "${faviconField}" для сниппета "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    Logger.debug(`🔍 Фавиконка найдена в поле "${faviconField}" для сниппета "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     
     let faviconUrl: string | null = null;
     let bgPosition: string | null = null;
@@ -113,7 +114,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
         const faviconUrls = faviconData.urls.map((url: string) => url.trim()).filter((url: string) => url.length > 0);
         if (faviconUrls.length > 0) {
           row['#FaviconImage'] = `SPRITE_LIST:${faviconUrls.join('|')}`;
-          console.log(`✅ Список фавиконок найден: ${faviconUrls.length} адресов`);
+          Logger.debug(`✅ Список фавиконок найден: ${faviconUrls.length} адресов`);
           
           // Извлекаем первый хост для ShopName
           try {
@@ -145,7 +146,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
         
         if (faviconUrls.length > 0) {
           row['#FaviconImage'] = `SPRITE_LIST:${faviconUrls.join('|')}`;
-          console.log(`✅ Список фавиконок найден в массиве: ${faviconUrls.length} адресов`);
+          Logger.debug(`✅ Список фавиконок найден в массиве: ${faviconUrls.length} адресов`);
           
           // Извлекаем первый хост для ShopName
           try {
@@ -185,7 +186,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
     
     // Проверяем формат URL
     if (!faviconUrl.startsWith('http://') && !faviconUrl.startsWith('https://')) {
-      console.warn(`⚠️ Некорректный формат URL фавиконки: ${faviconUrl.substring(0, 50)}...`);
+      Logger.warn(`⚠️ Некорректный формат URL фавиконки: ${faviconUrl.substring(0, 50)}...`);
       return;
     }
     
@@ -223,7 +224,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
         row['#FaviconImage'] = `SPRITE_LIST:${faviconUrls.join('|')}`;
         const firstDomain = addresses[0].trim().split('?')[0];
         const firstFaviconUrl = faviconUrls[0];
-        console.log(`✅ Спрайт-список фавиконок найден: ${addresses.length} адресов, первый домен: ${firstDomain}, первая фавиконка: ${firstFaviconUrl}`);
+        Logger.debug(`✅ Спрайт-список фавиконок найден: ${addresses.length} адресов, первый домен: ${firstDomain}, первая фавиконка: ${firstFaviconUrl}`);
         
         // Извлекаем первый хост для текущего сниппета
         const firstHost = firstDomain;
@@ -247,10 +248,10 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
       bgPosition = bgPosition.trim().replace(/\s+/g, ' ');
       const spriteData = bgSize ? `${faviconUrl}|${bgPosition}|${bgSize}` : `${faviconUrl}|${bgPosition}`;
       row['#FaviconImage'] = spriteData;
-      console.log(`✅ Фавиконка-спрайт найдена: ${faviconUrl.substring(0, 60)}... позиция: ${bgPosition}${bgSize ? `, размер: ${bgSize}` : ''}`);
+      Logger.debug(`✅ Фавиконка-спрайт найдена: ${faviconUrl.substring(0, 60)}... позиция: ${bgPosition}${bgSize ? `, размер: ${bgSize}` : ''}`);
     } else {
       row['#FaviconImage'] = faviconUrl;
-      console.log(`✅ Фавиконка найдена: ${faviconUrl.substring(0, 80)}...`);
+      Logger.debug(`✅ Фавиконка найдена: ${faviconUrl.substring(0, 80)}...`);
     }
     
     // Извлекаем хост из URL фавиконки
@@ -267,7 +268,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
       }
     }
   } catch (e) {
-    console.error('❌ Ошибка извлечения фавиконки из JSON:', e);
+    Logger.error('❌ Ошибка извлечения фавиконки из JSON:', e);
   }
 }
 
@@ -317,17 +318,17 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
   const results: CSVRow[] = [];
   const rules = parsingRules.rules;
   
-  console.log('🔍 Извлечение данных из JSON...');
-  console.log('📊 Верхнеуровневые ключи JSON:', Object.keys(jsonData));
+  Logger.debug('🔍 Извлечение данных из JSON...');
+  Logger.debug('📊 Верхнеуровневые ключи JSON:', Object.keys(jsonData));
   
   // Собираем все поля из JSON для логирования
   const allFields = collectAllFields(jsonData);
-  console.log('📋 Все поля, обнаруженные в JSON:');
+  Logger.debug('📋 Все поля, обнаруженные в JSON:');
   const sortedFields = Array.from(allFields).sort();
   sortedFields.forEach(field => {
-    console.log(`   - ${field}`);
+    Logger.debug(`   - ${field}`);
   });
-  console.log(`📊 Всего уникальных полей в JSON: ${allFields.size}`);
+  Logger.debug(`📊 Всего уникальных полей в JSON: ${allFields.size}`);
   
   // Ищем данные о сниппетах в различных возможных местах JSON структуры
   // Обычно данные находятся в структуре типа: results, items, snippets, organic, products и т.д.
@@ -399,13 +400,13 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
   }
   
   if (foundPath) {
-    console.log(`📦 Найдено ${snippets.length} потенциальных сниппетов в JSON по пути: ${foundPath}`);
+    Logger.debug(`📦 Найдено ${snippets.length} потенциальных сниппетов в JSON по пути: ${foundPath}`);
   } else {
-    console.log(`⚠️ Не найдено массивов со сниппетами в JSON`);
+    Logger.debug(`⚠️ Не найдено массивов со сниппетами в JSON`);
   }
   
   if (snippets.length === 0) {
-    console.log('⚠️ Не найдено массивов со сниппетами. Структура JSON:', JSON.stringify(jsonData).substring(0, 500));
+    Logger.debug('⚠️ Не найдено массивов со сниппетами. Структура JSON:', JSON.stringify(jsonData).substring(0, 500));
     return [];
   }
   
@@ -417,17 +418,17 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
       fields.forEach(f => snippetFieldsSet.add(f));
     }
   }
-  console.log(`📋 Уникальные поля из всех сниппетов (${snippetFieldsSet.size} полей):`);
+  Logger.debug(`📋 Уникальные поля из всех сниппетов (${snippetFieldsSet.size} полей):`);
   const sortedSnippetFields = Array.from(snippetFieldsSet).sort();
   sortedSnippetFields.forEach(field => {
-    console.log(`   - ${field}`);
+    Logger.debug(`   - ${field}`);
   });
   
   // Логируем детальную структуру первого сниппета для отладки
   if (snippets.length > 0 && snippets[0] && typeof snippets[0] === 'object') {
     const firstSnippet = snippets[0];
     const firstSnippetFields = Object.keys(firstSnippet);
-    console.log(`📋 Поля первого сниппета (${firstSnippetFields.length} полей):`);
+    Logger.debug(`📋 Поля первого сниппета (${firstSnippetFields.length} полей):`);
     firstSnippetFields.forEach(field => {
       const value = firstSnippet[field];
       const valueType = typeof value;
@@ -445,7 +446,7 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
       } else {
         valuePreview = String(value);
       }
-      console.log(`   - ${field}: ${valueType} = ${valuePreview}`);
+      Logger.debug(`   - ${field}: ${valueType} = ${valuePreview}`);
     });
   }
   
@@ -573,7 +574,7 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
     }
   }
   
-  console.log(`✅ Извлечено ${results.length} валидных сниппетов из JSON`);
+  Logger.debug(`✅ Извлечено ${results.length} валидных сниппетов из JSON`);
   
   return results;
 }

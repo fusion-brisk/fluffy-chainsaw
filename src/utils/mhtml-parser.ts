@@ -1,5 +1,6 @@
 // MHTML parsing utilities
 
+import { Logger } from '../logger';
 import {
   MHTML_CONTENT_TYPE_REGEX,
   MHTML_BOUNDARY_REGEX,
@@ -12,8 +13,8 @@ import {
 
 // Parse MHTML file and extract HTML content
 export function parseMhtmlFile(mhtmlContent: string): string {
-  console.log('📦 Парсинг MHTML файла...');
-  console.log('📄 Размер MHTML:', mhtmlContent.length);
+  Logger.debug('📦 Парсинг MHTML файла...');
+  Logger.debug('📄 Размер MHTML:', mhtmlContent.length);
   
   // Находим boundary из заголовка Content-Type (может быть в разных форматах)
   let boundary: string | null = null;
@@ -51,7 +52,7 @@ export function parseMhtmlFile(mhtmlContent: string): string {
     throw new Error('Не удалось найти HTML в MHTML файле');
   }
   
-  console.log(`✅ Найден boundary: ${boundary}`);
+  Logger.debug(`✅ Найден boundary: ${boundary}`);
   
   // Разделяем файл по boundary (может быть с -- или без)
   // Пробуем разные варианты разделения
@@ -79,7 +80,7 @@ export function parseMhtmlFile(mhtmlContent: string): string {
       const partContentType = partContentTypeMatch[1].trim().toLowerCase();
       
       if (partContentType.includes('text/html')) {
-        console.log(`✅ Найдена HTML часть (часть ${i + 1})`);
+        Logger.debug(`✅ Найдена HTML часть (часть ${i + 1})`);
         
         // Извлекаем содержимое (после двойного переноса строки)
         const contentMatch = part.match(MHTML_CONTENT_AFTER_HEADERS_REGEX);
@@ -96,7 +97,7 @@ export function parseMhtmlFile(mhtmlContent: string): string {
           
           if (encoding === 'quoted-printable') {
             // Декодируем quoted-printable
-            console.log('📝 Декодирование quoted-printable...');
+            Logger.debug('📝 Декодирование quoted-printable...');
             htmlContent = htmlContent
               .replace(/=\r?\n/g, '') // Убираем мягкие переносы строк
               .replace(/=([0-9A-F]{2})/gi, (match, hex) => {
@@ -105,7 +106,7 @@ export function parseMhtmlFile(mhtmlContent: string): string {
               .replace(/=\r?\n/g, ''); // Еще раз на всякий случай
           } else if (encoding === 'base64') {
             // Декодируем base64
-            console.log('📝 Декодирование base64...');
+            Logger.debug('📝 Декодирование base64...');
             try {
               // Убираем пробелы и переносы строк
               const base64Content = htmlContent.replace(/\s/g, '');
@@ -122,7 +123,7 @@ export function parseMhtmlFile(mhtmlContent: string): string {
         // Убираем возможные финальные boundary маркеры
         htmlContent = htmlContent.replace(/--\s*$/, '').trim();
         
-        console.log(`✅ HTML извлечен, размер: ${htmlContent.length} символов`);
+        Logger.debug(`✅ HTML извлечен, размер: ${htmlContent.length} символов`);
         return htmlContent;
       }
     }
@@ -132,7 +133,7 @@ export function parseMhtmlFile(mhtmlContent: string): string {
   console.warn('⚠️ HTML часть не найдена по Content-Type, ищем HTML напрямую...');
   const htmlMatch = mhtmlContent.match(MHTML_HTML_DOCTYPE_REGEX);
   if (htmlMatch) {
-    console.log('✅ HTML найден напрямую');
+    Logger.debug('✅ HTML найден напрямую');
     return htmlMatch[0];
   }
   

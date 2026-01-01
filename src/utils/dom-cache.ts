@@ -1,6 +1,8 @@
 // DOM cache utilities for optimized element lookup
 // Phase 5 optimization: single pass DOM traversal
 
+import { Logger } from '../logger';
+
 /**
  * Кэш элементов контейнера сниппета
  * Один обход TreeWalker -> Map lookup O(1) вместо множественных querySelector O(n)
@@ -118,7 +120,7 @@ export function buildContainerCache(container: Element): ContainerCache {
   
   const buildTime = performance.now() - startTime;
   if (buildTime > 5) {
-    console.log(`⏱️ [ContainerCache] Построен за ${buildTime.toFixed(2)}ms, ${totalElements} элементов`);
+    Logger.debug(`⏱️ [ContainerCache] Построен за ${buildTime.toFixed(2)}ms, ${totalElements} элементов`);
   }
   
   return {
@@ -344,8 +346,11 @@ export function findSnippetContainersOptimized(doc: Document): Element[] {
   // а не [class*="EShopItem"] — последний захватывает дочерние элементы
   const combinedSelector = [
     '[class*="Organic_withOfferInfo"]',
+    '[class*="Organic_withThumbCollage"]', // Каталожные страницы (EThumbGroup, без цены)
     '[class*="EProductSnippet2"]',
-    '.EShopItem'  // Точный класс, не подстрока!
+    '.EShopItem',  // Точный класс, не подстрока!
+    '.ProductTile-Item',
+    '.EOfferItem'
   ].join(', ');
   
   const containers = doc.querySelectorAll(combinedSelector);
@@ -383,7 +388,7 @@ export function buildDOMCache(doc: Document): DOMCache {
   
   const buildTime = performance.now() - startTime;
   
-  console.log(`✅ [DOMCache] Построен за ${buildTime.toFixed(2)}ms: ${topLevelContainers.length} контейнеров, ${totalElements} элементов`);
+  Logger.debug(`✅ [DOMCache] Построен за ${buildTime.toFixed(2)}ms: ${topLevelContainers.length} контейнеров, ${totalElements} элементов`);
   
   return {
     containers: containerCaches,

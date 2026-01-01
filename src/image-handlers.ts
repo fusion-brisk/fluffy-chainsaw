@@ -1,10 +1,14 @@
 import { Logger } from './logger';
 import { LayerDataItem, DetailedError } from './types';
 import { IMAGE_CONFIG } from './config';
+import { getFirstImageTarget, getContainerIdForNode, hasContainerCache } from './utils/container-cache';
 
 export class ImageProcessor {
   // Memory cache for the current session
   private imageCache: { [url: string]: Promise<Image> | undefined } = {};
+  
+  // Batch cache writes — накапливаем записи и сохраняем в конце
+  private pendingCacheWrites: Map<string, { hash: string; timestamp: number }> = new Map();
   
   public successfulImages = 0;
   public failedImages = 0;
@@ -18,7 +22,28 @@ export class ImageProcessor {
     this.failedImages = 0;
     this.errors = [];
     this.processedCount = 0;
+    this.pendingCacheWrites.clear();
     // We intentionally don't clear cache here to preserve it across runs in same session
+  }
+  
+  /**
+   * Batch flush всех накопленных записей в clientStorage
+   * Вызывается один раз в конце processPool для оптимизации I/O
+   */
+  private async flushCacheWrites(): Promise<void> {
+    if (this.pendingCacheWrites.size === 0) return;
+    
+    const writes = Array.from(this.pendingCacheWrites.entries());
+    Logger.debug(`💾 [Cache] Сохранение ${writes.length} записей в clientStorage...`);
+    
+    await Promise.all(writes.map(([key, value]) => 
+      figma.clientStorage.setAsync(key, value).catch(e => {
+        Logger.warn(`⚠️ [Cache] Ошибка записи ${key}:`, e);
+      })
+    ));
+    
+    this.pendingCacheWrites.clear();
+    Logger.debug(`💾 [Cache] Сохранено ${writes.length} записей`);
   }
 
   private async fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
@@ -160,18 +185,12 @@ export class ImageProcessor {
         throw new Error('Не удалось создать изображение (возможно, неподдерживаемый формат)');
       }
 
-      // 5. Save hash to persistent storage with TTL timestamp
-      try {
-        const cacheEntry = {
-          hash: image.hash,
-          timestamp: Date.now()
-        };
-        figma.clientStorage.setAsync(cacheKey, cacheEntry).catch(e => {
-          Logger.warn('Error writing to clientStorage:', e);
-        });
-      } catch (e) {
-        // ignore
-      }
+      // 5. Add to pending cache writes (batch save at end of processPool)
+      // Это оптимизация: вместо N отдельных setAsync делаем один batch в конце
+      this.pendingCacheWrites.set(cacheKey, {
+        hash: image.hash,
+        timestamp: Date.now()
+      });
 
       return image;
     })();
@@ -484,9 +503,22 @@ export class ImageProcessor {
       let targetLayer: RectangleNode | EllipseNode | PolygonNode | VectorNode | FrameNode | null = null;
       const layerType = item.layer.type;
       
-      if (layerType === 'RECTANGLE' || layerType === 'ELLIPSE' || layerType === 'POLYGON' || layerType === 'VECTOR') {
+      // === ОПТИМИЗАЦИЯ: Пробуем кэш контейнера для быстрого поиска ===
+      if (item.row && item.row['#_containerId']) {
+        const containerId = item.row['#_containerId'] as string;
+        if (hasContainerCache(containerId)) {
+          const cached = getFirstImageTarget(containerId);
+          if (cached && !cached.removed) {
+            targetLayer = cached as RectangleNode | EllipseNode | PolygonNode | VectorNode | FrameNode;
+            Logger.debug(`   💾 [Cache] Найден target из кэша: ${cached.name} (${cached.type})`);
+          }
+        }
+      }
+      
+      // Если кэш не помог — используем стандартную логику
+      if (!targetLayer && (layerType === 'RECTANGLE' || layerType === 'ELLIPSE' || layerType === 'POLYGON' || layerType === 'VECTOR')) {
         targetLayer = item.layer as RectangleNode | EllipseNode | PolygonNode | VectorNode;
-      } else if (layerType === 'FRAME') {
+      } else if (!targetLayer && layerType === 'FRAME') {
         // FRAME может сам принимать fills — проверяем, есть ли внутри фигуры
         const innerTarget = this.findImageTargetInContainer(item.layer as FrameNode);
         if (innerTarget) {
@@ -497,7 +529,7 @@ export class ImageProcessor {
           targetLayer = item.layer as FrameNode;
           Logger.debug(`   🔍 Применяем изображение к самому FRAME: ${item.layer.name}`);
         }
-      } else if (layerType === 'INSTANCE' || layerType === 'GROUP') {
+      } else if (!targetLayer && (layerType === 'INSTANCE' || layerType === 'GROUP')) {
         // Ищем внутри первую подходящую фигуру
         targetLayer = this.findImageTargetInContainer(item.layer as SceneNode & ChildrenMixin);
         if (targetLayer) {
@@ -533,6 +565,14 @@ export class ImageProcessor {
       
       // Применение изображения
       try {
+        // Диагностика: проверяем тип target слоя и его родителей
+        const targetName = 'name' in targetLayer ? targetLayer.name : 'N/A';
+        const targetType = targetLayer.type;
+        const parentInfo = 'parent' in targetLayer && targetLayer.parent 
+          ? `${targetLayer.parent.type}:${('name' in targetLayer.parent ? targetLayer.parent.name : 'N/A')}`
+          : 'no parent';
+        Logger.debug(`   🎯 [Image Apply] target="${targetName}" (${targetType}), parent=${parentInfo}, field="${item.fieldName}"`);
+        
         if (spritePosition) {
           await this.applySpriteImage(targetLayer, figmaImage, spritePosition, spriteSize);
         } else {
@@ -545,8 +585,27 @@ export class ImageProcessor {
             scaleMode: scaleMode,
             imageHash: figmaImage.hash
           };
+          
+          // Проверка: можно ли менять fills у этого слоя
+          const canSetFills = 'fills' in targetLayer;
+          if (!canSetFills) {
+            Logger.error(`   ❌ [Image Apply] targetLayer не поддерживает fills! type=${targetType}`);
+            this.markAsFailed(item, `Target layer ${targetType} не поддерживает fills`);
+            return;
+          }
+          
           targetLayer.fills = [newPaint];
-          Logger.debug(`   ✅ Изображение применено (${scaleMode})`);
+          
+          // Проверка: применилось ли изображение?
+          const appliedFills = targetLayer.fills;
+          const appliedHash = (appliedFills && appliedFills.length > 0 && appliedFills[0].type === 'IMAGE') 
+            ? (appliedFills[0] as ImagePaint).imageHash 
+            : 'N/A';
+          if (appliedHash !== figmaImage.hash) {
+            Logger.warn(`   ⚠️ [Image Apply] Hash не совпадает! expected=${figmaImage.hash.substring(0,8)}, got=${String(appliedHash).substring(0,8)}`);
+          }
+          
+          Logger.debug(`   ✅ Изображение применено (${scaleMode}) к ${targetName}`);
         }
         
         this.successfulImages++;
@@ -785,20 +844,34 @@ export class ImageProcessor {
   }
 
   public async processPool(items: LayerDataItem[]): Promise<void> {
-    Logger.info('🔄 Начинаем обработку пула изображений...');
+    Logger.verbose(`🔄 Начинаем обработку пула из ${items.length} изображений...`);
+    
+    // Логируем примеры URL для диагностики
+    const sampleUrls = items.slice(0, 3).map(i => {
+      const url = String(i.fieldValue || '').substring(0, 60);
+      return `${i.fieldName}="${url}..."`;
+    });
+    Logger.debug(`🖼️ [Image] Примеры: ${sampleUrls.join(', ')}`);
     
     // 1. Synchronous pre-processing of favicons
     this.resolveFaviconUrls(items);
+    Logger.debug(`🖼️ [Image] resolveFaviconUrls завершён`);
     
     const total = items.length;
     const queue = [...items];
     const workers: Promise<void>[] = [];
     
     // Функция для отправки прогресса (синхронизированная)
+    const logInterval = Math.max(1, Math.floor(total / 10)); // Лог каждые 10% или минимум каждое
     const updateProgress = () => {
       this.processedCount++;
       const currentCount = this.processedCount;
       const progress = 75 + Math.floor((currentCount / total) * 25); // 75-100%
+      
+      // Консольный лог каждые 10% или при завершении
+      if (currentCount % logInterval === 0 || currentCount === total) {
+        Logger.verbose(`🖼️ [Image] Прогресс: ${currentCount}/${total} (${this.successfulImages} ОК, ${this.failedImages} ошибок)`);
+      }
       
       // Обновляем каждые 3 изображения или каждые 5% или при завершении
       const updateInterval = Math.max(1, Math.floor(total / 20));
@@ -838,5 +911,11 @@ export class ImageProcessor {
     }
     
     await Promise.all(workers);
+    
+    // Batch flush всех накопленных записей в clientStorage
+    await this.flushCacheWrites();
+    
+    // Summary-лог — оставляем как info (это итоговая статистика)
+    Logger.summary(`✅ [Image] Обработано: ${this.successfulImages} успешно, ${this.failedImages} ошибок, ${items.length - this.successfulImages - this.failedImages} пропущено`);
   }
 }

@@ -1,16 +1,18 @@
 // DOM utilities for parsing HTML
 
 import { STYLE_TAG_REGEX, STYLE_TAG_CONTENT_REGEX } from './regex';
+import { Logger } from '../logger';
 
 // Находит все контейнеры сниппетов в документе
 // Главный критерий: наличие цены в сниппете
 // ОПТИМИЗИРОВАНО (Phase 5): один комбинированный селектор
 export function findSnippetContainers(doc: Document): Element[] {
-  // Комбинированный селектор для всех типов сниппетов с ценой
+  // Комбинированный селектор для всех типов сниппетов
   // ВАЖНО: для EShopItem используем .EShopItem (точный класс), 
   // а не [class*="EShopItem"] — последний захватывает дочерние элементы типа EShopItem-Title
   const combinedSelector = [
     '[class*="Organic_withOfferInfo"]',   // Органик с офером (цена, магазин)
+    '[class*="Organic_withThumbCollage"]', // Органик с EThumbGroup (каталожные страницы, без цены)
     '[class*="EProductSnippet2"]',        // Сниппеты товаров (новый формат)
     '.EShopItem',                         // Карточки магазинов Маркета (точный класс!)
     '.ProductTile-Item',                  // Карточки в плитке товаров
@@ -119,7 +121,7 @@ export function getStyleTags(doc: Document, rawHtml?: string): HTMLStyleElement[
   // Пробуем стандартный способ
   const allStyleTags = doc.querySelectorAll('style');
   if (allStyleTags.length > 0) {
-    console.log(`✅ [getStyleTags] Найдено ${allStyleTags.length} style тегов через querySelectorAll`);
+    Logger.debug(`✅ [getStyleTags] Найдено ${allStyleTags.length} style тегов через querySelectorAll`);
     return Array.from(allStyleTags);
   }
   
@@ -128,7 +130,7 @@ export function getStyleTags(doc: Document, rawHtml?: string): HTMLStyleElement[
   if (headElement) {
     const headStyleTags = headElement.querySelectorAll('style');
     if (headStyleTags.length > 0) {
-      console.log(`✅ [getStyleTags] Найдено ${headStyleTags.length} style тегов в head`);
+      Logger.debug(`✅ [getStyleTags] Найдено ${headStyleTags.length} style тегов в head`);
       return Array.from(headStyleTags);
     }
   }
@@ -138,7 +140,7 @@ export function getStyleTags(doc: Document, rawHtml?: string): HTMLStyleElement[
   if (bodyElement) {
     const bodyStyleTags = bodyElement.querySelectorAll('style');
     if (bodyStyleTags.length > 0) {
-      console.log(`✅ [getStyleTags] Найдено ${bodyStyleTags.length} style тегов в body`);
+      Logger.debug(`✅ [getStyleTags] Найдено ${bodyStyleTags.length} style тегов в body`);
       return Array.from(bodyStyleTags);
     }
   }
@@ -149,10 +151,10 @@ export function getStyleTags(doc: Document, rawHtml?: string): HTMLStyleElement[
   
   // Если не нашли в innerHTML, пробуем в сыром HTML (если передан)
   if ((!styleMatches || styleMatches.length === 0) && rawHtml) {
-    console.log(`⚠️ [getStyleTags] Не найдено style тегов в parsed HTML, пробуем в сыром HTML...`);
+    Logger.debug(`⚠️ [getStyleTags] Не найдено style тегов в parsed HTML, пробуем в сыром HTML...`);
     styleMatches = rawHtml.match(STYLE_TAG_REGEX);
     if (styleMatches && styleMatches.length > 0) {
-      console.log(`✅ [getStyleTags] Найдено ${styleMatches.length} style тегов в сыром HTML`);
+      Logger.debug(`✅ [getStyleTags] Найдено ${styleMatches.length} style тегов в сыром HTML`);
     }
   }
   
@@ -169,12 +171,12 @@ export function getStyleTags(doc: Document, rawHtml?: string): HTMLStyleElement[
       }
     }
     if (tempStyleElements.length > 0) {
-      console.log(`✅ [getStyleTags] Создано ${tempStyleElements.length} временных style элементов из найденных совпадений`);
+      Logger.debug(`✅ [getStyleTags] Создано ${tempStyleElements.length} временных style элементов из найденных совпадений`);
       return tempStyleElements;
     }
   }
   
-  console.log(`⚠️ [getStyleTags] Не найдено style тегов ни одним способом`);
+  Logger.debug(`⚠️ [getStyleTags] Не найдено style тегов ни одним способом`);
   return Array.from(allStyleTags); // Возвращаем пустой массив
 }
 

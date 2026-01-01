@@ -1,10 +1,10 @@
 import { Logger } from './logger';
 import { LayerDataItem } from './types';
-import { processVariantProperty, processVariantPropertyRecursive } from './property-utils';
+import { trySetVariantProperty, trySetVariantPropertyRecursive } from './property-utils';
 
 export async function loadFonts(textLayers: LayerDataItem[]): Promise<void> {
   const fontsStartTime = Date.now();
-  Logger.info(`📝 Загружаем шрифты для ${textLayers.length} текстовых слоев...`);
+  Logger.verbose(`📝 Загружаем шрифты для ${textLayers.length} текстовых слоев...`);
 
   type FontPair = { family: string; style: string };
   const fontsToLoadMap: { [key: string]: FontPair } = {};
@@ -69,7 +69,7 @@ export async function loadFonts(textLayers: LayerDataItem[]): Promise<void> {
   }
 
   const fontsToLoad = Array.from(Object.values(fontsToLoadMap));
-  Logger.info(`🔤 Найдено ${fontsToLoad.length} уникальных шрифтов`);
+  Logger.debug(`🔤 Найдено ${fontsToLoad.length} уникальных шрифтов`);
 
   let successfulFonts = 0;
   let failedFonts = 0;
@@ -87,7 +87,7 @@ export async function loadFonts(textLayers: LayerDataItem[]): Promise<void> {
   await Promise.all(fontPromises);
 
   const fontsTime = Date.now() - fontsStartTime;
-  Logger.info(`✅ Шрифтов загружено: ${successfulFonts}, ошибок: ${failedFonts} (${fontsTime}ms)`);
+  Logger.summary(`✅ Шрифтов загружено: ${successfulFonts}, ошибок: ${failedFonts} (${fontsTime}ms)`);
   
   figma.ui.postMessage({
     type: 'log',
@@ -95,9 +95,9 @@ export async function loadFonts(textLayers: LayerDataItem[]): Promise<void> {
   });
 }
 
-export function processTextLayers(textLayers: LayerDataItem[]): void {
+export async function processTextLayers(textLayers: LayerDataItem[]): Promise<void> {
   const textStartTime = Date.now();
-  Logger.info(`📝 Обрабатываем ${textLayers.length} текстовых слоев...`);
+  Logger.verbose(`📝 Обрабатываем ${textLayers.length} текстовых слоев...`);
 
   try {
     for (const item of textLayers) {
@@ -125,18 +125,18 @@ export function processTextLayers(textLayers: LayerDataItem[]): void {
           
           if (layerType === 'INSTANCE') {
             const instance = item.layer as InstanceNode;
-            isVariantPropertyProcessed = processVariantProperty(instance, trimmedTextValue, item.fieldName);
+            isVariantPropertyProcessed = trySetVariantProperty(instance, [trimmedTextValue], item.fieldName);
             if ('children' in instance) {
-              isVariantPropertyProcessed = isVariantPropertyProcessed || processVariantPropertyRecursive(instance, trimmedTextValue, item.fieldName);
+              isVariantPropertyProcessed = isVariantPropertyProcessed || trySetVariantPropertyRecursive(instance, [trimmedTextValue], item.fieldName);
             }
           } else {
             // For non-instances, look up parents or children
             let parent: BaseNode | null = item.layer.parent;
             while (parent && !isVariantPropertyProcessed) {
               if (parent.type === 'INSTANCE' && !parent.removed) {
-                isVariantPropertyProcessed = processVariantProperty(parent as InstanceNode, trimmedTextValue, item.fieldName);
+                isVariantPropertyProcessed = trySetVariantProperty(parent as InstanceNode, [trimmedTextValue], item.fieldName);
                 if (isVariantPropertyProcessed) {
-                  isVariantPropertyProcessed = isVariantPropertyProcessed || processVariantPropertyRecursive(parent as InstanceNode, trimmedTextValue, item.fieldName);
+                  isVariantPropertyProcessed = isVariantPropertyProcessed || trySetVariantPropertyRecursive(parent as InstanceNode, [trimmedTextValue], item.fieldName);
                   break;
                 }
               }
@@ -144,7 +144,7 @@ export function processTextLayers(textLayers: LayerDataItem[]): void {
             }
             
             if (!isVariantPropertyProcessed && 'children' in item.layer) {
-              isVariantPropertyProcessed = processVariantPropertyRecursive(item.layer, trimmedTextValue, item.fieldName);
+              isVariantPropertyProcessed = trySetVariantPropertyRecursive(item.layer as SceneNode, [trimmedTextValue], item.fieldName);
             }
           }
         }
@@ -232,7 +232,7 @@ export function processTextLayers(textLayers: LayerDataItem[]): void {
   }
 
   const textTime = Date.now() - textStartTime;
-  Logger.info(`✅ Обработано ${textLayers.length} текстовых слоев (${textTime}ms)`);
+  Logger.logTextStats(textLayers.length, textTime);
   
   figma.ui.postMessage({
     type: 'log',

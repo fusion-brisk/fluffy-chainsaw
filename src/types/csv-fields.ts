@@ -146,6 +146,12 @@ export interface CSVFields {
   // === Изображения ===
   /** Thumbnail изображение */
   '#ThumbImage'?: string;
+  /** Изображение 1 (EThumbGroup) */
+  '#Image1'?: string;
+  /** Изображение 2 (EThumbGroup) */
+  '#Image2'?: string;
+  /** Изображение 3 (EThumbGroup) */
+  '#Image3'?: string;
   
   // === Цитата из отзывов (EQuote) ===
   /** Текст цитаты ("«Отличный магазин...»") */
@@ -193,6 +199,9 @@ export const IMAGE_FIELDS: (keyof CSVFields)[] = [
   '#FaviconImage',
   '#OrganicImage',
   '#ThumbImage',
+  '#Image1',
+  '#Image2',
+  '#Image3',
   '#EQuote-AuthorAvatar',
   '#QuoteImage'
 ];

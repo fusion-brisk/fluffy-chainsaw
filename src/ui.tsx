@@ -9,6 +9,11 @@ import {
   parseMhtmlStreamingAsync,
   MhtmlParseProgress
 } from './utils/index';
+import { 
+  requestNotificationPermission, 
+  showCompletionNotification,
+  getNotificationPermission
+} from './utils/notifications';
 import { usePluginMessages, PluginMessageHandlers } from './hooks';
 
 // Components
@@ -19,11 +24,12 @@ import { WhatsNewDialog } from './components/WhatsNewDialog';
 import { NoSelectionDialog } from './components/NoSelectionDialog';
 import { LazyTab } from './components/LazyTab';
 // Import tab components
-import { LiveProgressView } from './components/import/LiveProgressView';
 import { CompletionCard } from './components/import/CompletionCard';
 import { ErrorCard } from './components/import/ErrorCard';
 // Logs view
 import { LogsView } from './components/logs/LogsView';
+// Celebration effect
+import { Confetti } from './components/Confetti';
 
 // Main App Component
 const App: React.FC = () => {
@@ -83,11 +89,17 @@ const App: React.FC = () => {
   const [resetBeforeImport, setResetBeforeImport] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   
+  // Log level state (0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG)
+  const [logLevel, setLogLevel] = useState<number>(2); // Default: SUMMARY
+  
   // Pending files waiting for confirmation (when scope='selection' but nothing selected)
   const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
   const [showNoSelectionDialog, setShowNoSelectionDialog] = useState(false);
   // Ref for pending files (to avoid stale closure in callbacks)
   const pendingFilesRef = useRef<FileList | null>(null);
+  
+  // Celebration confetti state
+  const [confetti, setConfetti] = useState<{ active: boolean; type: 'success' | 'error' }>({ active: false, type: 'success' });
   
   // Ref to track latest stats (for closure in message handler)
   const statsRef = useRef<ProcessingStats | null>(null);
@@ -136,6 +148,16 @@ const App: React.FC = () => {
       sendMessageToPlugin({ type: 'get-remote-url' });
       sendMessageToPlugin({ type: 'check-selection' });
       sendMessageToPlugin({ type: 'check-whats-new' });
+      sendMessageToPlugin({ type: 'get-log-level' });
+      
+      // Request notification permission (non-blocking)
+      if (getNotificationPermission() === 'default') {
+        requestNotificationPermission().then(granted => {
+          if (granted) {
+            console.log('Notification permission granted');
+          }
+        });
+      }
       
       const mql = window.matchMedia('(prefers-color-scheme: dark)');
       const handler = () => applyFigmaTheme();
@@ -458,6 +480,13 @@ const App: React.FC = () => {
       setUiState('idle');
       setProgress(null);
       addLog(`✅ Готово! Обработано ${count} элементов.`);
+      
+      // 🎉 Карамельный 3D-праздник!
+      const hasErrors = !!(currentStats?.failedImages && currentStats.failedImages > 0);
+      setConfetti({ active: true, type: hasErrors ? 'error' : 'success' });
+      
+      // Show browser notification if window is not focused
+      showCompletionNotification(count, elapsedTime, hasErrors);
     },
     onError: (message) => {
       addLog(`❌ Ошибка плагина: ${message}`);
@@ -476,6 +505,15 @@ const App: React.FC = () => {
       setProgress(null);
     },
     
+    // Cancel
+    onImportCancelled: () => {
+      addLog('⛔ Импорт отменён');
+      setUiState('idle');
+      setIsLoading(false);
+      setProgress(null);
+      setProcessingStartTime(null);
+    },
+    
     // What's New
     onWhatsNewStatus: ({ shouldShow, currentVersion }) => {
       setPluginVersion(currentVersion);
@@ -483,6 +521,11 @@ const App: React.FC = () => {
         setWhatsNewBadge(true);
         setShowWhatsNew(true);
       }
+    },
+    
+    // Logging
+    onLogLevelLoaded: (level) => {
+      setLogLevel(level);
     }
   }), [addLog]);
 
@@ -516,6 +559,12 @@ const App: React.FC = () => {
   // Clear completion stats
   const handleDismissCompletion = useCallback(() => {
     setLastCompletionStats(null);
+  }, []);
+  
+  // Handle log level change
+  const handleLogLevelChange = useCallback((level: number) => {
+    setLogLevel(level);
+    sendMessageToPlugin({ type: 'set-log-level', level });
   }, []);
 
   // Clear error
@@ -742,15 +791,6 @@ const App: React.FC = () => {
 
   return (
     <>
-      <Header 
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        errorCount={stats?.failedImages || lastCompletionStats?.stats.failedImages || 0}
-        isLoading={isLoading}
-        onWhatsNewClick={handleOpenWhatsNew}
-        showWhatsNewBadge={whatsNewBadge}
-      />
-
       {/* Tab: Import */}
       {activeTab === 'import' && (
         <>
@@ -765,29 +805,27 @@ const App: React.FC = () => {
             isResetting={isResetting}
           />
 
-          {/* DropZone - always visible */}
+          {/* DropZone - shows progress inside when loading */}
           <DropZone
             isDragOver={isDragOver}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             onFileSelect={handleFileInputChange}
+            onCancel={() => {
+              sendMessageToPlugin({ type: 'cancel-import' });
+              addLog('⛔ Отмена импорта...');
+            }}
             disabled={isDropZoneDisabled}
             fullscreen={(isDragging || isDragOver) && !isLoading}
-            isLoading={isLoading}
-            progress={progress ? { current: progress.current, total: progress.total } : undefined}
+            isLoading={isLoading || isResetting}
+            progress={progress}
+            fileSize={currentFileSize || undefined}
             dragFileName={dragFileName}
           />
 
           {/* Status area below DropZone */}
           <div className="status-area">
-            {/* Loading/Resetting status */}
-            {(isLoading || isResetting) && (
-              <LiveProgressView
-                progress={progress}
-                fileSize={currentFileSize || undefined}
-              />
-            )}
 
             {/* Error - shows when file processing fails */}
             {!isLoading && !isResetting && lastError && (
@@ -821,8 +859,20 @@ const App: React.FC = () => {
           logs={logs}
           onClearLogs={() => setLogs([])}
           onCopyLogs={copyLogs}
+          logLevel={logLevel}
+          onLogLevelChange={handleLogLevelChange}
         />
       </LazyTab>
+
+      {/* Bottom toolbar with navigation */}
+      <Header 
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        errorCount={stats?.failedImages || lastCompletionStats?.stats.failedImages || 0}
+        isLoading={isLoading}
+        onWhatsNewClick={handleOpenWhatsNew}
+        showWhatsNewBadge={whatsNewBadge}
+      />
 
       {showWhatsNew && pluginVersion && (
         <WhatsNewDialog
@@ -837,6 +887,13 @@ const App: React.FC = () => {
           onCancel={handleCancelNoSelection}
         />
       )}
+      
+      {/* 🎉 Карамельный 3D-праздник при завершении */}
+      <Confetti 
+        isActive={confetti.active} 
+        type={confetti.type}
+        onComplete={() => setConfetti({ active: false, type: 'success' })}
+      />
     </>
   );
 };

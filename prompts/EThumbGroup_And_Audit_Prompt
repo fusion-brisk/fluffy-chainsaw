@@ -1,0 +1,179 @@
+# Промпт: EThumbGroup + Аудит кода Contentify
+
+## Контекст
+Figma-плагин **Contentify** (EProductSnippet) — автозаполнение макетов данными из HTML поисковой выдачи Яндекса.
+
+Базовый коммит: `34fbcf8` (v2.4.0)
+
+---
+
+## Последние изменения (diff от v2.4.0)
+
+### 1. Поддержка EThumbGroup (каталожные страницы)
+
+**Файлы:** `snippet-handlers.ts`, `snippet-parser.ts`, `csv-fields.ts`
+
+**Суть:** Добавлена поддержка сниппетов с коллажем из 3 картинок (EThumbGroup) вместо одной (EThumb).
+
+**Изменения:**
+- `handleImageType` — переключает instance swap property `imageType` на ESnippet
+- Поиск варианта через ComponentSet: `State=Default` → `State=EThumbGroup`
+- `applyThumbGroupImages()` — применяет `#Image1`, `#Image2`, `#Image3` к слоям после переключения
+- Новые поля в `CSVFields`: `#Image1`, `#Image2`, `#Image3`
+- Добавлены в `IMAGE_FIELDS` для обработки image handler'ом
+
+**Ключевые решения:**
+1. **Асинхронный API:** Использование `getMainComponentAsync()` вместо `mainComponent` для `documentAccess: dynamic-page`
+2. **Порядок операций:** Изображения применяются ВНУТРИ `handleImageType` сразу после переключения, т.к. `filteredLayers` формируется до handlers
+3. **ComponentSet поиск:** Варианты ищутся по имени (`group`, `collage`, `thumbgroup`)
+
+### 2. Исправление OrganicHost для EProductSnippet2
+
+**Файл:** `snippet-parser.ts`
+
+**Проблема:** Для сниппетов Маркета хост брался из ссылки на `market.yandex.ru` → показывался `ya.ru`
+
+**Решение:** 
+```typescript
+const isMarketSnippet = snippetClass.includes('EProductSnippet2') || 
+                        u.hostname.includes('market.yandex');
+if (!isMarketSnippet) {
+  row['#OrganicHost'] = u.hostname;
+}
+```
+
+Теперь хост берётся из FaviconImage или ShopName через существующие fallback'и.
+
+### 3. Улучшения data-assignment
+
+**Файл:** `data-assignment.ts`
+
+- `containerNamesCache` — кэширование имён контейнеров для `getContainerType`
+- Решена ошибка `Cannot call getNodeById with documentAccess: dynamic-page`
+- Две очереди данных: каталожная (ESnippet + isCatalogPage) и товарная
+
+### 4. Регистрация ImageType handler
+
+**Файл:** `registry.ts`
+
+```typescript
+this.register('ImageType', handleImageType, {
+  priority: HandlerPriority.VARIANTS, // 10
+  mode: 'async',
+  description: 'Переключение EThumb/EThumbGroup'
+});
+```
+
+### 5. Расширенное логирование
+
+- Диагностика в `handleImageType`: все варианты ComponentSet, preferredValues, текущий/целевой вариант
+- Логирование в `applyThumbGroupImages`: статус применения каждого изображения
+- Логирование в `getContainerType`: определение типа контейнера
+
+---
+
+## Принципиальные идеи реализации
+
+### A. Instance Swap Properties
+
+Figma использует `INSTANCE_SWAP` component properties для переключения вложенных компонентов. Для установки значения нужен **node ID** компонента, не key.
+
+```typescript
+// Неправильно
+instance.setProperties({ 'imageType#28721:0': 'bbac5974...' }); // component key
+
+// Правильно
+instance.setProperties({ 'imageType#28721:0': '21952:76307' }); // node ID
+```
+
+### B. documentAccess: dynamic-page
+
+Плагин использует `documentAccess: "dynamic-page"` — синхронные API запрещены:
+- ❌ `figma.getNodeById()`
+- ❌ `instance.mainComponent`
+- ✅ `figma.getNodeByIdAsync()`
+- ✅ `instance.getMainComponentAsync()`
+
+### C. Порядок обработки в snippet-processor
+
+1. `filteredLayers` — формирование списка слоёв для заполнения
+2. `handlerRegistry.executeAll()` — компонентная логика (вкл. imageType)
+3. `processTextLayers()` — текстовые поля
+4. `imageProcessor.processImages()` — изображения
+
+**Проблема:** Слои собираются ДО переключения imageType → новые слои `#Image1/2/3` не попадают в `filteredLayers`.
+
+**Решение:** Применение изображений внутри `handleImageType` через `applyThumbGroupImages()`.
+
+### D. Двухочередная система данных
+
+```
+Каталожная очередь (isCatalogPage=true):
+  → Только ESnippet контейнеры
+  → EThumbGroup, hidePriceBlock=true
+
+Товарная очередь (isCatalogPage=false):
+  → Все контейнеры
+  → Стандартная обработка
+```
+
+---
+
+## Задача: Аудит кода
+
+### 1. Консистентность
+
+- [ ] Единообразие именования: `#Image1` vs `#OrganicImage` vs `#ThumbImage`
+- [ ] Консистентность fallback-цепочек для полей
+- [ ] Согласованность между `CSVFields` типами и реальным использованием
+- [ ] Единообразие обработки ошибок (try/catch vs проверки)
+
+### 2. Эффективность
+
+- [ ] Дублирование поиска слоёв (filteredLayers + applyThumbGroupImages)
+- [ ] Множественные вызовы `findAllWithCriteria` для каждого сниппета
+- [ ] Кэширование ComponentSet вариантов между вызовами
+- [ ] Оптимизация `findImageTypeInstance` — рекурсивный поиск
+
+### 3. Надёжность
+
+- [ ] Обработка случая когда EThumbGroup не найден в ComponentSet
+- [ ] Fallback при ошибке `setProperties`
+- [ ] Обработка отсутствия изображений `#Image1/2/3`
+- [ ] Валидация URL перед fetch в `applyThumbGroupImages`
+
+### 4. Быстродействие
+
+- [ ] Синхронные операции в async handlers
+- [ ] Параллельная загрузка изображений vs последовательная
+- [ ] Избыточное логирование в production
+- [ ] Размер бандла после добавления нового кода
+
+---
+
+## Ключевые файлы для аудита
+
+1. **`src/handlers/snippet-handlers.ts`** — handleImageType, applyThumbGroupImages
+2. **`src/plugin/data-assignment.ts`** — containerNamesCache, getContainerType
+3. **`src/plugin/snippet-processor.ts`** — порядок обработки
+4. **`src/utils/snippet-parser.ts`** — парсинг EThumbGroup, OrganicHost
+5. **`src/handlers/registry.ts`** — приоритеты handlers
+
+---
+
+## Команды для начала
+
+```bash
+# Посмотреть все изменения
+git diff HEAD --stat
+
+# Детальный diff конкретного файла
+git diff HEAD -- src/handlers/snippet-handlers.ts
+
+# Собрать проект
+npm run build
+
+# Линтинг
+npm run lint
+```
+

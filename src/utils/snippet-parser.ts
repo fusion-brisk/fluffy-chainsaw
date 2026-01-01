@@ -1,6 +1,7 @@
 // Snippet parsing utilities for Yandex search results
 
 import { CSVRow } from '../types';
+import { Logger } from '../logger';
 import { ParsingSchema, DEFAULT_PARSING_RULES } from '../parsing-rules';
 import {
   STYLE_TAG_REGEX,
@@ -75,7 +76,7 @@ export function extractRowData(
         isAdvGalleryCard ||
         isAdvContainer ||  // ← ДОБАВЛЕНО: Organic_withAdvLabel
         hasAdvLabel) {
-      console.log('⚠️ Пропущен рекламный сниппет (Organic_withAdvLabel/AdvProductGallery/AdvLabel)');
+      Logger.debug('⚠️ Пропущен рекламный сниппет (Organic_withAdvLabel/AdvProductGallery/AdvLabel)');
       return { row: null, spriteState: spriteState };
     }
     
@@ -131,7 +132,16 @@ export function extractRowData(
     row['#ProductURL'] = productURL;
     try {
       const u = new URL(productURL);
-      row['#OrganicHost'] = u.hostname;
+      // ВАЖНО: для EProductSnippet2 ссылка ведёт на Яндекс Маркет, а не на магазин!
+      // Не используем hostname из этой ссылки как OrganicHost
+      const snippetClass = container.className || '';
+      const isMarketSnippet = snippetClass.includes('EProductSnippet2') || 
+                              snippetClass.includes('EShopItem') ||
+                              u.hostname.includes('market.yandex') ||
+                              u.hostname.includes('ya.ru');
+      if (!isMarketSnippet) {
+        row['#OrganicHost'] = u.hostname;
+      }
     } catch (e) {
       // ignore
     }
@@ -205,16 +215,16 @@ export function extractRowData(
       if (isCheckoutButton) {
         row['#ButtonView'] = 'primaryShort';
         row['#ButtonType'] = 'checkout';
-        console.log(`✅ [EOfferItem] Красная кнопка чекаута → ButtonView='primaryShort' для "${row['#ShopName']}"`);
+        Logger.debug(`✅ [EOfferItem] Красная кнопка чекаута → ButtonView='primaryShort' для "${row['#ShopName']}"`);
       } else if (isWhiteButton) {
         row['#ButtonView'] = 'white';
         row['#ButtonType'] = 'shop';
-        console.log(`✅ [EOfferItem] Белая кнопка "В магазин" → ButtonView='white' для "${row['#ShopName']}"`);
+        Logger.debug(`✅ [EOfferItem] Белая кнопка "В магазин" → ButtonView='white' для "${row['#ShopName']}"`);
       } else {
         // Fallback: если не определили тип, считаем белой кнопкой
         row['#ButtonView'] = 'white';
         row['#ButtonType'] = 'shop';
-        console.log(`✅ [EOfferItem] Кнопка (fallback) → ButtonView='white' для "${row['#ShopName']}"`);
+        Logger.debug(`✅ [EOfferItem] Кнопка (fallback) → ButtonView='white' для "${row['#ShopName']}"`);
       }
     } else {
       // ВАЖНО: В EOfferItem кнопка должна быть всегда (по требованиям к Figma компоненту).
@@ -236,7 +246,7 @@ export function extractRowData(
       } else if (barometerClasses.includes('EPriceBarometer-Expensive')) {
         row['#EPriceBarometer_View'] = 'above-market';
       }
-      console.log(`✅ Найден EPriceBarometer в EOfferItem: view="${row['#EPriceBarometer_View']}"`);
+      Logger.debug(`✅ Найден EPriceBarometer в EOfferItem: view="${row['#EPriceBarometer_View']}"`);
     }
     
     // Модификаторы EOfferItem (для Figma Variant Properties)
@@ -255,7 +265,7 @@ export function extractRowData(
     
     // Валидация: для EOfferItem требуем хотя бы магазин
     if (!row['#ShopName']) {
-      console.log('⚠️ Пропущен EOfferItem без названия магазина');
+      Logger.debug('⚠️ Пропущен EOfferItem без названия магазина');
       return { row: null, spriteState: spriteState };
     }
     
@@ -264,7 +274,7 @@ export function extractRowData(
       row['#OrganicTitle'] = row['#ShopName'];
     }
     
-    console.log(`✅ Извлечен EOfferItem: магазин="${row['#ShopName']}", цена="${row['#OrganicPrice']}", кнопка=${row['#BUTTON']}`);
+    Logger.debug(`✅ Извлечен EOfferItem: магазин="${row['#ShopName']}", цена="${row['#OrganicPrice']}", кнопка=${row['#BUTTON']}`);
     return { row: row, spriteState: spriteState };
   }
   
@@ -335,7 +345,7 @@ export function extractRowData(
       try {
         const u = new URL(pathItemLink.href);
         row['#OrganicHost'] = u.hostname.replace(/^www\./, '');
-        console.log(`✅ [OrganicHost] Извлечён из Path-Item href: ${row['#OrganicHost']}`);
+        Logger.debug(`✅ [OrganicHost] Извлечён из Path-Item href: ${row['#OrganicHost']}`);
       } catch (e) {
         // ignore
       }
@@ -349,7 +359,7 @@ export function extractRowData(
         // Проверяем что это похоже на домен (содержит точку)
         if (boldText && boldText.includes('.') && !boldText.includes(' ')) {
           row['#OrganicHost'] = boldText.replace(/^www\./, '');
-          console.log(`✅ [OrganicHost] Извлечён из Path <b>: ${row['#OrganicHost']}`);
+          Logger.debug(`✅ [OrganicHost] Извлечён из Path <b>: ${row['#OrganicHost']}`);
         }
       }
     }
@@ -364,7 +374,7 @@ export function extractRowData(
           // Пропускаем яндексовые домены
           if (!u.hostname.includes('yandex') && !u.hostname.includes('yastatic')) {
             row['#OrganicHost'] = u.hostname.replace(/^www\./, '');
-            console.log(`✅ [OrganicHost] Извлечён из внешней ссылки: ${row['#OrganicHost']}`);
+            Logger.debug(`✅ [OrganicHost] Извлечён из внешней ссылки: ${row['#OrganicHost']}`);
             break;
           }
         } catch (e) {
@@ -378,7 +388,7 @@ export function extractRowData(
       const shopName = row['#ShopName'] || '';
       if (shopName.includes('.') && !shopName.includes(' ')) {
         row['#OrganicHost'] = shopName.replace(/^www\./, '');
-        console.log(`✅ [OrganicHost] Использован ShopName как домен: ${row['#OrganicHost']}`);
+        Logger.debug(`✅ [OrganicHost] Использован ShopName как домен: ${row['#OrganicHost']}`);
       }
     }
   }
@@ -388,7 +398,7 @@ export function extractRowData(
   const officialShop = queryFirstMatch(cache, officialShopSelectors);
   if (officialShop) {
     row['#OfficialShop'] = 'true';
-    console.log(`✅ Найден OfficialShop в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..." (магазин: ${row['#ShopName']})`);
+    Logger.debug(`✅ Найден OfficialShop в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..." (магазин: ${row['#ShopName']})`);
   } else {
     row['#OfficialShop'] = 'false';
   }
@@ -403,7 +413,7 @@ export function extractRowData(
   
   // #FaviconImage (ОПТИМИЗИРОВАНО: используем CSS кэш + DOM кэш)
   spriteState = extractFavicon(container, doc, row, spriteState, cssCache, rawHtml, cache);
-  console.log(`🔍 [PARSE] После extractFavicon: row['#FaviconImage']="${row['#FaviconImage'] || '(пусто)'}"`);
+  Logger.debug(`🔍 [PARSE] После extractFavicon: row['#FaviconImage']="${row['#FaviconImage'] || '(пусто)'}"`);
   
   // #OrganicText — ОПТИМИЗИРОВАНО (Phase 5)
   const textContent = queryFirstMatch(cache, rules['#OrganicText'].domSelectors);
@@ -439,6 +449,62 @@ export function extractRowData(
   
   // #ThumbImage
   row['#ThumbImage'] = row['#OrganicImage'];
+  
+  // EThumbGroup — группа картинок (коллаж)
+  // Используется для:
+  // 1. Каталожных страниц (без цены) — #isCatalogPage=true
+  // 2. Товарных карточек с коллажем (с ценой) — #isCatalogPage=false, но imageType=EThumbGroup
+  const thumbGroup = queryFirstMatch(cache, ['.EThumbGroup', '[class*="EThumbGroup"]']);
+  if (thumbGroup) {
+    Logger.debug(`🔍 [EThumbGroup] Найден элемент, извлекаем картинки...`);
+    const thumbImages = thumbGroup.querySelectorAll('.EThumb-Image, img[class*="EThumb"]');
+    const images: string[] = [];
+    
+    thumbImages.forEach((img) => {
+      let src = img.getAttribute('src') || img.getAttribute('data-src');
+      if (src) {
+        src = src.startsWith('http') ? src : `https:${src}`;
+        images.push(src);
+      }
+    });
+    
+    Logger.debug(`🔍 [EThumbGroup] Найдено ${images.length} картинок`);
+    
+    if (images.length > 1) {
+      // Есть несколько картинок — используем EThumbGroup
+      row['#imageType'] = 'EThumbGroup';
+      row['#Image1'] = images[0] || '';
+      row['#Image2'] = images[1] || '';
+      row['#Image3'] = images[2] || '';
+      row['#ThumbGroupCount'] = String(images.length);
+      
+      // Проверяем наличие цены — если есть EPriceGroup, это товар, а не каталог
+      const hasPrice = queryFirstMatch(cache, ['.EPriceGroup', '[class*="EPriceGroup"]', '.EPrice', '[class*="EPrice-Value"]']);
+      if (!hasPrice) {
+        // Нет цены — это страница каталога
+        row['#isCatalogPage'] = 'true';
+        row['#TargetSnippetType'] = 'ESnippet';
+        row['#hidePriceBlock'] = 'true';
+        Logger.debug(`✅ [EThumbGroup] Каталог: ${images.length} картинок, без цены`);
+      } else {
+        // Есть цена — это товар с коллажем
+        row['#isCatalogPage'] = 'false';
+        Logger.debug(`✅ [EThumbGroup] Товар с коллажем: ${images.length} картинок, ЕСТЬ цена`);
+      }
+    } else if (images.length === 1) {
+      // Одна картинка — используем EThumb
+      row['#imageType'] = 'EThumb';
+      row['#OrganicImage'] = images[0];
+      row['#ThumbImage'] = images[0];
+      Logger.debug(`🔍 [EThumbGroup] Только 1 картинка → EThumb`);
+    } else {
+      row['#imageType'] = 'EThumb';
+      Logger.debug(`🔍 [EThumbGroup] Нет картинок → EThumb`);
+    }
+  } else {
+    // Нет EThumbGroup — используем обычный EThumb
+    row['#imageType'] = 'EThumb';
+  }
 
   // Проверяем наличие EPriceGroup-Pair или EPriceGroup_withLabelDiscount (специальная обработка для цен с скидкой)
   // ОПТИМИЗИРОВАНО (Phase 5)
@@ -449,7 +515,7 @@ export function extractRowData(
   const hasSpecialPriceLogic = priceGroupPair || hasLabelDiscount;
   
   if (hasSpecialPriceLogic) {
-    console.log(`✅ Найден ${priceGroupPair ? 'EPriceGroup-Pair' : 'EPriceGroup_withLabelDiscount'}, обрабатываем специальную логику цен`);
+    Logger.debug(`✅ Найден ${priceGroupPair ? 'EPriceGroup-Pair' : 'EPriceGroup_withLabelDiscount'}, обрабатываем специальную логику цен`);
     
     // 1. НЕ устанавливаем Variant Properties сразу!
     // Установим #EPriceGroup_Discount и #EPriceGroup_OldPrice только если найдём реальные данные
@@ -484,7 +550,7 @@ export function extractRowData(
               row['#Currency'] = '€';
             }
           }
-          console.log(`✅ Извлечена текущая цена из EPriceGroup-Price: ${formattedPrice}`);
+          Logger.debug(`✅ Извлечена текущая цена из EPriceGroup-Price: ${formattedPrice}`);
         }
       }
     }
@@ -505,7 +571,7 @@ export function extractRowData(
         const formattedOldPrice = formatPriceWithThinSpace(oldPriceDigits);
         row['#OldPrice'] = formattedOldPrice;
         row['#EPriceGroup_OldPrice'] = 'true';  // ← Только если есть данные
-        console.log(`✅ Извлечена старая цена из EPrice-Value: ${formattedOldPrice}`);
+        Logger.debug(`✅ Извлечена старая цена из EPrice-Value: ${formattedOldPrice}`);
       }
     } else {
       // Fallback: если не нашли .EPrice-Value, пробуем весь элемент
@@ -518,7 +584,7 @@ export function extractRowData(
           const formattedOldPrice = formatPriceWithThinSpace(oldPriceDigits);
           row['#OldPrice'] = formattedOldPrice;
           row['#EPriceGroup_OldPrice'] = 'true';  // ← Только если есть данные
-          console.log(`✅ Извлечена старая цена из EPrice_view_old (fallback): ${formattedOldPrice}`);
+          Logger.debug(`✅ Извлечена старая цена из EPrice_view_old (fallback): ${formattedOldPrice}`);
         }
       }
     }
@@ -549,14 +615,14 @@ export function extractRowData(
           if (discountNumber) {
             row['#DiscountPercent'] = discountNumber;
           }
-          console.log(`✅ Извлечена скидка из Label-Content: ${formattedDiscount} (исходный текст: "${discountText}")`);
+          Logger.debug(`✅ Извлечена скидка из Label-Content: ${formattedDiscount} (исходный текст: "${discountText}")`);
         } else {
-          console.warn(`⚠️ Скидка не является числом: "${discountText}"`);
+          Logger.warn(`⚠️ Скидка не является числом: "${discountText}"`);
         }
       } else {
         // Текст не содержит скидку (например "ОК") — это нормально, не логируем как ошибку
         if (discountText && discountText !== 'ОК' && discountText !== 'OK') {
-          console.warn(`⚠️ Не удалось извлечь скидку из Label-Content: "${discountText}"`);
+          Logger.warn(`⚠️ Не удалось извлечь скидку из Label-Content: "${discountText}"`);
         }
       }
     } else {
@@ -578,7 +644,7 @@ export function extractRowData(
             if (discountNumber) {
               row['#DiscountPercent'] = discountNumber;
             }
-            console.log(`✅ Извлечена скидка из LabelDiscount (fallback): ${formattedDiscount}`);
+            Logger.debug(`✅ Извлечена скидка из LabelDiscount (fallback): ${formattedDiscount}`);
           }
         }
       }
@@ -593,7 +659,7 @@ export function extractRowData(
       row['#OldPrice'] = formatPriceWithThinSpace(prices.oldPrice);
       // ВАЖНО: устанавливаем флаг для Figma компонента
       row['#EPriceGroup_OldPrice'] = 'true';
-      console.log(`✅ Найдена старая цена (без EPriceGroup-Pair): ${prices.oldPrice}`);
+      Logger.debug(`✅ Найдена старая цена (без EPriceGroup-Pair): ${prices.oldPrice}`);
     }
     
     // #DiscountPercent — ищем в LabelDiscount (ТОЧНЫЙ класс, не подстрока!)
@@ -608,7 +674,7 @@ export function extractRowData(
         row['#EPriceGroup_Discount'] = 'true';
         // Форматируем скидку для поля #discount
         row['#discount'] = `–${match[1]}%`;
-        console.log(`✅ Найдена скидка (без EPriceGroup-Pair): –${match[1]}%`);
+        Logger.debug(`✅ Найдена скидка (без EPriceGroup-Pair): –${match[1]}%`);
       }
     }
     
@@ -675,7 +741,7 @@ export function extractRowData(
     const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
     if (ugcMatch) {
       row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
-      console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}" (из: "${shopRatingEl.className}")`);
+      Logger.debug(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}" (из: "${shopRatingEl.className}")`);
     }
   } else {
     // Fallback: ищем в контейнерах напрямую
@@ -685,7 +751,7 @@ export function extractRowData(
       const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
       if (ugcMatch) {
         row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
-        console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина (fallback): "${row['#ShopInfo-Ugc']}"`);
+        Logger.debug(`✅ [ShopInfo-Ugc] Рейтинг магазина (fallback): "${row['#ShopInfo-Ugc']}"`);
       }
     }
   }
@@ -716,7 +782,7 @@ export function extractRowData(
   if (organicUgcReviewsText) {
     // Извлекаем весь текст — он уже содержит "X отзывов на магазин"
     shopReviewsText = getTextContent(organicUgcReviewsText).trim();
-    console.log(`✅ [EReviews_shopText] Из OrganicUgcReviews-Text: "${shopReviewsText}"`);
+    Logger.debug(`✅ [EReviews_shopText] Из OrganicUgcReviews-Text: "${shopReviewsText}"`);
   }
   
   // 2. EReviewsLabel-Text (кнопка с отзывами) — только число, добавляем "на магазин"
@@ -732,7 +798,7 @@ export function extractRowData(
       // Формат: "5,1K отзывов" → "5,1K отзывов на магазин"
       if (rawText && rawText.toLowerCase().includes('отзыв')) {
         shopReviewsText = rawText.includes('магазин') ? rawText : `${rawText} на магазин`;
-        console.log(`✅ [EReviews_shopText] Из EReviewsLabel: "${shopReviewsText}"`);
+        Logger.debug(`✅ [EReviews_shopText] Из EReviewsLabel: "${shopReviewsText}"`);
       }
     }
   }
@@ -749,7 +815,7 @@ export function extractRowData(
       const rawText = getTextContent(eShopItemMetaReviews).trim();
       if (rawText && rawText.toLowerCase().includes('отзыв')) {
         shopReviewsText = rawText.includes('магазин') ? rawText : `${rawText} на магазин`;
-        console.log(`✅ [EReviews_shopText] Из EShopItemMeta-Reviews: "${shopReviewsText}"`);
+        Logger.debug(`✅ [EReviews_shopText] Из EShopItemMeta-Reviews: "${shopReviewsText}"`);
       }
     }
   }
@@ -765,7 +831,7 @@ export function extractRowData(
     if (legacyShopText) {
       shopReviewsText = getTextContent(legacyShopText).trim();
       if (shopReviewsText) {
-        console.log(`✅ [EReviews_shopText] Из legacy EReviews-ShopText: "${shopReviewsText}"`);
+        Logger.debug(`✅ [EReviews_shopText] Из legacy EReviews-ShopText: "${shopReviewsText}"`);
       }
     }
   }
@@ -825,13 +891,13 @@ export function extractRowData(
   if (labelRating) {
     const labelClasses = labelRating.className || '';
     if (labelClasses.includes('LabelDiscount')) {
-      console.log(`⚠️ Найденный ELabelRating является LabelDiscount, пропускаем`);
+      Logger.debug(`⚠️ Найденный ELabelRating является LabelDiscount, пропускаем`);
       labelRating = null;
     }
   }
   
   if (labelRating) {
-    console.log(`🔍 Найден ELabelRating в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    Logger.debug(`🔍 Найден ELabelRating в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     // Ищем значение в div с классом Label-Content внутри ELabelRating
     let labelContent = labelRating.querySelector('.Label-Content, [class*="Label-Content"]');
     
@@ -847,9 +913,9 @@ export function extractRowData(
         const validatedRating = validateRating(ratingText);
         if (validatedRating) {
           row['#ProductRating'] = validatedRating;
-          console.log(`✅ Извлечен рейтинг из ELabelRating (прямой текст): "${validatedRating}" (исходный текст: "${ratingText.trim()}")`);
+          Logger.debug(`✅ Извлечен рейтинг из ELabelRating (прямой текст): "${validatedRating}" (исходный текст: "${ratingText.trim()}")`);
         } else {
-          console.warn(`⚠️ Извлеченное значение не является валидным рейтингом: "${ratingText.trim()}" (ожидается число от 0 до 5)`);
+          Logger.warn(`⚠️ Извлеченное значение не является валидным рейтингом: "${ratingText.trim()}" (ожидается число от 0 до 5)`);
         }
       }
     } else {
@@ -858,26 +924,26 @@ export function extractRowData(
         const validatedRating = validateRating(ratingText);
         if (validatedRating) {
           row['#ProductRating'] = validatedRating;
-          console.log(`✅ Извлечен рейтинг из ELabelRating: "${validatedRating}" (исходный текст: "${ratingText.trim()}")`);
+          Logger.debug(`✅ Извлечен рейтинг из ELabelRating: "${validatedRating}" (исходный текст: "${ratingText.trim()}")`);
         } else {
-          console.warn(`⚠️ Извлеченное значение не является валидным рейтингом: "${ratingText.trim()}" (ожидается число от 0 до 5)`);
+          Logger.warn(`⚠️ Извлеченное значение не является валидным рейтингом: "${ratingText.trim()}" (ожидается число от 0 до 5)`);
         }
       } else {
-        console.log(`⚠️ Label-Content найден, но пустой в ELabelRating`);
+        Logger.debug(`⚠️ Label-Content найден, но пустой в ELabelRating`);
       }
     }
   } else {
     // Логируем только для первых нескольких сниппетов, чтобы не засорять логи
     const snippetIndex = (row['#OrganicTitle'] || '').length % 10;
     if (snippetIndex < 3) {
-      console.log(`⚠️ ELabelRating не найден в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+      Logger.debug(`⚠️ ELabelRating не найден в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     }
   }
   
   // #EMarketCheckoutLabel - проверяем наличие лейбла "Покупки" — ОПТИМИЗИРОВАНО (Phase 5)
   const marketCheckoutLabel = queryFirstMatch(cache, rules['EMarketCheckoutLabel']?.domSelectors || ['.EMarketCheckoutLabel', '[class*="EMarketCheckoutLabel"]']);
   if (marketCheckoutLabel) {
-    console.log(`✅ Найден EMarketCheckoutLabel в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    Logger.debug(`✅ Найден EMarketCheckoutLabel в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     row['#EMarketCheckoutLabel'] = 'true';
   } else {
     row['#EMarketCheckoutLabel'] = 'false';
@@ -928,7 +994,7 @@ export function extractRowData(
     row['#EDeliveryGroup-Count'] = String(deliveryItems.length);
     
     row['#EDeliveryGroup'] = deliveryItems.length > 0 ? 'true' : 'false';
-    console.log(`✅ Найден EDeliveryGroup с ${deliveryItems.length} items: ${deliveryItems.join(', ')}`);
+    Logger.debug(`✅ Найден EDeliveryGroup с ${deliveryItems.length} items: ${deliveryItems.join(', ')}`);
   } else {
     row['#EDeliveryGroup'] = 'false';
     row['#EDeliveryGroup-Count'] = '0';
@@ -939,7 +1005,7 @@ export function extractRowData(
   const crossborderEl = queryFirstMatch(cache, crossborderSelectors);
   if (crossborderEl) {
     row['#EDelivery_abroad'] = 'true';
-    console.log(`✅ Найден Crossborder (доставка из-за границы)`);
+    Logger.debug(`✅ Найден Crossborder (доставка из-за границы)`);
   } else {
     row['#EDelivery_abroad'] = 'false';
   }
@@ -970,7 +1036,7 @@ export function extractRowData(
     }
     row['#ShopInfo-Bnpl-Count'] = String(bnplTypes.length);
     row['#ShopInfo-Bnpl'] = bnplTypes.length > 0 ? 'true' : 'false';
-    console.log(`✅ Найден ShopInfo-Bnpl с ${bnplTypes.length} опциями: ${bnplTypes.join(', ')}`);
+    Logger.debug(`✅ Найден ShopInfo-Bnpl с ${bnplTypes.length} опциями: ${bnplTypes.join(', ')}`);
   } else {
     row['#ShopInfo-Bnpl'] = 'false';
     row['#ShopInfo-Bnpl-Count'] = '0';
@@ -980,7 +1046,7 @@ export function extractRowData(
   const priceSpecial = queryFirstMatch(cache, rules['EPrice_view_special']?.domSelectors || ['.EPrice_view_special', '[class*="EPrice_view_special"]']);
   if (priceSpecial) {
     row['#EPrice_View'] = 'special';
-    console.log(`✅ Найден EPrice_view_special в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    Logger.debug(`✅ Найден EPrice_view_special в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
   }
   
   // #LabelDiscount_View - вид лейбла скидки
@@ -999,13 +1065,13 @@ export function extractRowData(
       // Форматируем: добавляем "Вам " перед значением скидки
       const cleanDiscount = discountVal.replace(/^[–-]?\s*/, ''); // Убираем минус в начале если есть
       row['#discount'] = `Вам –${cleanDiscount}`;
-      console.log(`✅ Найден Label_view_outlineSpecial, сформирован текст: "${row['#discount']}"`);
+      Logger.debug(`✅ Найден Label_view_outlineSpecial, сформирован текст: "${row['#discount']}"`);
     } else {
-      console.log(`✅ Найден Label_view_outlineSpecial с префиксом "Вам" в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+      Logger.debug(`✅ Найден Label_view_outlineSpecial с префиксом "Вам" в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     }
   } else if (labelOutlinePrimary) {
     row['#LabelDiscount_View'] = 'outlinePrimary';
-    console.log(`✅ Найден Label_view_outlinePrimary (обычная скидка)`);
+    Logger.debug(`✅ Найден Label_view_outlinePrimary (обычная скидка)`);
   }
   
   // #Fintech - блок рассрочки/оплаты (Сплит/Пэй/Ozon и др.)
@@ -1014,66 +1080,77 @@ export function extractRowData(
   if (fintech) {
     row['#EPriceGroup_Fintech'] = 'true';
     
+    // #InfoIcon — проверяем наличие иконки "Инфо" внутри Fintech/EPriceGroup
+    // Иконка находится в <div class="InfoIcon"><span class="InfoIcon-Icon">...</span></div>
+    const infoIconEl = fintech.querySelector('.InfoIcon .InfoIcon-Icon, .InfoIcon [class*="InfoIcon-Icon"]');
+    if (infoIconEl) {
+      row['#InfoIcon'] = 'true';
+      Logger.debug(`✅ Найден InfoIcon в Fintech`);
+    } else {
+      row['#InfoIcon'] = 'false';
+    }
+    
     // Определяем type из классов Fintech_type_*
     // Порядок важен: сначала более специфичные (yandexPay), потом общие (pay)
     // Маппинг HTML классов → Figma variant values
     // Figma MetaFintech.type: split, yandexPay, ozon, pay, Dolyami, Mokka, Podeli, Plait, T-Pay, MTS Pay, Wildberries, alfaCard
     const fintechClasses = fintech.className || '';
-    console.log(`🔍 Fintech classes: "${fintechClasses}"`);
+    Logger.debug(`🔍 Fintech classes: "${fintechClasses}"`);
     if (fintechClasses.includes('Fintech_type_split')) {
       row['#Fintech_Type'] = 'split';
-      console.log(`✅ Найден Fintech type=split`);
+      Logger.debug(`✅ Найден Fintech type=split`);
     } else if (fintechClasses.includes('Fintech_type_yandexPay')) {
       row['#Fintech_Type'] = 'yandexPay';
-      console.log(`✅ Найден Fintech type=yandexPay`);
+      Logger.debug(`✅ Найден Fintech type=yandexPay`);
     } else if (fintechClasses.includes('Fintech_type_pay')) {
       row['#Fintech_Type'] = 'pay';
-      console.log(`✅ Найден Fintech type=pay`);
+      Logger.debug(`✅ Найден Fintech type=pay`);
     } else if (fintechClasses.includes('Fintech_type_ozon')) {
       row['#Fintech_Type'] = 'ozon';
-      console.log(`✅ Найден Fintech type=ozon`);
+      Logger.debug(`✅ Найден Fintech type=ozon`);
     } else if (fintechClasses.includes('Fintech_type_dolyame')) {
       row['#Fintech_Type'] = 'Dolyami';
-      console.log(`✅ Найден Fintech type=Dolyami`);
+      Logger.debug(`✅ Найден Fintech type=Dolyami`);
     } else if (fintechClasses.includes('Fintech_type_plait')) {
       row['#Fintech_Type'] = 'Plait';
-      console.log(`✅ Найден Fintech type=Plait`);
+      Logger.debug(`✅ Найден Fintech type=Plait`);
     } else if (fintechClasses.includes('Fintech_type_podeli')) {
       row['#Fintech_Type'] = 'Podeli';
-      console.log(`✅ Найден Fintech type=Podeli`);
+      Logger.debug(`✅ Найден Fintech type=Podeli`);
     } else if (fintechClasses.includes('Fintech_type_mokka')) {
       row['#Fintech_Type'] = 'Mokka';
-      console.log(`✅ Найден Fintech type=Mokka`);
+      Logger.debug(`✅ Найден Fintech type=Mokka`);
     } else if (fintechClasses.includes('Fintech_type_mtsPay')) {
       row['#Fintech_Type'] = 'MTS Pay';
-      console.log(`✅ Найден Fintech type=MTS Pay`);
+      Logger.debug(`✅ Найден Fintech type=MTS Pay`);
     } else if (fintechClasses.includes('Fintech_type_tPay')) {
       row['#Fintech_Type'] = 'T-Pay';
-      console.log(`✅ Найден Fintech type=T-Pay`);
+      Logger.debug(`✅ Найден Fintech type=T-Pay`);
     } else if (fintechClasses.includes('Fintech_type_alfa')) {
       row['#Fintech_Type'] = 'alfaCard';
-      console.log(`✅ Найден Fintech type=alfaCard`);
+      Logger.debug(`✅ Найден Fintech type=alfaCard`);
     } else if (fintechClasses.includes('Fintech_type_wildberries')) {
       row['#Fintech_Type'] = 'Wildberries';
-      console.log(`✅ Найден Fintech type=Wildberries`);
+      Logger.debug(`✅ Найден Fintech type=Wildberries`);
     }
     
     // Определяем view (значения с большой буквы как в Figma)
     if (fintechClasses.includes('Fintech_view_extra-short')) {
       row['#Fintech_View'] = 'Extra Short';
-      console.log(`✅ Fintech view=Extra Short`);
+      Logger.debug(`✅ Fintech view=Extra Short`);
     } else if (fintechClasses.includes('Fintech_view_short')) {
       row['#Fintech_View'] = 'Short';
-      console.log(`✅ Fintech view=Short`);
+      Logger.debug(`✅ Fintech view=Short`);
     } else if (fintechClasses.includes('Fintech_view_long')) {
       row['#Fintech_View'] = 'Long';
-      console.log(`✅ Fintech view=Long`);
+      Logger.debug(`✅ Fintech view=Long`);
     } else if (fintechClasses.includes('Fintech_view_extra-long')) {
       row['#Fintech_View'] = 'Extra Long';
-      console.log(`✅ Fintech view=Extra Long`);
+      Logger.debug(`✅ Fintech view=Extra Long`);
     }
   } else {
     row['#EPriceGroup_Fintech'] = 'false';
+    row['#InfoIcon'] = 'false';
   }
   
   // ВАЖНО: Устанавливаем view по умолчанию для цен БЕЗ Fintech
@@ -1090,17 +1167,17 @@ export function extractRowData(
     // Устанавливаем view только если не установлен (не перезаписываем outlineSpecial/special)
     if (!row['#LabelDiscount_View']) {
       row['#LabelDiscount_View'] = 'outlinePrimary';
-      console.log(`✅ Установлен LabelDiscount_View=outlinePrimary (без Fintech)`);
+      Logger.debug(`✅ Установлен LabelDiscount_View=outlinePrimary (без Fintech)`);
     }
     if (!row['#EPrice_View']) {
       row['#EPrice_View'] = 'default';
-      console.log(`✅ Установлен EPrice_View=default (без Fintech)`);
+      Logger.debug(`✅ Установлен EPrice_View=default (без Fintech)`);
     }
   } else if (!hasDiscount) {
     // ВАЖНО: Если НЕТ скидки — сбрасываем EPrice view на default
     // Это нужно чтобы не наследовать view от предыдущих данных
     row['#EPrice_View'] = 'default';
-    console.log(`✅ Установлен EPrice_View=default (нет скидки)`);
+    Logger.debug(`✅ Установлен EPrice_View=default (нет скидки)`);
   }
   
   // #EBnpl - блок BNPL (Buy Now Pay Later) в EShopItem
@@ -1132,7 +1209,7 @@ export function extractRowData(
     row['#EBnpl-Count'] = String(bnplOptions.length);
     row['#EBnpl'] = bnplOptions.length > 0 ? 'true' : 'false';
     
-    console.log(`✅ Найден EBnpl с ${bnplOptions.length} опциями: ${bnplOptions.join(', ')}`);
+    Logger.debug(`✅ Найден EBnpl с ${bnplOptions.length} опциями: ${bnplOptions.join(', ')}`);
   } else {
     row['#EBnpl'] = 'false';
     row['#EBnpl-Count'] = '0';
@@ -1141,7 +1218,7 @@ export function extractRowData(
   // #EPriceBarometer - проверяем наличие и определяем view — ОПТИМИЗИРОВАНО (Phase 5)
   const priceBarometer = queryFirstMatch(cache, rules['EPriceBarometer'].domSelectors);
   if (priceBarometer) {
-    console.log(`🔍 Найден EPriceBarometer в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    Logger.debug(`🔍 Найден EPriceBarometer в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
     
     // Устанавливаем Barometer=true для ELabelGroup
     row['#ELabelGroup_Barometer'] = 'true';
@@ -1152,19 +1229,19 @@ export function extractRowData(
     
     if (barometerClasses.some(cls => cls.includes('EPriceBarometer-Cheap'))) {
       barometerView = 'below-market';
-      console.log(`✅ Определен view для EPriceBarometer: below-market (EPriceBarometer-Cheap)`);
+      Logger.debug(`✅ Определен view для EPriceBarometer: below-market (EPriceBarometer-Cheap)`);
     } else if (barometerClasses.some(cls => cls.includes('EPriceBarometer-Average'))) {
       barometerView = 'in-market';
-      console.log(`✅ Определен view для EPriceBarometer: in-market (EPriceBarometer-Average)`);
+      Logger.debug(`✅ Определен view для EPriceBarometer: in-market (EPriceBarometer-Average)`);
     } else if (barometerClasses.some(cls => cls.includes('EPriceBarometer-Expensive'))) {
       barometerView = 'above-market';
-      console.log(`✅ Определен view для EPriceBarometer: above-market (EPriceBarometer-Expensive)`);
+      Logger.debug(`✅ Определен view для EPriceBarometer: above-market (EPriceBarometer-Expensive)`);
     }
     
     if (barometerView) {
       row['#EPriceBarometer_View'] = barometerView;
     } else {
-      console.warn(`⚠️ Не удалось определить view для EPriceBarometer. Классы: ${barometerClasses.join(', ')}`);
+      Logger.warn(`⚠️ Не удалось определить view для EPriceBarometer. Классы: ${barometerClasses.join(', ')}`);
     }
     
     // Определяем isCompact по типу сниппета
@@ -1172,7 +1249,7 @@ export function extractRowData(
     // EOfferItem, Organic и другие — полноразмерные, isCompact=false
     const isCompact = snippetType === 'EShopItem';
     row['#EPriceBarometer_isCompact'] = isCompact ? 'true' : 'false';
-    console.log(`📐 [EPriceBarometer] isCompact=${isCompact} (тип сниппета: ${snippetType})`);
+    Logger.debug(`📐 [EPriceBarometer] isCompact=${isCompact} (тип сниппета: ${snippetType})`);
   } else {
     // Если EPriceBarometer не найден, устанавливаем Barometer=false для ELabelGroup
     row['#ELabelGroup_Barometer'] = 'false';
@@ -1199,7 +1276,7 @@ export function extractRowData(
         row['#EQuote-Text'] = quoteText;
         // Legacy поле для совместимости
         row['#QuoteText'] = quoteText;
-        console.log(`✅ [EQuote-Text] Найдена цитата: "${quoteText.substring(0, 50)}..."`);
+        Logger.debug(`✅ [EQuote-Text] Найдена цитата: "${quoteText.substring(0, 50)}..."`);
       }
     }
     
@@ -1238,7 +1315,7 @@ export function extractRowData(
         row['#EQuote-AuthorAvatar'] = avatarUrl.startsWith('http') ? avatarUrl : `https:${avatarUrl}`;
         // Legacy поле для совместимости
         row['#QuoteImage'] = row['#EQuote-AuthorAvatar'];
-        console.log(`✅ [EQuote-AuthorAvatar] Аватар: "${row['#EQuote-AuthorAvatar'].substring(0, 80)}..."`);
+        Logger.debug(`✅ [EQuote-AuthorAvatar] Аватар: "${row['#EQuote-AuthorAvatar'].substring(0, 80)}..."`);
       }
     }
   }
@@ -1270,7 +1347,7 @@ export function extractRowData(
     row['#Sitelinks-Count'] = String(sitelinks.length);
     
     if (sitelinks.length > 0) {
-      console.log(`✅ Найдены сайтлинки (${sitelinks.length}): ${sitelinks.join(', ')}`);
+      Logger.debug(`✅ Найдены сайтлинки (${sitelinks.length}): ${sitelinks.join(', ')}`);
     }
   } else {
     row['#Sitelinks'] = 'false';
@@ -1284,7 +1361,7 @@ export function extractRowData(
     const phoneText = phoneEl.textContent?.trim() || '';
     if (phoneText) {
       row['#Phone'] = phoneText;
-      console.log(`✅ Найден телефон: "${phoneText}"`);
+      Logger.debug(`✅ Найден телефон: "${phoneText}"`);
     }
   }
   
@@ -1295,7 +1372,7 @@ export function extractRowData(
     const promoText = promoEl.textContent?.trim() || '';
     if (promoText) {
       row['#Promo'] = promoText;
-      console.log(`✅ Найден промо-текст: "${promoText.substring(0, 50)}..."`);
+      Logger.debug(`✅ Найден промо-текст: "${promoText.substring(0, 50)}..."`);
     }
   }
   
@@ -1306,7 +1383,7 @@ export function extractRowData(
     const addressText = addressEl.textContent?.trim() || '';
     if (addressText) {
       row['#Address'] = addressText;
-      console.log(`✅ Найден адрес: "${addressText}"`);
+      Logger.debug(`✅ Найден адрес: "${addressText}"`);
     }
   }
   
@@ -1323,7 +1400,7 @@ export function extractRowData(
     
     if (linkText) {
       row['#addressLink'] = linkText;
-      console.log(`✅ [ShopOfflineRegion] addressLink: "${linkText}"`);
+      Logger.debug(`✅ [ShopOfflineRegion] addressLink: "${linkText}"`);
     }
     
     // Собираем текст до ссылки (город, метро и т.д.)
@@ -1345,7 +1422,7 @@ export function extractRowData(
     
     if (addressTextPart) {
       row['#addressText'] = addressTextPart;
-      console.log(`✅ [ShopOfflineRegion] addressText: "${addressTextPart}"`);
+      Logger.debug(`✅ [ShopOfflineRegion] addressText: "${addressTextPart}"`);
     }
   } else {
     row['#hasShopOfflineRegion'] = 'false';
@@ -1430,11 +1507,11 @@ export function extractRowData(
     if (hasCheckoutButton) {
       row['#ButtonView'] = 'primaryLong';
       row['#ButtonType'] = 'checkout';
-      console.log(`✅ [EShopItem] Checkout → ButtonView='primaryLong'`);
+      Logger.debug(`✅ [EShopItem] Checkout → ButtonView='primaryLong'`);
     } else {
       row['#ButtonView'] = 'secondary';
       row['#ButtonType'] = 'shop';
-      console.log(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
+      Logger.debug(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
     }
   } else if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
     // ESnippet/Organic: логика как у EProductSnippet2
@@ -1449,12 +1526,12 @@ export function extractRowData(
       row['#ButtonView'] = 'primaryLong';
       row['#EButton_visible'] = 'true';
       row['#ButtonType'] = 'checkout';
-      console.log(`✅ [ESnippet] Organic-Checkout найден → ButtonView='primaryLong', visible='true'`);
+      Logger.debug(`✅ [ESnippet] Organic-Checkout найден → ButtonView='primaryLong', visible='true'`);
     } else {
       row['#BUTTON'] = 'false';
       row['#EButton_visible'] = 'false';
       row['#ButtonType'] = 'shop';
-      console.log(`ℹ️ [ESnippet] Нет Organic-Checkout → кнопка скрыта`);
+      Logger.debug(`ℹ️ [ESnippet] Нет Organic-Checkout → кнопка скрыта`);
     }
   } else if (snippetType === 'EProductSnippet2') {
     // EProductSnippet2: проверяем EMarketCheckoutLabel или красную кнопку
@@ -1465,7 +1542,7 @@ export function extractRowData(
       row['#ButtonType'] = 'checkout';
       // При checkout показываем лейбл EMarketCheckoutLabel в Figma
       row['#EMarketCheckoutLabel'] = 'true';
-      console.log(`✅ [EProductSnippet2] Лейбл/кнопка чекаута → ButtonView='primaryShort'`);
+      Logger.debug(`✅ [EProductSnippet2] Лейбл/кнопка чекаута → ButtonView='primaryShort'`);
     } else {
       row['#BUTTON'] = 'false';
       row['#ButtonType'] = 'shop';
@@ -1479,14 +1556,17 @@ export function extractRowData(
   
   // Логируем итог
   if (row['#BUTTON'] === 'true') {
-    console.log(`🛒 [BUTTON] ${snippetType}: BUTTON=true, ButtonView='${row['#ButtonView'] || 'не задан'}' для "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+    Logger.debug(`🛒 [BUTTON] ${snippetType}: BUTTON=true, ButtonView='${row['#ButtonView'] || 'не задан'}' для "${row['#OrganicTitle']?.substring(0, 30)}..."`);
   }
   
   // === ФИЛЬТР ДЛЯ ORGANIC: пропускаем если нет цены ===
   // Organic сниппеты без EPrice не являются товарными карточками
+  // ИСКЛЮЧЕНИЕ: EThumbGroup (каталожные страницы) — у них нет цены и это нормально
+  const isCatalogPage = row['#isCatalogPage'] === 'true' || row['#imageType'] === 'EThumbGroup';
   if ((snippetType === 'Organic' || snippetType === 'Organic_withOfferInfo') && 
-      (!row['#OrganicPrice'] || row['#OrganicPrice'].trim() === '')) {
-    console.log(`⚠️ Пропущен ${snippetType} без цены: "${row['#OrganicTitle']?.substring(0, 40)}..."`);
+      (!row['#OrganicPrice'] || row['#OrganicPrice'].trim() === '') &&
+      !isCatalogPage) {
+    Logger.debug(`⚠️ Пропущен ${snippetType} без цены: "${row['#OrganicTitle']?.substring(0, 40)}..."`);
     return { row: null, spriteState: spriteState };
   }
   
@@ -1506,7 +1586,7 @@ export function extractRowData(
       if (faviconMatch && faviconMatch[1]) {
         const extractedHost = decodeURIComponent(faviconMatch[1]).replace(/^www\./, '');
         row['#OrganicHost'] = extractedHost;
-        console.log(`✅ [OrganicHost] Извлечён из FaviconImage: ${extractedHost}`);
+        Logger.debug(`✅ [OrganicHost] Извлечён из FaviconImage: ${extractedHost}`);
       }
     }
   }
@@ -1527,7 +1607,7 @@ export function extractRowData(
     // Генерируем URL фавикона из хоста
     const host = row['#OrganicHost'].replace(/^www\./, '');
     row['#FaviconImage'] = `https://${host}/favicon.ico`;
-    console.log(`🔧 [FALLBACK] FaviconImage сгенерирован из Host: ${row['#FaviconImage']}`);
+    Logger.debug(`🔧 [FALLBACK] FaviconImage сгенерирован из Host: ${row['#FaviconImage']}`);
   }
   
   // Валидация: требуем заголовок и хотя бы один источник
@@ -1569,29 +1649,29 @@ export function deduplicateRows(rows: CSVRow[]): CSVRow[] {
 
 // Parse Yandex search results from HTML
 export function parseYandexSearchResults(html: string, fullMhtml?: string, parsingRules?: ParsingSchema): { rows: CSVRow[], error?: string } {
-  console.log('🔍 HTML разбор начат');
+  Logger.debug('🔍 HTML разбор начат');
   try {
-  console.log('📄 Размер HTML:', html.length);
+  Logger.debug('📄 Размер HTML:', html.length);
   if (fullMhtml) {
-    console.log('📄 Размер полного содержимого файла:', fullMhtml.length);
+    Logger.debug('📄 Размер полного содержимого файла:', fullMhtml.length);
   }
   
   // ДИАГНОСТИКА: Проверяем наличие <style> тегов в сыром HTML до парсинга
   const rawStyleMatches = html.match(STYLE_TAG_REGEX);
   const rawStyleCount = rawStyleMatches ? rawStyleMatches.length : 0;
-  console.log(`🔍 [DIAGNOSTIC] Найдено <style> тегов в сыром HTML: ${rawStyleCount}`);
+  Logger.debug(`🔍 [DIAGNOSTIC] Найдено <style> тегов в сыром HTML: ${rawStyleCount}`);
   if (rawStyleCount > 0 && rawStyleMatches) {
-    console.log(`   - Примеры найденных <style> тегов (первые 200 символов каждого):`);
+    Logger.debug(`   - Примеры найденных <style> тегов (первые 200 символов каждого):`);
     rawStyleMatches.slice(0, 3).forEach((match, idx) => {
       const preview = match.substring(0, 200).replace(/\n/g, ' ').replace(/\s+/g, ' ');
-      console.log(`     ${idx + 1}. ${preview}...`);
+      Logger.debug(`     ${idx + 1}. ${preview}...`);
     });
   }
   
   // ДИАГНОСТИКА: Проверяем наличие <link> тегов со стилями
   const linkMatches = html.match(LINK_STYLESHEET_REGEX);
   const linkCount = linkMatches ? linkMatches.length : 0;
-  console.log(`🔍 [DIAGNOSTIC] Найдено <link rel="stylesheet"> тегов: ${linkCount}`);
+  Logger.debug(`🔍 [DIAGNOSTIC] Найдено <link rel="stylesheet"> тегов: ${linkCount}`);
   
   // Создаем DOM парсер для разбора HTML
   const parser = new DOMParser();
@@ -1609,31 +1689,31 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
     // ignore
   }
   if (globalQuery) {
-    console.log(`🔎 [PARSE] Найден #query: "${globalQuery.substring(0, 120)}"`);
+    Logger.debug(`🔎 [PARSE] Найден #query: "${globalQuery.substring(0, 120)}"`);
   } else {
-    console.log('🔎 [PARSE] #query не найден (HeaderForm-Input)');
+    Logger.debug('🔎 [PARSE] #query не найден (HeaderForm-Input)');
   }
   
   // PHASE 4 OPTIMIZATION: Строим CSS кэш ОДИН РАЗ при инициализации
   const cssCache = buildCSSCache(doc, fullMhtml || html);
-  console.log(`✅ [CSS CACHE] Построен: ${cssCache.stats.totalRules} правил, ${cssCache.stats.faviconRules} favicon, ${cssCache.stats.spriteRules} спрайтов`);
+  Logger.debug(`✅ [CSS CACHE] Построен: ${cssCache.stats.totalRules} правил, ${cssCache.stats.faviconRules} favicon, ${cssCache.stats.spriteRules} спрайтов`);
   
   // Находим и фильтруем контейнеры сниппетов
   const allContainers = findSnippetContainers(doc);
   const containers = filterTopLevelContainers(allContainers);
-  console.log(`📦 Найдено контейнеров-сниппетов (после дедупликации и удаления вложенных): ${containers.length}`);
+  Logger.debug(`📦 Найдено контейнеров-сниппетов (после дедупликации и удаления вложенных): ${containers.length}`);
   
   // Если не нашли стандартные контейнеры, пытаемся найти любые элементы с данными о товарах
   if (containers.length === 0) {
-    console.log('⚠️ Стандартные контейнеры не найдены, ищем альтернативные элементы...');
+    Logger.debug('⚠️ Стандартные контейнеры не найдены, ищем альтернативные элементы...');
     const altContainers = [
       ...Array.from(doc.querySelectorAll('[class*="Snippet"]')),
       ...Array.from(doc.querySelectorAll('[class*="Product"]')),
       ...Array.from(doc.querySelectorAll('[class*="Item"]'))
     ];
-    console.log(`🔍 Альтернативных элементов найдено: ${altContainers.length}`);
+    Logger.debug(`🔍 Альтернативных элементов найдено: ${altContainers.length}`);
     if (altContainers.length > 0) {
-      console.log('📋 Примеры классов:', Array.from(altContainers).slice(0, 10).map(el => el.className));
+      Logger.debug('📋 Примеры классов:', Array.from(altContainers).slice(0, 10).map(el => el.className));
     }
   }
   
@@ -1657,15 +1737,24 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
     }
   }
   const domCacheTime = performance.now() - domCacheStartTime;
-  console.log(`✅ [DOM CACHE] Обработано ${containers.length} контейнеров за ${domCacheTime.toFixed(2)}ms`);
+  Logger.debug(`✅ [DOM CACHE] Обработано ${containers.length} контейнеров за ${domCacheTime.toFixed(2)}ms`);
   
   // Дедуплицируем результаты
   const finalResults = deduplicateRows(results);
-  console.log(`📊 Дедупликация: ${results.length} → ${finalResults.length} уникальных строк`);
+  Logger.debug(`📊 Дедупликация: ${results.length} → ${finalResults.length} уникальных строк`);
+  
+  // ДИАГНОСТИКА: статистика по типам сниппетов
+  const catalogCount = finalResults.filter(r => r['#isCatalogPage'] === 'true').length;
+  const thumbGroupCount = finalResults.filter(r => r['#imageType'] === 'EThumbGroup').length;
+  const thumbCount = finalResults.filter(r => r['#imageType'] === 'EThumb').length;
+  Logger.debug(`📊 [PARSE] Статистика imageType:`);
+  Logger.debug(`   📄 EThumbGroup (каталог): ${thumbGroupCount}`);
+  Logger.debug(`   🖼️ EThumb (товар): ${thumbCount}`);
+  Logger.debug(`   📂 #isCatalogPage=true: ${catalogCount}`);
   
   return { rows: finalResults };
   } catch (e) {
-    console.error('Error in parseYandexSearchResults:', e);
+    Logger.error('Error in parseYandexSearchResults:', e);
     return { rows: [], error: e instanceof Error ? e.message : String(e) };
   }
 }

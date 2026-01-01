@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { InfoIcon } from './Icons';
+import { InfoIcon, ClearIcon } from './Icons';
 import { Toggle } from './Toggle';
 
 interface ScopeControlProps {
@@ -29,52 +29,51 @@ export const ScopeControl: React.FC<ScopeControlProps> = memo(({
 
   return (
     <div className="scope-panel">
-      {/* Переключатель области */}
-      <div className="segmented-control">
+      {/* Первая строка: Область применения + Сброс сейчас */}
+      <div className="scope-row">
+        <div className="scope-field">
+          <label className="scope-label" htmlFor="scope-select">Применить к</label>
+          <select
+            id="scope-select"
+            className="scope-select"
+            value={scope}
+            onChange={(e) => onScopeChange(e.target.value as 'selection' | 'page')}
+            disabled={isDisabled}
+          >
+            <option value="selection">Выделению</option>
+            <option value="page">Всей странице</option>
+          </select>
+        </div>
+        
         <button
           type="button"
-          className={`segmented-option ${scope === 'selection' ? 'active' : ''}`}
-          onClick={() => onScopeChange('selection')}
-          aria-pressed={scope === 'selection'}
+          className="btn-icon-sm"
+          onClick={onResetNow}
+          disabled={!canReset}
+          title="Сбросить все сниппеты к исходному состоянию"
+          aria-label="Сбросить сейчас"
         >
-          Выделение
-        </button>
-        <button
-          type="button"
-          className={`segmented-option ${scope === 'page' ? 'active' : ''}`}
-          onClick={() => onScopeChange('page')}
-          aria-pressed={scope === 'page'}
-        >
-          Вся страница
+          <ClearIcon size={14} />
         </button>
       </div>
 
-      {/* Опции сброса */}
-      <div className="scope-options">
+      {/* Вторая строка: Toggle сброса */}
+      <div className="scope-row">
         <Toggle
           checked={resetBeforeImport}
           onChange={onResetBeforeImportChange}
           disabled={isDisabled}
           label="Сбросить перед импортом"
         />
-        <button
-          type="button"
-          className="btn-text-sm"
-          onClick={onResetNow}
-          disabled={!canReset}
-          title="Сбросить все сниппеты к исходному состоянию"
-        >
-          {isResetting ? 'Сброс...' : 'Сбросить сейчас'}
-        </button>
+        
+        {/* Подсказка при отсутствии выделения */}
+        {!hasSelection && scope === 'selection' && (
+          <div className="scope-hint-inline">
+            <InfoIcon />
+            <span>Выберите слои</span>
+          </div>
+        )}
       </div>
-      
-      {/* Подсказка при отсутствии выделения */}
-      {!hasSelection && scope === 'selection' && (
-        <div className="scope-hint">
-          <InfoIcon />
-          <span>Выберите слои для заполнения</span>
-        </div>
-      )}
     </div>
   );
 });

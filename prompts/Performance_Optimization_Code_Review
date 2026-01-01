@@ -1,0 +1,137 @@
+# Код-ревью и рефакторинг: оптимизация производительности property-utils
+
+## Контекст
+
+В предыдущей сессии мы провели оптимизацию производительности плагина:
+
+1. **Проблема**: Плагин работал очень медленно (~300 сек на 79 элементов) из-за:
+   - Множественных вызовов `setProperties()` с разными вариантами имён свойств
+   - Каждый вызов `processVariantProperty()` делал try/catch и логирование
+   - Handlers делали 3-8 последовательных вызовов на ОДНО свойство
+
+2. **Решение**: Добавлены функции `trySetProperty()` и `trySetVariantProperty()` которые:
+   - Проверяют существование свойства ПЕРЕД вызовом `setProperties()`
+   - Принимают массив возможных имён и ищут первое существующее
+   - Делают один вызов API вместо 3-8
+
+## Файлы для ревью
+
+### 1. `src/property-utils.ts`
+
+**Текущее состояние**: Файл содержит ~816 строк с несколькими группами функций:
+
+- **Новые (наша оптимизация)**:
+  - `trySetProperty()` — строки 141-184
+  - `trySetVariantProperty()` — строки 195-239
+
+- **Старые (устаревшие?)**:
+  - `processBooleanProperty()` — строки 245-290
+  - `processStringProperty()` — строки 292-340
+  - `processVariantProperty()` — строки 342-470 (ОЧЕНЬ большая функция!)
+  - `processVariantPropertyRecursive()` — строки 472-580
+
+**Вопросы для ревью**:
+1. Нужны ли старые функции `processBooleanProperty`, `processStringProperty`, `processVariantProperty`?
+2. Можно ли их заменить на `trySetProperty` везде?
+3. Функция `processVariantProperty` слишком сложная (130 строк) — разбить на части?
+4. Дублирование логики try/catch в нескольких функциях
+
+### 2. `src/utils/component-cache.ts`
+
+**Текущее состояние**: 334 строки, синхронный кэш.
+
+**Проблемы**:
+1. Комментарий "instanceToComponentCache" говорит про "componentId", но на самом деле используется `instanceId` как ключ (теряем sharing между инстансами одного компонента)
+2. Очистка кэша через `for...in` + `delete` вместо простого `= {}`
+3. Статистика "Закэшировано компонентов" врёт — на самом деле это инстансы
+
+### 3. Handlers (`src/handlers/*.ts`)
+
+**Оптимизированные вызовы** — заменены на `trySetProperty`:
+- `price-handlers.ts` — Discount, OldPrice, Fintech, EPrice view
+- `button-handlers.ts` — BUTTON, setButtonView
+- `delivery-handlers.ts` — abroad, Bnpl type
+- `snippet-handlers.ts` — EOfferItem модификаторы
+
+**НЕ оптимизированные** — используют старые функции:
+- `label-handlers.ts` — Rating, Barometer (используют `processVariantProperty`)
+- `processVariantPropertyRecursive()` — используется для Brand=false
+
+## Задачи рефакторинга
+
+### Приоритет 1: Консистентность API
+
+1. **Решить**: оставляем оба API (`trySetProperty` + `processVariantProperty`) или унифицируем?
+   - Если оставляем оба — документировать когда какой использовать
+   - Если унифицируем — мигрировать все handlers на `trySetProperty`
+
+2. **Переименовать** функции для ясности:
+   - `trySetProperty` → `setPropertySafe` или `setPropertyIfExists`?
+   - `processVariantProperty` → `setVariantPropertyLegacy` или удалить?
+
+### Приоритет 2: Упрощение кода
+
+1. **Убрать дублирование** try/catch логики — вынести в helper
+2. **Упростить** `processVariantProperty` — она делает слишком много:
+   - Парсит "PropName=value" формат
+   - Ищет свойство
+   - Пробует разные варианты ключей
+   - Валидирует значение
+   - Устанавливает свойство
+   - Логирует
+
+3. **Исправить** комментарии в `component-cache.ts`
+
+### Приоритет 3: Тесты
+
+1. Добавить unit-тесты для `trySetProperty`
+2. Добавить тесты для `component-cache.ts`
+
+## Конкретные изменения для обсуждения
+
+### Вариант A: Минимальный рефакторинг
+- Оставить оба API
+- Добавить JSDoc с рекомендацией использовать `trySetProperty`
+- Исправить комментарии в cache
+- Мигрировать оставшиеся handlers постепенно
+
+### Вариант B: Полный рефакторинг
+- Удалить `processVariantProperty` и `processStringProperty`
+- Переписать все handlers на `trySetProperty`
+- Переименовать функции для ясности
+- Добавить тесты
+
+### Вариант C: Поэтапный подход
+1. Сначала — исправить комментарии и документацию
+2. Потом — мигрировать оставшиеся handlers
+3. Потом — пометить старые функции как deprecated
+4. В следующей версии — удалить deprecated функции
+
+## Вопросы к дизайн-ревью
+
+1. **Производительность**: Нужно ли измерить реальную разницу до/после?
+2. **API Design**: `trySetProperty(['View', 'view'], value)` vs `setProperty('View', value, { aliases: ['view'] })`?
+3. **Error handling**: Сейчас ошибки "проглатываются" — нужно ли их пробрасывать?
+4. **Logging**: Слишком много debug-логов — нужен ли отдельный "trace" уровень?
+
+## Как начать ревью
+
+```bash
+# Посмотреть изменённые файлы
+git diff HEAD~5 --stat
+
+# Посмотреть новые функции
+grep -n "trySetProperty\|trySetVariantProperty" src/property-utils.ts
+
+# Найти использования старых функций
+grep -rn "processVariantProperty\|processStringProperty" src/handlers/
+```
+
+## Ожидаемый результат
+
+После ревью и рефакторинга:
+1. Один понятный API для установки свойств
+2. Чистые, документированные функции
+3. Корректные комментарии в кэше
+4. (Опционально) Unit-тесты
+

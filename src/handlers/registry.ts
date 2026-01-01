@@ -11,12 +11,72 @@
 import { Logger } from '../logger';
 import { HandlerContext, HandlerResult, HandlerMetadata, RegisteredHandler } from './types';
 
+// === Агрегированная статистика handlers ===
+interface HandlerStats {
+  totalCalls: number;
+  totalTime: number;
+  maxTime: number;
+  slowCalls: number; // >100ms
+}
+
+const handlerStatsMap = new Map<string, HandlerStats>();
+
+/**
+ * Сброс статистики handlers
+ */
+export function resetHandlerStats(): void {
+  handlerStatsMap.clear();
+}
+
+/**
+ * Получить статистику для Logger.logHandlerStats
+ */
+export function getHandlerStatsForLogger(): Map<string, { count: number; totalTime: number; avgTime: number }> {
+  const result = new Map<string, { count: number; totalTime: number; avgTime: number }>();
+  
+  for (const [name, stats] of handlerStatsMap.entries()) {
+    result.set(name, {
+      count: stats.totalCalls,
+      totalTime: stats.totalTime,
+      avgTime: stats.totalCalls > 0 ? stats.totalTime / stats.totalCalls : 0
+    });
+  }
+  
+  return result;
+}
+
+/**
+ * Вывод агрегированной статистики handlers через Logger
+ */
+export function logHandlerStats(): void {
+  if (handlerStatsMap.size === 0) return;
+  
+  const statsForLogger = getHandlerStatsForLogger();
+  Logger.logHandlerStats(statsForLogger);
+}
+
+/**
+ * Обновить статистику для handler'а
+ */
+function updateHandlerStats(name: string, duration: number): void {
+  let stats = handlerStatsMap.get(name);
+  if (!stats) {
+    stats = { totalCalls: 0, totalTime: 0, maxTime: 0, slowCalls: 0 };
+    handlerStatsMap.set(name, stats);
+  }
+  
+  stats.totalCalls++;
+  stats.totalTime += duration;
+  if (duration > stats.maxTime) stats.maxTime = duration;
+  if (duration > 100) stats.slowCalls++;
+}
+
 // Import all handlers
 import { handleBrandLogic, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel } from './label-handlers';
 import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
-import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleShopOfflineRegion } from './snippet-handlers';
+import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleMetaVisibility } from './snippet-handlers';
 import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
-import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView } from './price-handlers';
+import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView, handleInfoIcon } from './price-handlers';
 
 /**
  * Приоритеты выполнения обработчиков
@@ -48,6 +108,7 @@ export type HandlerMode = 'sync' | 'async' | 'parallel';
 class HandlerRegistry {
   private handlers: RegisteredHandler[] = [];
   private initialized = false;
+  private loggedHandlers = false;
 
   /**
    * Регистрация обработчика
@@ -86,20 +147,26 @@ class HandlerRegistry {
 
     this.register('EPriceView', handleEPriceView, {
       priority: HandlerPriority.CRITICAL,
-      mode: 'sync',
+      mode: 'async',
       description: 'EPrice view (special/default)'
+    });
+
+    this.register('InfoIcon', handleInfoIcon, {
+      priority: HandlerPriority.VISIBILITY,
+      mode: 'sync',
+      description: 'Показ/скрытие иконки "Инфо" в EPriceGroup-Fintech'
     });
 
     // === VARIANTS (10) — варианты компонентов ===
     this.register('BrandLogic', handleBrandLogic, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
+      mode: 'async',
       description: 'Brand variant'
     });
 
     this.register('EPriceBarometer', handleEPriceBarometer, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
+      mode: 'async',
       description: 'Барометр цен'
     });
 
@@ -111,20 +178,42 @@ class HandlerRegistry {
 
     this.register('MarketCheckoutButton', handleMarketCheckoutButton, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
+      mode: 'async',
       description: 'BUTTON variant на контейнере'
     });
 
     this.register('EOfferItem', handleEOfferItem, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
+      mode: 'async',
       containers: ['EOfferItem'],
       description: 'Модификаторы карточки предложения'
     });
 
+    this.register('EShopItem', handleEShopItem, {
+      priority: HandlerPriority.VARIANTS,
+      mode: 'async',
+      containers: ['EShopItem'],
+      description: 'Модификаторы карточки магазина (priceDisclaimer, favoriteBtn)'
+    });
+
+    this.register('ESnippetProps', handleESnippetProps, {
+      priority: HandlerPriority.VARIANTS,
+      mode: 'async',
+      containers: ['ESnippet', 'Snippet'],
+      description: 'Boolean пропсы ESnippet (withReviews, withQuotes, withDelivery, withFintech, withAddress, withButton, withMeta, withPrice)'
+    });
+
+    this.register('RatingReviewQuoteVisibility', handleRatingReviewQuoteVisibility, {
+      priority: HandlerPriority.VISIBILITY,
+      mode: 'async',
+      // Убираем ограничение по контейнерам - применяем ко ВСЕМ контейнерам
+      description: 'Скрывает группу Rating + Review + Quote если нет данных'
+    });
+    Logger.debug(`[HandlerRegistry] RatingReviewQuoteVisibility зарегистрирован!`);
+
     this.register('ShopInfoBnpl', handleShopInfoBnpl, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
+      mode: 'async',
       description: 'BNPL иконки'
     });
 
@@ -137,7 +226,7 @@ class HandlerRegistry {
     // === VISIBILITY (20) — видимость элементов ===
     this.register('EButton', handleEButton, {
       priority: HandlerPriority.VISIBILITY,
-      mode: 'sync',
+      mode: 'async',
       description: 'EButton view и visible'
     });
 
@@ -167,6 +256,18 @@ class HandlerRegistry {
       description: 'Адрес магазина (#addressText, #addressLink)'
     });
 
+    this.register('HidePriceBlock', handleHidePriceBlock, {
+      priority: HandlerPriority.VISIBILITY,
+      mode: 'sync',
+      description: 'Скрытие Price Block для страниц каталога'
+    });
+
+    this.register('ImageType', handleImageType, {
+      priority: HandlerPriority.VARIANTS,
+      mode: 'async',
+      description: 'Переключение imageType (EThumb/EThumbGroup)'
+    });
+
     this.register('ELabelGroup', handleELabelGroup, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
@@ -194,6 +295,13 @@ class HandlerRegistry {
       description: 'Fallback для OrganicHost из favicon'
     });
 
+    // === FINAL (50) — финальные обработчики ===
+    this.register('MetaVisibility', handleMetaVisibility, {
+      priority: HandlerPriority.FINAL,
+      mode: 'sync',
+      description: 'Скрытие/показ группы Meta на основе видимости детей'
+    });
+
     this.initialized = true;
     Logger.debug(`[HandlerRegistry] Зарегистрировано ${this.handlers.length} обработчиков`);
   }
@@ -208,6 +316,13 @@ class HandlerRegistry {
     const containerName = context.container && 'name' in context.container 
       ? String(context.container.name) 
       : '';
+    
+    // DEBUG: Логируем список handlers при первом вызове
+    if (!this.loggedHandlers) {
+      this.loggedHandlers = true;
+      console.log(`[HandlerRegistry] Всего handlers: ${this.handlers.length}`);
+      console.log(`[HandlerRegistry] Handlers: ${this.handlers.map(h => h.name).join(', ')}`);
+    }
 
     // Группируем обработчики по режиму выполнения
     const syncHandlers: RegisteredHandler[] = [];
@@ -266,18 +381,28 @@ class HandlerRegistry {
     try {
       await registered.handler(context);
       
+      const duration = Date.now() - startTime;
+      
+      // Обновляем агрегированную статистику
+      updateHandlerStats(registered.name, duration);
+      
       return {
         handlerName: registered.name,
         success: true,
-        duration: Date.now() - startTime
+        duration
       };
     } catch (error) {
+      const duration = Date.now() - startTime;
+      
+      // Обновляем статистику даже при ошибке
+      updateHandlerStats(registered.name, duration);
+      
       Logger.error(`[${registered.name}] Error:`, error);
       
       return {
         handlerName: registered.name,
         success: false,
-        duration: Date.now() - startTime,
+        duration,
         error: error instanceof Error ? error.message : String(error)
       };
     }

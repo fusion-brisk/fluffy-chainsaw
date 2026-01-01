@@ -174,10 +174,10 @@ export const COMPONENT_CONFIG = {
 
 // Настройки для изображений
 export const IMAGE_CONFIG = {
-  TIMEOUT_MS: 30000,
-  MAX_SIZE_BYTES: 10 * 1024 * 1024, // 10MB
-  MAX_CONCURRENT: 3,
-  CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000 // 7 дней в миллисекундах
+  TIMEOUT_MS: 10000,                     // 10 секунд (было 30) — быстрее освобождаем очередь
+  MAX_SIZE_BYTES: 10 * 1024 * 1024,      // 10MB
+  MAX_CONCURRENT: 6,                     // 6 параллельных загрузок (было 3)
+  CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000  // 7 дней в миллисекундах
 };
 
 // ============================================

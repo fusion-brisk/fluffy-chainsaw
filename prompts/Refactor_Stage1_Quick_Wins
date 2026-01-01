@@ -1,0 +1,232 @@
+# Рефакторинг Этап 1: Quick Wins
+
+## Контекст
+
+После код-ревью по промпту `Performance_Optimization_Code_Review` выявлены проблемы, которые можно быстро исправить без изменения API.
+
+## Цели этапа
+
+1. Оптимизировать очистку кэша в `component-cache.ts`
+2. Упростить структуру кэша (убрать лишний уровень)
+3. Добавить JSDoc и `@deprecated` к старым функциям
+4. Убрать неиспользуемые импорты в handlers
+
+## Задача 1: Оптимизация `resetComponentCache()`
+
+### Файл: `src/utils/component-cache.ts`
+
+### Текущий код (строки 278-298):
+```typescript
+export function resetComponentCache(): void {
+  // Очищаем кэш instanceId → componentId
+  for (const key in instanceToComponentCache) {
+    if (Object.prototype.hasOwnProperty.call(instanceToComponentCache, key)) {
+      delete instanceToComponentCache[key];
+    }
+  }
+  
+  // Очищаем кэш componentId → PropertyInfo
+  for (const key in componentPropertiesCache) {
+    if (Object.prototype.hasOwnProperty.call(componentPropertiesCache, key)) {
+      delete componentPropertiesCache[key];
+    }
+  }
+  // ...
+}
+```
+
+### Проблема:
+`for...in` + `delete` — O(n) операций с деоптимизацией V8 hidden classes.
+
+### Решение:
+
+1. Изменить объявление кэшей с `const` на `let` (строки 33-36):
+
+```typescript
+// Было:
+const instanceToComponentCache: { [instanceId: string]: string } = {};
+const componentPropertiesCache: { [componentId: string]: ComponentPropertyInfo } = {};
+
+// Стало:
+let instanceToComponentCache: { [instanceId: string]: string } = {};
+let componentPropertiesCache: { [componentId: string]: ComponentPropertyInfo } = {};
+```
+
+2. Упростить `resetComponentCache()`:
+
+```typescript
+export function resetComponentCache(): void {
+  instanceToComponentCache = {};
+  componentPropertiesCache = {};
+  cacheHits = 0;
+  cacheMisses = 0;
+  totalLookups = 0;
+  Logger.debug('🧹 [PropCache] Кэш свойств компонентов очищен');
+}
+```
+
+## Задача 2: Упрощение структуры кэша
+
+### Анализ:
+Сейчас `instanceToComponentCache` делает бесполезный маппинг `instanceId → instanceId`:
+
+```typescript
+instanceToComponentCache[instanceId] = instanceId;
+componentPropertiesCache[instanceId] = info;
+```
+
+### Решение:
+Удалить `instanceToComponentCache`, оставить только `componentPropertiesCache` (переименовать в `propertyCache`).
+
+### Изменения:
+
+1. Удалить строку 33 (`instanceToComponentCache`)
+2. Переименовать `componentPropertiesCache` → `propertyCache`
+3. Обновить функции:
+   - `getOrBuildPropertyCache()` — убрать проверку `instanceToComponentCache`
+   - `resetComponentCache()` — убрать очистку `instanceToComponentCache`
+   - `logComponentCacheStats()` — убрать `cachedInstances`
+
+### Новый код `getOrBuildPropertyCache()`:
+
+```typescript
+export function getOrBuildPropertyCache(instance: InstanceNode): ComponentPropertyInfo | null {
+  const instanceId = instance.id;
+  
+  // Быстрый путь: проверяем кэш
+  if (instanceId in propertyCache) {
+    cacheHits++;
+    return propertyCache[instanceId];
+  }
+  
+  // Проверяем наличие свойств
+  if (!instance.componentProperties || Object.keys(instance.componentProperties).length === 0) {
+    return null;
+  }
+  
+  // Строим кэш
+  cacheMisses++;
+  const info = buildPropertyInfo(instance);
+  propertyCache[instanceId] = info;
+  
+  return info;
+}
+```
+
+## Задача 3: JSDoc и @deprecated
+
+### Файл: `src/property-utils.ts`
+
+### Добавить JSDoc к новым функциям (строки 131-140):
+
+```typescript
+/**
+ * Проверяет существование свойства и устанавливает значение ТОЛЬКО если свойство существует.
+ * Принимает список возможных имён свойства и пробует найти первое существующее.
+ * 
+ * ⚡ РЕКОМЕНДУЕМЫЙ API — использует кэш для O(1) lookup.
+ * 
+ * @param instance Инстанс компонента
+ * @param propertyNames Массив возможных имён свойства (например, ['View', 'view', 'VIEW'])
+ * @param value Значение для установки
+ * @param fieldName Имя поля для логирования
+ * @returns true если свойство найдено и установлено, false если свойство не существует
+ * 
+ * @example
+ * // Установка View с fallback вариантами
+ * trySetProperty(instance, ['View', 'view', 'VIEW'], 'large', '#View');
+ * 
+ * // Установка boolean
+ * trySetProperty(instance, ['Discount', 'discount'], true, '#Discount');
+ */
+export function trySetProperty(...) { ... }
+```
+
+### Добавить @deprecated к старым функциям:
+
+```typescript
+/**
+ * @deprecated Используйте {@link trySetProperty} для лучшей производительности.
+ * Эта функция делает множественные вызовы setProperties с try/catch.
+ * 
+ * Обработка boolean-свойств компонентов.
+ * Парсит строковые значения из CSV/JSON и применяет через setProperties.
+ */
+export function processBooleanProperty(...) { ... }
+
+/**
+ * @deprecated Используйте {@link trySetProperty} для лучшей производительности.
+ * 
+ * Обработка строковых свойств компонентов (не boolean, не variant property с options).
+ */
+export function processStringProperty(...) { ... }
+
+/**
+ * @deprecated Используйте {@link trySetVariantProperty} для лучшей производительности.
+ * Эта функция слишком сложная (275 строк) и делает множественные вызовы API.
+ * 
+ * Обработка Variant Properties через синтаксис PropertyName=value (без маркера @).
+ */
+export function processVariantProperty(...) { ... }
+```
+
+## Задача 4: Убрать неиспользуемые импорты
+
+### Файл: `src/handlers/price-handlers.ts` (строка 11)
+
+```typescript
+// Было:
+import { processVariantProperty, processStringProperty, trySetVariantProperty, trySetProperty } from '../property-utils';
+
+// Стало (если processVariantProperty и processStringProperty не используются):
+import { trySetVariantProperty, trySetProperty } from '../property-utils';
+```
+
+### Файл: `src/handlers/delivery-handlers.ts` (строка 9)
+
+```typescript
+// Было:
+import { processVariantProperty, trySetProperty } from '../property-utils';
+
+// Стало:
+import { trySetProperty } from '../property-utils';
+```
+
+### Файл: `src/handlers/snippet-handlers.ts` (строка 11)
+
+```typescript
+// Было:
+import { processVariantProperty, trySetProperty } from '../property-utils';
+
+// Стало:
+import { trySetProperty } from '../property-utils';
+```
+
+**ВАЖНО**: Перед удалением импортов проверить, что функции действительно не используются в файле!
+
+## Чеклист
+
+- [ ] `component-cache.ts`: Изменить `const` → `let` для кэшей
+- [ ] `component-cache.ts`: Упростить `resetComponentCache()` до переприсвоения
+- [ ] `component-cache.ts`: Удалить `instanceToComponentCache`, упростить `getOrBuildPropertyCache()`
+- [ ] `component-cache.ts`: Обновить `logComponentCacheStats()`
+- [ ] `property-utils.ts`: Добавить JSDoc к `trySetProperty`
+- [ ] `property-utils.ts`: Добавить JSDoc к `trySetVariantProperty`
+- [ ] `property-utils.ts`: Добавить `@deprecated` к `processBooleanProperty`
+- [ ] `property-utils.ts`: Добавить `@deprecated` к `processStringProperty`
+- [ ] `property-utils.ts`: Добавить `@deprecated` к `processVariantProperty`
+- [ ] `handlers/*.ts`: Убрать неиспользуемые импорты
+- [ ] Запустить `npm run build` — проверить отсутствие ошибок
+- [ ] Запустить `npm run lint` — исправить warnings
+
+## Критерии успеха
+
+1. Сборка проходит без ошибок
+2. Плагин работает как раньше (регрессии нет)
+3. Код стал чище и документированнее
+4. ESLint не показывает warnings по unused imports
+
+## Следующий этап
+
+После выполнения этого этапа переходим к `Refactor_Stage2_Split_Functions` — разбиение `processVariantProperty` на части.
+

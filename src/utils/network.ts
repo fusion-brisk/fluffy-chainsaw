@@ -1,6 +1,7 @@
 // Network utilities for UI
 
 import { Config, CSVRow } from '../types';
+import { Logger } from '../logger';
 
 export const CONFIG: Config = {
   CORS_PROXY: 'https://proxy.cors.sh/',
@@ -26,10 +27,10 @@ export async function fetchWithRetry(
     }
     return response;
   } catch (error) {
-    console.error(`Error fetching ${url}:`, error);
+    Logger.error(`Error fetching ${url}:`, error);
     
     if (attempt < CONFIG.RETRY_ATTEMPTS) {
-      console.log(`Retrying request (${attempt + 1}/${CONFIG.RETRY_ATTEMPTS})...`);
+      Logger.debug(`Retrying request (${attempt + 1}/${CONFIG.RETRY_ATTEMPTS})...`);
       await new Promise(resolve => setTimeout(resolve, CONFIG.RETRY_DELAY));
       return fetchWithRetry(url, options, attempt + 1);
     }
@@ -41,7 +42,7 @@ export async function fetchWithRetry(
 // Convert image URL to base64
 export async function convertImageToBase64(url: string): Promise<string | null> {
   try {
-    console.log(`🖼️ Конвертируем изображение в base64: ${url}`);
+    Logger.debug(`🖼️ Конвертируем изображение в base64: ${url}`);
     
     // Use CORS proxy for the image
     const proxiedUrl = CONFIG.CORS_PROXY + url;
@@ -58,14 +59,14 @@ export async function convertImageToBase64(url: string): Promise<string | null> 
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        console.log(`✅ Изображение конвертировано в base64, размер: ${result.length} символов`);
+        Logger.debug(`✅ Изображение конвертировано в base64, размер: ${result.length} символов`);
         resolve(result);
       };
       reader.onerror = () => reject(new Error('Failed to convert image to base64'));
       reader.readAsDataURL(blob);
     });
   } catch (error) {
-    console.error(`❌ Ошибка конвертации изображения ${url}:`, error);
+    Logger.error(`❌ Ошибка конвертации изображения ${url}:`, error);
     return null;
   }
 }
@@ -86,20 +87,20 @@ export async function processCSVRows(rows: CSVRow[]): Promise<CSVRow[]> {
              (value.includes('.jpg') || value.includes('.jpeg') || value.includes('.png') || value.includes('.gif') || value.includes('.webp'));
     });
     
-    console.log(`🖼️ Найдено ${imageFields.length} полей изображений в строке: ${imageFields.join(', ')}`);
+    Logger.debug(`🖼️ Найдено ${imageFields.length} полей изображений в строке: ${imageFields.join(', ')}`);
     
     // Convert each image field to base64
     for (const imageField of imageFields) {
       const imageUrl = row[imageField];
-      console.log(`🖼️ Обрабатываем поле изображения "${imageField}": ${imageUrl}`);
+      Logger.debug(`🖼️ Обрабатываем поле изображения "${imageField}": ${imageUrl}`);
       
       if (!imageUrl) continue;
       const base64Data = await convertImageToBase64(imageUrl);
       if (base64Data) {
         processedRow[imageField + '_base64'] = base64Data;
-        console.log(`✅ Добавлено поле "${imageField}_base64"`);
+        Logger.debug(`✅ Добавлено поле "${imageField}_base64"`);
       } else {
-        console.log(`⚠️ Не удалось конвертировать изображение для поля "${imageField}"`);
+        Logger.debug(`⚠️ Не удалось конвертировать изображение для поля "${imageField}"`);
       }
     }
     
@@ -135,7 +136,7 @@ export async function createSheetFromParsedData(data: CSVRow[]): Promise<string>
     
     return sheetName;
   } catch (error) {
-    console.error('Error creating sheet:', error);
+    Logger.error('Error creating sheet:', error);
     throw error;
   }
 }

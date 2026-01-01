@@ -36,8 +36,14 @@ export interface PluginMessageHandlers {
   // Reset
   onResetDone?: (count: number) => void;
   
+  // Cancel
+  onImportCancelled?: () => void;
+  
   // What's New
   onWhatsNewStatus?: (data: { shouldShow: boolean; currentVersion: string }) => void;
+  
+  // Logging
+  onLogLevelLoaded?: (level: number) => void;
 }
 
 interface UsePluginMessagesOptions {
@@ -150,6 +156,13 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
           }
           break;
           
+        // === CANCEL ===
+        case 'import-cancelled':
+          if (h.onImportCancelled) {
+            h.onImportCancelled();
+          }
+          break;
+          
         // === WHAT'S NEW ===
         case 'whats-new-status':
           if (h.onWhatsNewStatus) {
@@ -157,6 +170,13 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
               shouldShow: msg.shouldShow,
               currentVersion: msg.currentVersion
             });
+          }
+          break;
+          
+        // === LOGGING ===
+        case 'log-level-loaded':
+          if (h.onLogLevelLoaded) {
+            h.onLogLevelLoaded(msg.level);
           }
           break;
       }

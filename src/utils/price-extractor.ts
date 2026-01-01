@@ -1,5 +1,6 @@
 // Price extraction utilities
 
+import { Logger } from '../logger';
 import {
   PRICE_DIGITS_REGEX,
   CURRENCY_RUB_REGEX,
@@ -121,7 +122,7 @@ export function extractPrices(container: Element): PriceResult {
         // Проверяем разницу в 5% и что цены из одного контекста
         if (secondPrice.value > currentPrice.value * 1.05) {
           result.oldPrice = secondPrice.value.toString();
-          console.log(`⚠️ [extractPrices] Использован fallback: oldPrice=${secondPrice.value} (из того же EPriceGroup)`);
+          Logger.debug(`⚠️ [extractPrices] Использован fallback: oldPrice=${secondPrice.value} (из того же EPriceGroup)`);
         }
       }
       // Если цены из разных EPriceGroup — НЕ используем fallback,

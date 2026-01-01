@@ -2,7 +2,7 @@
  * Message Router — роутинг postMessage событий от UI
  */
 
-import { Logger } from '../logger';
+import { Logger, LogLevel } from '../logger';
 import { PLUGIN_VERSION } from '../config';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { resetAllSnippets } from './global-handlers';
@@ -190,6 +190,23 @@ export async function handleSimpleMessage(
       Logger.debug(`What's New marked as seen for version ${msg.version}`);
     } catch (e) {
       Logger.error('Failed to save whats-new seen status:', e);
+    }
+    return true;
+  }
+  
+  // === Log level handlers ===
+  if (type === 'get-log-level') {
+    const level = Logger.getLevel();
+    figma.ui.postMessage({ type: 'log-level-loaded', level: level });
+    return true;
+  }
+  
+  if (type === 'set-log-level') {
+    const level = msg.level as number;
+    if (level >= LogLevel.SILENT && level <= LogLevel.DEBUG) {
+      Logger.setLevel(level as LogLevel);
+      // Сохраняем в storage
+      figma.clientStorage.setAsync('contentify_log_level', level).catch(() => {});
     }
     return true;
   }

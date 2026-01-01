@@ -7,7 +7,7 @@
  * - plugin/global-handlers.ts — глобальные функции
  */
 
-import { Logger } from './logger';
+import { Logger, LogLevel } from './logger';
 import { PLUGIN_VERSION } from './config';
 import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from './parsing-rules-manager';
@@ -18,6 +18,14 @@ console.log('🚀 Плагин EProductSnippet загружен');
 // Глобальные экземпляры
 const imageProcessor = new ImageProcessor();
 const rulesManager = new ParsingRulesManager();
+
+// Флаг отмены текущей операции
+let isImportCancelled = false;
+
+// Функция для проверки отмены (используется в processImportCSV)
+export function checkCancelled(): boolean {
+  return isImportCancelled;
+}
 
 // Проверка обновлений правил парсинга
 async function checkRulesUpdates(): Promise<void> {
@@ -38,13 +46,23 @@ async function checkRulesUpdates(): Promise<void> {
 // Инициализация плагина
 (async function initPlugin() {
   try {
-    figma.showUI(__html__, { width: 320, height: 600 });
+    figma.showUI(__html__, { width: 320, height: 380 });
     
     // Отправляем начальное состояние выделения
     figma.ui.postMessage({
       type: 'selection-status',
       hasSelection: figma.currentPage.selection.length > 0
     });
+    
+    // Загружаем сохранённый log-level
+    try {
+      const savedLevel = await figma.clientStorage.getAsync('contentify_log_level');
+      if (savedLevel !== undefined && savedLevel >= LogLevel.SILENT && savedLevel <= LogLevel.DEBUG) {
+        Logger.setLevel(savedLevel as LogLevel);
+      }
+    } catch {
+      // Используем уровень по умолчанию (SUMMARY)
+    }
     
     // Загружаем правила парсинга
     await rulesManager.loadRules();
@@ -76,16 +94,28 @@ figma.ui.onmessage = async (msg) => {
     const handled = await handleSimpleMessage(msg, rulesManager, checkRulesUpdates);
     if (handled) return;
     
+    // === Cancel Import ===
+    if (msg.type === 'cancel-import') {
+      Logger.info('⛔ Получена команда отмены импорта');
+      isImportCancelled = true;
+      figma.ui.postMessage({ type: 'import-cancelled' });
+      return;
+    }
+    
     // === Import CSV ===
     if (msg.type === 'import-csv') {
+      // Сбрасываем флаг отмены перед началом
+      isImportCancelled = false;
+      
       const rows = (msg.rows || []) as CSVRow[];
       const scope = (msg.scope || 'page') as 'page' | 'selection';
       const resetBeforeImport = (msg.resetBeforeImport || false) as boolean;
       
       Logger.info('🔄 Начинаем оптимизированную обработку данных');
       
-      // Callback для прогресса
+      // Callback для прогресса (проверяет отмену)
       const onProgress = (current: number, total: number, message: string, operationType: string) => {
+        if (isImportCancelled) return;
         figma.ui.postMessage({ type: 'progress', current, total, message, operationType });
       };
       
@@ -93,8 +123,15 @@ figma.ui.onmessage = async (msg) => {
       const result = await processImportCSV(
         { rows, scope, resetBeforeImport },
         imageProcessor,
-        onProgress
+        onProgress,
+        () => isImportCancelled // Передаём функцию проверки отмены
       );
+      
+      // Если отменено — не отправляем результаты
+      if (isImportCancelled) {
+        Logger.info('⛔ Импорт был отменён пользователем');
+        return;
+      }
       
       // Отправляем статистику
       figma.ui.postMessage({

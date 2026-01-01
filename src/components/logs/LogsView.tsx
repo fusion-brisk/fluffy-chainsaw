@@ -6,7 +6,18 @@ interface LogsViewProps {
   logs: string[];
   onClearLogs: () => void;
   onCopyLogs: () => void;
+  logLevel?: number;
+  onLogLevelChange?: (level: number) => void;
 }
+
+// Названия уровней логирования
+const LOG_LEVEL_NAMES: Record<number, string> = {
+  0: 'Выключено',
+  1: 'Ошибки',
+  2: 'Итоги',
+  3: 'Подробно',
+  4: 'Отладка'
+};
 
 type LogFilter = 'all' | 'errors' | 'warnings' | 'success';
 
@@ -17,7 +28,9 @@ const LOG_ITEM_HEIGHT = 28; // Высота каждой записи лога �
 export const LogsView: React.FC<LogsViewProps> = memo(({
   logs,
   onClearLogs,
-  onCopyLogs
+  onCopyLogs,
+  logLevel = 2,
+  onLogLevelChange
 }) => {
   const [activeFilter, setActiveFilter] = useState<LogFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -129,6 +142,17 @@ export const LogsView: React.FC<LogsViewProps> = memo(({
           <span className="logs-view-count">({filteredLogs.length}{filteredLogs.length !== logs.length ? ` из ${logs.length}` : ''})</span>
         </div>
         <div className="logs-view-actions">
+          {/* Log Level Dropdown */}
+          <select
+            className="logs-level-select"
+            value={logLevel}
+            onChange={(e) => onLogLevelChange?.(Number(e.target.value))}
+            title="Уровень детализации логов"
+          >
+            {Object.entries(LOG_LEVEL_NAMES).map(([level, name]) => (
+              <option key={level} value={level}>{name}</option>
+            ))}
+          </select>
           <button 
             className="logs-view-btn"
             onClick={onCopyLogs}

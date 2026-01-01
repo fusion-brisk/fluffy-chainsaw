@@ -1,10 +1,574 @@
 import { Logger } from './logger';
+import { findPropertyKey, getPropertyMetadata, validateVariantValue, logComponentCacheStats, getCachedPropertyNames } from './utils/component-cache';
 
-// Обработка boolean-свойств
-// Парсит строковые значения из CSV/JSON и применяет через setProperties
-// actualPropertyKey - полное имя свойства с ID (например, "Brand#22092:0"), если передан, используется для setProperties
-// propertyName - простое имя свойства (например, "Brand"), используется для логирования
-export function processBooleanProperty(instance: InstanceNode, propertyName: string, targetValue: string, fieldName: string, actualPropertyKey?: string): boolean {
+// ============================================================================
+// Утилиты для значений свойств
+// ============================================================================
+
+/**
+ * Конвертирует boolean в строку для Figma variant properties
+ * Figma требует "True"/"False" с большой буквы
+ */
+export function boolToFigma(value: boolean): string {
+  return value ? 'True' : 'False';
+}
+
+// ============================================================================
+// Кэш предупреждений для агрегации (чтобы не спамить одинаковыми сообщениями)
+// ============================================================================
+interface PropertyWarning {
+  count: number;
+  instanceNames: Set<string>;
+  availableProperties?: string[]; // Для первой ошибки запоминаем доступные свойства
+}
+
+// Ключ: "instanceType:propertyName", значение: статистика
+const missingPropertyWarnings: Map<string, PropertyWarning> = new Map();
+// Ключ: "instanceType:propertyName:value", значение: статистика ошибок установки
+const setPropertyErrors: Map<string, PropertyWarning> = new Map();
+// Кэш логирования доступных свойств (чтобы логировать только один раз на тип)
+const loggedAvailableProperties: Set<string> = new Set();
+
+/**
+ * Сбрасывает счётчики предупреждений (вызывать перед обработкой batch)
+ */
+export function resetPropertyWarnings(): void {
+  missingPropertyWarnings.clear();
+  setPropertyErrors.clear();
+  loggedAvailableProperties.clear();
+}
+
+/**
+ * Выводит агрегированную статистику предупреждений (вызывать после обработки batch)
+ */
+export function logPropertyWarnings(): void {
+  // Статистика кэша свойств компонентов
+  logComponentCacheStats();
+  
+  // Предупреждения о ненайденных свойствах
+  if (missingPropertyWarnings.size > 0) {
+    Logger.verbose(`⚠️ Свойства не найдены в компонентах:`);
+    const sorted = Array.from(missingPropertyWarnings.entries())
+      .sort((a, b) => b[1].count - a[1].count);
+    
+    for (const [key, stats] of sorted) {
+      const [instanceType, propertyName] = key.split(':');
+      Logger.verbose(`   "${propertyName}" в ${instanceType}: ${stats.count}×`);
+    }
+  }
+  
+  // Ошибки установки variant properties
+  if (setPropertyErrors.size > 0) {
+    Logger.verbose(`❌ Не удалось установить Variant Properties (свойство не найдено или значение невалидно):`);
+    const sorted = Array.from(setPropertyErrors.entries())
+      .sort((a, b) => b[1].count - a[1].count);
+    
+    for (const [key, stats] of sorted) {
+      const parts = key.split(':');
+      const instanceType = parts[0];
+      const propertyName = parts[1];
+      const value = parts.slice(2).join(':');
+      Logger.verbose(`   "${propertyName}=${value}" в ${instanceType}: ${stats.count}×`);
+    }
+    Logger.verbose(`   💡 Проверьте точные имена свойств в Figma и переименуйте при необходимости`);
+  }
+}
+
+/**
+ * Логирует доступные свойства компонента (один раз для каждого типа)
+ */
+function logAvailablePropertiesOnce(instance: InstanceNode, propertyName: string): void {
+  const instanceType = instance.name.split(' ')[0];
+  const logKey = `${instanceType}:${propertyName}`;
+  
+  if (loggedAvailableProperties.has(logKey)) {
+    return; // Уже логировали для этого типа и свойства
+  }
+  loggedAvailableProperties.add(logKey);
+  
+  const availableProps = getCachedPropertyNames(instance);
+  if (availableProps.length > 0) {
+    // Используем info чтобы гарантированно видеть в логах
+    Logger.info(`   📋 [${instanceType}] Доступные свойства: ${availableProps.join(', ')}`);
+    Logger.info(`   💡 Искали: "${propertyName}" — не найдено`);
+  }
+}
+
+/**
+ * Регистрирует предупреждение о ненайденном свойстве (не выводит в лог)
+ */
+function trackMissingProperty(instanceName: string, propertyName: string, instance?: InstanceNode): void {
+  // Извлекаем тип инстанса (например, "EProductSnippet" из "EProductSnippet")
+  const instanceType = instanceName.split(' ')[0];
+  const key = `${instanceType}:${propertyName}`;
+  
+  const existing = missingPropertyWarnings.get(key);
+  if (existing) {
+    existing.count++;
+    existing.instanceNames.add(instanceName);
+  } else {
+    // Первая ошибка для этого типа — логируем доступные свойства
+    if (instance) {
+      logAvailablePropertiesOnce(instance, propertyName);
+    }
+    missingPropertyWarnings.set(key, {
+      count: 1,
+      instanceNames: new Set([instanceName])
+    });
+  }
+}
+
+/**
+ * Регистрирует ошибку установки свойства (не выводит в лог)
+ */
+function trackSetPropertyError(instanceName: string, propertyName: string, value: string, instance?: InstanceNode): void {
+  const instanceType = instanceName.split(' ')[0];
+  const key = `${instanceType}:${propertyName}:${value}`;
+  
+  const existing = setPropertyErrors.get(key);
+  if (existing) {
+    existing.count++;
+    existing.instanceNames.add(instanceName);
+  } else {
+    // Первая ошибка — логируем метаданные свойства
+    if (instance) {
+      logPropertyOptionsOnce(instance, propertyName);
+    }
+    setPropertyErrors.set(key, {
+      count: 1,
+      instanceNames: new Set([instanceName])
+    });
+  }
+}
+
+/**
+ * Логирует допустимые значения (options) свойства (один раз для каждого типа)
+ */
+function logPropertyOptionsOnce(instance: InstanceNode, propertyName: string): void {
+  const instanceType = instance.name.split(' ')[0];
+  const logKey = `options:${instanceType}:${propertyName}`;
+  
+  if (loggedAvailableProperties.has(logKey)) {
+    return;
+  }
+  loggedAvailableProperties.add(logKey);
+  
+  const foundKey = findPropertyKey(instance, propertyName);
+  if (!foundKey) return;
+  
+  const metadata = getPropertyMetadata(instance, foundKey);
+  if (!metadata) return;
+  
+  Logger.info(`   🔧 [${instanceType}] Свойство "${propertyName}" (ключ: "${foundKey}"):`);
+  Logger.info(`      - Тип: ${metadata.type}`);
+  Logger.info(`      - Текущее значение: ${metadata.defaultValue}`);
+  if (metadata.options && metadata.options.length > 0) {
+    Logger.info(`      - Допустимые значения: [${metadata.options.join(', ')}]`);
+  } else {
+    Logger.info(`      - Допустимые значения: НЕ ОПРЕДЕЛЕНЫ (exposed или без ограничений)`);
+  }
+}
+
+// ============================================================================
+// Helper функции
+// ============================================================================
+
+/**
+ * Устанавливает свойство с fallback на полный ключ.
+ * Сначала пробует простое имя, при ошибке — полный ключ с ID.
+ * 
+ * @param instance Инстанс компонента
+ * @param simpleKey Простое имя свойства (например, "View")
+ * @param fullKey Полный ключ с ID (например, "View#12345:0")
+ * @param value Значение для установки
+ * @returns true если установлено успешно, false при ошибке
+ */
+function setPropertyWithFallback(
+  instance: InstanceNode,
+  simpleKey: string,
+  fullKey: string,
+  value: string | boolean
+): boolean {
+  try {
+    instance.setProperties({ [simpleKey]: value });
+    return true;
+  } catch {
+    if (fullKey !== simpleKey) {
+      try {
+        instance.setProperties({ [fullKey]: value });
+        return true;
+      } catch {
+        // Обе попытки не удались
+      }
+    }
+    return false;
+  }
+}
+
+/**
+ * Парсит синтаксис "PropertyName=value"
+ * @returns { propName, propValue } или null если формат невалидный
+ */
+function parseVariantSyntax(value: string): { propName: string; propValue: string } | null {
+  if (!value || typeof value !== 'string') {
+    return null;
+  }
+  
+  const trimmed = value.trim();
+  const match = trimmed.match(/^([^=]+?)\s*=\s*(.+)$/);
+  
+  if (!match || match.length < 3) {
+    return null;
+  }
+  
+  const propName = match[1].trim();
+  const propValue = match[2].trim();
+  
+  if (!propName || !propValue) {
+    return null;
+  }
+  
+  return { propName, propValue };
+}
+
+type PropertyCategory = 'VARIANT_WITH_OPTIONS' | 'VARIANT_NO_OPTIONS' | 'BOOLEAN' | 'UNKNOWN';
+
+/**
+ * Определяет категорию свойства компонента
+ */
+function detectPropertyType(property: unknown): PropertyCategory {
+  if (!property || typeof property !== 'object') {
+    return 'UNKNOWN';
+  }
+  
+  const prop = property as Record<string, unknown>;
+  const propType = prop.type;
+  const hasOptions = 'options' in prop && Array.isArray(prop.options) && prop.options.length > 0;
+  
+  if (hasOptions) {
+    return 'VARIANT_WITH_OPTIONS';
+  }
+  
+  if (propType === 'VARIANT') {
+    return 'VARIANT_NO_OPTIONS';
+  }
+  
+  if ('value' in prop && typeof prop.value === 'boolean') {
+    return 'BOOLEAN';
+  }
+  
+  return 'UNKNOWN';
+}
+
+/**
+ * Нормализует значение для VARIANT свойства.
+ * Ищет совпадение в options с учётом регистра и boolean-значений.
+ * 
+ * @returns Нормализованное значение из options или null если не найдено
+ */
+function normalizeVariantValue(targetValue: string, options: readonly string[]): string | null {
+  const targetLower = targetValue.toLowerCase();
+  
+  // 1. Точное совпадение
+  for (const option of options) {
+    if (option === targetValue) {
+      return option;
+    }
+  }
+  
+  // 2. Без учёта регистра
+  for (const option of options) {
+    if (option.toLowerCase() === targetLower) {
+      return option;
+    }
+  }
+  
+  // 3. Boolean-значения (true/false как строки)
+  if (targetLower === 'true' || targetLower === 'false') {
+    for (const option of options) {
+      const optLower = option.toLowerCase();
+      if (optLower === targetLower ||
+          (targetLower === 'true' && optLower === '1') ||
+          (targetLower === 'false' && optLower === '0')) {
+        return option;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Собирает все текущие свойства инстанса для batch-установки.
+ */
+function collectCurrentProperties(instance: InstanceNode): { [key: string]: string | boolean } {
+  const result: { [key: string]: string | boolean } = {};
+  const props = instance.componentProperties;
+  
+  for (const key in props) {
+    if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
+    
+    const prop = props[key];
+    if (prop && typeof prop === 'object' && 'value' in prop) {
+      const simpleName = key.split('#')[0];
+      const value = prop.value;
+      
+      if (typeof value === 'string' || typeof value === 'boolean') {
+        result[simpleName] = value;
+      } else if (typeof value === 'number') {
+        result[simpleName] = String(value);
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Устанавливает VARIANT свойство без доступных options.
+ * Пробует несколько стратегий: простой ключ, полный ключ, все свойства.
+ */
+function setVariantWithoutOptions(
+  instance: InstanceNode,
+  simpleKey: string,
+  fullKey: string,
+  value: string,
+  _fieldName: string
+): boolean {
+  // Стратегия 1: только целевое свойство
+  if (setPropertyWithFallback(instance, simpleKey, fullKey, value)) {
+    const updated = instance.componentProperties[fullKey];
+    const updatedValue = updated && typeof updated === 'object' && 'value' in updated ? updated.value : null;
+    if (String(updatedValue) === value) {
+      Logger.debug(`   ✅ Установлено "${simpleKey}" = "${value}"`);
+      return true;
+    }
+  }
+  
+  // Стратегия 2: со всеми текущими свойствами
+  const allProps = collectCurrentProperties(instance);
+  allProps[simpleKey] = value;
+  
+  try {
+    instance.setProperties(allProps);
+    const updated = instance.componentProperties[fullKey];
+    const updatedValue = updated && typeof updated === 'object' && 'value' in updated ? updated.value : null;
+    if (String(updatedValue) === value) {
+      Logger.debug(`   ✅ Установлено со всеми свойствами: "${simpleKey}" = "${value}"`);
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  
+  trackSetPropertyError(instance.name, simpleKey, value, instance);
+  return false;
+}
+
+/**
+ * Устанавливает VARIANT свойство с валидацией против options.
+ */
+function setVariantWithOptions(
+  instance: InstanceNode,
+  simpleKey: string,
+  fullKey: string,
+  value: string,
+  options: readonly string[],
+  _fieldName: string
+): boolean {
+  // Exposed property (пустые options)
+  if (options.length === 0) {
+    if (setPropertyWithFallback(instance, simpleKey, fullKey, value)) {
+      Logger.debug(`   ✅ Exposed property "${simpleKey}" = "${value}"`);
+      return true;
+    }
+    return false;
+  }
+  
+  // Нормализуем значение
+  const normalized = normalizeVariantValue(value, options);
+  if (!normalized) {
+    Logger.warn(`⚠️ Значение "${value}" не найдено в options: [${options.join(', ')}]`);
+    return false;
+  }
+  
+  // Устанавливаем
+  if (setPropertyWithFallback(instance, simpleKey, fullKey, normalized)) {
+    Logger.debug(`   ✅ Variant "${simpleKey}" = "${normalized}"`);
+    return true;
+  }
+  
+  Logger.error(`❌ Не удалось установить "${simpleKey}" = "${normalized}"`);
+  return false;
+}
+
+// ============================================================================
+// Оптимизированные функции установки свойств
+// ============================================================================
+
+/**
+ * Проверяет существование свойства и устанавливает значение ТОЛЬКО если свойство существует.
+ * Принимает список возможных имён свойства и пробует найти первое существующее.
+ * 
+ * ⚡ РЕКОМЕНДУЕМЫЙ API — использует кэш для O(1) lookup.
+ * 
+ * @param instance Инстанс компонента
+ * @param propertyNames Массив возможных имён свойства (например, ['View', 'view', 'VIEW'])
+ * @param value Значение для установки
+ * @param fieldName Имя поля для логирования
+ * @returns true если свойство найдено и установлено, false если свойство не существует
+ * 
+ * @example
+ * // Установка View с fallback вариантами
+ * trySetProperty(instance, ['View', 'view', 'VIEW'], 'large', '#View');
+ * 
+ * @example
+ * // Установка boolean
+ * trySetProperty(instance, ['Discount', 'discount'], true, '#Discount');
+ */
+export function trySetProperty(
+  instance: InstanceNode,
+  propertyNames: string[],
+  value: string | boolean,
+  fieldName: string
+): boolean {
+  // Проверяем существование свойства через кэш (O(1) для каждого имени)
+  let foundKey: string | null = null;
+  let foundName: string | null = null;
+  
+  for (const name of propertyNames) {
+    foundKey = findPropertyKey(instance, name);
+    if (foundKey) {
+      foundName = name;
+      break;
+    }
+  }
+  
+  if (!foundKey || !foundName) {
+    // Свойство не существует — не тратим время на setProperties
+    // Логируем только первое имя из списка для агрегации
+    trackMissingProperty(instance.name, propertyNames[0], instance);
+    return false;
+  }
+  
+  // Свойство найдено — устанавливаем значение
+  const simpleKey = foundKey.split('#')[0];
+  
+  const success = setPropertyWithFallback(instance, simpleKey, foundKey, value);
+  if (success) {
+    Logger.debug(`   ✅ [trySetProperty] ${simpleKey}=${value} (${fieldName})`);
+    return true;
+  } else {
+    trackSetPropertyError(instance.name, simpleKey, String(value), instance);
+    return false;
+  }
+}
+
+/**
+ * Устанавливает Variant Property ТОЛЬКО если свойство существует.
+ * Формат: "PropertyName=value"
+ * 
+ * ⚡ РЕКОМЕНДУЕМЫЙ API — использует кэш для O(1) lookup.
+ * 
+ * @param instance Инстанс компонента
+ * @param propertyVariants Массив форматов "PropertyName=value" (например, ['View=large', 'view=large'])
+ * @param fieldName Имя поля для логирования
+ * @returns true если хотя бы один вариант успешно установлен
+ * 
+ * @example
+ * // Установка View=large с fallback вариантами
+ * trySetVariantProperty(instance, ['View=large', 'view=large'], '#View');
+ */
+export function trySetVariantProperty(
+  instance: InstanceNode,
+  propertyVariants: string[],
+  fieldName: string
+): boolean {
+  for (const variant of propertyVariants) {
+    const parsed = parseVariantSyntax(variant);
+    if (!parsed) continue;
+    
+    const { propName, propValue } = parsed;
+    
+    // Проверяем существование свойства
+    const foundKey = findPropertyKey(instance, propName);
+    if (!foundKey) continue;
+    
+    // Свойство существует — пробуем установить
+    const simpleKey = foundKey.split('#')[0];
+    
+    if (setPropertyWithFallback(instance, simpleKey, foundKey, propValue)) {
+      Logger.debug(`   ✅ [trySetVariant] ${simpleKey}=${propValue} (${fieldName})`);
+      return true;
+    }
+    // Продолжаем к следующему варианту
+  }
+  
+  // Ни один вариант не сработал
+  if (propertyVariants.length > 0) {
+    const parsed = parseVariantSyntax(propertyVariants[0]);
+    if (parsed) {
+      trackMissingProperty(instance.name, parsed.propName, instance);
+    }
+  }
+  return false;
+}
+
+/**
+ * Рекурсивно устанавливает Variant Property во всех вложенных инстансах.
+ * Оптимизированная версия с использованием кэша.
+ * 
+ * ⚡ РЕКОМЕНДУЕМЫЙ API — использует кэш для O(1) lookup.
+ * 
+ * @param node Корневой узел для обхода
+ * @param propertyVariants Массив форматов "PropertyName=value"
+ * @param fieldName Имя поля для логирования
+ * @param allowedInstanceNames Опциональный фильтр по именам инстансов
+ * @returns true если хотя бы одно свойство установлено
+ */
+export function trySetVariantPropertyRecursive(
+  node: SceneNode,
+  propertyVariants: string[],
+  fieldName: string,
+  allowedInstanceNames?: string[]
+): boolean {
+  if (node.removed) return false;
+  
+  let anySet = false;
+  
+  // Обрабатываем текущий узел, если это инстанс
+  if (node.type === 'INSTANCE') {
+    const instance = node as InstanceNode;
+    
+    // Проверяем фильтр по имени
+    const shouldProcess = !allowedInstanceNames || 
+                          allowedInstanceNames.length === 0 || 
+                          allowedInstanceNames.includes(instance.name);
+    
+    if (shouldProcess) {
+      const result = trySetVariantProperty(instance, propertyVariants, fieldName);
+      anySet = anySet || result;
+    }
+  }
+  
+  // Рекурсивно обходим детей
+  if ('children' in node && node.children) {
+    for (const child of node.children) {
+      if (!child.removed) {
+        const childResult = trySetVariantPropertyRecursive(child, propertyVariants, fieldName, allowedInstanceNames);
+        anySet = anySet || childResult;
+      }
+    }
+  }
+  
+  return anySet;
+}
+
+/**
+ * Обработка boolean-свойств компонентов (internal).
+ * Парсит строковые значения из CSV/JSON и применяет через setProperties.
+ */
+function processBooleanProperty(instance: InstanceNode, propertyName: string, targetValue: string, fieldName: string, actualPropertyKey?: string): boolean {
   try {
     Logger.debug(`   🔧 [Boolean Property] Обработка boolean-свойства "${propertyName}", значение: "${targetValue}"`);
     
@@ -101,8 +665,11 @@ export function debugComponentProperties(instance: InstanceNode): void {
   }
 }
 
-// Обработка строковых свойств компонентов (не boolean, не variant property с options)
-export function processStringProperty(instance: InstanceNode, propertyName: string, targetValue: string, fieldName: string, actualPropertyKey?: string): boolean {
+/**
+ * Обработка строковых свойств компонентов (internal, deprecated).
+ * Перенаправляет на processVariantProperty для variant properties.
+ */
+function processStringProperty(instance: InstanceNode, propertyName: string, targetValue: string, fieldName: string, actualPropertyKey?: string): boolean {
   try {
     Logger.debug(`🔍 [String Property] Начало обработки для инстанса "${instance.name}", поле "${fieldName}", свойство "${propertyName}", значение: "${targetValue}"`);
     
@@ -251,330 +818,65 @@ export function processStringProperty(instance: InstanceNode, propertyName: stri
   }
 }
 
-// Обработка Variant Properties через синтаксис PropertyName=value (без маркера @)
-// Возвращает true, если значение было обработано как Variant Property (и не нужно применять как текст)
+/**
+ * @deprecated Используйте {@link trySetVariantProperty} для лучшей производительности.
+ * Эта функция оставлена для обратной совместимости.
+ * 
+ * Обработка Variant Properties через синтаксис PropertyName=value (без маркера @).
+ * Возвращает true, если значение было обработано как Variant Property.
+ * 
+ * @param instance Инстанс компонента
+ * @param value Значение в формате "PropertyName=value"
+ * @param fieldName Имя поля для логирования
+ */
 export function processVariantProperty(instance: InstanceNode, value: string, fieldName: string): boolean {
   try {
-    Logger.debug(`🔍 [Variant Property] Начало обработки для инстанса "${instance.name}", поле "${fieldName}", значение: "${value}"`);
+    Logger.debug(`🔍 [Variant Property] "${instance.name}", поле "${fieldName}", значение: "${value}"`);
     
-    // Проверяем формат PropertyName=value (без маркера @)
-    if (!value || typeof value !== 'string') {
-      Logger.debug(`   ⏭️ Пропуск: значение не является строкой`);
-      return false; // Не Variant Property, продолжаем обычную обработку
-    }
-    
-    const trimmedValue = value.trim();
-    
-    // Парсим PropertyName=value (формат: имя свойства (может содержать пробелы), знак =, значение)
-    // Используем нежадный квантификатор [^=]+? чтобы захватить имя свойства до первого =
-    const match = trimmedValue.match(/^([^=]+?)\s*=\s*(.+)$/);
-    if (!match || match.length < 3) {
+    // 1. Парсим синтаксис
+    const parsed = parseVariantSyntax(value);
+    if (!parsed) {
       Logger.debug(`   ⏭️ Пропуск: не соответствует формату PropertyName=value`);
-      return false; // Не соответствует формату Variant Property
-    }
-    
-    const propertyName = match[1].trim();
-    const targetValue = match[2].trim();
-    
-    Logger.debug(`   📝 Распарсено: propertyName="${propertyName}", targetValue="${targetValue}"`);
-    
-    if (!propertyName || !targetValue) {
-      Logger.warn(`⚠️ Пустое имя или значение Variant Property для "${fieldName}": "${trimmedValue}"`);
       return false;
     }
     
-    // Получаем componentProperties
+    const { propName, propValue } = parsed;
+    Logger.debug(`   📝 Распарсено: propName="${propName}", propValue="${propValue}"`);
+    
+    // 2. Ищем свойство в кэше
     if (!instance.componentProperties) {
       Logger.warn(`⚠️ У инстанса "${instance.name}" нет componentProperties`);
       return false;
     }
     
-    // ЛОГИРОВАНИЕ: Выводим все найденные свойства ДО проверки (для отладки)
-    Logger.debug(`   📋 Все свойства инстанса "${instance.name}":`);
-    const allProperties = instance.componentProperties;
+    const foundKey = findPropertyKey(instance, propName);
+    if (!foundKey) {
+      trackMissingProperty(instance.name, propName, instance);
+      return false;
+    }
     
-    for (const propKey in allProperties) {
-      if (Object.prototype.hasOwnProperty.call(allProperties, propKey)) {
-        const prop = allProperties[propKey];
+    const property = instance.componentProperties[foundKey];
+    const simpleKey = foundKey.split('#')[0];
+    
+    // 3. Определяем тип свойства
+    const category = detectPropertyType(property);
+    Logger.debug(`   📋 Категория свойства: ${category}`);
+    
+    switch (category) {
+      case 'BOOLEAN':
+        return processBooleanProperty(instance, propName, propValue, fieldName, foundKey);
         
-        if (prop && typeof prop === 'object') {
-          if ('options' in prop) {
-            // Это Variant Property с опциями
-            const propOptions = prop.options as readonly string[];
-            const currentValue = 'value' in prop ? prop.value : 'N/A';
-            const defaultValue = 'defaultValue' in prop ? prop.defaultValue : 'N/A';
-            Logger.debug(`      - "${propKey}" (variant): текущее="${currentValue}", по умолчанию="${defaultValue}", опции=[${propOptions.map(o => String(o)).join(', ')}]`);
-          } else if ('value' in prop) {
-            // Это может быть boolean-свойство или другое свойство без options
-            const currentValue = prop.value;
-            const valueType = typeof currentValue;
-            Logger.debug(`      - "${propKey}" (${valueType}): текущее="${currentValue}"`);
-          } else {
-            Logger.debug(`      - "${propKey}": (другое свойство)`);
-          }
-        } else {
-          Logger.debug(`      - "${propKey}": (другое свойство)`);
-        }
+      case 'VARIANT_NO_OPTIONS':
+        return setVariantWithoutOptions(instance, simpleKey, foundKey, propValue, fieldName);
+        
+      case 'VARIANT_WITH_OPTIONS': {
+        const propWithOptions = property as unknown as { options: readonly string[] };
+        return setVariantWithOptions(instance, simpleKey, foundKey, propValue, propWithOptions.options, fieldName);
       }
-    }
-    
-    // Проверяем наличие параметра (сначала точное совпадение, затем частичное)
-    let foundPropertyKey: string | null = null;
-    let property: InstanceNode['componentProperties'][string] | null = null;
-    
-    // Нормализуем propertyName для поиска (убираем пробелы и приводим к нижнему регистру)
-    const normalizedPropertyName = propertyName.replace(/\s+/g, '').toLowerCase();
-    
-    // 1. Пробуем точное совпадение
-    if (propertyName in instance.componentProperties) {
-      foundPropertyKey = propertyName;
-      property = instance.componentProperties[propertyName];
-      Logger.debug(`   ✅ Найдено точное совпадение: "${foundPropertyKey}"`);
-    } else {
-      // 2. Ищем по частичному совпадению (свойство начинается с propertyName)
-      for (const propKey in instance.componentProperties) {
-        if (Object.prototype.hasOwnProperty.call(instance.componentProperties, propKey)) {
-          // Проверяем, начинается ли ключ с propertyName (например, "Brand#22092:0" начинается с "Brand")
-          if (propKey.startsWith(propertyName)) {
-            foundPropertyKey = propKey;
-            property = instance.componentProperties[propKey];
-            Logger.debug(`   ✅ Найдено частичное совпадение: "${propKey}" (искали "${propertyName}")`);
-            break;
-          }
-        }
-      }
-      
-      // 3. Если не нашли, пробуем поиск по нормализованному имени (без пробелов, без учета регистра)
-      // Это нужно для случаев, когда propertyName = "Old Price", а propKey = "Old Price#14715:9"
-      if (!foundPropertyKey) {
-        for (const propKey in instance.componentProperties) {
-          if (Object.prototype.hasOwnProperty.call(instance.componentProperties, propKey)) {
-            // Нормализуем ключ свойства (убираем ID после # и пробелы, приводим к нижнему регистру)
-            const propKeyWithoutId = propKey.split('#')[0]; // Убираем часть после #
-            const normalizedPropKey = propKeyWithoutId.replace(/\s+/g, '').toLowerCase();
-            
-            // Проверяем совпадение нормализованных имен
-            if (normalizedPropKey === normalizedPropertyName || normalizedPropKey.startsWith(normalizedPropertyName)) {
-              foundPropertyKey = propKey;
-              property = instance.componentProperties[propKey];
-              Logger.debug(`   ✅ Найдено совпадение по нормализованному имени: "${propKey}" (искали "${propertyName}", нормализовано: "${normalizedPropertyName}")`);
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    if (!foundPropertyKey || !property) {
-      Logger.warn(`⚠️ У инстанса "${instance.name}" нет свойства "${propertyName}" (ищем среди свойств выше)`);
-      return false;
-    }
-    
-    // Для setProperties используем простое имя (без ID), так как API принимает простое имя
-    const propertyKeyForSetProperties = propertyName;
-    
-    // Проверяем тип свойства
-    if (!property || typeof property !== 'object') {
-      Logger.warn(`⚠️ Property "${propertyName}" у инстанса "${instance.name}" имеет неожиданный тип`);
-      return false;
-    }
-    
-    // Проверяем тип свойства
-    const propertyType = 'type' in property ? (property as Record<string, unknown>).type : null;
-    const isVariantProperty = 'options' in property || propertyType === 'VARIANT';
-    
-    // Сначала проверяем, является ли это Variant Property (есть options или type === 'VARIANT')
-    // Это приоритетнее, чем boolean, так как variant properties могут иметь и value, и options
-    if (isVariantProperty) {
-      // Это Variant Property - обрабатываем ниже (продолжаем выполнение)
-    } else if ('value' in property) {
-      // Если нет options и type !== 'VARIANT', но есть value - проверяем, является ли это boolean-свойством
-      const currentValue = property.value;
-      const isBoolean = typeof currentValue === 'boolean';
-      
-      if (isBoolean) {
-        Logger.debug(`   🔍 Свойство "${propertyName}" является boolean-свойством (текущее значение: ${currentValue})`);
-        return processBooleanProperty(instance, propertyName, targetValue, fieldName, foundPropertyKey);
-      } else {
-        Logger.warn(`⚠️ Property "${propertyName}" у инстанса "${instance.name}" не является boolean-свойством (тип значения: ${typeof currentValue}) и не является Variant Property (нет options и type !== 'VARIANT')`);
+        
+      default:
+        Logger.warn(`⚠️ Property "${propName}" имеет неизвестный тип`);
         return false;
-      }
-    } else {
-      Logger.warn(`⚠️ Property "${propertyName}" у инстанса "${instance.name}" не является Variant Property (нет options и type !== 'VARIANT') и не является boolean-свойством (нет value)`);
-      return false;
-    }
-    
-    // Если мы дошли сюда, значит это Variant Property (есть options или type === 'VARIANT')
-    
-    // Получаем текущее значение для логирования
-    const currentValue = 'value' in property ? property.value : 'N/A';
-    
-    // Если есть options, используем их для валидации
-    let options: readonly string[] | null = null;
-    if ('options' in property) {
-      options = property.options as readonly string[];
-      if (!options || options.length === 0) {
-        // Options пустой — это exposed property. Пробуем setProperties напрямую
-        Logger.debug(`   ⚠️ У Variant Property "${propertyName}" options=[]. Это exposed property, пробуем setProperties...`);
-        try {
-          instance.setProperties({ [propertyKeyForSetProperties]: targetValue });
-          const updatedProperty = instance.componentProperties[foundPropertyKey];
-          const updatedValue = updatedProperty && typeof updatedProperty === 'object' && 'value' in updatedProperty ? updatedProperty.value : 'N/A';
-          if (String(updatedValue) === String(targetValue)) {
-            Logger.debug(`   ✅ Exposed property "${propertyKeyForSetProperties}" = "${targetValue}" успешно (проверка: "${updatedValue}")`);
-            return true;
-          } else {
-            Logger.debug(`   ⚠️ setProperties выполнен, но значение не совпадает: ожидали "${targetValue}", получили "${updatedValue}"`);
-          }
-        } catch (e) {
-          Logger.debug(`   ⚠️ setProperties для exposed property не удался:`, e);
-        }
-        return false;
-      }
-    } else if (propertyType === 'VARIANT') {
-      // Если type === 'VARIANT' но options недоступны, пробуем разные стратегии установки
-      Logger.debug(`   ⚠️ Variant Property "${propertyName}" имеет type="VARIANT", но options недоступны.`);
-      Logger.debug(`   💡 Пробуем установить свойство, позволяя Figma выбрать совместимые значения для других свойств...`);
-      
-      // Стратегия 1: Пробуем установить только целевое свойство
-      // Figma может автоматически подобрать совместимые значения для других свойств
-      Logger.debug(`   🔧 Попытка 1: Установка только "${propertyKeyForSetProperties}" = "${targetValue}"...`);
-      try {
-        instance.setProperties({ [propertyKeyForSetProperties]: targetValue });
-        
-        // Проверяем, что значение установилось
-        const updatedProperty = instance.componentProperties[foundPropertyKey];
-        const updatedValue = updatedProperty && typeof updatedProperty === 'object' && 'value' in updatedProperty ? updatedProperty.value : 'N/A';
-        if (String(updatedValue) === String(targetValue)) {
-          Logger.debug(`   ✅ Успешно установлено только "${propertyKeyForSetProperties}" = "${targetValue}" (проверка: "${updatedValue}")`);
-          return true;
-        } else {
-          Logger.debug(`   ⚠️ Значение установилось, но не совпадает: ожидали "${targetValue}", получили "${updatedValue}"`);
-        }
-      } catch (e) {
-        Logger.debug(`   ⚠️ Попытка 1 не удалась:`, e instanceof Error ? e.message : String(e));
-      }
-      
-      // Стратегия 2: Устанавливаем со всеми текущими свойствами
-      Logger.debug(`   🔧 Попытка 2: Установка со всеми текущими свойствами...`);
-      const allCurrentProperties: { [key: string]: string | boolean } = {};
-      const allProps = instance.componentProperties;
-      
-      for (const propKey in allProps) {
-        if (Object.prototype.hasOwnProperty.call(allProps, propKey)) {
-          const prop = allProps[propKey];
-          if (prop && typeof prop === 'object' && 'value' in prop) {
-            // Используем простое имя свойства (без ID после #) для setProperties
-            const simplePropName = propKey.split('#')[0];
-            const propValue = prop.value;
-            // Преобразуем значение в string или boolean (setProperties не принимает number)
-            const convertedValue = typeof propValue === 'number' ? String(propValue) : propValue;
-            if (typeof convertedValue === 'string' || typeof convertedValue === 'boolean') {
-              allCurrentProperties[simplePropName] = convertedValue;
-            }
-          }
-        }
-      }
-      
-      // Устанавливаем новое значение для целевого свойства
-      allCurrentProperties[propertyKeyForSetProperties] = targetValue;
-      Logger.debug(`      Устанавливаем свойства: ${Object.keys(allCurrentProperties).map(k => `${k}="${allCurrentProperties[k]}"`).join(', ')}`);
-      
-      try {
-        instance.setProperties(allCurrentProperties);
-        
-        // Проверяем, что значение установилось
-        const updatedProperty = instance.componentProperties[foundPropertyKey];
-        const updatedValue = updatedProperty && typeof updatedProperty === 'object' && 'value' in updatedProperty ? updatedProperty.value : 'N/A';
-        if (String(updatedValue) === String(targetValue)) {
-          Logger.debug(`   ✅ Успешно установлено со всеми свойствами: "${propertyKeyForSetProperties}" = "${targetValue}" (проверка: "${updatedValue}")`);
-          return true;
-        } else {
-          Logger.debug(`   ⚠️ Значение установилось, но не совпадает: ожидали "${targetValue}", получили "${updatedValue}"`);
-        }
-      } catch (e) {
-        Logger.error(`❌ Попытка 2 также не удалась:`, e instanceof Error ? e.message : String(e));
-      }
-      
-      // Если обе попытки не удались, возвращаем false
-      Logger.error(`❌ Не удалось установить Variant Property "${propertyKeyForSetProperties}" = "${targetValue}" для инстанса "${instance.name}"`);
-      Logger.error(`   💡 Возможно, комбинация свойств не существует в вариантах компонента.`);
-      return false;
-    }
-    
-    // Если options доступны, продолжаем стандартную обработку
-    if (!options) {
-      Logger.warn(`⚠️ Не удалось получить options для Variant Property "${propertyName}"`);
-      return false;
-    }
-    Logger.debug(`   🎯 Найдено свойство "${propertyName}": текущее="${currentValue}", опции=[${options.map(o => String(o)).join(', ')}]`);
-    
-    // Нормализуем значение: ищем в options без учета регистра, но используем оригинальное значение из options
-    // Также обрабатываем boolean значения (true/false) и их строковые представления
-    let normalizedValue: string | null = null;
-    const targetValueLower = targetValue.toLowerCase();
-    
-    Logger.debug(`   🔎 Поиск значения "${targetValue}" в опциях...`);
-    
-    // Сначала пробуем точное совпадение (с учетом регистра)
-    for (const option of options) {
-      if (option === targetValue) {
-        normalizedValue = option;
-        Logger.debug(`      ✅ Точное совпадение найдено: "${option}"`);
-        break;
-      }
-    }
-    
-    // Если не нашли, пробуем без учета регистра
-    if (normalizedValue === null) {
-      Logger.debug(`      🔍 Поиск без учета регистра...`);
-      for (const option of options) {
-        if (option.toLowerCase() === targetValueLower) {
-          normalizedValue = option; // Используем оригинальное значение из options
-          Logger.debug(`      ✅ Совпадение без учета регистра: "${targetValue}" → "${option}"`);
-          break;
-        }
-      }
-    }
-    
-    // Если не нашли, пробуем обработать boolean значения (true/false как строки)
-    if (normalizedValue === null) {
-      // Проверяем, является ли targetValue boolean-строкой
-      if (targetValueLower === 'true' || targetValueLower === 'false') {
-        Logger.debug(`      🔍 Поиск boolean-значения "${targetValueLower}"...`);
-        // Ищем в options значения, которые могут соответствовать boolean
-        for (const option of options) {
-          const optionLower = String(option).toLowerCase();
-          // Проверяем соответствие: "true" может быть "True", "TRUE", "1" и т.д.
-          if (optionLower === targetValueLower || 
-              (targetValueLower === 'true' && optionLower === '1') ||
-              (targetValueLower === 'false' && optionLower === '0')) {
-            normalizedValue = String(option); // Используем оригинальное значение из options
-            Logger.debug(`      ✅ Boolean-совпадение: "${targetValue}" → "${option}"`);
-            break;
-          }
-        }
-      }
-    }
-    
-    if (normalizedValue === null) {
-      Logger.warn(`⚠️ Значение "${targetValue}" не найдено в опциях Variant Property "${propertyName}" у инстанса "${instance.name}". Доступные опции: ${options.map(o => String(o)).join(', ')}`);
-      return false;
-    }
-    
-    // Устанавливаем значение (используем простое имя для setProperties)
-    try {
-      Logger.debug(`   🔧 Установка свойства "${propertyKeyForSetProperties}" = "${normalizedValue}" (было "${currentValue}")...`);
-      instance.setProperties({ [propertyKeyForSetProperties]: normalizedValue });
-      
-      // Проверяем, что значение установилось (используем найденный ключ для чтения)
-      const updatedProperty = instance.componentProperties[foundPropertyKey];
-      const updatedValue = updatedProperty && typeof updatedProperty === 'object' && 'value' in updatedProperty ? updatedProperty.value : 'N/A';
-      Logger.debug(`   ✅ Установлен Variant Property "${propertyKeyForSetProperties}" = "${normalizedValue}" (проверка: "${updatedValue}") для инстанса "${instance.name}" (поле "${fieldName}")`);
-      return true; // Успешно обработано, не нужно применять как текст
-    } catch (e) {
-      Logger.error(`❌ Ошибка установки Variant Property "${propertyKeyForSetProperties}" для инстанса "${instance.name}":`, e);
-      return false;
     }
   } catch (e) {
     Logger.error(`❌ Ошибка обработки Variant Property для "${fieldName}":`, e);

@@ -8,100 +8,104 @@
 
 import { COMPONENT_CONFIG, SNIPPET_CONTAINER_NAMES } from '../config';
 import { Logger } from '../logger';
-import { processVariantProperty, processStringProperty, processVariantPropertyRecursive } from '../property-utils';
-import { findInstanceByName, findTextLayerByName } from '../utils/node-search';
+import { trySetProperty, trySetVariantProperty, trySetVariantPropertyRecursive, boolToFigma } from '../property-utils';
+// findTextLayerByName больше не нужен — используем value через component properties
+import { getCachedInstance, getCachedInstanceByNames } from '../utils/instance-cache';
 import { HandlerContext } from './types';
 
 /**
  * Обработка Brand (если нет значения, выключаем)
+ * Brand — BOOLEAN свойство, передаём boolean напрямую
+ * 
+ * Brand существует ТОЛЬКО в:
+ * - EProductSnippet
+ * - EShopItem
+ * - EOfferItem
+ * 
+ * НЕ существует в:
+ * - ESnippet (у него: Kebab, imageType, Price, BUTTON, Quote, DELIVERY + FINTECH, etc.)
  */
-export function handleBrandLogic(context: HandlerContext): void {
+export async function handleBrandLogic(context: HandlerContext): Promise<void> {
   const { container, containerKey: _containerKey, row } = context;
   if (!container || !row) return;
 
   const containerName = container.name || 'Unknown';
   
+  // ESnippet не имеет свойства Brand — пропускаем
+  if (containerName === 'ESnippet' || containerName === 'Snippet') {
+    Logger.debug(`   🔧 [Brand Logic] Пропускаем ${containerName} (нет свойства Brand)`);
+    return;
+  }
+  
   // Проверяем наличие #Brand в строке (значение не пустое)
   const brandValue = row['#Brand'];
   // Игнорируем Variant Property синтаксис для определения наличия значения
   const isVariantPropertySyntax = brandValue && /^[^=\s]+=.+$/.test(brandValue);
-  const hasBrandValue = brandValue && brandValue.trim() !== '' && !isVariantPropertySyntax;
+  const hasBrandValue = !!(brandValue && brandValue.trim() !== '' && !isVariantPropertySyntax);
 
-  if (!hasBrandValue) {
-    Logger.debug(`   🔧 [Brand Logic] Устанавливаем Brand=false для контейнера "${containerName}"`);
-    try {
-      if (container.type === 'INSTANCE' && !container.removed) {
-        const containerInstance = container as InstanceNode;
-        if (SNIPPET_CONTAINER_NAMES.includes(containerInstance.name)) {
-          processVariantPropertyRecursive(containerInstance, 'Brand=false', '#Brand', SNIPPET_CONTAINER_NAMES);
-        }
-      }
-      
-      if ('children' in container) {
-        for (const child of container.children) {
-          if (child.type === 'INSTANCE' && !child.removed) {
-            const instance = child as InstanceNode;
-            if (SNIPPET_CONTAINER_NAMES.includes(instance.name)) {
-              processVariantPropertyRecursive(instance, 'Brand=false', '#Brand', SNIPPET_CONTAINER_NAMES);
-            }
+  Logger.debug(`   🔧 [Brand Logic] Brand=${hasBrandValue} для контейнера "${containerName}"`);
+  
+  try {
+    // Устанавливаем Brand на контейнере (BOOLEAN свойство)
+    if (container.type === 'INSTANCE' && !container.removed) {
+      const containerInstance = container as InstanceNode;
+      trySetProperty(containerInstance, ['Brand'], hasBrandValue, '#Brand');
+    }
+    
+    // Также пробуем на дочерних инстансах (для вложенных компонентов)
+    if ('children' in container) {
+      for (const child of container.children) {
+        if (child.type === 'INSTANCE' && !child.removed) {
+          const instance = child as InstanceNode;
+          // Пропускаем ESnippet и подобные
+          const childName = instance.name;
+          if (childName !== 'ESnippet' && childName !== 'Snippet' && SNIPPET_CONTAINER_NAMES.includes(childName)) {
+            trySetProperty(instance, ['Brand'], hasBrandValue, '#Brand');
           }
         }
       }
-    } catch (e) {
-      Logger.error(`   ❌ Ошибка обработки Brand для контейнера "${containerName}":`, e);
     }
+  } catch (e) {
+    Logger.error(`   ❌ Ошибка обработки Brand для контейнера "${containerName}":`, e);
   }
 }
 
 /**
- * Обработка ELabelGroup — Rating и Barometer variants
+ * Обработка ELabelGroup — Rating и Barometer
+ * Свойства: Rating, Checkout, Barometer, Label Order Variant
+ * Тип: BOOLEAN — передаём настоящий boolean
  */
 export async function handleELabelGroup(context: HandlerContext): Promise<void> {
-  const { container, row } = context;
+  const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
   const config = COMPONENT_CONFIG.ELabelGroup;
-  const eLabelGroupInstance = findInstanceByName(container, config.name);
+  // ОПТИМИЗАЦИЯ: Кэш всегда доступен
+  const eLabelGroupInstance = getCachedInstance(instanceCache!, config.name);
   
-  // Rating (#ProductRating)
+  // Rating (#ProductRating) — BOOLEAN свойство + текстовое value
   const ratingVal = row[config.properties.rating.dataField];
-  const hasRating = ratingVal && ratingVal.trim() !== '';
+  const hasRating = !!(ratingVal && ratingVal.trim() !== '');
   
+  // 1. Устанавливаем withRating (BOOLEAN) на ELabelGroup
+  if (eLabelGroupInstance) {
+    trySetProperty(eLabelGroupInstance, ['Rating', 'withRating'], hasRating, config.properties.rating.dataField);
+  }
+  
+  // 2. Устанавливаем value на ELabelRating через свойство компонента
   if (hasRating) {
-    // 1. Обновляем текст
-    const ratingTextLayer = findTextLayerByName(container, config.properties.rating.dataField);
-    if (ratingTextLayer) {
-      try {
-        const fontName = ratingTextLayer.fontName;
-        if (fontName && typeof fontName === 'object' && fontName.family && fontName.style) {
-          await figma.loadFontAsync({ family: fontName.family, style: fontName.style });
-        }
-        ratingTextLayer.characters = ratingVal;
-      } catch (e) {
-        Logger.error(`      ❌ Ошибка применения значения к ${config.properties.rating.dataField}:`, e);
-      }
-    }
-    
-    // 2. Включаем Rating=true в инстансе
-    if (eLabelGroupInstance) {
-      processVariantProperty(eLabelGroupInstance, `${config.properties.rating.variantName}=true`, config.properties.rating.dataField);
-    }
-  } else {
-    // Выключаем Rating=false
-    if (eLabelGroupInstance) {
-      processVariantProperty(eLabelGroupInstance, `${config.properties.rating.variantName}=false`, config.properties.rating.dataField);
+    const eLabelRatingInstance = getCachedInstance(instanceCache!, 'ELabelRating');
+    if (eLabelRatingInstance) {
+      trySetProperty(eLabelRatingInstance, ['value'], ratingVal.trim(), '#ProductRating');
+      Logger.debug(`⭐ [ELabelRating] value="${ratingVal.trim()}"`);
     }
   }
   
-  // Barometer
+  // Barometer — BOOLEAN свойство
   if (eLabelGroupInstance) {
     const barometerVal = row[config.properties.barometer.dataField];
     const hasBarometer = barometerVal === 'true';
-    processVariantProperty(
-      eLabelGroupInstance, 
-      `${config.properties.barometer.variantName}=${hasBarometer}`, 
-      config.properties.barometer.dataField
-    );
+    trySetProperty(eLabelGroupInstance, ['Barometer'], hasBarometer, config.properties.barometer.dataField);
   }
 }
 
@@ -113,8 +117,8 @@ export async function handleELabelGroup(context: HandlerContext): Promise<void> 
  * - EProductSnippet2: isCompact=true если width<=182px, иначе false
  * - Остальные: используем значение из парсера
  */
-export function handleEPriceBarometer(context: HandlerContext): void {
-  const { container, row } = context;
+export async function handleEPriceBarometer(context: HandlerContext): Promise<void> {
+  const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
   const config = COMPONENT_CONFIG.EPriceBarometer;
@@ -124,12 +128,13 @@ export function handleEPriceBarometer(context: HandlerContext): void {
   const containerName = ('name' in container) ? String(container.name) : '';
   
   if (hasBarometer && viewVal) {
-    const ePriceBarometerInstance = findInstanceByName(container, config.name);
+    // ОПТИМИЗАЦИЯ: Кэш всегда доступен
+    const ePriceBarometerInstance = getCachedInstance(instanceCache!, config.name);
     if (ePriceBarometerInstance) {
       // Устанавливаем View (below-market, in-market, above-market)
-      processStringProperty(
+      trySetProperty(
         ePriceBarometerInstance,
-        config.properties.view.variantName,
+        [config.properties.view.variantName],
         viewVal,
         config.properties.view.dataField
       );
@@ -152,9 +157,9 @@ export function handleEPriceBarometer(context: HandlerContext): void {
         isCompact = isCompactVal === 'true';
       }
       
-      processVariantProperty(
+      trySetVariantProperty(
         ePriceBarometerInstance,
-        `${config.properties.isCompact.variantName}=${isCompact}`,
+        [`${config.properties.isCompact.variantName}=${isCompact}`],
         config.properties.isCompact.dataField
       );
       Logger.debug(`   📐 [EPriceBarometer] isCompact=${isCompact}`);
@@ -163,21 +168,26 @@ export function handleEPriceBarometer(context: HandlerContext): void {
 }
 
 /**
- * Обработка EMarketCheckoutLabel — показать/скрыть в зависимости от наличия в HTML
+ * Обработка EMarketCheckoutLabel — устанавливает withCheckout на ELabelGroup
+ * Свойство withCheckout (boolean) управляет показом лейбла Checkout
  */
 export function handleEMarketCheckoutLabel(context: HandlerContext): void {
-  const { container, row } = context;
+  const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
-  const hasLabel = row['#EMarketCheckoutLabel'] === 'true';
-  const labelInstance = findInstanceByName(container, 'EMarketCheckoutLabel');
+  const hasCheckout = row['#EMarketCheckoutLabel'] === 'true';
   
-  if (labelInstance) {
-    try {
-      labelInstance.visible = hasLabel;
-      Logger.debug(`   🏷️ [EMarketCheckoutLabel] visible=${hasLabel} для контейнера "${container.name}"`);
-    } catch (e) {
-      Logger.error(`   ❌ Ошибка установки visible для EMarketCheckoutLabel:`, e);
+  // Ищем ELabelGroup — родительский компонент с withCheckout
+  const labelGroupInstance = getCachedInstanceByNames(instanceCache!, ['ELabelGroup', 'LabelGroup']);
+  
+  if (labelGroupInstance) {
+    const set = trySetProperty(labelGroupInstance, ['withCheckout'], hasCheckout, '#EMarketCheckoutLabel');
+    Logger.debug(`   🏷️ [EMarketCheckoutLabel] withCheckout=${hasCheckout}, result=${set}`);
+  } else {
+    // Fallback: ищем сам EMarketCheckoutLabel и пробуем visible (старое поведение)
+    const labelInstance = getCachedInstance(instanceCache!, 'EMarketCheckoutLabel');
+    if (labelInstance) {
+      Logger.debug(`   🏷️ [EMarketCheckoutLabel] ELabelGroup не найден, пропускаем`);
     }
   }
 }
