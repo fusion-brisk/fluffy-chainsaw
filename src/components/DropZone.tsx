@@ -28,6 +28,7 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
   disabled = false,
   fullscreen = false,
   isLoading = false,
+<<<<<<< HEAD
   progress,
   fileSize,
   dragFileName
@@ -96,6 +97,12 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
   const percentage = progress && progress.total > 0
     ? Math.round((progress.current / progress.total) * 100)
     : 0;
+=======
+  progress: _progress, // unused now — progress shown in LiveProgressView
+  dragFileName
+}) => {
+  const isDisabled = disabled || isLoading;
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 
   const stageLabel = progress?.operationType 
     ? getStageLabel(progress.operationType) 
@@ -132,6 +139,7 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
       aria-disabled={isDisabled}
       aria-label="Импортировать HTML или MHTML файл"
     >
+<<<<<<< HEAD
       {/* Loading state with progress */}
       {isLoading ? (
         <div className="drop-zone-progress">
@@ -179,6 +187,26 @@ export const DropZone: React.FC<DropZoneProps> = memo(({
             <CloseIcon />
             <span>Остановить</span>
           </button>
+=======
+      {/* Modern upload icon */}
+      <UploadIcon className={`drop-icon ${isLoading ? 'loading' : ''}`} />
+      
+      <div className="drop-zone-text">
+        {isLoading
+          ? 'Обработка...'
+          : disabled
+            ? 'Сначала выберите слои'
+            : fullscreen
+              ? 'Отпустите файл'
+              : 'Нажмите или перетащите HTML/MHTML'
+        }
+      </div>
+      
+      {/* Превью имени файла при перетаскивании */}
+      {fullscreen && dragFileName && (
+        <div className="drop-zone-file-preview">
+          📄 {dragFileName}
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
         </div>
       ) : (
         <>

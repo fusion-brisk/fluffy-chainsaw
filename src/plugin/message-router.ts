@@ -2,7 +2,11 @@
  * Message Router — роутинг postMessage событий от UI
  */
 
+<<<<<<< HEAD
 import { Logger, LogLevel } from '../logger';
+=======
+import { Logger } from '../logger';
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 import { PLUGIN_VERSION } from '../config';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { resetAllSnippets } from './global-handlers';
@@ -194,6 +198,7 @@ export async function handleSimpleMessage(
     return true;
   }
   
+<<<<<<< HEAD
   // === Log level handlers ===
   if (type === 'get-log-level') {
     const level = Logger.getLevel();
@@ -211,6 +216,8 @@ export async function handleSimpleMessage(
     return true;
   }
   
+=======
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   // === Reset snippets ===
   if (type === 'reset-snippets') {
     const scope = (msg.scope as string) || 'page';

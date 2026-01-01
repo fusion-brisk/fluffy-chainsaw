@@ -121,12 +121,74 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
 
   const containerName = (container && 'name' in container) ? String(container.name) : '';
   const itemCount = parseInt(row['#EDeliveryGroup-Count'] || '0', 10);
+<<<<<<< HEAD
   const hasDeliveryData = row['#EDeliveryGroup'] === 'true' && itemCount > 0;
   const hasDeliveryList = !!(row['#DeliveryList'] && String(row['#DeliveryList']).trim() !== '');
   const isAbroad = row['#EDelivery_abroad'] === 'true';
   const hasDelivery = hasDeliveryData || hasDeliveryList || isAbroad;
   
   Logger.debug(`🚚 [EDeliveryGroup] container=${containerName}, hasDelivery=${hasDelivery}, isAbroad=${isAbroad}, itemCount=${itemCount}`);
+=======
+  const hasDelivery = row['#EDeliveryGroup'] === 'true' && itemCount > 0;
+  const isAbroad = row['#EDelivery_abroad'] === 'true';
+  
+  console.log(`🚚 [EDeliveryGroup] isAbroad=${isAbroad}, hasDelivery=${hasDelivery}, itemCount=${itemCount}`);
+  
+  const deliveryGroupInstance = findInstanceByName(container, 'EDeliveryGroup');
+  
+  if (!deliveryGroupInstance) {
+    console.log(`🚚 [EDeliveryGroup] Instance NOT FOUND in container`);
+    return;
+  }
+  
+  console.log(`🚚 [EDeliveryGroup] Instance FOUND: "${deliveryGroupInstance.name}"`);
+  
+  // Обработка доставки из-за границы (Crossborder)
+  // Если abroad=true — сбрасываем overrides и устанавливаем abroad=true
+  if (isAbroad) {
+    try {
+      console.log(`✈️ [EDeliveryGroup] Applying abroad=true...`);
+      
+      // Сбрасываем все overrides на компоненте
+      deliveryGroupInstance.resetOverrides();
+      console.log(`✈️ [EDeliveryGroup] resetOverrides() done`);
+      Logger.debug(`   ✈️ [EDeliveryGroup] resetOverrides() выполнен`);
+      
+      // Логируем доступные свойства
+      if (deliveryGroupInstance.componentProperties) {
+        const props = deliveryGroupInstance.componentProperties;
+        for (const key in props) {
+          const prop = props[key];
+          if (prop && typeof prop === 'object' && 'type' in prop && prop.type === 'VARIANT') {
+            const options = 'options' in prop ? (prop.options as string[]) : [];
+            console.log(`✈️ [EDeliveryGroup] Свойство "${key}": опции=[${options.join(', ')}]`);
+          }
+        }
+      }
+      
+      // Устанавливаем abroad=true
+      let abroadSet = processVariantProperty(deliveryGroupInstance, 'abroad=true', '#EDelivery_abroad');
+      console.log(`✈️ [EDeliveryGroup] abroad=true result: ${abroadSet}`);
+      if (!abroadSet) {
+        abroadSet = processVariantProperty(deliveryGroupInstance, 'Abroad=true', '#EDelivery_abroad');
+        console.log(`✈️ [EDeliveryGroup] Abroad=true result: ${abroadSet}`);
+      }
+      
+      if (abroadSet) {
+        Logger.debug(`   ✈️ [EDeliveryGroup] abroad=true установлен`);
+      } else {
+        Logger.warn(`   ⚠️ [EDeliveryGroup] abroad property не найден`);
+      }
+      
+      deliveryGroupInstance.visible = true;
+      console.log(`✈️ [EDeliveryGroup] visible=true set`);
+    } catch (e) {
+      console.log(`✈️ [EDeliveryGroup] ERROR:`, e);
+      Logger.error(`   ❌ Ошибка обработки abroad для EDeliveryGroup:`, e);
+    }
+    return; // Для abroad не заполняем items — всё берётся из дефолтного состояния компонента
+  }
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   // === Устанавливаем withDelivery на родительском контейнере ===
   if (isSnippetContainer(container) && container.type === 'INSTANCE' && !container.removed) {
@@ -366,6 +428,7 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
 
   Logger.debug(`🚚💳 [DeliveryBnplContainer] container=${containerName}, hasMeta=${hasMeta} (delivery=${hasDelivery}, fintech=${hasFintech})`);
 
+<<<<<<< HEAD
   // === Устанавливаем withMeta на родительском контейнере ===
   if (isSnippetContainer(container) && container.type === 'INSTANCE' && !container.removed) {
     const instance = container as InstanceNode;
@@ -377,4 +440,13 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
     );
     Logger.debug(`🚚💳 [DeliveryBnplContainer] withMeta=${hasMeta} на "${containerName}", result=${withMetaSet}`);
   }
+=======
+  try {
+    (target as SceneNode).visible = shouldShow;
+    Logger.debug(`   🚚💳 [ShopInfo-DeliveryBnplContainer] visible=${shouldShow}`);
+  } catch (e) { /* ignore */ }
+  
+  // Примечание: EShopItemMeta-UgcLine теперь управляется в handleShopInfoUgcAndEReviewsShopText
+  // на основе наличия рейтинга (#ShopInfo-Ugc), а не доставки
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 }

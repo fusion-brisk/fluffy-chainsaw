@@ -1,5 +1,9 @@
 import React, { memo } from 'react';
+<<<<<<< HEAD
 import { InfoIcon, ClearIcon } from './Icons';
+=======
+import { InfoIcon } from './Icons';
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 import { Toggle } from './Toggle';
 
 interface ScopeControlProps {
@@ -29,6 +33,7 @@ export const ScopeControl: React.FC<ScopeControlProps> = memo(({
 
   return (
     <div className="scope-panel">
+<<<<<<< HEAD
       {/* Первая строка: Область применения + Сброс сейчас */}
       <div className="scope-row">
         <div className="scope-field">
@@ -45,6 +50,36 @@ export const ScopeControl: React.FC<ScopeControlProps> = memo(({
           </select>
         </div>
         
+=======
+      {/* Переключатель области */}
+      <div className="segmented-control">
+        <button
+          type="button"
+          className={`segmented-option ${scope === 'selection' ? 'active' : ''}`}
+          onClick={() => onScopeChange('selection')}
+          aria-pressed={scope === 'selection'}
+        >
+          Выделение
+        </button>
+        <button
+          type="button"
+          className={`segmented-option ${scope === 'page' ? 'active' : ''}`}
+          onClick={() => onScopeChange('page')}
+          aria-pressed={scope === 'page'}
+        >
+          Вся страница
+        </button>
+      </div>
+
+      {/* Опции сброса */}
+      <div className="scope-options">
+        <Toggle
+          checked={resetBeforeImport}
+          onChange={onResetBeforeImportChange}
+          disabled={isDisabled}
+          label="Сбросить перед импортом"
+        />
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
         <button
           type="button"
           className="btn-icon-sm"

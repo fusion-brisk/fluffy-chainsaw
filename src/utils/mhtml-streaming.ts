@@ -8,7 +8,10 @@
  * - Экономия памяти через substring вместо массивов
  */
 
+<<<<<<< HEAD
 import { Logger } from '../logger';
+=======
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 import {
   MHTML_CONTENT_TYPE_REGEX,
   MHTML_BOUNDARY_REGEX,
@@ -170,8 +173,13 @@ export function parseMhtmlStreaming(
     });
   };
   
+<<<<<<< HEAD
   Logger.debug('📦 [Streaming] Парсинг MHTML файла...');
   Logger.debug('📄 [Streaming] Размер:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+=======
+  console.log('📦 [Streaming] Парсинг MHTML файла...');
+  console.log('📄 [Streaming] Размер:', (totalSize / 1024 / 1024).toFixed(2), 'MB');
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   reportProgress(0, 'boundary', 'Поиск boundary...');
   
@@ -198,7 +206,11 @@ export function parseMhtmlStreaming(
     throw new Error('Не удалось найти HTML в MHTML файле');
   }
   
+<<<<<<< HEAD
   Logger.debug(`✅ [Streaming] Boundary: ${boundary.substring(0, 50)}...`);
+=======
+  console.log(`✅ [Streaming] Boundary: ${boundary.substring(0, 50)}...`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   // 2. Определяем разделитель
   const separator = mhtmlContent.includes(`--${boundary}`) ? `--${boundary}` : boundary;
@@ -228,7 +240,11 @@ export function parseMhtmlStreaming(
       html = extractHtmlFromPart(part);
       
       if (html) {
+<<<<<<< HEAD
         Logger.debug(`✅ [Streaming] HTML найден в части ${partsScanned}`);
+=======
+        console.log(`✅ [Streaming] HTML найден в части ${partsScanned}`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
         break;
       }
     }
@@ -255,9 +271,15 @@ export function parseMhtmlStreaming(
   
   const parseTimeMs = performance.now() - startTime;
   
+<<<<<<< HEAD
   Logger.debug(`✅ [Streaming] Готово за ${parseTimeMs.toFixed(0)}ms`);
   Logger.debug(`📊 [Streaming] Просканировано частей: ${partsScanned}`);
   Logger.debug(`📄 [Streaming] HTML размер: ${(html.length / 1024).toFixed(1)} KB`);
+=======
+  console.log(`✅ [Streaming] Готово за ${parseTimeMs.toFixed(0)}ms`);
+  console.log(`📊 [Streaming] Просканировано частей: ${partsScanned}`);
+  console.log(`📄 [Streaming] HTML размер: ${(html.length / 1024).toFixed(1)} KB`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   reportProgress(totalSize, 'done', `Готово (${partsScanned} частей за ${parseTimeMs.toFixed(0)}ms)`);
   
@@ -299,7 +321,11 @@ export async function parseMhtmlStreamingAsync(
   // Yield to event loop каждые N итераций для больших файлов
   const yieldToEventLoop = () => new Promise<void>(resolve => setTimeout(resolve, 0));
   
+<<<<<<< HEAD
   Logger.debug('📦 [Async Streaming] Парсинг MHTML файла...');
+=======
+  console.log('📦 [Async Streaming] Парсинг MHTML файла...');
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   reportProgress(0, 'boundary', 'Поиск boundary...');
   

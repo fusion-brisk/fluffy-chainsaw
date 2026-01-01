@@ -741,7 +741,11 @@ export function extractRowData(
     const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
     if (ugcMatch) {
       row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
+<<<<<<< HEAD
       Logger.debug(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}" (из: "${shopRatingEl.className}")`);
+=======
+      console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина: "${row['#ShopInfo-Ugc']}" (из: "${shopRatingEl.className}")`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     }
   } else {
     // Fallback: ищем в контейнерах напрямую
@@ -751,7 +755,11 @@ export function extractRowData(
       const ugcMatch = ugcText.match(/([0-5](?:[.,]\d)?)/);
       if (ugcMatch) {
         row['#ShopInfo-Ugc'] = ugcMatch[1].replace(',', '.');
+<<<<<<< HEAD
         Logger.debug(`✅ [ShopInfo-Ugc] Рейтинг магазина (fallback): "${row['#ShopInfo-Ugc']}"`);
+=======
+        console.log(`✅ [ShopInfo-Ugc] Рейтинг магазина (fallback): "${row['#ShopInfo-Ugc']}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
   }
@@ -782,7 +790,11 @@ export function extractRowData(
   if (organicUgcReviewsText) {
     // Извлекаем весь текст — он уже содержит "X отзывов на магазин"
     shopReviewsText = getTextContent(organicUgcReviewsText).trim();
+<<<<<<< HEAD
     Logger.debug(`✅ [EReviews_shopText] Из OrganicUgcReviews-Text: "${shopReviewsText}"`);
+=======
+    console.log(`✅ [EReviews_shopText] Из OrganicUgcReviews-Text: "${shopReviewsText}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   }
   
   // 2. EReviewsLabel-Text (кнопка с отзывами) — только число, добавляем "на магазин"
@@ -798,7 +810,11 @@ export function extractRowData(
       // Формат: "5,1K отзывов" → "5,1K отзывов на магазин"
       if (rawText && rawText.toLowerCase().includes('отзыв')) {
         shopReviewsText = rawText.includes('магазин') ? rawText : `${rawText} на магазин`;
+<<<<<<< HEAD
         Logger.debug(`✅ [EReviews_shopText] Из EReviewsLabel: "${shopReviewsText}"`);
+=======
+        console.log(`✅ [EReviews_shopText] Из EReviewsLabel: "${shopReviewsText}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
   }
@@ -815,7 +831,11 @@ export function extractRowData(
       const rawText = getTextContent(eShopItemMetaReviews).trim();
       if (rawText && rawText.toLowerCase().includes('отзыв')) {
         shopReviewsText = rawText.includes('магазин') ? rawText : `${rawText} на магазин`;
+<<<<<<< HEAD
         Logger.debug(`✅ [EReviews_shopText] Из EShopItemMeta-Reviews: "${shopReviewsText}"`);
+=======
+        console.log(`✅ [EReviews_shopText] Из EShopItemMeta-Reviews: "${shopReviewsText}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
   }
@@ -831,7 +851,11 @@ export function extractRowData(
     if (legacyShopText) {
       shopReviewsText = getTextContent(legacyShopText).trim();
       if (shopReviewsText) {
+<<<<<<< HEAD
         Logger.debug(`✅ [EReviews_shopText] Из legacy EReviews-ShopText: "${shopReviewsText}"`);
+=======
+        console.log(`✅ [EReviews_shopText] Из legacy EReviews-ShopText: "${shopReviewsText}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
   }
@@ -1005,7 +1029,11 @@ export function extractRowData(
   const crossborderEl = queryFirstMatch(cache, crossborderSelectors);
   if (crossborderEl) {
     row['#EDelivery_abroad'] = 'true';
+<<<<<<< HEAD
     Logger.debug(`✅ Найден Crossborder (доставка из-за границы)`);
+=======
+    console.log(`✅ Найден Crossborder (доставка из-за границы)`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   } else {
     row['#EDelivery_abroad'] = 'false';
   }
@@ -1071,7 +1099,11 @@ export function extractRowData(
     }
   } else if (labelOutlinePrimary) {
     row['#LabelDiscount_View'] = 'outlinePrimary';
+<<<<<<< HEAD
     Logger.debug(`✅ Найден Label_view_outlinePrimary (обычная скидка)`);
+=======
+    console.log(`✅ Найден Label_view_outlinePrimary (обычная скидка)`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   }
   
   // #Fintech - блок рассрочки/оплаты (Сплит/Пэй/Ozon и др.)
@@ -1080,6 +1112,7 @@ export function extractRowData(
   if (fintech) {
     row['#EPriceGroup_Fintech'] = 'true';
     
+<<<<<<< HEAD
     // #InfoIcon — проверяем наличие иконки "Инфо" внутри Fintech/EPriceGroup
     // Иконка находится в <div class="InfoIcon"><span class="InfoIcon-Icon">...</span></div>
     const infoIconEl = fintech.querySelector('.InfoIcon .InfoIcon-Icon, .InfoIcon [class*="InfoIcon-Icon"]');
@@ -1090,11 +1123,14 @@ export function extractRowData(
       row['#InfoIcon'] = 'false';
     }
     
+=======
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     // Определяем type из классов Fintech_type_*
     // Порядок важен: сначала более специфичные (yandexPay), потом общие (pay)
     // Маппинг HTML классов → Figma variant values
     // Figma MetaFintech.type: split, yandexPay, ozon, pay, Dolyami, Mokka, Podeli, Plait, T-Pay, MTS Pay, Wildberries, alfaCard
     const fintechClasses = fintech.className || '';
+<<<<<<< HEAD
     Logger.debug(`🔍 Fintech classes: "${fintechClasses}"`);
     if (fintechClasses.includes('Fintech_type_split')) {
       row['#Fintech_Type'] = 'split';
@@ -1132,6 +1168,45 @@ export function extractRowData(
     } else if (fintechClasses.includes('Fintech_type_wildberries')) {
       row['#Fintech_Type'] = 'Wildberries';
       Logger.debug(`✅ Найден Fintech type=Wildberries`);
+=======
+    console.log(`🔍 Fintech classes: "${fintechClasses}"`);
+    if (fintechClasses.includes('Fintech_type_split')) {
+      row['#Fintech_Type'] = 'split';
+      console.log(`✅ Найден Fintech type=split`);
+    } else if (fintechClasses.includes('Fintech_type_yandexPay')) {
+      row['#Fintech_Type'] = 'yandexPay';
+      console.log(`✅ Найден Fintech type=yandexPay`);
+    } else if (fintechClasses.includes('Fintech_type_pay')) {
+      row['#Fintech_Type'] = 'pay';
+      console.log(`✅ Найден Fintech type=pay`);
+    } else if (fintechClasses.includes('Fintech_type_ozon')) {
+      row['#Fintech_Type'] = 'ozon';
+      console.log(`✅ Найден Fintech type=ozon`);
+    } else if (fintechClasses.includes('Fintech_type_dolyame')) {
+      row['#Fintech_Type'] = 'Dolyami';
+      console.log(`✅ Найден Fintech type=Dolyami`);
+    } else if (fintechClasses.includes('Fintech_type_plait')) {
+      row['#Fintech_Type'] = 'Plait';
+      console.log(`✅ Найден Fintech type=Plait`);
+    } else if (fintechClasses.includes('Fintech_type_podeli')) {
+      row['#Fintech_Type'] = 'Podeli';
+      console.log(`✅ Найден Fintech type=Podeli`);
+    } else if (fintechClasses.includes('Fintech_type_mokka')) {
+      row['#Fintech_Type'] = 'Mokka';
+      console.log(`✅ Найден Fintech type=Mokka`);
+    } else if (fintechClasses.includes('Fintech_type_mtsPay')) {
+      row['#Fintech_Type'] = 'MTS Pay';
+      console.log(`✅ Найден Fintech type=MTS Pay`);
+    } else if (fintechClasses.includes('Fintech_type_tPay')) {
+      row['#Fintech_Type'] = 'T-Pay';
+      console.log(`✅ Найден Fintech type=T-Pay`);
+    } else if (fintechClasses.includes('Fintech_type_alfa')) {
+      row['#Fintech_Type'] = 'alfaCard';
+      console.log(`✅ Найден Fintech type=alfaCard`);
+    } else if (fintechClasses.includes('Fintech_type_wildberries')) {
+      row['#Fintech_Type'] = 'Wildberries';
+      console.log(`✅ Найден Fintech type=Wildberries`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     }
     
     // Определяем view (значения с большой буквы как в Figma)
@@ -1276,7 +1351,11 @@ export function extractRowData(
         row['#EQuote-Text'] = quoteText;
         // Legacy поле для совместимости
         row['#QuoteText'] = quoteText;
+<<<<<<< HEAD
         Logger.debug(`✅ [EQuote-Text] Найдена цитата: "${quoteText.substring(0, 50)}..."`);
+=======
+        console.log(`✅ [EQuote-Text] Найдена цитата: "${quoteText.substring(0, 50)}..."`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
     
@@ -1315,7 +1394,11 @@ export function extractRowData(
         row['#EQuote-AuthorAvatar'] = avatarUrl.startsWith('http') ? avatarUrl : `https:${avatarUrl}`;
         // Legacy поле для совместимости
         row['#QuoteImage'] = row['#EQuote-AuthorAvatar'];
+<<<<<<< HEAD
         Logger.debug(`✅ [EQuote-AuthorAvatar] Аватар: "${row['#EQuote-AuthorAvatar'].substring(0, 80)}..."`);
+=======
+        console.log(`✅ [EQuote-AuthorAvatar] Аватар: "${row['#EQuote-AuthorAvatar'].substring(0, 80)}..."`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
   }
@@ -1400,7 +1483,11 @@ export function extractRowData(
     
     if (linkText) {
       row['#addressLink'] = linkText;
+<<<<<<< HEAD
       Logger.debug(`✅ [ShopOfflineRegion] addressLink: "${linkText}"`);
+=======
+      console.log(`✅ [ShopOfflineRegion] addressLink: "${linkText}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     }
     
     // Собираем текст до ссылки (город, метро и т.д.)
@@ -1422,7 +1509,11 @@ export function extractRowData(
     
     if (addressTextPart) {
       row['#addressText'] = addressTextPart;
+<<<<<<< HEAD
       Logger.debug(`✅ [ShopOfflineRegion] addressText: "${addressTextPart}"`);
+=======
+      console.log(`✅ [ShopOfflineRegion] addressText: "${addressTextPart}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     }
   } else {
     row['#hasShopOfflineRegion'] = 'false';
@@ -1586,7 +1677,11 @@ export function extractRowData(
       if (faviconMatch && faviconMatch[1]) {
         const extractedHost = decodeURIComponent(faviconMatch[1]).replace(/^www\./, '');
         row['#OrganicHost'] = extractedHost;
+<<<<<<< HEAD
         Logger.debug(`✅ [OrganicHost] Извлечён из FaviconImage: ${extractedHost}`);
+=======
+        console.log(`✅ [OrganicHost] Извлечён из FaviconImage: ${extractedHost}`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       }
     }
   }

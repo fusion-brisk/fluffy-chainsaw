@@ -31,7 +31,18 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   const containerName = (container && 'name' in container) ? String(container.name) : 'unknown';
   const config = COMPONENT_CONFIG.EPriceGroup;
   
+<<<<<<< HEAD
   const ePriceGroupInstance = getCachedInstance(instanceCache!, config.name);
+=======
+  if (!ePriceGroupInstance) {
+    console.log(`⚠️ [EPriceGroup] Не найден в контейнере "${containerName}"`);
+    return;
+  }
+  
+  const hasFintechData = row['#EPriceGroup_Fintech'] === 'true';
+  const fintechTypeData = row['#Fintech_Type'] || 'N/A';
+  console.log(`✅ [EPriceGroup] Найден в "${containerName}", Fintech=${hasFintechData}, type="${fintechTypeData}"`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   if (!ePriceGroupInstance) {
     Logger.debug(`⚠️ [EPriceGroup] Не найден в контейнере "${containerName}"`);
@@ -161,11 +172,269 @@ async function setEPriceValue(
         Logger.debug(`⚠️ [EPrice] Ошибка setProperties: ${e}`);
       }
     }
+<<<<<<< HEAD
+=======
+    
+    // Если нет valuePropKey, ищем TEXT node
+    if (!valuePropKey && numericPrice) {
+      Logger.debug(`🔍 [EPrice] Ищем TEXT node внутри EPrice...`);
+      
+      let freshEPrice: InstanceNode | null = null;
+      if ('children' in activeEPriceGroup) {
+        const findFreshEPrice = (node: BaseNode): InstanceNode | null => {
+          if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
+            let parent = node.parent;
+            while (parent && parent.id !== activeEPriceGroup.id) {
+              if (parent.name && (parent.name.includes('Old') || parent.name.includes('old'))) {
+                return null;
+              }
+              parent = parent.parent;
+            }
+            return node as InstanceNode;
+          }
+          if ('children' in node && node.children) {
+            for (const child of node.children) {
+              const found = findFreshEPrice(child);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        freshEPrice = findFreshEPrice(activeEPriceGroup);
+      }
+      
+      if (freshEPrice) {
+        const findPriceTextNode = (node: BaseNode): TextNode | null => {
+          if (node.type === 'TEXT' && !node.removed) {
+            const textNode = node as TextNode;
+            if (textNode.name === '#OrganicPrice' || 
+                textNode.name.toLowerCase().includes('price') ||
+                textNode.name.toLowerCase().includes('value')) {
+              return textNode;
+            }
+          }
+          if ('children' in node && node.children) {
+            for (const child of node.children) {
+              const found = findPriceTextNode(child);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        let textNode = findPriceTextNode(freshEPrice);
+        
+        if (!textNode) {
+          const findNumericTextNode = (node: BaseNode): TextNode | null => {
+            if (node.type === 'TEXT' && !node.removed) {
+              const tn = node as TextNode;
+              if (/\d/.test(tn.characters)) {
+                return tn;
+              }
+            }
+            if ('children' in node && node.children) {
+              for (const child of node.children) {
+                const found = findNumericTextNode(child);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          textNode = findNumericTextNode(freshEPrice);
+        }
+        
+        if (textNode) {
+          const formattedPrice = numericPrice.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+          Logger.debug(`🔍 [EPrice] TEXT node "${textNode.name}", устанавливаем: "${formattedPrice}"`);
+          
+          try {
+            if (textNode.fontName !== figma.mixed) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+            }
+            textNode.characters = formattedPrice;
+            Logger.debug(`✅ [EPrice] Цена установлена: "${formattedPrice}"`);
+          } catch (e) {
+            Logger.debug(`⚠️ [EPrice] Ошибка установки текста: ${e}`);
+          }
+        }
+      }
+    }
+    
+    // Если комбинированный вызов не сработал
+    if (!success) {
+      Logger.debug(`⚠️ [EPrice] Комбинированный вызов не сработал, пробуем по отдельности`);
+      
+      if (viewPropKey) {
+        for (const viewValue of viewVariants) {
+          try {
+            ePriceInstance.setProperties({ [viewPropKey]: viewValue });
+            Logger.debug(`✅ [EPrice] Установлен view=${viewValue}`);
+            break;
+          } catch { /* ignore */ }
+        }
+      }
+      
+      if (valuePropKey && numericPrice) {
+        let freshEPrice: InstanceNode | null = null;
+        if ('children' in activeEPriceGroup) {
+          const findFreshEPrice = (node: BaseNode): InstanceNode | null => {
+            if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
+              let parent = node.parent;
+              while (parent && parent.id !== activeEPriceGroup.id) {
+                if (parent.name && (parent.name.includes('Old') || parent.name.includes('old'))) {
+                  return null;
+                }
+                parent = parent.parent;
+              }
+              return node as InstanceNode;
+            }
+            if ('children' in node && node.children) {
+              for (const child of node.children) {
+                const found = findFreshEPrice(child);
+                if (found) return found;
+              }
+            }
+            return null;
+          };
+          freshEPrice = findFreshEPrice(activeEPriceGroup);
+        }
+        
+        if (freshEPrice && freshEPrice.componentProperties) {
+          for (const propKey in freshEPrice.componentProperties) {
+            const propLower = propKey.toLowerCase();
+            for (const pn of priceProps) {
+              if (propLower === pn || propLower.startsWith(pn + '#')) {
+                try {
+                  freshEPrice.setProperties({ [propKey]: numericPrice });
+                  Logger.debug(`✅ [EPrice] Цена через ${propKey}="${numericPrice}"`);
+                } catch (e) {
+                  Logger.debug(`⚠️ [EPrice] Ошибка setProperties: ${e}`);
+                }
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+    }
+  } else {
+    Logger.debug(`⚠️ [EPrice] EPrice не найден или не имеет componentProperties`);
+  }
+  
+  // Fintech
+  const hasFintech = row['#EPriceGroup_Fintech'] === 'true';
+  processVariantProperty(activeEPriceGroup, `Fintech=${hasFintech}`, '#EPriceGroup_Fintech');
+  
+  const freshEPriceGroupAfterFintech = findInstanceByName(container, 'EPriceGroup');
+  const ePriceGroupForFintech = freshEPriceGroupAfterFintech || activeEPriceGroup;
+  Logger.debug(`🔄 [EPriceGroup] После Fintech: ${freshEPriceGroupAfterFintech ? 'найден свежий' : 'используем старый'}`);
+  
+  // Ищем Fintech instance (разные варианты имён)
+  const fintechNames = ['Meta / Fintech', 'Meta/Fintech', 'MetaFintech', 'Fintech', 'Meta / Fintech '];
+  let fintechInstance: InstanceNode | null = null;
+  
+  for (const name of fintechNames) {
+    fintechInstance = findInstanceByName(ePriceGroupForFintech, name);
+    if (fintechInstance) {
+      Logger.debug(`      💳 Найден Fintech в EPriceGroup: "${name}"`);
+      break;
+    }
+  }
+  
+  if (!fintechInstance) {
+    for (const name of fintechNames) {
+      fintechInstance = findInstanceByName(container, name);
+      if (fintechInstance) {
+        Logger.debug(`      💳 Найден Fintech в container: "${name}"`);
+        break;
+      }
+    }
+  }
+  
+  if (fintechInstance) {
+    // Управляем видимостью Fintech wrapper — скрываем если нет данных
+    try {
+      fintechInstance.visible = hasFintech;
+      Logger.debug(`      💳 Fintech wrapper visible=${hasFintech}`);
+    } catch (e) {
+      Logger.error(`      ❌ Fintech visible error:`, e);
+    }
+    
+    if (hasFintech) {
+      console.log(`💳 [Fintech] Найден wrapper: "${fintechInstance.name}"`);
+      
+      // Wrapper может называться "Meta / Fintech ", а внутри него — "MetaFintech" с variant properties
+      // Ищем MetaFintech внутри wrapper'а
+      let metaFintechInstance: InstanceNode | null = null;
+      const innerFintechNames = ['MetaFintech', 'Meta Fintech', 'Fintech'];
+      
+      for (const innerName of innerFintechNames) {
+        metaFintechInstance = findInstanceByName(fintechInstance, innerName);
+        if (metaFintechInstance) {
+          console.log(`💳 [Fintech] Найден MetaFintech внутри wrapper: "${innerName}"`);
+          break;
+        }
+      }
+      
+      // Если не нашли вложенный, используем сам wrapper (на случай если это и есть MetaFintech)
+      const targetInstance = metaFintechInstance || fintechInstance;
+      console.log(`💳 [Fintech] Целевой instance: "${targetInstance.name}"`);
+      
+      // Логируем доступные свойства целевого instance
+      if (targetInstance.componentProperties) {
+        const props = targetInstance.componentProperties;
+        for (const key in props) {
+          const prop = props[key];
+          if (prop && typeof prop === 'object' && 'type' in prop && prop.type === 'VARIANT') {
+            const options = 'options' in prop ? (prop.options as string[]) : [];
+            console.log(`💳 [Fintech] Свойство "${key}": опции=[${options.join(', ')}]`);
+          }
+        }
+      }
+    
+      const fintechType = row['#Fintech_Type'];
+      console.log(`💳 [Fintech] #Fintech_Type из данных: "${fintechType || 'не задан'}"`);
+      
+      if (fintechType) {
+        console.log(`💳 [Fintech] Пробуем type=${fintechType}...`);
+        let typeSet = processVariantProperty(targetInstance, `type=${fintechType}`, '#Fintech_Type');
+        console.log(`💳 [Fintech] type=${fintechType} результат: ${typeSet}`);
+        if (!typeSet) {
+          console.log(`💳 [Fintech] Пробуем Type=${fintechType}...`);
+          typeSet = processVariantProperty(targetInstance, `Type=${fintechType}`, '#Fintech_Type');
+          console.log(`💳 [Fintech] Type=${fintechType} результат: ${typeSet}`);
+        }
+        if (!typeSet) {
+          console.log(`💳 [Fintech] Пробуем stringProperty...`);
+          processStringProperty(targetInstance, 'type', fintechType, '#Fintech_Type');
+        }
+      }
+      
+      const fintechView = row['#Fintech_View'];
+      if (fintechView) {
+        let viewSet = processVariantProperty(targetInstance, `View=${fintechView}`, '#Fintech_View');
+        if (!viewSet) viewSet = processVariantProperty(targetInstance, `view=${fintechView}`, '#Fintech_View');
+        if (!viewSet) processStringProperty(targetInstance, 'View', fintechView, '#Fintech_View');
+      }
+    }
+  } else if (!hasFintech) {
+    // Fintech не найден и не нужен — OK
+    Logger.debug(`      💳 Fintech не найден (и не нужен)`);
+  } else {
+    Logger.warn(`      ⚠️ Fintech instance not found (но данные есть)`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   }
 }
 
 /**
+<<<<<<< HEAD
  * Настраивает type и view для Fintech
+=======
+ * Обработка EPrice view (special, undefined и др.)
+ * ВАЖНО: Всегда устанавливаем view — либо special, либо undefined
+ * Это нужно чтобы сбросить предыдущее состояние компонента
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
  */
 async function configureFintechType(
   ePriceGroupInstance: InstanceNode,
@@ -207,7 +476,13 @@ export async function handleEPriceView(context: HandlerContext): Promise<void> {
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
+<<<<<<< HEAD
   const explicitView = row['#EPrice_View'] as string | undefined;
+=======
+  // Определяем view: если есть #EPrice_View=special, используем его, иначе undefined
+  const explicitView = row['#EPrice_View'];
+  const priceView = explicitView === 'special' ? 'special' : 'undefined';
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   // Маппинг значений: 'default' → 'undefined', остальные как есть
   let priceView: string;
@@ -222,8 +497,12 @@ export async function handleEPriceView(context: HandlerContext): Promise<void> {
   const ePriceInstance = getCachedInstance(instanceCache!, 'EPrice');
   
   if (ePriceInstance) {
+<<<<<<< HEAD
     // Устанавливаем view
     const viewSet = trySetProperty(ePriceInstance, ['view', 'View'], priceView, '#EPrice_View');
+=======
+    Logger.debug(`🔍 [EPrice View] Найден EPrice, устанавливаем view=${priceView} (explicit: ${explicitView || 'none'})`);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     
     // Устанавливаем value (текст цены) через свойство компонента
     const priceValue = (row['#OrganicPrice'] || row['#EPrice_Value'] || '').trim();

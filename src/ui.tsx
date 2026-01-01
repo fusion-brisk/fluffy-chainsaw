@@ -89,18 +89,24 @@ const App: React.FC = () => {
   const [resetBeforeImport, setResetBeforeImport] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   
+<<<<<<< HEAD
   // Log level state (0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG)
   const [logLevel, setLogLevel] = useState<number>(2); // Default: SUMMARY
   
+=======
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   // Pending files waiting for confirmation (when scope='selection' but nothing selected)
   const [pendingFiles, setPendingFiles] = useState<FileList | null>(null);
   const [showNoSelectionDialog, setShowNoSelectionDialog] = useState(false);
   // Ref for pending files (to avoid stale closure in callbacks)
   const pendingFilesRef = useRef<FileList | null>(null);
   
+<<<<<<< HEAD
   // Celebration confetti state
   const [confetti, setConfetti] = useState<{ active: boolean; type: 'success' | 'error' }>({ active: false, type: 'success' });
   
+=======
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   // Ref to track latest stats (for closure in message handler)
   const statsRef = useRef<ProcessingStats | null>(null);
 
@@ -826,6 +832,16 @@ const App: React.FC = () => {
 
           {/* Status area below DropZone */}
           <div className="status-area">
+<<<<<<< HEAD
+=======
+            {/* Loading/Resetting status */}
+            {(isLoading || isResetting) && (
+              <LiveProgressView
+                progress={progress}
+                fileSize={currentFileSize || undefined}
+              />
+            )}
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 
             {/* Error - shows when file processing fails */}
             {!isLoading && !isResetting && lastError && (
@@ -887,6 +903,7 @@ const App: React.FC = () => {
           onCancel={handleCancelNoSelection}
         />
       )}
+<<<<<<< HEAD
       
       {/* 🎉 Карамельный 3D-праздник при завершении */}
       <Confetti 
@@ -894,6 +911,8 @@ const App: React.FC = () => {
         type={confetti.type}
         onComplete={() => setConfetti({ active: false, type: 'success' })}
       />
+=======
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     </>
   );
 };

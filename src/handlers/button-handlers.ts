@@ -216,9 +216,99 @@ export async function handleEButton(context: HandlerContext): Promise<void> {
     return;
   }
   
+<<<<<<< HEAD
   // Определяем и устанавливаем view
   const viewToSet = getButtonView(snippetType || '', isCheckout, isTouch, buttonViewData);
   setButtonView(buttonInstance, viewToSet);
   
   Logger.debug(`   🔘 [EButton] "${buttonInstance.name}" view=${viewToSet}`);
+=======
+  // Для EShopItem с Platform=Touch: скрывать кнопку и контейнеры если нет checkout
+  if (containerName === 'EShopItem' && isTouch) {
+    let buttonInstance = findInstanceByName(container, 'EButton');
+    if (!buttonInstance) buttonInstance = findInstanceByName(container, 'Ebutton');
+    if (!buttonInstance) buttonInstance = findInstanceByName(container, 'Button');
+    if (!buttonInstance) buttonInstance = findButtonInstanceLoose(container);
+    
+    // Ищем контейнеры кнопки: EMarketCheckoutButton-Container и EButton_wrapper
+    const buttonContainerNames = [
+      'EMarketCheckoutButton-Container',
+      'EButton_wrapper',
+      'Ebutton_wrapper',
+      'EButtonWrapper',
+      'ButtonWrapper'
+    ];
+    
+    const buttonContainers: SceneNode[] = [];
+    for (const name of buttonContainerNames) {
+      const found = findFirstNodeByName(container, name);
+      if (found && 'visible' in found) {
+        buttonContainers.push(found as SceneNode);
+      }
+    }
+    
+    Logger.debug(`   🔘 [EButton] EShopItem Touch: hasRealCheckout=${hasRealCheckout}, containers=${buttonContainers.length}`);
+    
+    // Скрываем/показываем контейнеры кнопки
+    for (const btnContainer of buttonContainers) {
+      try {
+        btnContainer.visible = hasRealCheckout;
+        Logger.debug(`   🔘 [EButton] "${btnContainer.name}" visible=${hasRealCheckout}`);
+      } catch (e) {
+        Logger.error(`   ❌ [EButton] Ошибка установки visible для "${btnContainer.name}":`, e);
+      }
+    }
+    
+    // Скрываем/показываем саму кнопку
+    if (buttonInstance) {
+      try {
+        buttonInstance.visible = hasRealCheckout;
+        Logger.debug(`   🔘 [EButton] visible=${hasRealCheckout}`);
+      } catch (e) {
+        Logger.error(`   ❌ [EButton] Ошибка установки visible:`, e);
+      }
+      
+      // С checkout → primaryShort
+      if (hasRealCheckout) {
+        setButtonView(buttonInstance, 'primaryShort');
+      }
+    }
+    return;
+  }
+  
+  // Находим EButton внутри контейнера
+  const eButtonInstance = findInstanceByName(container, 'EButton');
+  
+  if (!eButtonInstance) {
+    // Пробуем альтернативные имена
+    const altNames = ['Button', 'MarketButton', 'CheckoutButton'];
+    let foundButton: InstanceNode | null = null;
+    for (const name of altNames) {
+      foundButton = findInstanceByName(container, name);
+      if (foundButton) break;
+    }
+    
+    // Fallback: ищем любую кнопку по эвристике
+    if (!foundButton && (snippetType === 'EShopItem' || snippetType === 'EOfferItem')) {
+      foundButton = findButtonInstanceLoose(container);
+    }
+    
+    if (!foundButton) {
+      if (hasButton && (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic')) {
+        Logger.debug(`   ⚠️ [EButton] EButton не найден в контейнере "${container.name}"`);
+      }
+      return;
+    }
+    
+    handleButtonInstance(foundButton, snippetType || '', hasButton, buttonView, eButtonVisible, buttonType, container as SceneNode);
+    return;
+  }
+  
+  // Дефолты для EShopItem/EOfferItem, если ButtonView пуст
+  if ((!buttonView || buttonView.trim() === '') && (snippetType === 'EShopItem' || snippetType === 'EOfferItem')) {
+    buttonView = snippetType === 'EShopItem' ? 'secondary' : 'white';
+  }
+
+  handleButtonInstance(eButtonInstance, snippetType || '', hasButton, buttonView, eButtonVisible, buttonType, container as SceneNode);
+>>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 }
