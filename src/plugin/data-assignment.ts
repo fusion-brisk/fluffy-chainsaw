@@ -1,19 +1,13 @@
 /**
  * Data Assignment — маппинг строк данных на контейнеры Figma
-<<<<<<< HEAD
  * 
  * Оптимизация: Single-pass группировка — один findAll по странице
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
  */
 
 import { Logger } from '../logger';
 import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES } from '../config';
-<<<<<<< HEAD
 // Container cache отключен для экономии памяти
 // import { getContainerStructure } from '../utils/container-cache';
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 import { LayerDataItem, IMAGE_FIELDS } from '../types';
 import { safeGetLayerName, safeGetLayerType } from '../utils/node-search';
 import { findContainerForLayers, getContainerName, normalizeContainerName } from '../utils/container-search';
@@ -35,7 +29,6 @@ const ALWAYS_PROCESS_CONTAINERS = new Set(['EShopItem', 'EOfferItem']);
 
 // Типы и матчинг убраны — используется простое распределение по порядку
 
-<<<<<<< HEAD
 /**
  * Кэш имён контейнеров — заполняется при группировке,
  * используется для определения типа контейнера без figma.getNodeById
@@ -43,8 +36,6 @@ const ALWAYS_PROCESS_CONTAINERS = new Set(['EShopItem', 'EOfferItem']);
  */
 const containerNamesCache = new Map<string, string>();
 
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 /** Нормализация имени поля */
 function normalizeFieldName(name: string): string {
   return name ? String(name).trim().toLowerCase() : '';
@@ -72,7 +63,6 @@ function extractDataFieldName(layerName: string): string {
 }
 
 /**
-<<<<<<< HEAD
  * Проверка, является ли узел data-слоем
  * ОПТИМИЗАЦИЯ: Минимальная работа в предикате
  */
@@ -341,24 +331,12 @@ export function groupContainersWithDataLayersLegacy(
   const snippetGroups = new Map<string, SceneNode[]>();
   
   let totalDataLayers = 0;
-=======
- * Группировка контейнеров и поиск data-слоёв
- */
-export function groupContainersWithDataLayers(
-  allContainers: SceneNode[],
-  onProgress?: ProgressCallback
-): Map<string, SceneNode[]> {
-  const snippetGroups = new Map<string, SceneNode[]>();
-  const containerIds = new Set(allContainers.map(c => c.id));
-  
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   let containerIndex = 0;
   const totalContainers = allContainers.length;
   
   for (const container of allContainers) {
     containerIndex++;
     
-<<<<<<< HEAD
     if (container.removed) continue;
     
     // Кэшируем имя контейнера
@@ -377,67 +355,11 @@ export function groupContainersWithDataLayers(
     // Сохраняем результат
     if (dataLayers.length > 0) {
       snippetGroups.set(container.id, dataLayers);
-=======
-    if (container.removed) {
-      if (onProgress && containerIndex % 3 === 0) {
-        const progress = 15 + Math.floor((containerIndex / totalContainers) * 25);
-        onProgress(Math.min(40, progress), 100, `Анализ контейнеров: ${containerIndex}/${totalContainers}`, 'grouping');
-      }
-      continue;
-    }
-    
-    // Поиск data-слоёв внутри контейнера
-    let dataLayers: SceneNode[] = [];
-    
-    if ('findAll' in container) {
-      dataLayers = (container as SceneNode & ChildrenMixin).findAll((n: SceneNode) => {
-        if (n.name.startsWith('#')) return true;
-        
-        for (const pattern of DATA_FIELD_PATTERNS) {
-          if (n.name.includes(pattern)) return true;
-        }
-        
-        return false;
-      });
-    }
-    
-    // Если data layers не найдено — включаем только для ALWAYS_PROCESS_CONTAINERS
-    if (dataLayers.length === 0) {
-      if (ALWAYS_PROCESS_CONTAINERS.has(container.name)) {
-        snippetGroups.set(container.id, []);
-      }
-      continue;
-    }
-    
-    // Фильтрация: берем только те слои, для которых этот контейнер является БЛИЖАЙШИМ
-    const validLayers: SceneNode[] = [];
-    
-    for (const layer of dataLayers) {
-      let isDirectChild = true;
-      let currentParent = layer.parent;
-      
-      while (currentParent && currentParent.id !== container.id) {
-        if (containerIds.has(currentParent.id) && SNIPPET_CONTAINER_NAMES.includes(currentParent.name)) {
-          isDirectChild = false;
-          break;
-        }
-        currentParent = currentParent.parent;
-      }
-      
-      if (isDirectChild) {
-        validLayers.push(layer);
-      }
-    }
-    
-    if (validLayers.length > 0) {
-      snippetGroups.set(container.id, validLayers);
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     } else if (ALWAYS_PROCESS_CONTAINERS.has(container.name)) {
       snippetGroups.set(container.id, []);
     }
     
     // Прогресс
-<<<<<<< HEAD
     if (onProgress && (containerIndex % 5 === 0 || containerIndex === totalContainers)) {
       const progress = 20 + Math.floor((containerIndex / totalContainers) * 20);
       onProgress(Math.min(40, progress), 100, `Группировка: ${containerIndex}/${totalContainers}`, 'grouping');
@@ -446,19 +368,10 @@ export function groupContainersWithDataLayers(
   
   Logger.debug(`📊 [Legacy] Найдено ${totalDataLayers} data-слоёв в ${snippetGroups.size} контейнерах`);
   
-=======
-    if (onProgress && (containerIndex % 3 === 0 || containerIndex % Math.max(1, Math.floor(totalContainers / 10)) === 0)) {
-      const progress = 15 + Math.floor((containerIndex / totalContainers) * 25);
-      onProgress(Math.min(40, progress), 100, `Группировка сниппетов: ${containerIndex}/${totalContainers}`, 'grouping');
-    }
-  }
-  
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   return snippetGroups;
 }
 
 /**
-<<<<<<< HEAD
  * Получить тип контейнера по его ID — использует кэш имён
  * (figma.getNodeById недоступен в режиме documentAccess: dynamic-page)
  */
@@ -489,10 +402,6 @@ function getContainerType(containerKey: string): string {
  * 
  * Порядок заполнения других контейнеров:
  * - Только общая очередь (циклически)
-=======
- * Распределение строк по контейнерам — ЦИКЛИЧЕСКОЕ ПОВТОРЕНИЕ
- * Данные применяются по порядку, при нехватке — повторяются с начала
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
  */
 export function assignRowsToContainers(
   rows: CSVRow[],
@@ -505,7 +414,6 @@ export function assignRowsToContainers(
     return containerRowAssignments;
   }
   
-<<<<<<< HEAD
   // Разделяем rows на каталожные (EThumbGroup) и товарные
   const catalogQueue = rows.filter(r => r['#isCatalogPage'] === 'true');
   const productQueue = rows.filter(r => r['#isCatalogPage'] !== 'true');
@@ -602,31 +510,6 @@ export function assignRowsToContainers(
   if (productQueue.length > 0 && productIndex > 0) {
     const cycles = Math.ceil(productIndex / productQueue.length);
     Logger.info(`   📊 Общая очередь: ${productIndex} назначений (${cycles} цикл${cycles > 1 ? 'а/ов' : ''})`);
-=======
-  // Собираем все ключи контейнеров в порядке их появления
-  const containerKeys = Array.from(snippetGroups.keys());
-  
-  Logger.info(`📊 [data-assignment] Циклическое распределение:`);
-  Logger.info(`   📄 Строк данных: ${rows.length}`);
-  Logger.info(`   📦 Контейнеров: ${containerKeys.length}`);
-  
-  // Назначаем строки контейнерам по порядку с циклическим повторением
-  for (let i = 0; i < containerKeys.length; i++) {
-    const containerKey = containerKeys[i];
-    const rowIndex = i % rows.length;  // Циклический индекс
-    const row = rows[rowIndex];
-    
-    containerRowAssignments.set(containerKey, { row, rowIndex });
-    
-    const title = (row['#Title'] || row['#OrganicTitle'] || '').substring(0, 40);
-    const cycleNote = i >= rows.length ? ` (цикл ${Math.floor(i / rows.length) + 1})` : '';
-    Logger.info(`   ✅ [${i + 1}] ${containerKey} ← строка ${rowIndex + 1}: "${title}..."${cycleNote}`);
-  }
-  
-  if (containerKeys.length > rows.length) {
-    const cycles = Math.ceil(containerKeys.length / rows.length);
-    Logger.info(`   🔄 Данные использованы ${cycles} раз(а)`);
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   }
   
   return containerRowAssignments;
@@ -650,12 +533,9 @@ export function createLayerData(
     
     const { row, rowIndex } = assignment;
     
-<<<<<<< HEAD
     // Добавляем ID контейнера в row для использования кэшем в image-handlers
     row['#_containerId'] = containerKey;
     
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     // Создаём карту нормализованных ключей
     const rowKeyMap: { [key: string]: string } = {};
     try {

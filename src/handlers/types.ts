@@ -3,10 +3,7 @@
  */
 
 import { CSVRow } from '../types/csv-fields';
-<<<<<<< HEAD
 import { InstanceCache } from '../utils/instance-cache';
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 
 /**
  * Контекст для обработчиков компонентов
@@ -19,14 +16,11 @@ export interface HandlerContext {
   containerKey: string;
   /** Данные строки CSV для этого контейнера */
   row: CSVRow | null;
-<<<<<<< HEAD
   /**
    * Кэш инстансов контейнера (O(1) lookup вместо рекурсивного поиска)
    * Строится один раз перед обработкой контейнера
    */
   instanceCache?: InstanceCache;
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 }
 
 /**

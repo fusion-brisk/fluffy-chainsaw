@@ -143,7 +143,6 @@ export const CloseIcon = memo<IconProps>(({ className, size = 16 }) => (
   </svg>
 ));
 CloseIcon.displayName = 'CloseIcon';
-<<<<<<< HEAD
 
 // Clear/Reset Icon (circular arrow)
 export const ClearIcon = memo<IconProps>(({ className, size = 16 }) => (
@@ -177,5 +176,3 @@ export const ClearIcon = memo<IconProps>(({ className, size = 16 }) => (
   </svg>
 ));
 ClearIcon.displayName = 'ClearIcon';
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e

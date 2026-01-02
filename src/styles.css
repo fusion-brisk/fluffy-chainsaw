@@ -327,13 +327,6 @@ p { margin: 0; line-height: 1.5; }
   border: 1px solid transparent;
   border-radius: var(--radius-medium);
   transition: border-color 0.15s ease;
-<<<<<<< HEAD
-=======
-}
-
-.scope-panel:hover {
-  border-color: var(--figma-color-border);
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 }
 
 .scope-panel:hover {
@@ -348,7 +341,6 @@ p { margin: 0; line-height: 1.5; }
   gap: var(--space-md);
 }
 
-<<<<<<< HEAD
 /* Scope field with label + select */
 .scope-field {
   display: flex;
@@ -418,14 +410,6 @@ p { margin: 0; line-height: 1.5; }
 .toggle-wrapper {
   display: flex;
   align-items: center;
-=======
-/* ============================================
-   TOGGLE / SWITCH - Figma UI3 style
-   ============================================ */
-.toggle-wrapper {
-  display: flex;
-  align-items: center;
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   gap: 8px;
   cursor: pointer;
   user-select: none;
@@ -669,7 +653,6 @@ p { margin: 0; line-height: 1.5; }
   padding: var(--space-lg);
 }
 
-<<<<<<< HEAD
 /* Progress content inside DropZone */
 .drop-zone-progress {
   display: flex;
@@ -803,8 +786,6 @@ p { margin: 0; line-height: 1.5; }
   fill: currentColor;
 }
 
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 /* Fullscreen drop */
 .drop-zone.fullscreen {
   position: fixed;
@@ -953,161 +934,6 @@ p { margin: 0; line-height: 1.5; }
 }
 
 /* ============================================
-<<<<<<< HEAD
-=======
-   THINKING STATUS - Processing indicator (Figma UI3: subtle border)
-   ============================================ */
-.status-thinking {
-  padding: 14px;
-  background: var(--figma-color-bg-secondary);
-  border: 1px solid transparent;
-  border-radius: var(--radius-medium);
-  animation: slideUp 0.25s ease;
-  transition: border-color 0.15s ease;
-}
-
-.status-thinking:hover {
-  border-color: var(--figma-color-border);
-}
-
-.status-thinking-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-/* Progress bar */
-.status-thinking-progress-bar {
-  position: relative;
-  height: 4px;
-  background: var(--figma-color-bg-tertiary);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-bottom: 12px;
-}
-
-.status-thinking-progress-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: var(--figma-color-bg-brand);
-  border-radius: 2px;
-  transition: width 0.3s ease-out;
-  min-width: 2px;
-}
-
-/* Shimmer animation when waiting */
-.status-thinking-progress-shimmer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    transparent 100%
-  );
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-.status-thinking-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 6px 10px;
-  background: rgba(88, 101, 242, 0.1);
-  border: 1px solid rgba(88, 101, 242, 0.2);
-  border-radius: 12px;
-}
-
-.status-thinking-dot {
-  width: 7px;
-  height: 7px;
-  background: var(--figma-color-bg-brand);
-  border-radius: 50%;
-  animation: pulse-bright 1.2s ease-in-out infinite;
-  box-shadow: 0 0 4px rgba(88, 101, 242, 0.5);
-}
-
-.status-thinking-dot:nth-child(1) { animation-delay: 0s; }
-.status-thinking-dot:nth-child(2) { animation-delay: 0.2s; }
-.status-thinking-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes pulse-bright {
-  0%, 100% { 
-    opacity: 0.5;
-    transform: scale(1);
-  }
-  50% { 
-    opacity: 1;
-    transform: scale(1.2);
-  }
-}
-
-.status-thinking-label-group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-}
-
-.status-thinking-stage {
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-secondary);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.status-thinking-label {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text);
-  font-weight: 500;
-}
-
-.status-thinking-meta {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-tertiary);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Подсказка */
-.status-thinking-tip {
-  padding: 10px 12px;
-  margin-top: 10px;
-  background: var(--figma-color-bg);
-  border-radius: var(--radius-small);
-}
-
-.status-thinking-tip-text {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-secondary);
-  line-height: 1.5;
-  flex: 1;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-}
-
-.status-thinking-tip-text.fade-out {
-  opacity: 0;
-  transform: translateY(-3px);
-}
-
-.status-thinking-tip-text.fade-in {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* ============================================
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
    COMPLETION STATUS - Success (Figma UI3: subtle border)
    ============================================ */
 .status-completion {

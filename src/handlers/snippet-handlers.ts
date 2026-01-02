@@ -390,38 +390,8 @@ export async function handleShopInfoUgcAndEReviewsShopText(context: HandlerConte
   const reviewsTextRaw = (row['#EReviews_shopText'] || '').trim();
   const ratingDisplay = formatRatingOneDecimal(ratingRaw);
   
-<<<<<<< HEAD
   // Visibility теперь через withReviews на сниппете — убрано прямое управление visible
   
-=======
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
-  const hasRating = !!ratingDisplay;
-  
-  // EShopItem: скрываем EShopItemMeta-UgcLine если нет рейтинга
-  if (containerName === 'EShopItem') {
-    const ugcLine = findFirstNodeByName(container, 'EShopItemMeta-UgcLine');
-    if (ugcLine && 'visible' in ugcLine) {
-      try {
-        (ugcLine as SceneNode).visible = hasRating;
-        Logger.debug(`   ⭐ [EShopItemMeta-UgcLine] visible=${hasRating} (rating=${ratingDisplay || 'empty'})`);
-      } catch (e) {
-        // ignore
-      }
-    }
-  }
-
-  // Управляем видимостью EReviewsLabel
-  const reviewsLabelGroup = findFirstNodeByName(container, 'EReviewsLabel');
-  if (reviewsLabelGroup) {
-    try {
-      (reviewsLabelGroup as SceneNode).visible = hasRating;
-      Logger.debug(`   ⭐ [ShopInfo-Ugc] EReviewsLabel.visible=${hasRating}`);
-    } catch (e) {
-      // ignore
-    }
-  }
-
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   if (!ratingDisplay && !reviewsTextRaw) return;
   
   const reviewsLabelGroup = findFirstNodeByName(container, 'EReviewsLabel');
@@ -583,7 +553,12 @@ export async function handleEOfferItem(context: HandlerContext): Promise<void> {
     const hasMeta = hasDelivery || hasBnpl;
     trySetProperty(instance, ['withMeta'], hasMeta, '#EOfferItem_withMeta');
     
-    Logger.debug(`   📊 [EOfferItem] withMeta=${hasMeta} (hasDelivery=${hasDelivery}, hasBnpl=${hasBnpl}), withFintech=${hasFintech}`);
+    // withData (boolean) — показать весь блок Meta (рейтинг, доставка, bnpl)
+    // true если есть хоть что-то из: рейтинг, доставка, BNPL
+    const hasData = hasReviews || hasDelivery || hasBnpl;
+    trySetProperty(instance, ['withData'], hasData, '#EOfferItem_withData');
+    
+    Logger.debug(`   📊 [EOfferItem] withMeta=${hasMeta}, withData=${hasData} (reviews=${hasReviews}, delivery=${hasDelivery}, bnpl=${hasBnpl}), withFintech=${hasFintech}`);
     
     // withFavoritesButton (boolean) — кнопка "В избранное"
     const hasFavorites = row['#FavoriteBtn'] === 'true';
@@ -671,7 +646,12 @@ export async function handleEShopItem(context: HandlerContext): Promise<void> {
     const hasMeta = hasDelivery || hasBnpl;
     trySetProperty(instance, ['withMeta', 'deliveryFintech'], hasMeta, '#withMeta');
     
-    Logger.debug(`   📊 [EShopItem] withMeta=${hasMeta} (hasDelivery=${hasDelivery}, hasBnpl=${hasBnpl}), withFintech=${hasFintech}`);
+    // withData (boolean) — показать весь блок Meta (рейтинг, доставка, bnpl)
+    // true если есть хоть что-то из: рейтинг, доставка, BNPL
+    const hasData = hasReviews || hasDelivery || hasBnpl;
+    trySetProperty(instance, ['withData'], hasData, '#EShopItem_withData');
+    
+    Logger.debug(`   📊 [EShopItem] withMeta=${hasMeta}, withData=${hasData} (reviews=${hasReviews}, delivery=${hasDelivery}, bnpl=${hasBnpl}), withFintech=${hasFintech}`);
     
     // favoriteBtn (boolean) — кнопка "В избранное"
     const hasFavoriteBtn = row['#FavoriteBtn'] === 'true';
@@ -682,7 +662,6 @@ export async function handleEShopItem(context: HandlerContext): Promise<void> {
 }
 
 /**
-<<<<<<< HEAD
  * Обработка ESnippet — boolean пропсы карточки сниппета
  * Актуальные пропсы (2025-12): withReviews, withQuotes, withDelivery, withFintech,
  * withAddress, withSitelinks, withPromo, withButton, withMeta, withContacts, withPrice, showKebab
@@ -778,6 +757,12 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
     const metaSet = trySetProperty(instance, ['withMeta'], hasMeta, '#withMeta');
     Logger.debug(`   📦 [ESnippet] withMeta=${hasMeta} (hasDelivery=${hasDelivery}, hasBnpl=${hasBnpl}), set=${metaSet}`);
     
+    // withData (boolean) — показать весь блок Meta (рейтинг, доставка, fintech, адрес)
+    // true если есть хоть что-то из: рейтинг, доставка, BNPL
+    const hasData = hasReviews || hasDelivery || hasBnpl;
+    const dataSet = trySetProperty(instance, ['withData'], hasData, '#withData');
+    Logger.debug(`   📊 [ESnippet] withData=${hasData} (reviews=${hasReviews}, delivery=${hasDelivery}, bnpl=${hasBnpl}), set=${dataSet}`);
+    
     // withContacts (boolean) — показать контакты
     const hasContacts = !!(row['#Phone'] || row['#Contacts'] || '').trim();
     trySetProperty(instance, ['withContacts'], hasContacts, '#withContacts');
@@ -835,57 +820,17 @@ export async function handleRatingReviewQuoteVisibility(context: HandlerContext)
 /**
  * Обработка ShopOfflineRegion — адрес магазина (#addressText, #addressLink)
  * Visibility управляется через withAddress на сниппете
-=======
- * Обработка ShopOfflineRegion — адрес магазина (#addressText, #addressLink)
- * Скрывает блок Address если данных нет
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
  */
 export async function handleShopOfflineRegion(context: HandlerContext): Promise<void> {
   const { container, row } = context;
   if (!container || !row) return;
 
-<<<<<<< HEAD
   const addressText = (row['#addressText'] || '').trim();
   const addressLink = (row['#addressLink'] || '').trim();
   
   // Visibility теперь через withAddress на сниппете — убрано прямое управление visible
   
   if (!addressText && !addressLink) return;
-=======
-  const hasShopOfflineRegion = row['#hasShopOfflineRegion'] === 'true';
-  const addressText = (row['#addressText'] || '').trim();
-  const addressLink = (row['#addressLink'] || '').trim();
-  
-  // Ищем контейнер Address в разных вариантах именования
-  const addressContainerNames = ['Address', 'ShopOfflineRegion', 'AddressBlock', 'Geo'];
-  let addressContainer: SceneNode | null = null;
-  
-  for (const name of addressContainerNames) {
-    const found = findFirstNodeByName(container, name);
-    if (found && 'visible' in found) {
-      addressContainer = found as SceneNode;
-      break;
-    }
-  }
-  
-  // Если нет данных — скрываем контейнер
-  if (!hasShopOfflineRegion || (!addressText && !addressLink)) {
-    if (addressContainer && 'visible' in addressContainer) {
-      try {
-        addressContainer.visible = false;
-        Logger.debug(`   📍 [ShopOfflineRegion] Скрыт (нет данных)`);
-      } catch (e) { /* ignore */ }
-    }
-    return;
-  }
-  
-  // Показываем контейнер
-  if (addressContainer && 'visible' in addressContainer) {
-    try {
-      addressContainer.visible = true;
-    } catch (e) { /* ignore */ }
-  }
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
   
   // Применяем #addressText
   if (addressText) {
@@ -906,7 +851,6 @@ export async function handleShopOfflineRegion(context: HandlerContext): Promise<
   }
 }
 
-<<<<<<< HEAD
 /**
  * Обработка скрытия Price Block для страниц каталога (EThumbGroup)
  * Каталожные страницы не имеют цены — скрываем блок с ценой
@@ -1251,5 +1195,3 @@ export function handleMetaVisibility(context: HandlerContext): void {
   Logger.debug(`📦 [Meta] Visibility через withMeta на сниппете`);
 }
 
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e

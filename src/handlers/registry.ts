@@ -11,7 +11,6 @@
 import { Logger } from '../logger';
 import { HandlerContext, HandlerResult, HandlerMetadata, RegisteredHandler } from './types';
 
-<<<<<<< HEAD
 // === Агрегированная статистика handlers ===
 interface HandlerStats {
   totalCalls: number;
@@ -78,14 +77,6 @@ import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
 import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleMetaVisibility } from './snippet-handlers';
 import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
 import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView, handleInfoIcon } from './price-handlers';
-=======
-// Import all handlers
-import { handleBrandLogic, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel } from './label-handlers';
-import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
-import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleShopOfflineRegion } from './snippet-handlers';
-import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
-import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView } from './price-handlers';
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 
 /**
  * Приоритеты выполнения обработчиков
@@ -117,10 +108,7 @@ export type HandlerMode = 'sync' | 'async' | 'parallel';
 class HandlerRegistry {
   private handlers: RegisteredHandler[] = [];
   private initialized = false;
-<<<<<<< HEAD
   private loggedHandlers = false;
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 
   /**
    * Регистрация обработчика
@@ -159,7 +147,6 @@ class HandlerRegistry {
 
     this.register('EPriceView', handleEPriceView, {
       priority: HandlerPriority.CRITICAL,
-<<<<<<< HEAD
       mode: 'async',
       description: 'EPrice view (special/default)'
     });
@@ -168,30 +155,18 @@ class HandlerRegistry {
       priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
       description: 'Показ/скрытие иконки "Инфо" в EPriceGroup-Fintech'
-=======
-      mode: 'sync',
-      description: 'EPrice view (special/default)'
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     });
 
     // === VARIANTS (10) — варианты компонентов ===
     this.register('BrandLogic', handleBrandLogic, {
       priority: HandlerPriority.VARIANTS,
-<<<<<<< HEAD
       mode: 'async',
-=======
-      mode: 'sync',
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       description: 'Brand variant'
     });
 
     this.register('EPriceBarometer', handleEPriceBarometer, {
       priority: HandlerPriority.VARIANTS,
-<<<<<<< HEAD
       mode: 'async',
-=======
-      mode: 'sync',
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       description: 'Барометр цен'
     });
 
@@ -203,26 +178,17 @@ class HandlerRegistry {
 
     this.register('MarketCheckoutButton', handleMarketCheckoutButton, {
       priority: HandlerPriority.VARIANTS,
-<<<<<<< HEAD
       mode: 'async',
-=======
-      mode: 'sync',
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       description: 'BUTTON variant на контейнере'
     });
 
     this.register('EOfferItem', handleEOfferItem, {
       priority: HandlerPriority.VARIANTS,
-<<<<<<< HEAD
       mode: 'async',
-=======
-      mode: 'sync',
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       containers: ['EOfferItem'],
       description: 'Модификаторы карточки предложения'
     });
 
-<<<<<<< HEAD
     this.register('EShopItem', handleEShopItem, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
@@ -248,11 +214,6 @@ class HandlerRegistry {
     this.register('ShopInfoBnpl', handleShopInfoBnpl, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
-=======
-    this.register('ShopInfoBnpl', handleShopInfoBnpl, {
-      priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       description: 'BNPL иконки'
     });
 
@@ -265,11 +226,7 @@ class HandlerRegistry {
     // === VISIBILITY (20) — видимость элементов ===
     this.register('EButton', handleEButton, {
       priority: HandlerPriority.VISIBILITY,
-<<<<<<< HEAD
       mode: 'async',
-=======
-      mode: 'sync',
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       description: 'EButton view и visible'
     });
 
@@ -299,7 +256,6 @@ class HandlerRegistry {
       description: 'Адрес магазина (#addressText, #addressLink)'
     });
 
-<<<<<<< HEAD
     this.register('HidePriceBlock', handleHidePriceBlock, {
       priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
@@ -312,8 +268,6 @@ class HandlerRegistry {
       description: 'Переключение imageType (EThumb/EThumbGroup)'
     });
 
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     this.register('ELabelGroup', handleELabelGroup, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
@@ -341,7 +295,6 @@ class HandlerRegistry {
       description: 'Fallback для OrganicHost из favicon'
     });
 
-<<<<<<< HEAD
     // === FINAL (50) — финальные обработчики ===
     this.register('MetaVisibility', handleMetaVisibility, {
       priority: HandlerPriority.FINAL,
@@ -349,8 +302,6 @@ class HandlerRegistry {
       description: 'Скрытие/показ группы Meta на основе видимости детей'
     });
 
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
     this.initialized = true;
     Logger.debug(`[HandlerRegistry] Зарегистрировано ${this.handlers.length} обработчиков`);
   }
@@ -365,7 +316,6 @@ class HandlerRegistry {
     const containerName = context.container && 'name' in context.container 
       ? String(context.container.name) 
       : '';
-<<<<<<< HEAD
     
     // DEBUG: Логируем список handlers при первом вызове
     if (!this.loggedHandlers) {
@@ -373,8 +323,6 @@ class HandlerRegistry {
       console.log(`[HandlerRegistry] Всего handlers: ${this.handlers.length}`);
       console.log(`[HandlerRegistry] Handlers: ${this.handlers.map(h => h.name).join(', ')}`);
     }
-=======
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
 
     // Группируем обработчики по режиму выполнения
     const syncHandlers: RegisteredHandler[] = [];
@@ -433,7 +381,6 @@ class HandlerRegistry {
     try {
       await registered.handler(context);
       
-<<<<<<< HEAD
       const duration = Date.now() - startTime;
       
       // Обновляем агрегированную статистику
@@ -450,24 +397,12 @@ class HandlerRegistry {
       // Обновляем статистику даже при ошибке
       updateHandlerStats(registered.name, duration);
       
-=======
-      return {
-        handlerName: registered.name,
-        success: true,
-        duration: Date.now() - startTime
-      };
-    } catch (error) {
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
       Logger.error(`[${registered.name}] Error:`, error);
       
       return {
         handlerName: registered.name,
         success: false,
-<<<<<<< HEAD
         duration,
-=======
-        duration: Date.now() - startTime,
->>>>>>> 56c12903a41f3c9fea54ea6fd902d9de8f66514e
         error: error instanceof Error ? error.message : String(error)
       };
     }
