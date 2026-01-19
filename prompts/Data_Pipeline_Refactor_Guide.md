@@ -149,7 +149,7 @@ sequenceDiagram
 set -e
 
 INSTALL_DIR="$HOME/.eproductsnippet"
-RELEASE_URL="https://github.com/user/repo/releases/latest/download"
+RELEASE_URL="https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download"
 
 echo ""
 echo "🚀 EProductSnippet — Установка"
@@ -295,7 +295,7 @@ read -p "Нажмите Enter для выхода..."
 
 ```typescript
 // URLs для скачивания
-const INSTALLER_URL = 'https://github.com/user/repo/releases/latest/download/EProductSnippet-Installer.command';
+const INSTALLER_URL = 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/EProductSnippet-Installer.command';
 
 // Состояние подключения
 interface ConnectionState {
@@ -513,8 +513,8 @@ jobs:
 
 ```typescript
 // ТЕКУЩИЙ КОД (заменить):
-const EXTENSION_GITHUB_URL = 'https://github.com/user/repo/releases';
-const RELAY_APP_URL = 'https://github.com/user/repo/releases';
+const EXTENSION_GITHUB_URL = 'https://github.com/fusion-brisk/fluffy-chainsaw/releases';
+const RELAY_APP_URL = 'https://github.com/fusion-brisk/fluffy-chainsaw/releases';
 
 // НОВЫЙ КОД:
 const INSTALLER_URL = 'https://github.com/YOUR_USERNAME/fluffy-chainsaw/releases/latest/download/EProductSnippet-Installer.command';

@@ -16,7 +16,7 @@ set -e
 # === Конфигурация ===
 INSTALL_DIR="$HOME/.eproductsnippet"
 # TODO: Заменить на реальный URL репозитория
-RELEASE_URL="https://github.com/user/fluffy-chainsaw/releases/latest/download"
+RELEASE_URL="https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download"
 HOST_NAME="com.eproductsnippet.relay"
 # Extension ID (стабильный, из manifest.json key)
 EXTENSION_ID="bkgihkkkahjfjpbplmcpggfnfkckhpnm"

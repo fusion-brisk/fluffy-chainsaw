@@ -13,7 +13,7 @@ interface SetupViewProps {
 }
 
 // TODO: Заменить на реальный URL после создания GitHub Release
-const INSTALLER_URL = 'https://github.com/user/fluffy-chainsaw/releases/latest/download/EProductSnippet-Installer.command';
+const INSTALLER_URL = 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/EProductSnippet-Installer.command';
 
 export const SetupView: React.FC<SetupViewProps> = memo(({ 
   onRetry,
