@@ -27,6 +27,30 @@ const DATA_FIELD_NAMES_SET = new Set(
 /** Контейнеры, которые должны обрабатываться даже без data-layers */
 const ALWAYS_PROCESS_CONTAINERS = new Set(['EShopItem', 'EOfferItem']);
 
+/**
+ * Проверяет, является ли имя контейнера одним из ALWAYS_PROCESS типов
+ * Поддерживает суффиксы копий ("EShopItem 2", "EOfferItem 3")
+ */
+function isAlwaysProcessContainer(name: string): boolean {
+  if (ALWAYS_PROCESS_CONTAINERS.has(name)) return true;
+  
+  // Проверяем паттерн "BaseName N"
+  const baseNameMatch = name.match(/^(.+?)\s+\d+$/);
+  if (baseNameMatch && baseNameMatch[1]) {
+    return ALWAYS_PROCESS_CONTAINERS.has(baseNameMatch[1]);
+  }
+  return false;
+}
+
+/**
+ * Извлекает базовое имя контейнера (без суффикса копии)
+ * "EShopItem 2" → "EShopItem", "EOfferItem" → "EOfferItem"
+ */
+function getBaseContainerName(name: string): string {
+  const match = name.match(/^(.+?)\s+\d+$/);
+  return match ? match[1] : name;
+}
+
 // Типы и матчинг убраны — используется простое распределение по порядку
 
 /**
@@ -297,10 +321,10 @@ export function groupContainersWithDataLayers(
   Logger.info(`📊 [Grouping] Depth stats: avg=${avgDepth}, max=${maxDepth}, orphans=${orphanCount}`);
   Logger.info(`📊 [Grouping] Ancestor cache: ${ancestorCache.size} entries, ${cacheHits} hits (${hitRate}% hit rate)`);
   
-  // Добавляем контейнеры без data-layers (EShopItem, EOfferItem)
+  // Добавляем контейнеры без data-layers (EShopItem, EOfferItem и их копии)
   let addedEmpty = 0;
   for (const container of allContainers) {
-    if (!snippetGroups.has(container.id) && ALWAYS_PROCESS_CONTAINERS.has(container.name)) {
+    if (!snippetGroups.has(container.id) && isAlwaysProcessContainer(container.name)) {
       snippetGroups.set(container.id, []);
       addedEmpty++;
     }
@@ -355,7 +379,7 @@ export function groupContainersWithDataLayersLegacy(
     // Сохраняем результат
     if (dataLayers.length > 0) {
       snippetGroups.set(container.id, dataLayers);
-    } else if (ALWAYS_PROCESS_CONTAINERS.has(container.name)) {
+    } else if (isAlwaysProcessContainer(container.name)) {
       snippetGroups.set(container.id, []);
     }
     
@@ -444,12 +468,24 @@ export function assignRowsToContainers(
   const thumbGroupCount = rows.filter(r => r['#imageType'] === 'EThumbGroup').length;
   const thumbGroupWithPrice = productQueue.filter(r => r['#imageType'] === 'EThumbGroup').length;
   
+  // ДИАГНОСТИКА: EShopItem/EOfferItem в очередях
+  const eShopItemInQueue = productQueue.filter(r => r['#SnippetType'] === 'EShopItem');
+  const eOfferItemInQueue = productQueue.filter(r => r['#SnippetType'] === 'EOfferItem');
+  
   Logger.info(`📊 [data-assignment] Две очереди:`);
   Logger.info(`   📄 Каталожная очередь: ${catalogQueue.length} (только для ESnippet)`);
   Logger.info(`   📄 Общая очередь: ${productQueue.length} (для всех)`);
+  Logger.info(`   🛒 EShopItem в очереди: ${eShopItemInQueue.length}`);
+  Logger.info(`   💳 EOfferItem в очереди: ${eOfferItemInQueue.length}`);
   Logger.info(`   🖼️ EThumbGroup всего: ${thumbGroupCount} (каталог: ${catalogQueue.length}, товар: ${thumbGroupWithPrice})`);
   Logger.info(`   📦 ESnippet контейнеров: ${eSnippetCount}`);
   Logger.info(`   📦 Других контейнеров: ${otherCount}`);
+  
+  // ДИАГНОСТИКА: Если есть EShopItem, показать магазины
+  if (eShopItemInQueue.length > 0) {
+    const shopNames = eShopItemInQueue.map(r => r['#ShopName'] || 'N/A').join(', ');
+    Logger.debug(`   🛒 EShopItem магазины: ${shopNames}`);
+  }
   
   // Индексы для очередей
   let catalogUsed = 0;  // Сколько каталожных уже использовано (НЕ циклически!)
@@ -616,11 +652,12 @@ export function prepareContainersForProcessing(
     
     // Stub-строка для EShopItem/EOfferItem без назначенной строки
     const containerName = getContainerName(container);
-    if (!assignedRow && (containerName === 'EShopItem' || containerName === 'EOfferItem')) {
+    const baseContainerName = getBaseContainerName(containerName);
+    if (!assignedRow && (baseContainerName === 'EShopItem' || baseContainerName === 'EOfferItem')) {
       assignedRow = {
-        '#SnippetType': containerName,
+        '#SnippetType': baseContainerName,
         '#BUTTON': 'true',
-        '#ButtonView': containerName === 'EShopItem' ? 'secondary' : 'white',
+        '#ButtonView': baseContainerName === 'EShopItem' ? 'secondary' : 'white',
         '#ButtonType': 'shop'
       };
     }

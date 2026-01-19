@@ -1,11 +1,12 @@
 import React, { memo } from 'react';
 import { InfoIcon, ClearIcon } from './Icons';
 import { Toggle } from './Toggle';
+import { PluginMode } from '../types';
 
 interface ScopeControlProps {
-  scope: 'selection' | 'page';
+  mode: PluginMode;
   hasSelection: boolean;
-  onScopeChange: (newScope: 'selection' | 'page') => void;
+  onModeChange: (newMode: PluginMode) => void;
   // Reset options
   resetBeforeImport: boolean;
   onResetBeforeImportChange: (value: boolean) => void;
@@ -15,9 +16,9 @@ interface ScopeControlProps {
 }
 
 export const ScopeControl: React.FC<ScopeControlProps> = memo(({ 
-  scope, 
+  mode,
   hasSelection, 
-  onScopeChange,
+  onModeChange,
   resetBeforeImport,
   onResetBeforeImportChange,
   onResetNow,
@@ -25,55 +26,72 @@ export const ScopeControl: React.FC<ScopeControlProps> = memo(({
   isResetting = false
 }) => {
   const isDisabled = isLoading || isResetting;
-  const canReset = !isDisabled && (scope === 'page' || hasSelection);
+  const isBuildMode = mode === 'build';
+  const canReset = !isDisabled && !isBuildMode && (mode === 'page' || hasSelection);
 
   return (
     <div className="scope-panel">
-      {/* Первая строка: Область применения + Сброс сейчас */}
+      {/* Единый дропдаун режима работы */}
       <div className="scope-row">
-        <div className="scope-field">
-          <label className="scope-label" htmlFor="scope-select">Применить к</label>
+        <div className="scope-field scope-field--full">
+          <label className="scope-label" htmlFor="mode-select">Режим</label>
           <select
-            id="scope-select"
+            id="mode-select"
             className="scope-select"
-            value={scope}
-            onChange={(e) => onScopeChange(e.target.value as 'selection' | 'page')}
+            value={mode}
+            onChange={(e) => onModeChange(e.target.value as PluginMode)}
             disabled={isDisabled}
           >
-            <option value="selection">Выделению</option>
-            <option value="page">Всей странице</option>
+            <option value="selection">Заполнить выделение</option>
+            <option value="page">Заполнить страницу</option>
+            <option value="build">Создать новый артборд</option>
           </select>
         </div>
         
-        <button
-          type="button"
-          className="btn-icon-sm"
-          onClick={onResetNow}
-          disabled={!canReset}
-          title="Сбросить все сниппеты к исходному состоянию"
-          aria-label="Сбросить сейчас"
-        >
-          <ClearIcon size={14} />
-        </button>
-      </div>
-
-      {/* Вторая строка: Toggle сброса */}
-      <div className="scope-row">
-        <Toggle
-          checked={resetBeforeImport}
-          onChange={onResetBeforeImportChange}
-          disabled={isDisabled}
-          label="Сбросить перед импортом"
-        />
-        
-        {/* Подсказка при отсутствии выделения */}
-        {!hasSelection && scope === 'selection' && (
-          <div className="scope-hint-inline">
-            <InfoIcon />
-            <span>Выберите слои</span>
-          </div>
+        {/* Кнопка сброса (только для режимов заполнения) */}
+        {!isBuildMode && (
+          <button
+            type="button"
+            className="btn-icon-sm"
+            onClick={onResetNow}
+            disabled={!canReset}
+            title="Сбросить все сниппеты к исходному состоянию"
+            aria-label="Сбросить сейчас"
+          >
+            <ClearIcon size={14} />
+          </button>
         )}
       </div>
+
+      {/* Toggle сброса (только для режимов заполнения) */}
+      {!isBuildMode && (
+        <div className="scope-row">
+          <Toggle
+            checked={resetBeforeImport}
+            onChange={onResetBeforeImportChange}
+            disabled={isDisabled}
+            label="Сбросить перед импортом"
+          />
+          
+          {/* Подсказка при отсутствии выделения */}
+          {!hasSelection && mode === 'selection' && (
+            <div className="scope-hint-inline">
+              <InfoIcon />
+              <span>Выберите слои</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Подсказка для режима build */}
+      {isBuildMode && (
+        <div className="scope-row">
+          <div className="scope-hint-inline scope-hint-inline--info">
+            <InfoIcon />
+            <span>Будет создан новый фрейм с Auto Layout</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 });

@@ -40,7 +40,8 @@ export {
   handleESnippetOrganicHostFromFavicon,
   handleShopInfoUgcAndEReviewsShopText,
   handleOfficialShop,
-  handleEOfferItem
+  handleEOfferItem,
+  handleEProductSnippet
 } from './handlers/snippet-handlers';
 
 // Re-export from delivery-handlers

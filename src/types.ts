@@ -67,8 +67,18 @@ export interface SheetData {
   error?: string;
 }
 
+/**
+ * Режим работы плагина (объединяет scope и mode)
+ * - 'selection': заполнить выделенные компоненты
+ * - 'page': заполнить все компоненты на странице
+ * - 'build': создать новый фрейм из HTML
+ */
+export type PluginMode = 'selection' | 'page' | 'build';
+
 export interface UserSettings {
+  /** @deprecated используй mode */
   scope?: 'selection' | 'page';
+  mode?: PluginMode;
   remoteConfigUrl?: string;
   resetBeforeImport?: boolean;
 }
@@ -111,6 +121,10 @@ export type UIMessage =
   // === IMPORT ===
   | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string; resetBeforeImport?: boolean }
   | { type: 'cancel-import' }  // Cancel current import operation
+  // === BUILD PAGE ===
+  | { type: 'build-page'; rows: CSVRow[]; html: string }  // Create new page from HTML structure
+  // === BROWSER RELAY ===
+  | { type: 'apply-relay-payload'; payload: RelayPayload }  // Apply data from browser extension via relay
   // === RESET ===
   | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
   // === LIFECYCLE ===
@@ -136,7 +150,9 @@ export type UIMessage =
   | { type: 'mark-whats-new-seen'; version: string }
   // === LOGGING ===
   | { type: 'set-log-level'; level: number }  // 0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG
-  | { type: 'get-log-level' };  // Response: 'log-level-loaded'
+  | { type: 'get-log-level' }  // Response: 'log-level-loaded'
+  // === UI RESIZE ===
+  | { type: 'resize-ui'; width: number; height: number };  // Resize plugin window
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
@@ -161,6 +177,10 @@ export type CodeMessage =
   | { type: 'stats'; stats: ProcessingStats }
   | { type: 'done'; count: number }
   | { type: 'import-cancelled' }  // Response to cancel-import
+  // === BUILD PAGE ===
+  | { type: 'build-page-done'; count: number; frameName: string }  // Response to build-page
+  // === BROWSER RELAY ===
+  | { type: 'relay-payload-applied'; success: boolean; itemCount?: number; frameName?: string; error?: string }  // Response to apply-relay-payload
   // === RESET ===
   | { type: 'reset-done'; count: number }  // Response to reset-snippets
   // === SETTINGS ===
@@ -177,10 +197,60 @@ export type CodeMessage =
 /** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;
 
-// [REFACTOR-CHECKPOINT-1] Tab-based UI types
-export type TabType = 'import' | 'logs';
+/** Payload format from browser extension via relay server */
+export interface RelayPayload {
+  schemaVersion: number;
+  source: {
+    url: string;
+    title: string;
+  };
+  capturedAt: string;
+  items: Array<{
+    title?: string;
+    priceText?: string;
+    imageUrl?: string;
+    href?: string;
+  }>;
+  _isMockData?: boolean;
+}
 
-export type UIState = 'idle' | 'loading';
+// ============================================================================
+// UI STATE TYPES
+// ============================================================================
+
+/**
+ * Состояния интерфейса плагина:
+ * - 'checking': проверка подключения к relay
+ * - 'ready': relay подключён, ожидание данных
+ * - 'confirming': показываем диалог подтверждения импорта
+ * - 'processing': обработка данных
+ * - 'setup': relay не подключён, показываем инструкцию
+ * - 'fileDrop': показываем fallback для загрузки файлов
+ */
+export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success' | 'setup' | 'fileDrop';
+
+/**
+ * Размеры окна плагина для разных состояний
+ */
+export const UI_SIZES = {
+  checking: { width: 320, height: 56 },
+  ready: { width: 400, height: 320 },
+  confirming: { width: 340, height: 340 },
+  processing: { width: 340, height: 300 },
+  success: { width: 340, height: 320 },
+  setup: { width: 480, height: 420 },
+  fileDrop: { width: 320, height: 280 }
+} as const;
+
+/**
+ * Информация о текущем запросе/импорте
+ */
+export interface ImportInfo {
+  query: string;
+  itemCount: number;
+  source?: string;
+  stage?: string;
+}
 
 // ============================================================================
 // HANDLER CONTEXT

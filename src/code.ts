@@ -12,6 +12,7 @@ import { PLUGIN_VERSION } from './config';
 import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from './parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
+import { createSerpPage, detectPlatformFromHtml } from './page-builder';
 
 console.log('🚀 Плагин EProductSnippet загружен');
 
@@ -46,7 +47,8 @@ async function checkRulesUpdates(): Promise<void> {
 // Инициализация плагина
 (async function initPlugin() {
   try {
-    figma.showUI(__html__, { width: 320, height: 380 });
+    // Initial size matches 'checking' state
+    figma.showUI(__html__, { width: 320, height: 56 });
     
     // Отправляем начальное состояние выделения
     figma.ui.postMessage({
@@ -99,6 +101,200 @@ figma.ui.onmessage = async (msg) => {
       Logger.info('⛔ Получена команда отмены импорта');
       isImportCancelled = true;
       figma.ui.postMessage({ type: 'import-cancelled' });
+      return;
+    }
+    
+    // === Resize UI ===
+    if (msg.type === 'resize-ui') {
+      const { width, height } = msg;
+      if (typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0) {
+        figma.ui.resize(width, height);
+      }
+      return;
+    }
+    
+    // === Apply Relay Payload (from Browser Extension) ===
+    if (msg.type === 'apply-relay-payload') {
+      const payload = msg.payload as {
+        schemaVersion: number;
+        source: { url: string; title: string };
+        capturedAt: string;
+        items: Array<{ title?: string; priceText?: string; imageUrl?: string; href?: string; _rawCSVRow?: CSVRow }>;
+        rawRows?: CSVRow[];
+        _isMockData?: boolean;
+      };
+      
+      Logger.info(`📦 Получен payload от браузерного расширения`);
+      Logger.info(`   Источник: ${payload.source?.url || 'unknown'}`);
+      Logger.info(`   Элементов: ${payload.items?.length || 0}`);
+      
+      if (payload._isMockData) {
+        Logger.info('   ⚠️ Это тестовые данные (mock)');
+      }
+      
+      try {
+        // Получаем CSVRow данные — приоритет rawRows, иначе извлекаем из items._rawCSVRow
+        let rows: CSVRow[] = [];
+        
+        if (payload.rawRows && payload.rawRows.length > 0) {
+          rows = payload.rawRows;
+          Logger.info(`   Используем rawRows: ${rows.length} CSVRow`);
+        } else if (payload.items && payload.items.length > 0) {
+          // Извлекаем из _rawCSVRow каждого item
+          rows = payload.items
+            .map(item => item._rawCSVRow)
+            .filter((row): row is CSVRow => row !== undefined && row !== null);
+          
+          if (rows.length > 0) {
+            Logger.info(`   Извлечено из items._rawCSVRow: ${rows.length} CSVRow`);
+          } else {
+            // Fallback: конвертируем items в базовый CSVRow формат
+            Logger.info('   Конвертируем items в CSVRow формат');
+            rows = payload.items.map(item => ({
+              '#SnippetType': 'Organic',
+              '#OrganicTitle': item.title || '',
+              '#OrganicPrice': (item.priceText || '').replace(/[^\d]/g, ''),
+              '#Currency': '₽',
+              '#ProductURL': item.href || '',
+              '#OrganicImage': item.imageUrl || '',
+              '#ShopName': '',
+              '#OrganicHost': ''
+            } as CSVRow));
+          }
+        }
+        
+        if (rows.length === 0) {
+          throw new Error('Нет данных для импорта');
+        }
+        
+        // Извлекаем поисковый запрос из первой строки или URL
+        let query = rows[0]?.['#query'] || '';
+        if (!query && payload.source?.url) {
+          try {
+            const urlParams = new URL(payload.source.url).searchParams;
+            query = urlParams.get('text') || urlParams.get('q') || '';
+          } catch (e) {}
+        }
+        
+        Logger.info(`🏗️ Создаём SERP страницу: ${rows.length} сниппетов, query="${query}"`);
+        
+        // Отправляем progress: начало
+        figma.ui.postMessage({ 
+          type: 'progress', 
+          current: 10, 
+          total: 100, 
+          message: 'Импорт компонентов...', 
+          operationType: 'relay-import' 
+        });
+        
+        // Создаём SERP страницу из библиотечных компонентов
+        const result = await createSerpPage(rows, {
+          query: query || undefined,
+          platform: 'desktop',
+          contentLeftWidth: 792,
+          contentGap: 0,
+          leftPadding: 100
+        });
+        
+        // Отправляем progress: завершение
+        figma.ui.postMessage({ 
+          type: 'progress', 
+          current: 100, 
+          total: 100, 
+          message: 'Готово!', 
+          operationType: 'relay-import' 
+        });
+        
+        if (result.success && result.frame) {
+          // Выделяем и фокусируемся на созданном фрейме
+          figma.currentPage.selection = [result.frame];
+          figma.viewport.scrollAndZoomIntoView([result.frame]);
+          
+          const count = result.createdCount || rows.length;
+          figma.notify(`✅ Создано ${count} сниппетов из браузера`);
+          
+          figma.ui.postMessage({
+            type: 'relay-payload-applied',
+            success: true,
+            itemCount: count,
+            frameName: result.frame.name
+          });
+          
+          Logger.info(`✅ Создан SERP фрейм "${result.frame.name}" с ${count} сниппетами`);
+        } else {
+          const errorMsg = result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
+          throw new Error(errorMsg);
+        }
+        
+      } catch (error) {
+        Logger.error('❌ Ошибка применения relay payload:', error);
+        figma.ui.postMessage({
+          type: 'relay-payload-applied',
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        figma.notify('❌ Ошибка импорта из браузера');
+      }
+      
+      return;
+    }
+    
+    // === Build Page (Create SERP from HTML) ===
+    if (msg.type === 'build-page') {
+      const rows = (msg.rows || []) as CSVRow[];
+      const query = msg.query as string | undefined;
+      const htmlContent = (msg.html || '') as string;
+      
+      // Автоопределение платформы из HTML
+      const platform = detectPlatformFromHtml(htmlContent);
+      
+      Logger.info(`🏗️ Начинаем создание SERP страницы из ${rows.length} элементов (platform=${platform})`);
+      
+      try {
+        const result = await createSerpPage(rows, {
+          query,
+          platform,
+          contentLeftWidth: platform === 'desktop' ? 792 : undefined,
+          contentGap: 0,
+          leftPadding: platform === 'desktop' ? 100 : 0,
+        });
+        
+        if (result.success) {
+          Logger.info(`✅ Создано ${result.createdCount} элементов`);
+          
+          // Отправляем статистику
+          figma.ui.postMessage({
+            type: 'stats',
+            stats: {
+              processedInstances: result.createdCount,
+              totalInstances: result.createdCount,
+              successfulImages: 0,
+              skippedImages: 0,
+              failedImages: result.errors.length,
+              errors: result.errors.map((err, i) => ({
+                id: `build-${i}`,
+                type: 'other' as const,
+                message: err
+              }))
+            }
+          });
+          
+          figma.ui.postMessage({
+            type: 'build-page-done',
+            count: result.createdCount,
+            frameName: result.frame?.name || 'SERP Page'
+          });
+        } else {
+          throw new Error(result.errors.join(', '));
+        }
+      } catch (error) {
+        Logger.error('❌ Ошибка создания страницы:', error);
+        figma.ui.postMessage({
+          type: 'error',
+          message: `Ошибка создания страницы: ${error instanceof Error ? error.message : String(error)}`
+        });
+      }
+      
       return;
     }
     

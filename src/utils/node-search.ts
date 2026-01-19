@@ -100,6 +100,14 @@ export function findFirstTextByPredicate(node: BaseNode, predicate: (t: TextNode
 }
 
 /**
+ * Поиск первого TEXT узла (рекурсивно)
+ * Полезно для кнопок где текст не exposed как property
+ */
+export function findTextNode(node: BaseNode): TextNode | null {
+  return findFirstTextByPredicate(node, () => true);
+}
+
+/**
  * Поиск группы (GROUP или FRAME) по имени
  */
 export function findGroupByName(node: BaseNode, name: string): GroupNode | FrameNode | null {

@@ -151,10 +151,35 @@ async function applySingleImage(container: SceneNode, row: CSVRow): Promise<void
 }
 
 /**
+ * Находит все слои с fills внутри контейнера (для изображений)
+ */
+function findAllFillableLayers(node: SceneNode): SceneNode[] {
+  const result: SceneNode[] = [];
+  
+  if ('fills' in node && node.type !== 'TEXT') {
+    result.push(node);
+  }
+  
+  if ('children' in node) {
+    for (const child of (node as FrameNode | GroupNode).children) {
+      result.push(...findAllFillableLayers(child));
+    }
+  }
+  
+  return result;
+}
+
+/**
  * Применяет изображения к слоям #Image1, #Image2, #Image3 внутри EThumbGroup
  * Вызывается ПОСЛЕ переключения imageType на EThumbGroup
  * 
  * FALLBACK: если #Image1 пустой но есть #OrganicImage — используем его
+ * 
+ * Поиск слоёв:
+ * 1. Сначала ищем слои с точными именами #Image1, #Image2, #Image3
+ * 2. Если не найдены, ищем слои EThumbGroup-Main, EThumbGroup-Item_topRight, EThumbGroup-Item_bottomRight
+ * 3. Если не найдены, ищем по именам Image Ratio, EThumb-Image
+ * 4. Fallback: находим все fillable слои и применяем по порядку
  */
 async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise<void> {
   // FALLBACK: Если #Image1 пустой, используем #OrganicImage
@@ -162,26 +187,83 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
   const image2 = row['#Image2'] || '';
   const image3 = row['#Image3'] || '';
   
-  const imageUrls: Record<string, string> = {
-    '#Image1': image1,
-    '#Image2': image2,
-    '#Image3': image3
-  };
+  const imageUrls = [image1, image2, image3];
   
-  Logger.debug(`🖼️ [applyThumbGroupImages] Начало для "${container.name}", URL: Image1="${image1}", Image2="${image2}", Image3="${image3}"`);
+  Logger.debug(`🖼️ [applyThumbGroupImages] Начало для "${container.name}", URL: Image1="${image1.substring(0, 50)}...", Image2="${image2.substring(0, 50)}...", Image3="${image3.substring(0, 50)}..."`);
   
-  // Параллельная загрузка изображений для ускорения
-  const loadPromises = Object.entries(imageUrls).map(async ([fieldName, url]) => {
+  // Стратегия 1: Ищем слои по точным именам
+  const exactNames = [
+    ['#Image1', 'Image1', 'EThumbGroup-Main'],
+    ['#Image2', 'Image2', 'EThumbGroup-Item_topRight'],
+    ['#Image3', 'Image3', 'EThumbGroup-Item_bottomRight']
+  ];
+  
+  const foundLayers: (SceneNode | null)[] = [null, null, null];
+  
+  for (let i = 0; i < 3; i++) {
+    for (const name of exactNames[i]) {
+      const layer = findLayerDeep(container, name);
+      if (layer && 'fills' in layer) {
+        foundLayers[i] = layer;
+        Logger.debug(`🖼️ [applyThumbGroupImages] Найден слой для Image${i + 1}: "${layer.name}"`);
+        break;
+      }
+    }
+  }
+  
+  // Стратегия 2: Ищем по общим именам изображений
+  if (!foundLayers[0]) {
+    const generalNames = ['Image Ratio', 'EThumb-Image', '#OrganicImage', '#ThumbImage'];
+    for (const name of generalNames) {
+      const layer = findLayerDeep(container, name);
+      if (layer && 'fills' in layer) {
+        foundLayers[0] = layer;
+        Logger.debug(`🖼️ [applyThumbGroupImages] Fallback: найден слой "${layer.name}" для Image1`);
+        break;
+      }
+    }
+  }
+  
+  // Стратегия 3: Ищем все fillable слои с соответствующими размерами
+  if (!foundLayers[0] && !foundLayers[1] && !foundLayers[2]) {
+    Logger.debug(`🖼️ [applyThumbGroupImages] Поиск всех fillable слоёв...`);
+    const allFillables = findAllFillableLayers(container);
+    
+    // Фильтруем только те, что похожи на слоты изображений (не слишком маленькие)
+    const imageLayers = allFillables.filter(l => {
+      if (!('width' in l)) return false;
+      const w = (l as SceneNode & { width: number }).width;
+      const h = (l as SceneNode & { height: number }).height;
+      return w > 30 && h > 30; // Минимальный размер для изображения
+    });
+    
+    Logger.debug(`🖼️ [applyThumbGroupImages] Найдено ${imageLayers.length} потенциальных слоёв`);
+    
+    // Сортируем по размеру (самый большой = главное изображение)
+    imageLayers.sort((a, b) => {
+      const areaA = ('width' in a ? (a as any).width : 0) * ('height' in a ? (a as any).height : 0);
+      const areaB = ('width' in b ? (b as any).width : 0) * ('height' in b ? (b as any).height : 0);
+      return areaB - areaA;
+    });
+    
+    for (let i = 0; i < Math.min(3, imageLayers.length); i++) {
+      foundLayers[i] = imageLayers[i];
+      Logger.debug(`🖼️ [applyThumbGroupImages] Автоподбор: слой "${imageLayers[i].name}" для Image${i + 1}`);
+    }
+  }
+  
+  // Параллельная загрузка изображений
+  const loadPromises = foundLayers.map(async (layer, i) => {
+    const url = imageUrls[i];
+    const fieldName = `Image${i + 1}`;
+    
     if (!url || url.trim() === '') {
       Logger.debug(`⚠️ [applyThumbGroupImages] ${fieldName} — URL пустой, пропуск`);
       return;
     }
     
-    // Рекурсивный поиск во вложенных instances
-    const layer = findLayerDeep(container, fieldName);
-    
     if (!layer) {
-      Logger.debug(`⚠️ [applyThumbGroupImages] Слой "${fieldName}" не найден в "${container.name}"`);
+      Logger.debug(`⚠️ [applyThumbGroupImages] ${fieldName} — слой не найден, пропуск`);
       return;
     }
     
@@ -227,7 +309,7 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
           imageHash: imageHash
         };
         (layer as GeometryMixin).fills = [imagePaint];
-        Logger.debug(`✅ [applyThumbGroupImages] ${fieldName} применён`);
+        Logger.debug(`✅ [applyThumbGroupImages] ${fieldName} применён к "${layer.name}"`);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -582,7 +664,7 @@ export async function handleEOfferItem(context: HandlerContext): Promise<void> {
  * priceDisclaimer, withMeta, favoriteBtn
  */
 export async function handleEShopItem(context: HandlerContext): Promise<void> {
-  const { container, row } = context;
+  const { container, row, instanceCache } = context;
   if (!container || !row) return;
   
   const containerName = (container && 'name' in container) ? String(container.name) : '';
@@ -657,7 +739,36 @@ export async function handleEShopItem(context: HandlerContext): Promise<void> {
     const hasFavoriteBtn = row['#FavoriteBtn'] === 'true';
     trySetProperty(instance, ['favoriteBtn', 'Favorite Btn', '[EXP] Favotite Btn'], hasFavoriteBtn, '#FavoriteBtn');
     
+    // --- ТЕКСТОВЫЕ СВОЙСТВА ---
+    
+    // organicTitle (string) — название товара
+    const organicTitle = (row['#OrganicTitle'] || '').trim();
+    if (organicTitle) {
+      trySetProperty(instance, ['organicTitle'], organicTitle, '#OrganicTitle');
+    }
+    
+    // organicText (string) — описание/текст сниппета
+    const organicText = (row['#OrganicText'] || '').trim();
+    if (organicText) {
+      trySetProperty(instance, ['organicText'], organicText, '#OrganicText');
+    }
+    
+    // --- ВЛОЖЕННЫЕ КОМПОНЕНТЫ ---
+    
+    // EShopName.name (string) — название магазина
+    const shopName = (row['#ShopName'] || '').trim();
+    if (shopName && instanceCache) {
+      const shopNameInstance = getCachedInstance(instanceCache, 'EShopName');
+      if (shopNameInstance) {
+        trySetProperty(shopNameInstance, ['name'], shopName, '#ShopName');
+        Logger.debug(`   🏪 [EShopItem] ShopName: "${shopName}"`);
+      } else {
+        Logger.debug(`   ⚠️ [EShopItem] EShopName не найден для установки name`);
+      }
+    }
+    
     Logger.debug(`   📦 [EShopItem] Пропсы: brand=${hasBrand}, withButton=${hasButton}, withReviews=${hasReviews}, withDelivery=${hasDelivery}, withFintech=${hasFintech}, priceDisclaimer=${hasPriceDisclaimer}, withMeta=${hasMeta}, favoriteBtn=${hasFavoriteBtn}`);
+    Logger.debug(`   📝 [EShopItem] Тексты: title="${organicTitle?.substring(0, 30)}...", text="${organicText?.substring(0, 30)}...", shop="${shopName}"`);
   }
 }
 
@@ -683,12 +794,18 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
     const propNames = Object.keys(props);
     Logger.debug(`   📋 [ESnippet] Доступные свойства (${propNames.length}): ${propNames.join(', ')}`);
     
+    // withThumb (boolean) — показать картинку сниппета
+    const hasThumb = row['#withThumb'] === 'true';
+    trySetProperty(instance, ['withThumb'], hasThumb, '#withThumb');
+    Logger.debug(`   🖼️ [ESnippet] withThumb=${hasThumb}`);
+
     // withReviews (boolean) — показать рейтинг и отзывы
     const hasReviews = !!(row['#ProductRating'] || row['#ShopInfo-Ugc'] || '').trim();
     trySetProperty(instance, ['withReviews'], hasReviews, '#withReviews');
     
     // withQuotes (boolean) — показать цитату из отзыва
-    const hasQuotes = !!(row['#QuoteText'] || row['#EQuote-Text'] || '').trim();
+    // Читаем из row['#withQuotes'] (установлен парсером) или проверяем наличие текста цитаты
+    const hasQuotes = row['#withQuotes'] === 'true' || !!(row['#QuoteText'] || row['#EQuote-Text'] || '').trim();
     trySetProperty(instance, ['withQuotes'], hasQuotes, '#withQuotes');
     
     // withDelivery (boolean) — показать доставку
@@ -801,7 +918,110 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
       trySetProperty(instance, ['organicHost'], organicHost, '#OrganicHost');
     }
     
-    Logger.debug(`   📦 [ESnippet] Пропсы: withReviews=${hasReviews}, withQuotes=${hasQuotes}, withDelivery=${hasDelivery}, withFintech=${hasFintech}, withAddress=${hasAddress}, withButton=${hasButton}, withMeta=${hasMeta}, withPrice=${hasPrice}`);
+    // --- САЙТЛИНКИ (для промо-сниппетов) ---
+    if (hasSitelinks) {
+      // Ищем контейнер сайтлинков
+      const sitelinksContainer = findFirstNodeByName(instance, 'Sitelinks') ||
+                                 findFirstNodeByName(instance, 'Block / Snippet-staff / Sitelinks');
+      if (sitelinksContainer) {
+        // Собираем все тексты сайтлинков из row
+        const sitelinkTexts: string[] = [];
+        for (let i = 1; i <= 4; i++) {
+          const text = (row[`#Sitelink_${i}`] || '').trim();
+          if (text) sitelinkTexts.push(text);
+        }
+        
+        if (sitelinkTexts.length > 0) {
+          // Способ 1: Ищем именованные слои #Sitelink_N или Sitelink_N
+          let filledCount = 0;
+          for (let i = 1; i <= sitelinkTexts.length; i++) {
+            const sitelinkLayer = findTextLayerByName(sitelinksContainer, `#Sitelink_${i}`) ||
+                                  findTextLayerByName(sitelinksContainer, `Sitelink_${i}`);
+            if (sitelinkLayer) {
+              await safeSetTextNode(sitelinkLayer, sitelinkTexts[i - 1]);
+              Logger.debug(`   🔗 [ESnippet] Sitelink_${i}: "${sitelinkTexts[i - 1]}"`);
+              filledCount++;
+            }
+          }
+          
+          // Способ 2: Если именованные слои не найдены — ищем Sitelinks-Item
+          if (filledCount === 0) {
+            // Ищем все Sitelinks-Item внутри контейнера
+            const sitelinkItems: SceneNode[] = [];
+            if ('findAll' in sitelinksContainer) {
+              const found = (sitelinksContainer as FrameNode).findAll(n => 
+                n.name === 'Sitelinks-Item' || n.name.includes('Sitelinks-Item')
+              );
+              sitelinkItems.push(...found);
+            }
+            
+            if (sitelinkItems.length > 0) {
+              Logger.debug(`   🔗 [ESnippet] Найдено ${sitelinkItems.length} Sitelinks-Item`);
+              
+              for (let i = 0; i < Math.min(sitelinkItems.length, sitelinkTexts.length); i++) {
+                const item = sitelinkItems[i];
+                // Ищем текстовый слой внутри Sitelinks-Item
+                const textNode = findFirstTextByPredicate(item, () => true);
+                if (textNode) {
+                  await safeSetTextNode(textNode, sitelinkTexts[i]);
+                  Logger.debug(`   🔗 [ESnippet] Sitelinks-Item[${i}]: "${sitelinkTexts[i]}"`);
+                  filledCount++;
+                }
+              }
+            }
+          }
+          
+          // Способ 3: Fallback — ищем все текстовые слои Sitelinks-Title
+          if (filledCount === 0) {
+            const titleNodes: TextNode[] = [];
+            if ('findAll' in sitelinksContainer) {
+              const found = (sitelinksContainer as FrameNode).findAll(n => 
+                n.type === 'TEXT' && (n.name === 'Sitelinks-Title' || n.name.includes('Title'))
+              ) as TextNode[];
+              titleNodes.push(...found);
+            }
+            
+            if (titleNodes.length > 0) {
+              Logger.debug(`   🔗 [ESnippet] Найдено ${titleNodes.length} Sitelinks-Title`);
+              
+              for (let i = 0; i < Math.min(titleNodes.length, sitelinkTexts.length); i++) {
+                await safeSetTextNode(titleNodes[i], sitelinkTexts[i]);
+                Logger.debug(`   🔗 [ESnippet] Sitelinks-Title[${i}]: "${sitelinkTexts[i]}"`);
+              }
+            }
+          }
+        }
+      } else {
+        Logger.debug(`   ⚠️ [ESnippet] Контейнер Sitelinks не найден`);
+      }
+    }
+    
+    // --- ПРОМО-БЛОК (для промо-сниппетов) ---
+    if (hasPromo) {
+      const promoText = (row['#Promo'] || '').trim();
+      if (promoText) {
+        // Ищем текстовый слой для промо-текста
+        const promoLayer = findTextLayerByName(instance, '#Promo') ||
+                          findTextLayerByName(instance, 'InfoSection-Text') ||
+                          findTextLayerByName(instance, 'PromoText');
+        if (promoLayer) {
+          await safeSetTextNode(promoLayer, promoText);
+          Logger.debug(`   🎁 [ESnippet] Promo: "${promoText.substring(0, 40)}..."`);
+        }
+        
+        // Также пробуем установить через property
+        trySetProperty(instance, ['promoText', 'promo'], promoText, '#Promo');
+      }
+    }
+    
+    // --- isPromo (boolean) — промо-сниппет ---
+    const isPromo = row['#isPromo'] === 'true';
+    if (isPromo) {
+      trySetProperty(instance, ['isPromo', 'promo', 'isAdv'], true, '#isPromo');
+      Logger.debug(`   🎯 [ESnippet] isPromo=true (промо-сниппет)`);
+    }
+    
+    Logger.debug(`   📦 [ESnippet] Пропсы: withReviews=${hasReviews}, withQuotes=${hasQuotes}, withDelivery=${hasDelivery}, withFintech=${hasFintech}, withAddress=${hasAddress}, withSitelinks=${hasSitelinks}, withPromo=${hasPromo}, withButton=${hasButton}, withMeta=${hasMeta}, withPrice=${hasPrice}`);
     Logger.debug(`   📝 [ESnippet] Тексты: title=${organicTitle?.substring(0, 30)}..., host=${organicHost}`);
   }
 }
@@ -815,6 +1035,173 @@ export async function handleRatingReviewQuoteVisibility(context: HandlerContext)
   // Visibility теперь через withReviews/withQuotes на сниппете — ничего не делаем
   // Логика перенесена в handleESnippetProps, handleEShopItem, handleEOfferItem
   Logger.debug(`   📊 [RatingReviewQuote] Visibility через withReviews/withQuotes`);
+}
+
+/**
+ * Обработка #QuoteText — заполнение текстового слоя с цитатой из отзыва
+ * Ищет слой #QuoteText, #EQuote-Text или EQuote-Text внутри контейнера
+ */
+export async function handleQuoteText(context: HandlerContext): Promise<void> {
+  const { container, row } = context;
+  if (!container || !row) return;
+
+  const quoteText = (row['#QuoteText'] || row['#EQuote-Text'] || '').trim();
+  
+  // Применяем текст цитаты, если он есть
+  if (quoteText) {
+    // Ищем текстовый слой для цитаты
+    const quoteLayerNames = ['#QuoteText', '#EQuote-Text', 'EQuote-Text', 'Quote'];
+    let textApplied = false;
+    for (const name of quoteLayerNames) {
+      const layer = findTextLayerByName(container, name);
+      if (layer) {
+        await safeSetTextNode(layer, quoteText);
+        Logger.debug(`   💬 [QuoteText] Установлена цитата: "${quoteText.substring(0, 40)}..."`);
+        textApplied = true;
+        break;
+      }
+    }
+
+    // Fallback: ищем через findFirstNodeByName
+    if (!textApplied) {
+      const quoteContainer = findFirstNodeByName(container, 'EQuote') ||
+                             findFirstNodeByName(container, 'OrganicUgcReviews-QuoteWrapper');
+      if (quoteContainer) {
+        const textNode = findFirstTextByPredicate(quoteContainer, (t) => {
+          const s = (t.characters || '').trim();
+          // Ищем текст похожий на цитату (с кавычками или «)
+          return s.includes('«') || s.includes('»') || s.includes('"') || s.length > 10;
+        });
+        if (textNode) {
+          await safeSetTextNode(textNode, quoteText);
+          Logger.debug(`   💬 [QuoteText] Fallback: цитата через EQuote: "${quoteText.substring(0, 40)}..."`);
+        }
+      }
+    }
+  }
+
+  // Применяем аватар автора цитаты
+  const avatarUrl = (row['#EQuote-AuthorAvatar'] || row['#QuoteImage'] || '').trim();
+  if (avatarUrl) {
+    await applyQuoteAuthorAvatar(container, avatarUrl);
+  }
+}
+
+/**
+ * Применяет аватар автора цитаты к слою #EQuote-AuthorAvatar
+ */
+async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): Promise<void> {
+  if (!('type' in container) || container.type === 'DOCUMENT' || container.type === 'PAGE') {
+    return;
+  }
+  
+  const sceneContainer = container as SceneNode;
+  
+  // Ищем слой для аватара
+  const layerNames = ['#EQuote-AuthorAvatar', 'EQuote-AuthorAvatar', '#QuoteImage', 'EQuote-AvatarWrapper'];
+  let layer: SceneNode | null = null;
+  
+  for (const name of layerNames) {
+    layer = findLayerDeep(sceneContainer, name);
+    if (layer && 'fills' in layer) {
+      break;
+    }
+    layer = null;
+  }
+  
+  if (!layer) {
+    // Fallback: ищем внутри EQuote или OrganicUgcReviews-QuoteWrapper
+    const quoteWrapper = findLayerDeep(sceneContainer, 'EQuote') ||
+                         findLayerDeep(sceneContainer, 'OrganicUgcReviews-QuoteWrapper');
+    if (quoteWrapper) {
+      // Ищем любой небольшой квадратный/круглый слой (аватар обычно маленький)
+      const avatarCandidates = ['Avatar', 'Image', 'Photo'];
+      for (const name of avatarCandidates) {
+        layer = findLayerDeep(quoteWrapper, name);
+        if (layer && 'fills' in layer) break;
+        layer = null;
+      }
+    }
+  }
+  
+  if (!layer || !('fills' in layer)) {
+    Logger.debug(`   👤 [QuoteAvatar] Слой не найден`);
+    return;
+  }
+  
+  Logger.debug(`   👤 [QuoteAvatar] Найден слой: "${layer.name}"`);
+  
+  try {
+    let normalizedUrl = avatarUrl;
+    if (avatarUrl.startsWith('//')) {
+      normalizedUrl = `https:${avatarUrl}`;
+    }
+    
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      Logger.debug(`   👤 [QuoteAvatar] ❌ URL без http(s)`);
+      return;
+    }
+    
+    const response = await fetch(normalizedUrl);
+    if (!response.ok) {
+      Logger.debug(`   👤 [QuoteAvatar] ❌ Ошибка загрузки: ${response.status}`);
+      return;
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const imageHash = figma.createImage(uint8Array).hash;
+    
+    const imagePaint: ImagePaint = {
+      type: 'IMAGE',
+      scaleMode: 'FILL', // FILL для аватарок (чтобы заполнить круг)
+      imageHash: imageHash
+    };
+    (layer as GeometryMixin).fills = [imagePaint];
+    Logger.debug(`   👤 [QuoteAvatar] ✅ Аватар применён к "${layer.name}"`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    Logger.debug(`   👤 [QuoteAvatar] ❌ Ошибка: ${msg}`);
+  }
+}
+
+/**
+ * Обработка #OrganicPath — заполнение текстового слоя с путём (после домена)
+ * Например: video-shoper.ru › Xiaomi-15T-Pro-12/51...
+ */
+export async function handleOrganicPath(context: HandlerContext): Promise<void> {
+  const { container, row } = context;
+  if (!container || !row) return;
+  
+  const organicPath = (row['#OrganicPath'] || '').trim();
+  if (!organicPath) return;
+  
+  // Ищем текстовый слой для пути
+  const pathLayerNames = ['#OrganicPath', '#organicPath', 'OrganicPath', 'Path-Suffix'];
+  for (const name of pathLayerNames) {
+    const layer = findTextLayerByName(container, name);
+    if (layer) {
+      await safeSetTextNode(layer, organicPath);
+      Logger.debug(`   🔗 [OrganicPath] Установлен путь: "${organicPath}"`);
+      return;
+    }
+  }
+  
+  // Fallback: ищем текстовый слой внутри Path блока
+  const pathBlock = findFirstNodeByName(container, 'Block / Snippet-staff / Path') ||
+                    findFirstNodeByName(container, 'Path');
+  if (pathBlock) {
+    // Ищем текст после разделителя (не домен)
+    const pathTextNode = findFirstTextByPredicate(pathBlock, (t) => {
+      const s = (t.characters || '').trim();
+      // Это НЕ домен (содержит / или длиннее 30 символов)
+      return s.includes('/') || s.length > 30;
+    });
+    if (pathTextNode) {
+      await safeSetTextNode(pathTextNode, organicPath);
+      Logger.debug(`   🔗 [OrganicPath] Fallback: путь через Path блок: "${organicPath}"`);
+    }
+  }
 }
 
 /**
@@ -1193,5 +1580,97 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
 export function handleMetaVisibility(context: HandlerContext): void {
   // Visibility теперь через withMeta на сниппете — ничего не делаем
   Logger.debug(`📦 [Meta] Visibility через withMeta на сниппете`);
+}
+
+/**
+ * Обработка EProductSnippet — карточка товара в grid (EProductSnippet2)
+ * Актуальные пропсы (2025-01): withDelivery, withButton, View, withBarometer
+ * 
+ * Данные:
+ * - #OrganicTitle → organicTitle (string property) или текстовый слой
+ * - #ShopName → EShopName.name (string property)
+ * - #EDeliveryGroup → withDelivery (boolean)
+ * - #BUTTON → withButton (boolean)
+ * - #EMarketCheckoutLabel → View variant
+ * - #EPriceBarometer_View → withBarometer (boolean)
+ */
+export async function handleEProductSnippet(context: HandlerContext): Promise<void> {
+  const { container, row, instanceCache } = context;
+  if (!container || !row) return;
+  
+  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  // EProductSnippet в Figma соответствует EProductSnippet2 в HTML
+  if (containerName !== 'EProductSnippet' && containerName !== 'EProductSnippet2') return;
+  
+  Logger.debug(`   📦 [EProductSnippet] Обработка для "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+  
+  if (container.type === 'INSTANCE' && !container.removed) {
+    const instance = container as InstanceNode;
+    
+    // Диагностика: выводим все доступные свойства компонента
+    const props = instance.componentProperties;
+    const propNames = Object.keys(props);
+    Logger.debug(`   📋 [EProductSnippet] Доступные свойства (${propNames.length}): ${propNames.slice(0, 10).join(', ')}${propNames.length > 10 ? '...' : ''}`);
+    
+    // === Boolean свойства ===
+    
+    // withDelivery (boolean) — показать доставку
+    const hasDeliveryGroup = row['#EDeliveryGroup'] === 'true';
+    const deliverySet = trySetProperty(instance, ['withDelivery', 'Delivery'], hasDeliveryGroup, '#withDelivery');
+    Logger.debug(`   📦 [EProductSnippet] withDelivery=${hasDeliveryGroup}, result=${deliverySet}`);
+    
+    // withButton (boolean) — показать кнопку
+    // EProductSnippet2: кнопка показывается если есть EMarketCheckoutLabel
+    const hasCheckout = row['#EMarketCheckoutLabel'] === 'true' || row['#BUTTON'] === 'true';
+    const buttonSet = trySetProperty(instance, ['withButton', 'Button'], hasCheckout, '#withButton');
+    Logger.debug(`   📦 [EProductSnippet] withButton=${hasCheckout}, result=${buttonSet}`);
+    
+    // ПРИМЕЧАНИЕ: withBarometer — это свойство на EPriceGroup, а не на EProductSnippet
+    // Устанавливается в handleEPriceGroup, здесь его трогать не нужно
+    
+    // === String свойства ===
+    
+    // organicTitle (string) — название товара
+    const organicTitle = (row['#OrganicTitle'] || '').trim();
+    if (organicTitle) {
+      const titleSet = trySetProperty(instance, ['organicTitle', 'title', 'Title'], organicTitle, '#OrganicTitle');
+      if (!titleSet) {
+        // Fallback: ищем текстовый слой
+        const titleLayer = findTextLayerByName(instance, '#OrganicTitle') || 
+                          findTextLayerByName(instance, 'EProductSnippet2-Title');
+        if (titleLayer) {
+          await safeSetTextNode(titleLayer, organicTitle);
+          Logger.debug(`   📝 [EProductSnippet] Title через текстовый слой: "${organicTitle.substring(0, 30)}..."`);
+        }
+      } else {
+        Logger.debug(`   📝 [EProductSnippet] organicTitle="${organicTitle.substring(0, 30)}..." result=${titleSet}`);
+      }
+    }
+    
+    // === Вложенные компоненты ===
+    
+    // EShopName.name (string) — название магазина
+    const shopName = (row['#ShopName'] || '').trim();
+    if (shopName && instanceCache) {
+      const shopNameInstance = getCachedInstance(instanceCache, 'EShopName');
+      if (shopNameInstance) {
+        const nameSet = trySetProperty(shopNameInstance, ['name'], shopName, '#ShopName');
+        Logger.debug(`   🏪 [EProductSnippet] ShopName: "${shopName}", result=${nameSet}`);
+      } else {
+        // Fallback: ищем текстовый слой
+        const shopLayer = findTextLayerByName(instance, '#ShopName') ||
+                         findFirstNodeByName(instance, 'EShopName');
+        if (shopLayer) {
+          const textNode = findFirstTextByPredicate(shopLayer, () => true);
+          if (textNode) {
+            await safeSetTextNode(textNode, shopName);
+            Logger.debug(`   🏪 [EProductSnippet] ShopName через текстовый слой: "${shopName}"`);
+          }
+        }
+      }
+    }
+    
+    Logger.debug(`   📦 [EProductSnippet] Пропсы: withDelivery=${hasDeliveryGroup}, withButton=${hasCheckout}, title="${organicTitle?.substring(0, 20)}...", shop="${shopName}"`);
+  }
 }
 

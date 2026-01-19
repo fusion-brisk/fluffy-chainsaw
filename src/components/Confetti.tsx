@@ -69,7 +69,8 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onCompl
     updateSize();
 
     const colors = type === 'success' ? SUCCESS_COLORS : ERROR_COLORS;
-    const particleCount = type === 'success' ? 150 : 80;
+    // Reduced particle count for subtle effect
+    const particleCount = type === 'success' ? 50 : 30;
 
     // Создаём частицы с 3D-эффектом
     const createParticles = () => {
@@ -79,18 +80,18 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onCompl
 
       for (let i = 0; i < particleCount; i++) {
         const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-        const velocity = 8 + Math.random() * 12;
+        const velocity = 4 + Math.random() * 6; // Reduced velocity
         const shapes: ('rect' | 'circle' | 'star')[] = ['rect', 'circle', 'star'];
 
         particles.push({
           x: centerX,
           y: centerY,
           vx: Math.cos(angle) * velocity * (0.5 + Math.random()),
-          vy: Math.sin(angle) * velocity * (0.5 + Math.random()) - 5,
+          vy: Math.sin(angle) * velocity * (0.5 + Math.random()) - 3,
           rotation: Math.random() * 360,
-          rotationSpeed: (Math.random() - 0.5) * 15,
+          rotationSpeed: (Math.random() - 0.5) * 10,
           color: colors[Math.floor(Math.random() * colors.length)],
-          size: 6 + Math.random() * 10,
+          size: 4 + Math.random() * 6, // Smaller particles
           shape: shapes[Math.floor(Math.random() * shapes.length)],
           opacity: 1,
           life: 1,
@@ -101,7 +102,8 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onCompl
 
     particlesRef.current = createParticles();
     const startTime = Date.now();
-    const duration = type === 'success' ? 3000 : 2000;
+    // Shorter duration for quicker fade
+    const duration = type === 'success' ? 1500 : 1000;
 
     // Анимация
     const animate = () => {

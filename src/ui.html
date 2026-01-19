@@ -20,20 +20,37 @@
       cursor: default;
       user-select: none;
     }
+    /* Initial splash mimics checking-view */
     #loading-splash { 
       display: flex; 
       align-items: center; 
-      justify-content: center; 
-      height: 100vh; 
+      justify-content: center;
+      gap: 10px;
+      height: 56px;
+      padding: 8px 20px;
       font-size: 11px; 
       color: var(--figma-color-text-secondary, #888); 
+    }
+    #loading-splash .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(128, 128, 128, 0.2);
+      border-top-color: var(--figma-color-text-secondary, #888);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
   <div id="react-page">
-    <!-- Содержимое, видимое до инициализации React -->
-    <div id="loading-splash">Загрузка EProductSnippet…</div>
+    <!-- Initial splash matches checking-view layout -->
+    <div id="loading-splash">
+      <div class="spinner"></div>
+      <span>Подключение...</span>
+    </div>
   </div>
   <script src="ui.js"></script>
 </body>

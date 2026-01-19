@@ -1,0 +1,22 @@
+{
+  "name": "eproductsnippet-relay-host",
+  "version": "1.0.0",
+  "description": "Native Messaging Host for EProductSnippet - runs relay server automatically (macOS)",
+  "main": "host.js",
+  "bin": "host.js",
+  "scripts": {
+    "start": "node host.js",
+    "build": "pkg . --targets node18-macos-x64,node18-macos-arm64 --out-path dist"
+  },
+  "pkg": {
+    "assets": [],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  }
+}

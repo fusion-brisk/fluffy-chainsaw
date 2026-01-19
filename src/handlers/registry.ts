@@ -74,7 +74,7 @@ function updateHandlerStats(name: string, duration: number): void {
 // Import all handlers
 import { handleBrandLogic, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel } from './label-handlers';
 import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
-import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleMetaVisibility } from './snippet-handlers';
+import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleMetaVisibility, handleEProductSnippet, handleQuoteText, handleOrganicPath } from './snippet-handlers';
 import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
 import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView, handleInfoIcon } from './price-handlers';
 
@@ -203,6 +203,13 @@ class HandlerRegistry {
       description: 'Boolean пропсы ESnippet (withReviews, withQuotes, withDelivery, withFintech, withAddress, withButton, withMeta, withPrice)'
     });
 
+    this.register('EProductSnippet', handleEProductSnippet, {
+      priority: HandlerPriority.VARIANTS,
+      mode: 'async',
+      containers: ['EProductSnippet', 'EProductSnippet2'],
+      description: 'Модификаторы карточки товара (withDelivery, withButton, organicTitle, ShopName)'
+    });
+
     this.register('RatingReviewQuoteVisibility', handleRatingReviewQuoteVisibility, {
       priority: HandlerPriority.VISIBILITY,
       mode: 'async',
@@ -254,6 +261,18 @@ class HandlerRegistry {
       priority: HandlerPriority.TEXT,
       mode: 'async',
       description: 'Адрес магазина (#addressText, #addressLink)'
+    });
+
+    this.register('QuoteText', handleQuoteText, {
+      priority: HandlerPriority.TEXT,
+      mode: 'async',
+      description: 'Цитата из отзыва (#QuoteText, #EQuote-Text)'
+    });
+
+    this.register('OrganicPath', handleOrganicPath, {
+      priority: HandlerPriority.TEXT,
+      mode: 'async',
+      description: 'Путь после домена (#OrganicPath)'
     });
 
     this.register('HidePriceBlock', handleHidePriceBlock, {

@@ -91,8 +91,75 @@ export function extractRowData(
     container.className.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
     'Organic';
   
+  // === ИЗВЛЕЧЕНИЕ #serpItemId и #containerType для группировки ===
+  // Ищем родительский <li data-cid="..."> для группировки сниппетов
+  let serpItemId = '';
+  let containerType = '';
+  let parentLi: Element | null = container;
+  
+  // Поднимаемся по DOM до <li data-cid="...">
+  while (parentLi && parentLi.tagName !== 'LI') {
+    parentLi = parentLi.parentElement;
+  }
+  
+  if (parentLi) {
+    const dataCid = parentLi.getAttribute('data-cid');
+    if (dataCid) {
+      serpItemId = dataCid;
+      Logger.debug(`🔗 [PARSE] serpItemId=${serpItemId} для "${snippetTypeValue}"`);
+    }
+  }
+  
+  // Определяем containerType по родительским элементам
+  let searchParent: Element | null = container.parentElement;
+  while (searchParent && !containerType) {
+    const className = searchParent.className || '';
+    
+    // Проверяем типы контейнеров (от более специфичных к общим)
+    if (className.includes('AdvProductGallery')) {
+      containerType = 'AdvProductGallery';
+    } else if (className.includes('ProductsTiles')) {
+      containerType = 'ProductsTiles';
+    } else if (className.includes('EShopGroup')) {
+      containerType = 'EShopGroup';
+    } else if (className.includes('EOfferGroup')) {
+      containerType = 'EOfferGroup';
+    } else if (className.includes('EntityOffers')) {
+      containerType = 'EntityOffers';
+    } else if (className.includes('ProductTileRow')) {
+      containerType = 'ProductTileRow';
+    }
+    
+    searchParent = searchParent.parentElement;
+  }
+  
+  // Fallback: определяем containerType по типу сниппета
+  if (!containerType) {
+    switch (snippetTypeValue) {
+      case 'EProductSnippet2':
+        containerType = 'ProductsTiles';
+        break;
+      case 'EShopItem':
+        containerType = 'EShopList';
+        break;
+      case 'EOfferItem':
+        containerType = 'EOfferList';
+        break;
+      case 'Organic_withOfferInfo':
+      case 'Organic':
+        containerType = 'OrganicList';
+        break;
+    }
+  }
+  
+  if (containerType) {
+    Logger.debug(`📦 [PARSE] containerType=${containerType} для "${snippetTypeValue}"`);
+  }
+  
   const row: CSVRow = {
     '#SnippetType': snippetTypeValue,
+    '#serpItemId': serpItemId,
+    '#containerType': containerType,
     '#query': '',
     '#ProductURL': '',
     '#OrganicTitle': '',
@@ -1624,16 +1691,31 @@ export function extractRowData(
 }
 
 // Дедуплицирует строки по уникальному ключу
+// ВАЖНО: EShopItem и EOfferItem — это карточки РАЗНЫХ магазинов для ОДНОГО товара,
+// поэтому для них ключ должен включать ShopName, а не только ProductURL
 export function deduplicateRows(rows: CSVRow[]): CSVRow[] {
   const uniqueRows = new Map<string, CSVRow>();
   
   for (const row of rows) {
-    // Создаем уникальный ключ из URL или комбинации Title + ShopName
-    let uniqueKey = row['#ProductURL'] || '';
+    const snippetType = row['#SnippetType'] || '';
+    const isMultiShopType = snippetType === 'EShopItem' || snippetType === 'EOfferItem';
+    
+    let uniqueKey: string;
+    
+    if (isMultiShopType) {
+      // Для EShopItem/EOfferItem: URL + ShopName (разные магазины = разные карточки)
+      const url = (row['#ProductURL'] || '').trim();
+      const shop = (row['#ShopName'] || row['#OrganicHost'] || '').trim();
+      uniqueKey = `${url}|${shop}`;
+      Logger.debug(`🔑 [dedup] EShopItem/EOfferItem: key="${shop}" (URL: ${url.substring(0, 50)}...)`);
+    } else {
+      // Для других типов: стандартная логика (URL или Title+Shop)
+      uniqueKey = row['#ProductURL'] || '';
     if (!uniqueKey || uniqueKey.trim() === '') {
       const title = (row['#OrganicTitle'] || '').trim();
       const shop = (row['#ShopName'] || row['#OrganicHost'] || '').trim();
       uniqueKey = `${title}|${shop}`;
+      }
     }
     
     // Если строка с таким ключом уже есть, объединяем данные (приоритет - строка с изображением)
@@ -1647,6 +1729,14 @@ export function deduplicateRows(rows: CSVRow[]): CSVRow[] {
       uniqueRows.set(uniqueKey, row);
     }
   }
+  
+  // Статистика дедупликации по типам
+  const typeStats: Record<string, number> = {};
+  for (const row of uniqueRows.values()) {
+    const t = row['#SnippetType'] || 'Unknown';
+    typeStats[t] = (typeStats[t] || 0) + 1;
+  }
+  Logger.debug(`📊 [dedup] Результат: ${Object.entries(typeStats).map(([k, v]) => `${k}=${v}`).join(', ')}`);
   
   return Array.from(uniqueRows.values());
 }
@@ -1707,6 +1797,21 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
   const containers = filterTopLevelContainers(allContainers);
   Logger.debug(`📦 Найдено контейнеров-сниппетов (после дедупликации и удаления вложенных): ${containers.length}`);
   
+  // ДИАГНОСТИКА: подробная статистика по типам контейнеров
+  const containerTypeCounts: Record<string, number> = {};
+  for (const c of containers) {
+    const className = c.className || '';
+    let cType = 'Unknown';
+    if (className.includes('EShopItem')) cType = 'EShopItem';
+    else if (className.includes('EOfferItem')) cType = 'EOfferItem';
+    else if (className.includes('EProductSnippet2')) cType = 'EProductSnippet2';
+    else if (className.includes('Organic_withOfferInfo')) cType = 'Organic_withOfferInfo';
+    else if (className.includes('ProductTile-Item')) cType = 'ProductTile-Item';
+    containerTypeCounts[cType] = (containerTypeCounts[cType] || 0) + 1;
+  }
+  const typeStats = Object.entries(containerTypeCounts).map(([k, v]) => `${k}=${v}`).join(', ');
+  Logger.info(`📦 [PARSE] Контейнеры по типам: ${typeStats}`);
+  
   // Если не нашли стандартные контейнеры, пытаемся найти любые элементы с данными о товарах
   if (containers.length === 0) {
     Logger.debug('⚠️ Стандартные контейнеры не найдены, ищем альтернативные элементы...');
@@ -1743,9 +1848,32 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
   const domCacheTime = performance.now() - domCacheStartTime;
   Logger.debug(`✅ [DOM CACHE] Обработано ${containers.length} контейнеров за ${domCacheTime.toFixed(2)}ms`);
   
+  // ДИАГНОСТИКА ДО дедупликации: подробная статистика EShopItem
+  const eShopItemBefore = results.filter(r => r['#SnippetType'] === 'EShopItem');
+  const eOfferItemBefore = results.filter(r => r['#SnippetType'] === 'EOfferItem');
+  if (eShopItemBefore.length > 0 || eOfferItemBefore.length > 0) {
+    Logger.info(`🔍 [PARSE] ДО дедупликации: EShopItem=${eShopItemBefore.length}, EOfferItem=${eOfferItemBefore.length}`);
+    if (eShopItemBefore.length > 0) {
+      Logger.debug(`   🛒 EShopItem магазины: ${eShopItemBefore.map(r => r['#ShopName'] || 'N/A').join(', ')}`);
+    }
+  }
+  
   // Дедуплицируем результаты
   const finalResults = deduplicateRows(results);
   Logger.debug(`📊 Дедупликация: ${results.length} → ${finalResults.length} уникальных строк`);
+  
+  // ДИАГНОСТИКА ПОСЛЕ дедупликации: статистика EShopItem
+  const eShopItemAfter = finalResults.filter(r => r['#SnippetType'] === 'EShopItem');
+  const eOfferItemAfter = finalResults.filter(r => r['#SnippetType'] === 'EOfferItem');
+  if (eShopItemAfter.length > 0 || eOfferItemAfter.length > 0) {
+    Logger.info(`✅ [PARSE] ПОСЛЕ дедупликации: EShopItem=${eShopItemAfter.length}, EOfferItem=${eOfferItemAfter.length}`);
+    if (eShopItemAfter.length > 0) {
+      Logger.debug(`   🛒 EShopItem магазины: ${eShopItemAfter.map(r => r['#ShopName'] || 'N/A').join(', ')}`);
+    }
+    if (eShopItemAfter.length < eShopItemBefore.length) {
+      Logger.warn(`   ⚠️ Потеряно EShopItem при дедупликации: ${eShopItemBefore.length - eShopItemAfter.length}`);
+    }
+  }
   
   // ДИАГНОСТИКА: статистика по типам сниппетов
   const catalogCount = finalResults.filter(r => r['#isCatalogPage'] === 'true').length;

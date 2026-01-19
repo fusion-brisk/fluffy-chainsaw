@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "EProductSnippet Parser",
+  "version": "1.4.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy58jsJWlvTGqNmsMKXb0qnkbx5FwMZeEXYEDnb/01Lh+ppjqDu4pKVL3fKMXoR2NZrZLEcF0JHvKK2BTosIEdDzayBItOHcnkqYK/iZAlVIdWANVurrcnBbYHjb3GjRi6v8tLhddqw+F1WX7gN9L1aIJJVoOJB49AGW2P6awjFuxbcRSoJAz7Xa+FR7yZI5wBBZB0VSeMM2B2X6PrygrlDMFBjzTxQVj8Q8Pu5ZDhw2FfUOQ4IhWA7o/pyVlK688DMnH4cO6JxFT+2LeYT0XOiWXZzRveUgOL5ehJg1OMsUpSI5ROAGsVH4+7UOY51ypfwQDVE75R2K3JlfGHnVTOwIDAQAB",
+  "description": "Парсит сниппеты поисковой выдачи Яндекса и отправляет в Figma плагин. Клик по иконке = отправка.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*.yandex.ru/*",
+    "https://*.yandex.com/*",
+    "https://yandex.ru/*",
+    "https://yandex.com/*",
+    "https://*.ya.ru/*",
+    "https://ya.ru/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16-gray.png",
+      "48": "icons/icon48-gray.png",
+      "128": "icons/icon128-gray.png"
+    },
+    "default_title": "Откройте страницу Яндекса"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

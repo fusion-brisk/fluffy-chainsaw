@@ -16,6 +16,7 @@ export type SnippetType =
   | 'ProductTile-Item'
   | 'Organic_withOfferInfo'
   | 'Organic'
+  | 'Organic_Adv'
   | 'ESnippet'
   | 'Snippet';
 
@@ -162,6 +163,40 @@ export interface CSVFields {
   '#QuoteText'?: string;
   /** URL изображения автора (legacy) */
   '#QuoteImage'?: string;
+  
+  // === Промо-сниппеты (Organic_Adv / ESnippet) ===
+  /** Это промо-сниппет */
+  '#isPromo'?: 'true' | 'false';
+  /** Это рекламный сниппет (из AdvProductGallery) */
+  '#isAdv'?: 'true' | 'false';
+  /** Заголовок рекламной галереи */
+  '#AdvGalleryTitle'?: string;
+  /** ID родительского serp-item (<li data-cid="...">) для группировки */
+  '#serpItemId'?: string;
+  /** Тип контейнера (EntityOffers, ProductsTiles, AdvProductGallery) */
+  '#containerType'?: string;
+  /** Наличие картинки в сниппете */
+  '#withThumb'?: 'true' | 'false';
+  /** Есть ли сайтлинки */
+  '#Sitelinks'?: 'true' | 'false';
+  /** Количество сайтлинков */
+  '#SitelinksCount'?: string;
+  /** Сайтлинк 1 */
+  '#Sitelink_1'?: string;
+  /** Сайтлинк 2 */
+  '#Sitelink_2'?: string;
+  /** Сайтлинк 3 */
+  '#Sitelink_3'?: string;
+  /** Сайтлинк 4 */
+  '#Sitelink_4'?: string;
+  /** Текст промо-блока */
+  '#Promo'?: string;
+  /** Есть ли промо-блок */
+  '#withPromo'?: 'true' | 'false';
+  /** Текст рекламной метки */
+  '#AdvLabel'?: string;
+  /** Тип верификации (goods, etc.) */
+  '#VerifiedType'?: string;
 }
 
 /**
@@ -188,6 +223,7 @@ export const REQUIRED_FIELDS: Record<SnippetType, (keyof CSVFields)[]> = {
   'ProductTile-Item': ['#SnippetType', '#OrganicTitle'],
   'Organic_withOfferInfo': ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
   'Organic': ['#SnippetType', '#OrganicTitle'],
+  'Organic_Adv': ['#SnippetType', '#OrganicTitle'],
   'ESnippet': ['#SnippetType'],
   'Snippet': ['#SnippetType']
 };
@@ -210,6 +246,7 @@ export const IMAGE_FIELDS: (keyof CSVFields)[] = [
  * Булевы поля (для нормализации значений)
  */
 export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
+  '#withThumb',
   '#OfficialShop',
   '#EPriceGroup_Discount',
   '#EPriceGroup_OldPrice',
@@ -224,7 +261,11 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#EOfferItem_defaultOffer',
   '#EOfferItem_hasButton',
   '#EOfferItem_hasReviews',
-  '#EOfferItem_hasDelivery'
+  '#EOfferItem_hasDelivery',
+  '#isPromo',
+  '#isAdv',
+  '#Sitelinks',
+  '#withPromo'
 ];
 
 /**

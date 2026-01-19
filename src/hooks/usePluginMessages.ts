@@ -36,6 +36,9 @@ export interface PluginMessageHandlers {
   // Reset
   onResetDone?: (count: number) => void;
   
+  // Build Page
+  onBuildPageDone?: (count: number, frameName: string) => void;
+  
   // Cancel
   onImportCancelled?: () => void;
   
@@ -44,6 +47,9 @@ export interface PluginMessageHandlers {
   
   // Logging
   onLogLevelLoaded?: (level: number) => void;
+  
+  // Relay payload
+  onRelayPayloadApplied?: (data: { success: boolean; itemCount?: number; frameName?: string; error?: string }) => void;
 }
 
 interface UsePluginMessagesOptions {
@@ -156,6 +162,13 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
           }
           break;
           
+        // === BUILD PAGE ===
+        case 'build-page-done':
+          if (h.onBuildPageDone) {
+            h.onBuildPageDone(msg.count, msg.frameName);
+          }
+          break;
+          
         // === CANCEL ===
         case 'import-cancelled':
           if (h.onImportCancelled) {
@@ -177,6 +190,18 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
         case 'log-level-loaded':
           if (h.onLogLevelLoaded) {
             h.onLogLevelLoaded(msg.level);
+          }
+          break;
+          
+        // === RELAY PAYLOAD ===
+        case 'relay-payload-applied':
+          if (h.onRelayPayloadApplied) {
+            h.onRelayPayloadApplied({
+              success: msg.success,
+              itemCount: msg.itemCount,
+              frameName: msg.frameName,
+              error: msg.error
+            });
           }
           break;
       }

@@ -9,7 +9,12 @@
     "build:code": "tsc src/code.ts --outDir dist --target es5 --moduleResolution node",
     "lint": "eslint --ext .ts,.tsx --ignore-pattern node_modules .",
     "lint:fix": "eslint --ext .ts,.tsx --ignore-pattern node_modules --fix .",
-    "dev": "npm run build:watch",
+    "relay": "cd relay && npm start",
+    "relay:install": "cd relay && npm install",
+    "native-host:install": "cd native-host && npm install",
+    "native-host:build": "cd native-host && npm run build",
+    "dev": "concurrently -n build,relay -c blue,green \"npm run build:watch\" \"npm run relay\"",
+    "dev:build": "npm run build:watch",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -34,6 +39,7 @@
     "@types/react-dom": "^18.2.0",
     "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.12.0",
+    "concurrently": "^9.2.1",
     "core-js": "^3.46.0",
     "eslint": "^8.54.0",
     "eslint-plugin-react": "^7.33.0",
@@ -82,6 +88,7 @@
     }
   },
   "dependencies": {
+    "canvas": "^3.2.1",
     "icojs": "^0.19.5",
     "papaparse": "^5.4.0",
     "react": "^18.2.0",

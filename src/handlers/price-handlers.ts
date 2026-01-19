@@ -26,19 +26,24 @@ import { HandlerContext } from './types';
  */
 export async function handleEPriceGroup(context: HandlerContext): Promise<void> {
   const { container, row, instanceCache } = context;
+  
+  console.log(`🔵 [EPriceGroup] Handler вызван, container=${container ? 'есть' : 'null'}, row=${row ? 'есть' : 'null'}`);
+  
   if (!container || !row) return;
 
   const containerName = (container && 'name' in container) ? String(container.name) : 'unknown';
   const config = COMPONENT_CONFIG.EPriceGroup;
   
+  console.log(`🔵 [EPriceGroup] Контейнер: "${containerName}", ищем EPriceGroup...`);
+  
   const ePriceGroupInstance = getCachedInstance(instanceCache!, config.name);
   
   if (!ePriceGroupInstance) {
-    Logger.debug(`⚠️ [EPriceGroup] Не найден в контейнере "${containerName}"`);
+    console.log(`🔵 [EPriceGroup] ❌ Не найден в "${containerName}"`);
     return;
   }
   
-  Logger.debug(`✅ [EPriceGroup] Найден в "${containerName}"`);
+  console.log(`🔵 [EPriceGroup] ✅ Найден в "${containerName}"`);
   
   // === Boolean свойства EPriceGroup ===
   
@@ -54,8 +59,20 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   const hasFintech = row['#EPriceGroup_Fintech'] === 'true';
   trySetProperty(ePriceGroupInstance, ['withFintech'], hasFintech, '#EPriceGroup_Fintech');
   
-  // withBarometer — показать индикатор барометра
-  const hasBarometer = !!(row['#EPriceBarometer_View'] && row['#EPriceBarometer_View'].trim() !== '');
+  // withBarometer — показать индикатор барометра в EPriceGroup
+  // ВАЖНО: Для EProductSnippet/EProductSnippet2 барометр в EPriceGroup ВСЕГДА выключен!
+  // (барометр показывается поверх картинки, а не в EPriceGroup)
+  const isProductSnippet = containerName === 'EProductSnippet' || containerName === 'EProductSnippet2';
+  
+  let hasBarometer = false;
+  if (!isProductSnippet) {
+    // Для других сниппетов — по данным
+    const barometerFlag = row['#ELabelGroup_Barometer'] || '';
+    hasBarometer = barometerFlag === 'true';
+  }
+  
+  console.log(`🔴 [EPriceGroup] Barometer: container="${containerName}", isProductSnippet=${isProductSnippet} → hasBarometer=${hasBarometer}`);
+  
   trySetProperty(ePriceGroupInstance, ['withBarometer'], hasBarometer, '#withBarometer');
   
   // withDisclaimer — "Цена, доставка от Маркета"
@@ -67,17 +84,30 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   trySetProperty(ePriceGroupInstance, ['plusCashback'], hasPlusCashback, '#PlusCashback');
   
   // expCalculation — расчёт (4 × 10 000 ₽)
+  // ВАЖНО: В Figma свойство называется "[EXP] Calculation" с пробелами и скобками
   const hasExpCalculation = row['#ExpCalculation'] === 'true';
-  trySetProperty(ePriceGroupInstance, ['expCalculation'], hasExpCalculation, '#ExpCalculation');
+  trySetProperty(ePriceGroupInstance, ['[EXP] Calculation', 'expCalculation'], hasExpCalculation, '#ExpCalculation');
   
   Logger.debug(`💰 [EPriceGroup] Пропсы: withLabelDiscount=${hasDiscount}, withPriceOld=${hasOldPrice}, withFintech=${hasFintech}, withBarometer=${hasBarometer}, withDisclaimer=${hasDisclaimer}`);
+  Logger.debug(`💰 [EPriceGroup] Данные: #OrganicPrice="${row['#OrganicPrice'] || ''}", #OldPrice="${row['#OldPrice'] || ''}", #discount="${row['#discount'] || ''}"`);
   
   // === Заполняем текстовые значения ===
   
   // Текущая цена
   const priceValue = row['#OrganicPrice'];
+  Logger.info(`💰 [EPriceGroup] Данные цен: #OrganicPrice="${priceValue || ''}", #OldPrice="${row['#OldPrice'] || ''}", hasOldPrice=${hasOldPrice}`);
+  
   if (priceValue) {
     await setEPriceValue(ePriceGroupInstance, priceValue, instanceCache);
+  }
+  
+  // Старая цена
+  const oldPriceValue = row['#OldPrice'];
+  if (oldPriceValue && hasOldPrice) {
+    Logger.info(`💰 [EPriceGroup] Устанавливаем старую цену: "${oldPriceValue}"`);
+    await setOldPriceValue(ePriceGroupInstance, oldPriceValue, instanceCache);
+  } else {
+    Logger.debug(`💰 [EPriceGroup] Пропуск старой цены: oldPriceValue="${oldPriceValue}", hasOldPrice=${hasOldPrice}`);
   }
   
   // Настройка Fintech type/view
@@ -87,58 +117,82 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
 }
 
 /**
- * Устанавливает значение цены в EPrice
+ * Находит все EPrice инстансы в EPriceGroup
  */
-async function setEPriceValue(
-  ePriceGroupInstance: InstanceNode,
-  priceValue: string,
-  instanceCache: unknown
-): Promise<void> {
-  // Ищем EPrice (НЕ старую цену)
-  let ePriceInstance: InstanceNode | null = null;
+function findAllEPriceInstances(ePriceGroupInstance: InstanceNode): InstanceNode[] {
+  const allEPrices: InstanceNode[] = [];
+  const findAllEPrice = (node: BaseNode) => {
+    if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
+      allEPrices.push(node as InstanceNode);
+    }
+    if ('children' in node && node.children) {
+      for (const child of node.children) {
+        findAllEPrice(child);
+      }
+    }
+  };
   
   if ('children' in ePriceGroupInstance) {
-    const allEPrices: InstanceNode[] = [];
-    const findAllEPrice = (node: BaseNode) => {
-      if (node.type === 'INSTANCE' && node.name === 'EPrice' && !node.removed) {
-        allEPrices.push(node as InstanceNode);
-      }
-      if ('children' in node && node.children) {
-        for (const child of node.children) {
-          findAllEPrice(child);
-        }
-      }
-    };
     findAllEPrice(ePriceGroupInstance);
-    
-    for (const ep of allEPrices) {
-      let parent = ep.parent;
-      let isOldPrice = false;
-      while (parent && parent.id !== ePriceGroupInstance.id) {
-        if (parent.name && (parent.name.includes('Old') || parent.name.includes('old'))) {
-          isOldPrice = true;
-          break;
+  }
+  
+  return allEPrices;
+}
+
+/**
+ * Проверяет, является ли EPrice старой ценой
+ * Критерий: свойство view=old или View=old
+ */
+function isOldPriceInstance(ep: InstanceNode, _rootId: string): boolean {
+  if (!ep.componentProperties) return false;
+  
+  // Ищем свойство view/View
+  for (const propKey in ep.componentProperties) {
+    const propLower = propKey.toLowerCase();
+    if (propLower === 'view' || propLower.startsWith('view#')) {
+      const prop = ep.componentProperties[propKey];
+      if (prop.type === 'VARIANT' && typeof prop.value === 'string') {
+        const val = prop.value.toLowerCase();
+        if (val === 'old') {
+          return true;
         }
-        parent = parent.parent;
-      }
-      
-      if (!isOldPrice) {
-        ePriceInstance = ep;
-        break;
       }
     }
   }
   
-  if (!ePriceInstance) {
-    Logger.debug(`⚠️ [EPrice] Не найден для установки цены`);
-    return;
+  // Fallback: проверка родителя на "Old" в имени
+  let parent = ep.parent;
+  while (parent) {
+    if (parent.name && (parent.name.includes('Old') || parent.name.includes('old') || parent.name.includes('PriceOld'))) {
+      return true;
+    }
+    if ('parent' in parent) {
+      parent = parent.parent;
+    } else {
+      break;
+    }
+  }
+  return false;
+}
+
+/**
+ * Устанавливает значение цены в EPrice инстанс
+ */
+function setPriceToInstance(ePriceInstance: InstanceNode, priceValue: string, label: string): boolean {
+  const numericPrice = priceValue.replace(/[^\d]/g, '');
+  if (!numericPrice) {
+    Logger.warn(`⚠️ [${label}] Пустая числовая цена из "${priceValue}"`);
+    return false;
   }
   
-  const numericPrice = priceValue.replace(/[^\d]/g, '');
-  if (!numericPrice) return;
+  // Выводим все доступные свойства для диагностики
+  const allProps = ePriceInstance.componentProperties 
+    ? Object.keys(ePriceInstance.componentProperties) 
+    : [];
+  Logger.info(`💰 [${label}] EPrice свойства: [${allProps.join(', ')}]`);
   
-  // Пробуем установить через свойство value
-  const priceProps = ['value', 'text', 'content', 'price'];
+  // Расширенный список возможных имён свойств для цены
+  const priceProps = ['value', 'text', 'content', 'price', 'amount', 'sum', 'cost'];
   let valuePropKey: string | null = null;
   
   if (ePriceInstance.componentProperties) {
@@ -156,14 +210,102 @@ async function setEPriceValue(
     if (valuePropKey) {
       try {
         ePriceInstance.setProperties({ [valuePropKey]: numericPrice });
-        Logger.debug(`✅ [EPrice] Цена установлена через ${valuePropKey}: "${numericPrice}"`);
+        Logger.info(`✅ [${label}] Цена установлена через ${valuePropKey}: "${numericPrice}"`);
+        return true;
       } catch (e) {
-        Logger.debug(`⚠️ [EPrice] Ошибка setProperties: ${e}`);
+        Logger.warn(`⚠️ [${label}] Ошибка setProperties(${valuePropKey}): ${e}`);
       }
+    } else {
+      Logger.warn(`⚠️ [${label}] Не найдено свойство цены среди [${allProps.join(', ')}]`);
     }
   } else {
-    Logger.debug(`⚠️ [EPrice] EPrice не найден или не имеет componentProperties`);
+    Logger.warn(`⚠️ [${label}] У EPrice нет componentProperties`);
   }
+  
+  return false;
+}
+
+/**
+ * Устанавливает значение цены в EPrice (НЕ старую цену)
+ */
+async function setEPriceValue(
+  ePriceGroupInstance: InstanceNode,
+  priceValue: string,
+  instanceCache: unknown
+): Promise<void> {
+  const allEPrices = findAllEPriceInstances(ePriceGroupInstance);
+  
+  // Ищем EPrice, который НЕ является старой ценой
+  for (const ep of allEPrices) {
+    if (!isOldPriceInstance(ep, ePriceGroupInstance.id)) {
+      if (setPriceToInstance(ep, priceValue, 'EPrice')) {
+        return;
+      }
+    }
+  }
+  
+  Logger.debug(`⚠️ [EPrice] Не найден для установки текущей цены`);
+}
+
+/**
+ * Устанавливает значение СТАРОЙ цены в EPrice внутри контейнера "Old"
+ */
+async function setOldPriceValue(
+  ePriceGroupInstance: InstanceNode,
+  oldPriceValue: string,
+  instanceCache: unknown
+): Promise<void> {
+  const allEPrices = findAllEPriceInstances(ePriceGroupInstance);
+  
+  // Выводим имена всех найденных EPrice для диагностики
+  const ePriceNames = allEPrices.map(ep => {
+    const parentName = ep.parent && 'name' in ep.parent ? ep.parent.name : '?';
+    return `${ep.name}(parent:${parentName})`;
+  });
+  Logger.info(`💰 [OldPrice] Найдено ${allEPrices.length} EPrice: [${ePriceNames.join(', ')}]`);
+  
+  // Ищем EPrice, который ЯВЛЯЕТСЯ старой ценой (внутри контейнера "Old")
+  for (const ep of allEPrices) {
+    const isOld = isOldPriceInstance(ep, ePriceGroupInstance.id);
+    Logger.info(`💰 [OldPrice] Проверяем "${ep.name}" → isOld=${isOld}`);
+    if (isOld) {
+      Logger.info(`💰 [OldPrice] Найден EPrice внутри Old-контейнера: "${ep.name}"`);
+      if (setPriceToInstance(ep, oldPriceValue, 'OldPrice')) {
+        Logger.info(`💰 [OldPrice] ✅ Цена установлена: "${oldPriceValue}"`);
+        return;
+      }
+    }
+  }
+  
+  // FALLBACK 1: Ищем EPrice через кэш (EPriceGroup-PriceOld или подобные)
+  if (instanceCache) {
+    const oldPriceInstance = getCachedInstanceByNames(
+      instanceCache as DeepCache, 
+      ['EPriceGroup-PriceOld', 'PriceOld', 'EPrice_old', 'OldPrice', 'Old']
+    );
+    if (oldPriceInstance) {
+      Logger.info(`💰 [OldPrice] Найден через кэш: "${oldPriceInstance.name}"`);
+      // Ищем EPrice внутри
+      const innerEPrice = oldPriceInstance.name === 'EPrice' 
+        ? oldPriceInstance 
+        : getCachedInstance(instanceCache as DeepCache, 'EPrice');
+      if (innerEPrice && setPriceToInstance(innerEPrice, oldPriceValue, 'OldPrice-cached')) {
+        Logger.info(`💰 [OldPrice] ✅ Цена установлена через кэш: "${oldPriceValue}"`);
+        return;
+      }
+    }
+  }
+  
+  // FALLBACK 2: Если есть только 2 EPrice — второй это старая цена
+  if (allEPrices.length === 2) {
+    Logger.info(`💰 [OldPrice] Fallback: 2 EPrice найдено, используем второй как старую цену`);
+    if (setPriceToInstance(allEPrices[1], oldPriceValue, 'OldPrice-second')) {
+      Logger.info(`💰 [OldPrice] ✅ Цена установлена (fallback): "${oldPriceValue}"`);
+      return;
+    }
+  }
+  
+  Logger.warn(`⚠️ [OldPrice] Не найден EPrice для старой цены (всего EPrice: ${allEPrices.length})`);
 }
 
 /**
@@ -264,7 +406,9 @@ export async function handleLabelDiscountView(context: HandlerContext): Promise<
   }
   
   // Устанавливаем View variant
-  const effectiveView = labelView || 'outlineSpecial';
+  // Default: 'outlinePrimary' (обычная синяя скидка)
+  // 'outlineSpecial' используется только для "Вам –X%" (зелёная)
+  const effectiveView = labelView || 'outlinePrimary';
   const viewSet = trySetProperty(labelDiscountInstance, ['view', 'View'], effectiveView, '#LabelDiscount_View');
   Logger.debug(`🏷️ [LabelDiscount] View=${effectiveView}, result=${viewSet}`);
   

@@ -4,6 +4,29 @@
  */
 
 import { SNIPPET_CONTAINER_NAMES } from '../config';
+import { Logger } from '../logger';
+
+/**
+ * Проверяет, является ли имя узла сниппет-контейнером
+ * Поддерживает как точное совпадение ("EShopItem"), так и с суффиксом ("EShopItem 2")
+ * 
+ * Паттерн: базовое имя может быть с пробелом и числом в конце (копии в Figma)
+ * Примеры: "EShopItem", "EShopItem 2", "EShopItem 123", "ESnippet", "ESnippet 5"
+ */
+function isSnippetContainerName(name: string): boolean {
+  // Точное совпадение
+  if (SNIPPET_CONTAINER_NAMES.includes(name)) return true;
+  
+  // Проверяем паттерн "BaseName N" где N — число
+  // Убираем суффикс " N" и проверяем базовое имя
+  const baseNameMatch = name.match(/^(.+?)\s+\d+$/);
+  if (baseNameMatch && baseNameMatch[1]) {
+    const baseName = baseNameMatch[1];
+    return SNIPPET_CONTAINER_NAMES.includes(baseName);
+  }
+  
+  return false;
+}
 
 /**
  * Поиск всех контейнеров сниппетов в заданной области
@@ -16,15 +39,24 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
   if (scope === 'page') {
     // Быстрый поиск по всей странице через нативный findAll
     if (figma.currentPage.findAll) {
-      return figma.currentPage.findAll(n => SNIPPET_CONTAINER_NAMES.includes(n.name));
+      const found = figma.currentPage.findAll(n => isSnippetContainerName(n.name));
+      Logger.debug(`📦 [findSnippetContainers] page: найдено ${found.length} контейнеров`);
+      // Логируем типы найденных контейнеров
+      const typeCounts: Record<string, number> = {};
+      for (const n of found) {
+        const baseName = n.name.replace(/\s+\d+$/, '');
+        typeCounts[baseName] = (typeCounts[baseName] || 0) + 1;
+      }
+      Logger.debug(`📦 [findSnippetContainers] типы: ${Object.entries(typeCounts).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+      return found;
     } else {
       // Fallback для старых версий API
       figma.currentPage.children.forEach(child => {
-        if (SNIPPET_CONTAINER_NAMES.includes(child.name)) containers.push(child);
+        if (isSnippetContainerName(child.name)) containers.push(child);
         if ('findAll' in child) {
           containers.push(
             ...(child as SceneNode & ChildrenMixin).findAll(
-              (n: SceneNode) => SNIPPET_CONTAINER_NAMES.includes(n.name)
+              (n: SceneNode) => isSnippetContainerName(n.name)
             )
           );
         }
@@ -38,7 +70,7 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
       if (node.removed) continue;
       
       // Проверяем сам узел
-      if (SNIPPET_CONTAINER_NAMES.includes(node.name) && !visited.has(node.id)) {
+      if (isSnippetContainerName(node.name) && !visited.has(node.id)) {
         containers.push(node);
         visited.add(node.id);
       }
@@ -46,7 +78,7 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
       // Ищем внутри узла
       if ('findAll' in node) {
         const found = (node as SceneNode & ChildrenMixin).findAll(
-          (n: SceneNode) => SNIPPET_CONTAINER_NAMES.includes(n.name)
+          (n: SceneNode) => isSnippetContainerName(n.name)
         );
         for (const item of found) {
           if (!visited.has(item.id)) {
@@ -56,6 +88,8 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
         }
       }
     }
+    
+    Logger.debug(`📦 [findSnippetContainers] selection: найдено ${containers.length} контейнеров`);
   }
 
   return containers;
@@ -113,18 +147,20 @@ export function normalizeContainerName(name: string): string {
 
 /**
  * Проверка, является ли узел контейнером сниппета
+ * Поддерживает суффиксы копий ("EShopItem 2", "ESnippet 3")
  * @param node - Узел для проверки
  * @returns true если узел является контейнером сниппета
  */
 export function isSnippetContainer(node: BaseNode): boolean {
   if (!node || (node as SceneNode).removed) return false;
   if (!('name' in node)) return false;
-  return SNIPPET_CONTAINER_NAMES.includes(node.name);
+  return isSnippetContainerName(node.name);
 }
 
 /**
  * Находит ближайший контейнер-сниппет для слоя данных
- * Поднимается вверх по дереву от слоя до первого контейнера из SNIPPET_CONTAINER_NAMES
+ * Поднимается вверх по дереву от слоя до первого контейнера-сниппета
+ * Поддерживает суффиксы копий ("EShopItem 2", "ESnippet 3")
  * 
  * @param layer - Слой данных (или массив слоёв)
  * @param containerKey - ID контейнера (используется как fallback через figma.getNodeById)
@@ -140,7 +176,7 @@ export function findContainerForLayers(
       if (layer.removed) continue;
       let current: BaseNode | null = layer.parent;
       while (current) {
-        if (SNIPPET_CONTAINER_NAMES.includes(current.name)) {
+        if (isSnippetContainerName(current.name)) {
           return current;
         }
         current = current.parent;

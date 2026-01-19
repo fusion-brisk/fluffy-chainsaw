@@ -102,10 +102,11 @@ export async function handleELabelGroup(context: HandlerContext): Promise<void> 
   }
   
   // Barometer — BOOLEAN свойство
+  // ВАЖНО: В Figma свойство называется "withBarometer" а не "Barometer"
   if (eLabelGroupInstance) {
     const barometerVal = row[config.properties.barometer.dataField];
     const hasBarometer = barometerVal === 'true';
-    trySetProperty(eLabelGroupInstance, ['Barometer'], hasBarometer, config.properties.barometer.dataField);
+    trySetProperty(eLabelGroupInstance, ['withBarometer', 'Barometer'], hasBarometer, config.properties.barometer.dataField);
   }
 }
 
