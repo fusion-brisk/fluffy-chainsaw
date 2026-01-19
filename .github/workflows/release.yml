@@ -30,12 +30,14 @@ jobs:
       - name: Build native binaries
         run: |
           npm run build
-          # Rename binaries for clarity
-          mv dist/eproductsnippet-relay-host-macos-arm64 dist/relay-host-arm64 || true
-          mv dist/eproductsnippet-relay-host-macos-x64 dist/relay-host-x64 || true
-          mv dist/eproductsnippet-relay-host-macos dist/relay-host-x64 || true
+          # List what pkg created
+          ls -la dist/
+          # Rename binaries for clarity (pkg uses node18-macos-x64 format)
+          for f in dist/*-x64; do [ -f "$f" ] && mv "$f" dist/relay-host-x64; done
+          for f in dist/*-arm64; do [ -f "$f" ] && mv "$f" dist/relay-host-arm64; done
           # Make executable
           chmod +x dist/relay-host-*
+          ls -la dist/
         working-directory: native-host
 
       - name: Package Chrome Extension
