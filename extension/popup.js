@@ -1,16 +1,24 @@
 /**
- * EProductSnippet Extension — Minimal Popup
+ * EProductSnippet Extension — Popup with Relay Setup
  * 
  * Single-click to parse & send to Figma.
- * Settings available via Options page (right-click → Options)
+ * Shows setup UI when relay is not connected.
  */
 
-const popup = document.getElementById('popup');
+// Elements
+const mainView = document.getElementById('mainView');
+const setupView = document.getElementById('setupView');
 const indicator = document.getElementById('indicator');
 const statusEl = document.getElementById('status');
 const hintEl = document.getElementById('hint');
+const copyBtn = document.getElementById('copyBtn');
+const retryBtn = document.getElementById('retryBtn');
+const installScript = document.getElementById('installScript');
 
 let isProcessing = false;
+
+// Install script
+const INSTALL_SCRIPT = 'curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/scripts/install-relay.sh | bash';
 
 // Check if page is Yandex
 function isYandexPage(url) {
@@ -75,13 +83,25 @@ function transformRowsForRelay(rows) {
   }));
 }
 
+// Show main view
+function showMainView() {
+  mainView.style.display = 'flex';
+  setupView.classList.remove('visible');
+}
+
+// Show setup view
+function showSetupView() {
+  mainView.style.display = 'none';
+  setupView.classList.add('visible');
+}
+
 // Update UI state
 function setState(state, message, hint = '') {
   indicator.className = `indicator ${state}`;
   statusEl.className = `status ${state}`;
   statusEl.textContent = message;
   hintEl.textContent = hint;
-  popup.className = state;
+  mainView.className = `main-view ${state}`;
   
   // Update indicator icon
   switch (state) {
@@ -123,7 +143,7 @@ async function handleClick() {
     // Check relay
     const relayOk = await checkRelay(relayUrl);
     if (!relayOk) {
-      setState('error', 'Relay недоступен', 'Запустите сервер');
+      showSetupView();
       isProcessing = false;
       return;
     }
@@ -177,10 +197,51 @@ async function handleClick() {
   }
 }
 
+// Copy script to clipboard
+async function handleCopy() {
+  try {
+    await navigator.clipboard.writeText(INSTALL_SCRIPT);
+    copyBtn.textContent = '✓';
+    copyBtn.classList.add('copied');
+    setTimeout(() => {
+      copyBtn.textContent = '📋';
+      copyBtn.classList.remove('copied');
+    }, 2000);
+  } catch (err) {
+    console.error('Copy failed:', err);
+  }
+}
+
+// Retry connection
+async function handleRetry() {
+  retryBtn.textContent = '...';
+  retryBtn.disabled = true;
+  
+  const relayUrl = await getRelayUrl();
+  const relayOk = await checkRelay(relayUrl);
+  
+  if (relayOk) {
+    showMainView();
+    setState('ready', 'Готов', 'Клик для отправки');
+  } else {
+    retryBtn.textContent = 'Проверить';
+    retryBtn.disabled = false;
+  }
+}
+
 // Initialize
 (async () => {
   const tab = await getCurrentTab();
   const relayUrl = await getRelayUrl();
+  
+  // Check relay availability first
+  const relayOk = await checkRelay(relayUrl);
+  
+  if (!relayOk) {
+    // Show setup view
+    showSetupView();
+    return;
+  }
   
   // Check if on Yandex page
   if (!isYandexPage(tab?.url)) {
@@ -189,15 +250,13 @@ async function handleClick() {
     return;
   }
   
-  // Check relay availability
-  const relayOk = await checkRelay(relayUrl);
+  // Ready to send
+  setState('ready', 'Готов', 'Клик для отправки');
   
-  if (relayOk) {
-    setState('ready', 'Готов', 'Клик для отправки');
-  } else {
-    setState('error', 'Relay недоступен', 'Настройки: ПКМ → Options');
-  }
-  
-  // Bind click to entire popup
-  popup.addEventListener('click', handleClick);
+  // Bind click to main view
+  mainView.addEventListener('click', handleClick);
 })();
+
+// Event listeners
+copyBtn.addEventListener('click', handleCopy);
+retryBtn.addEventListener('click', handleRetry);

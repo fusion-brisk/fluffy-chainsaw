@@ -3,38 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Send to Figma</title>
+  <title>EProductSnippet</title>
   <style>
     :root {
       --bg: #1e1e1e;
+      --bg-secondary: #2a2a2a;
+      --bg-tertiary: #333;
       --text: #ffffff;
       --text-secondary: #999;
+      --text-tertiary: #666;
       --brand: #5865F2;
+      --brand-hover: #4752C4;
       --success: #3FB950;
       --error: #E5534B;
       --warning: #D29922;
+      --border: #404040;
     }
     
     * { box-sizing: border-box; margin: 0; padding: 0; }
     
     body {
-      width: 140px;
-      height: 140px;
+      width: 280px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 12px;
       background: var(--bg);
       color: var(--text);
+    }
+    
+    /* === Main View (Send to Figma) === */
+    .main-view {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 24px 16px;
       cursor: pointer;
       user-select: none;
+      min-height: 140px;
     }
     
-    body.loading { cursor: wait; }
-    body.disabled { cursor: not-allowed; }
+    .main-view.loading { cursor: wait; }
+    .main-view.disabled { cursor: not-allowed; }
     
     .indicator {
       width: 64px;
@@ -98,12 +107,222 @@
       color: var(--text-secondary);
       opacity: 0.6;
     }
+    
+    /* === Setup View (Relay not connected) === */
+    .setup-view {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      padding: 16px;
+    }
+    
+    .setup-view.visible {
+      display: flex;
+    }
+    
+    .setup-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .setup-header-icon {
+      font-size: 20px;
+    }
+    
+    .setup-header-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    
+    .setup-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(229, 83, 75, 0.1);
+      border-radius: 6px;
+      font-size: 11px;
+      color: var(--error);
+    }
+    
+    .setup-status-icon {
+      font-size: 8px;
+    }
+    
+    .setup-step {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    
+    .setup-step-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .setup-step-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      background: var(--brand);
+      color: white;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    
+    .setup-step-title {
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .setup-step-desc {
+      font-size: 10px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+    
+    .setup-script-container {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+    
+    .setup-script {
+      flex: 1;
+      font-family: 'SF Mono', Monaco, Consolas, monospace;
+      font-size: 9px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .setup-copy-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: var(--bg-tertiary);
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    
+    .setup-copy-btn:hover {
+      background: var(--brand);
+    }
+    
+    .setup-copy-btn.copied {
+      background: var(--success);
+    }
+    
+    .setup-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 12px;
+      background: var(--brand);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    
+    .setup-btn:hover {
+      background: var(--brand-hover);
+    }
+    
+    .setup-btn-secondary {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    
+    .setup-btn-secondary:hover {
+      background: var(--bg-secondary);
+      color: var(--text);
+      border-color: var(--brand);
+    }
+    
+    .setup-btn-row {
+      display: flex;
+      gap: 6px;
+    }
+    
+    .setup-btn-row .setup-btn {
+      flex: 1;
+    }
+    
+    .setup-retry-btn {
+      width: 100%;
+      margin-top: 4px;
+    }
   </style>
 </head>
-<body id="popup">
-  <div class="indicator" id="indicator">📤</div>
-  <div class="status" id="status">Готов</div>
-  <div class="hint" id="hint">Клик для отправки</div>
+<body>
+  <!-- Main View: Send to Figma -->
+  <div class="main-view" id="mainView">
+    <div class="indicator" id="indicator">📤</div>
+    <div class="status" id="status">Готов</div>
+    <div class="hint" id="hint">Клик для отправки</div>
+  </div>
+  
+  <!-- Setup View: Relay not connected -->
+  <div class="setup-view" id="setupView">
+    <div class="setup-header">
+      <span class="setup-header-icon">⚙️</span>
+      <span class="setup-header-title">Настройка Relay</span>
+    </div>
+    
+    <div class="setup-status">
+      <span class="setup-status-icon">●</span>
+      <span>Relay-сервер не запущен</span>
+    </div>
+    
+    <div class="setup-step">
+      <div class="setup-step-header">
+        <span class="setup-step-number">1</span>
+        <span class="setup-step-title">Установите Relay</span>
+      </div>
+      <p class="setup-step-desc">Скопируйте и вставьте в Terminal:</p>
+      <div class="setup-script-container">
+        <code class="setup-script" id="installScript">curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/scripts/install-relay.sh | bash</code>
+        <button class="setup-copy-btn" id="copyBtn" title="Скопировать">📋</button>
+      </div>
+    </div>
+    
+    <div class="setup-btn-row">
+      <button class="setup-btn setup-btn-secondary" id="retryBtn">
+        Проверить
+      </button>
+      <a class="setup-btn" href="https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/extension.crx" target="_blank">
+        Обновить .crx
+      </a>
+    </div>
+  </div>
   
   <script src="popup.js"></script>
 </body>

@@ -425,8 +425,17 @@ function createContainerFrame(config: ContainerConfig): FrameNode {
   }
   
   // Sizing
-  frame.primaryAxisSizingMode = config.height === 'HUG' ? 'AUTO' : 'FIXED';
-  frame.counterAxisSizingMode = config.width === 'FILL' ? 'AUTO' : 'FIXED';
+  // primaryAxis: для HORIZONTAL — это ширина, для VERTICAL — высота
+  // counterAxis: для HORIZONTAL — это высота, для VERTICAL — ширина
+  if (config.layoutMode === 'HORIZONTAL') {
+    // Горизонтальный layout: primaryAxis = ширина
+    frame.primaryAxisSizingMode = config.width === 'HUG' ? 'AUTO' : 'FIXED';
+    frame.counterAxisSizingMode = config.height === 'HUG' ? 'AUTO' : 'FIXED';
+  } else {
+    // Вертикальный layout или WRAP: primaryAxis = высота
+    frame.primaryAxisSizingMode = config.height === 'HUG' ? 'AUTO' : 'FIXED';
+    frame.counterAxisSizingMode = config.width === 'FILL' || config.width === 'HUG' ? 'AUTO' : 'FIXED';
+  }
   
   if (typeof config.width === 'number') {
     frame.resize(config.width, 100);
@@ -446,6 +455,11 @@ function createContainerFrame(config: ContainerConfig): FrameNode {
   frame.paddingRight = config.padding?.right ?? 0;
   frame.paddingBottom = config.padding?.bottom ?? 0;
   frame.paddingLeft = config.padding?.left ?? 0;
+  
+  // Clips content
+  if (config.clipsContent !== undefined) {
+    frame.clipsContent = config.clipsContent;
+  }
   
   return frame;
 }

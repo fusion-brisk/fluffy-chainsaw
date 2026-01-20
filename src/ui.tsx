@@ -147,42 +147,24 @@ const App: React.FC = () => {
   }, []);
 
   // === RELAY CONNECTION ===
-  const checkRelay = useCallback(async (): Promise<boolean> => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      
-      const response = await fetch(`${relayUrl}/status`, { 
-        signal: controller.signal 
-      });
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) return false;
-      
-      const data = await response.json();
-      
-      // Check if there's data in queue
-      if (data.queueSize && data.queueSize > 0) {
-        // Pull data from relay
-        await pullRelayData();
-      }
-      
-      return true;
-    } catch {
-      return false;
-    }
-  }, [relayUrl]);
-
+  
   // Store relay payload for later use
   const relayPayloadRef = useRef<unknown>(null);
 
+  // pullRelayData должен быть определён ДО checkRelay
   const pullRelayData = useCallback(async () => {
+    console.log(`🔄 [pullRelayData] Начало, relayUrl=${relayUrl}`);
     try {
       const response = await fetch(`${relayUrl}/pull`);
+      console.log(`🔄 [pullRelayData] Response status: ${response.status}`);
       if (!response.ok) return;
       
       const data = await response.json();
-      if (!data.hasData || !data.payload) return;
+      console.log(`🔄 [pullRelayData] Data:`, data);
+      if (!data.hasData || !data.payload) {
+        console.log(`🔄 [pullRelayData] Нет данных (hasData=${data.hasData})`);
+        return;
+      }
       
       const payload = data.payload;
       
@@ -231,6 +213,39 @@ const App: React.FC = () => {
     }
   }, [relayUrl, resizeUI]);
 
+  const checkRelay = useCallback(async (): Promise<boolean> => {
+    console.log(`🔍 [checkRelay] Проверка relay: ${relayUrl}/status`);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      
+      const response = await fetch(`${relayUrl}/status`, { 
+        signal: controller.signal 
+      });
+      clearTimeout(timeoutId);
+      
+      console.log(`🔍 [checkRelay] Response status: ${response.status}`);
+      if (!response.ok) return false;
+      
+      const data = await response.json();
+      console.log(`🔍 [checkRelay] Queue status:`, data);
+      
+      // Check if there's data in queue
+      if (data.queueSize && data.queueSize > 0) {
+        console.log(`🔍 [checkRelay] Есть данные в очереди (${data.queueSize}), вызываю pullRelayData`);
+        // Pull data from relay
+        await pullRelayData();
+      } else {
+        console.log(`🔍 [checkRelay] Очередь пуста`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.log(`🔍 [checkRelay] Ошибка:`, error);
+      return false;
+    }
+  }, [relayUrl, pullRelayData]);
+
   // === INITIALIZATION ===
   useEffect(() => {
     isMountedRef.current = true;
@@ -248,13 +263,17 @@ const App: React.FC = () => {
     
     // Initial relay check
     const doInitialCheck = async () => {
+      console.log(`🚀 [Init] Начальная проверка relay...`);
       const connected = await checkRelay();
+      console.log(`🚀 [Init] Результат проверки: connected=${connected}`);
       if (!isMountedRef.current) return;
       
       if (connected) {
+        console.log(`🚀 [Init] Relay подключён, переход в ready`);
         setAppState('ready');
         resizeUI('ready');
       } else {
+        console.log(`🚀 [Init] Relay не подключён, переход в setup`);
         setAppState('setup');
         resizeUI('setup');
       }

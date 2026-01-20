@@ -302,16 +302,16 @@ export function isLayoutType(type: string): type is LayoutElementType {
 export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
   'AdvProductGallery': {
     name: 'AdvProductGallery',
-    layoutMode: 'WRAP',
-    width: 'FILL',
+    layoutMode: 'HORIZONTAL',  // Горизонтальный layout без wrap
+    width: 'HUG',              // HUG — ширина по контенту (без обрезки)
     height: 'HUG',
-    itemSpacing: 8,          // gap между карточками по горизонтали
-    counterAxisSpacing: 10,  // gap между строками
+    itemSpacing: 8,            // gap между карточками
+    clipsContent: false,       // Без clip — контент может выходить за границы
     padding: {
-      top: 10,
-      right: 10,
-      bottom: 20,
-      left: 10,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
     },
     childTypes: ['EProductSnippet2'],
     childWidth: 186,  // Фиксированная ширина карточки

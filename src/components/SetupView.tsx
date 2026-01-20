@@ -2,31 +2,46 @@
  * SetupView — Simplified Onboarding
  * 
  * Shows when relay is not connected.
- * Single installer download with status indicators.
+ * Copy-paste installation script + CRX download.
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState, useCallback } from 'react';
 
 interface SetupViewProps {
   onRetry: () => void;
   isChecking?: boolean;
 }
 
-// TODO: Заменить на реальный URL после создания GitHub Release
-const INSTALLER_URL = 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/EProductSnippet-Installer.command';
+const CRX_URL = 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/extension.crx';
+
+// Скрипт установки Relay (минимальный, всё в одну команду)
+const INSTALL_SCRIPT = `curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/scripts/install-relay.sh | bash`;
 
 export const SetupView: React.FC<SetupViewProps> = memo(({ 
   onRetry,
   isChecking = false
 }) => {
-  const handleDownload = () => {
-    window.open(INSTALLER_URL, '_blank');
-  };
+  const [copied, setCopied] = useState(false);
 
-  const handleTryDeeplink = () => {
-    // Пробуем запустить Relay через deeplink (если .app установлен)
-    window.open('eproductsnippet://start');
-  };
+  const handleCopyScript = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(INSTALL_SCRIPT);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }, []);
+
+  const handleOpenTerminal = useCallback(() => {
+    // На macOS можно открыть Terminal через AppleScript
+    // В контексте Figma UI это не сработает, но покажем инструкцию
+    window.open('x-apple.terminal://');
+  }, []);
+
+  const handleDownloadCrx = useCallback(() => {
+    window.open(CRX_URL, '_blank');
+  }, []);
 
   return (
     <div className="setup-view">
@@ -44,39 +59,58 @@ export const SetupView: React.FC<SetupViewProps> = memo(({
         </div>
       </div>
       
-      {/* Main card: Download Installer */}
-      <div className="setup-main-card">
-        <div className="setup-main-card-icon">📥</div>
-        <h2 className="setup-main-card-title">Скачайте установщик</h2>
-        <p className="setup-main-card-desc">
-          Один файл установит всё необходимое для работы плагина с браузером Chrome
+      {/* Step 1: Install Relay */}
+      <div className="setup-step">
+        <div className="setup-step-header">
+          <span className="setup-step-number">1</span>
+          <span className="setup-step-title">Установите Relay-сервер</span>
+        </div>
+        <p className="setup-step-desc">
+          Скопируйте команду и вставьте в Terminal:
         </p>
-        <button 
-          type="button"
-          className="setup-download-button"
-          onClick={handleDownload}
-        >
-          Скачать установщик
-        </button>
-        <p className="setup-main-card-hint">
-          macOS • Apple Silicon / Intel
-        </p>
+        <div className="setup-script-container">
+          <code className="setup-script">{INSTALL_SCRIPT}</code>
+          <button 
+            type="button"
+            className={`setup-copy-button ${copied ? 'copied' : ''}`}
+            onClick={handleCopyScript}
+            title="Скопировать команду"
+          >
+            {copied ? '✓' : '📋'}
+          </button>
+        </div>
+        <div className="setup-step-actions">
+          <button 
+            type="button"
+            className="setup-button-small"
+            onClick={handleOpenTerminal}
+          >
+            Открыть Terminal
+          </button>
+        </div>
       </div>
       
-      {/* Instructions */}
-      <div className="setup-instructions">
-        <div className="setup-instruction-step">
-          <span className="setup-instruction-number">1</span>
-          <span className="setup-instruction-text">Скачайте и запустите файл .command</span>
+      {/* Step 2: Install Extension */}
+      <div className="setup-step">
+        <div className="setup-step-header">
+          <span className="setup-step-number">2</span>
+          <span className="setup-step-title">Установите расширение Chrome</span>
         </div>
-        <div className="setup-instruction-step">
-          <span className="setup-instruction-number">2</span>
-          <span className="setup-instruction-text">Установите расширение в Chrome</span>
+        <p className="setup-step-desc">
+          Скачайте .crx файл и перетащите в chrome://extensions
+        </p>
+        <div className="setup-step-actions">
+          <button 
+            type="button"
+            className="setup-download-button"
+            onClick={handleDownloadCrx}
+          >
+            Скачать extension.crx
+          </button>
         </div>
-        <div className="setup-instruction-step">
-          <span className="setup-instruction-number">3</span>
-          <span className="setup-instruction-text">Перезапустите Chrome</span>
-        </div>
+        <p className="setup-step-hint">
+          Включите Developer mode в Chrome перед установкой
+        </p>
       </div>
       
       {/* Actions */}
@@ -95,15 +129,6 @@ export const SetupView: React.FC<SetupViewProps> = memo(({
           ) : (
             'Проверить подключение'
           )}
-        </button>
-        
-        <button 
-          type="button"
-          className="setup-button-secondary"
-          onClick={handleTryDeeplink}
-          title="Попробовать запустить Relay, если уже установлен"
-        >
-          Запустить Relay
         </button>
       </div>
     </div>

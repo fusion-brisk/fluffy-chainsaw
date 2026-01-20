@@ -3479,6 +3479,131 @@ button:disabled {
   color: var(--figma-color-text);
 }
 
+/* Setup Step (new v3) */
+.setup-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  background: var(--glass-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-lg);
+}
+
+.setup-step-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.setup-step-number {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: var(--figma-color-bg-brand);
+  color: white;
+  border-radius: 50%;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.setup-step-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--figma-color-text);
+}
+
+.setup-step-desc {
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.setup-step-hint {
+  font-size: var(--font-size-xs);
+  color: var(--figma-color-text-tertiary);
+  margin: 0;
+}
+
+.setup-step-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+/* Script container */
+.setup-script-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.setup-script {
+  flex: 1;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 10px;
+  color: var(--figma-color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: all;
+}
+
+.setup-copy-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--figma-color-bg-tertiary);
+  border: none;
+  border-radius: var(--radius-small);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.setup-copy-button:hover {
+  background: var(--figma-color-bg-brand);
+}
+
+.setup-copy-button.copied {
+  background: var(--figma-color-text-success);
+  color: white;
+}
+
+/* Small button */
+.setup-button-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--figma-color-bg-tertiary);
+  color: var(--figma-color-text-secondary);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-small);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.setup-button-small:hover {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-text);
+  border-color: var(--figma-color-border-brand);
+}
+
 /* ============================================
    FILE DROP OVERLAY - Hidden fallback
    ============================================ */

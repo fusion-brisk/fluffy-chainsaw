@@ -38,8 +38,8 @@ export interface ContainerConfig {
   name: string;
   /** Направление layout */
   layoutMode: 'HORIZONTAL' | 'VERTICAL' | 'WRAP';
-  /** Ширина: число = fixed, 'FILL' = fill parent */
-  width: number | 'FILL';
+  /** Ширина: число = fixed, 'FILL' = fill parent, 'HUG' = по контенту */
+  width: number | 'FILL' | 'HUG';
   /** Высота: 'HUG' = auto, число = fixed */
   height: 'HUG' | number;
   /** Gap между элементами */
@@ -57,6 +57,8 @@ export interface ContainerConfig {
   childTypes: SnippetType[];
   /** Ширина дочерних элементов */
   childWidth?: number | 'FILL';
+  /** Обрезать контент (clipsContent) */
+  clipsContent?: boolean;
 }
 
 // ============================================================================

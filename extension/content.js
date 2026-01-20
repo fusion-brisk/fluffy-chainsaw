@@ -1734,6 +1734,8 @@
     const className = serpItem.className || '';
     const fastName = serpItem.getAttribute('data-fast-name') || '';
     const fastSubtype = serpItem.getAttribute('data-fast-subtype') || '';
+    const dataCid = serpItem.getAttribute('data-cid') || '';
+    const dataLogNode = serpItem.getAttribute('data-log-node') || '';
     
     // EntityOffers — группа офферов от разных магазинов
     if (className.includes('entity-offers') || fastName === 'entity_offers') {
@@ -1746,7 +1748,9 @@
     }
     
     // AdvProductGallery — рекламная галерея
-    if (serpItem.querySelector('.AdvProductGallery')) {
+    const advGallery = serpItem.querySelector('.AdvProductGallery');
+    if (advGallery) {
+      console.log(`[getSerpItemContainerType] AdvProductGallery найден! cid=${dataCid}, logNode=${dataLogNode}`);
       return 'AdvProductGallery';
     }
     
@@ -1754,6 +1758,13 @@
     const shopItems = serpItem.querySelectorAll('.EShopItem');
     if (shopItems.length > 1) {
       return 'EShopList';
+    }
+    
+    // Логирование для отладки
+    const hasAdvClass = serpItem.innerHTML.includes('AdvProductGallery');
+    if (hasAdvClass) {
+      console.log(`[getSerpItemContainerType] ⚠️ innerHTML содержит AdvProductGallery, но querySelector не нашёл! cid=${dataCid}, logNode=${dataLogNode}`);
+      console.log(`[getSerpItemContainerType] Первые 500 символов innerHTML:`, serpItem.innerHTML.substring(0, 500));
     }
     
     // Одиночный сниппет
@@ -1765,7 +1776,8 @@
    * Возвращает объект или массив объектов
    */
   function extractRowData(serpItem) {
-    const serpItemId = serpItem.getAttribute('data-cid') || '';
+    // Используем data-cid или data-log-node как fallback
+    const serpItemId = serpItem.getAttribute('data-cid') || serpItem.getAttribute('data-log-node') || '';
     const containerType = getSerpItemContainerType(serpItem);
     
     console.log(`[extractRowData] serpItemId=${serpItemId}, containerType=${containerType}`);
@@ -2061,6 +2073,16 @@
     const containerArray = Array.from(new Set(allContainers));
     const containers = filterTopLevelContainers(containerArray);
     console.log(`📦 [Content] Найдено контейнеров: ${containers.length}`);
+    
+    // Детальное логирование каждого контейнера
+    containers.forEach((c, i) => {
+      const cid = c.getAttribute('data-cid') || 'N/A';
+      const logNode = c.getAttribute('data-log-node') || 'N/A';
+      const hasAdvGallery = c.querySelector('.AdvProductGallery') !== null;
+      const hasShopItems = c.querySelectorAll('.EShopItem').length;
+      const hasProductTiles = c.querySelector('.ProductTile-Item, .EProductSnippet2') !== null;
+      console.log(`  [${i+1}] cid=${cid}, logNode=${logNode.substring(0, 15)}, AdvGallery=${hasAdvGallery}, EShopItem=${hasShopItems}, ProductTile=${hasProductTiles}`);
+    });
     
     // Извлекаем данные
     const results = [];
