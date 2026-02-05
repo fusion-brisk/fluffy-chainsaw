@@ -12,7 +12,7 @@ const STORAGE_KEYS = {
 
 // Дефолтный URL для удалённого конфига
 // Пользователь может изменить его через Settings в UI
-const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/shchuchkin/fluffy-chainsaw/main/config/parsing-rules.json';
+const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json';
 
 /**
  * Вычисляет простой hash строки (для сравнения версий)

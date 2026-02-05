@@ -10,7 +10,7 @@ Parsing rules for extracting data from HTML/MHTML files (Yandex search results).
 
 **Raw URL:**
 ```
-https://raw.githubusercontent.com/shchuchkin/fluffy-chainsaw/main/config/parsing-rules.json
+https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json
 ```
 
 This URL is used by the plugin to automatically fetch updates.

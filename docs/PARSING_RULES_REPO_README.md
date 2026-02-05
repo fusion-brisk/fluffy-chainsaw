@@ -1,6 +1,6 @@
 # Contentify - Parsing Rules Configuration
 
-> Remote configuration for [Contentify Figma Plugin](https://github.com/yourusername/fluffy-chainsaw)
+> Remote configuration for [Contentify Figma Plugin](https://github.com/fusion-brisk/fluffy-chainsaw)
 
 ## 📋 Overview
 
@@ -14,7 +14,7 @@ This repository contains parsing rules for the **Contentify** Figma plugin, whic
 2. Navigate to **Settings** section
 3. Enter this repository's raw URL:
    ```
-   https://raw.githubusercontent.com/YOUR_USERNAME/contentify-config/main/parsing-rules.json
+   https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json
    ```
 4. Plugin will automatically check for updates on startup
 
@@ -134,9 +134,9 @@ MIT License - see LICENSE file for details
 
 ## 🔗 Links
 
-- [Contentify Plugin Repository](https://github.com/yourusername/fluffy-chainsaw)
+- [Contentify Plugin Repository](https://github.com/fusion-brisk/fluffy-chainsaw)
 - [Figma Community](https://www.figma.com/community/plugin/...)
-- [Report Issues](https://github.com/yourusername/contentify-config/issues)
+- [Report Issues](https://github.com/fusion-brisk/fluffy-chainsaw/issues)
 
 ---
 
