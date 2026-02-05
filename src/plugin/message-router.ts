@@ -79,6 +79,31 @@ export async function handleSimpleMessage(
     return true;
   }
   
+  // === Setup skipped preference ===
+  if (type === 'get-setup-skipped') {
+    try {
+      const skipped = await figma.clientStorage.getAsync('contentify_setup_skipped');
+      figma.ui.postMessage({
+        type: 'setup-skipped-loaded',
+        skipped: skipped === true
+      });
+    } catch (e) {
+      Logger.error('Failed to load setup-skipped:', e);
+      figma.ui.postMessage({ type: 'setup-skipped-loaded', skipped: false });
+    }
+    return true;
+  }
+  
+  if (type === 'save-setup-skipped') {
+    try {
+      await figma.clientStorage.setAsync('contentify_setup_skipped', true);
+      Logger.debug('Setup skipped preference saved');
+    } catch (e) {
+      Logger.error('Failed to save setup-skipped:', e);
+    }
+    return true;
+  }
+  
   // === Parsing rules handlers ===
   if (type === 'get-parsing-rules') {
     Logger.info('📋 Запрос правил парсинга от UI');

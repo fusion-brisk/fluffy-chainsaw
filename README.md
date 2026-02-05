@@ -1,40 +1,142 @@
-Below are the steps to get your plugin running. You can also find instructions at:
+# Contentify
 
-  https://www.figma.com/plugin-docs/plugin-quickstart-guide/
+Figma-плагин для автозаполнения макетов данными из поисковой выдачи Яндекса.
 
-This plugin template uses Typescript and NPM, two standard tools in creating JavaScript applications.
+## Что это?
 
-First, download Node.js which comes with NPM. This will allow you to install TypeScript and other
-libraries. You can find the download link here:
+Contentify помогает дизайнерам быстро создавать в Figma макеты из библиотечных компонентов на основе реальной выдачи поиска Яндекса. Плагин:
 
-  https://nodejs.org/en/download/
+- **Создаёт макеты** — автоматически строит структуру страницы с карточками товаров
+- **Заполняет данными** — применяет реальные цены, названия, изображения к компонентам
+- **Сохраняет время** — готовый макет вместо ручного копирования данных
 
-Next, install TypeScript using the command:
+## Архитектура
 
-  npm install -g typescript
+Система состоит из трёх компонентов:
 
-Finally, in the directory of your plugin, get the latest type definitions for the plugin API by running:
+```
+Browser Extension → Relay Server → Figma Plugin
+     (парсинг)      (localhost)     (создание)
+```
 
-  npm install --save-dev @figma/plugin-typings
+1. **Browser Extension** — парсит страницу Яндекса, извлекает данные сниппетов
+2. **Relay Server** — передаёт данные между браузером и Figma (localhost:3847)
+3. **Figma Plugin** — получает данные и создаёт/заполняет макет
 
-If you are familiar with JavaScript, TypeScript will look very familiar. In fact, valid JavaScript code
-is already valid Typescript code.
+## Quick Start
 
-TypeScript adds type annotations to variables. This allows code editors such as Visual Studio Code
-to provide information about the Figma API while you are writing code, as well as help catch bugs
-you previously didn't notice.
+### Разработка
 
-For more information, visit https://www.typescriptlang.org/
+```bash
+# Установка зависимостей
+npm install
 
-Using TypeScript requires a compiler to convert TypeScript (code.ts) into JavaScript (code.js)
-for the browser to run.
+# Сборка плагина
+npm run build
 
-We recommend writing TypeScript code using Visual Studio code:
+# Разработка с hot reload и Relay сервером
+npm run dev
 
-1. Download Visual Studio Code if you haven't already: https://code.visualstudio.com/.
-2. Open this directory in Visual Studio Code.
-3. Compile TypeScript to JavaScript: Run the "Terminal > Run Build Task..." menu item,
-    then select "npm: watch". You will have to do this again every time
-    you reopen Visual Studio Code.
+# Только сборка с watch
+npm run build:watch
 
-That's it! Visual Studio Code will regenerate the JavaScript file every time you save.
+# Запуск тестов
+npm run test
+```
+
+### Установка в Figma
+
+1. Открыть Figma
+2. Plugins → Development → Import plugin from manifest
+3. Выбрать `manifest.json` из корня проекта
+
+### Установка Extension
+
+1. Открыть `chrome://extensions`
+2. Включить "Developer mode"
+3. "Load unpacked" → выбрать папку `extension/`
+
+## Структура проекта
+
+```
+.
+├── src/                    # Исходный код плагина
+│   ├── code.ts             # Entry point (Figma sandbox)
+│   ├── ui.tsx              # React UI
+│   ├── handlers/           # Обработчики компонентов
+│   ├── plugin/             # Модули обработки данных
+│   ├── page-builder/       # Создание страниц
+│   ├── utils/              # Утилиты парсинга
+│   └── types/              # TypeScript типы
+│
+├── extension/              # Chrome Extension
+│   ├── content.js          # Парсинг страницы
+│   ├── background.js       # Service Worker
+│   └── popup.html          # UI popup
+│
+├── relay/                  # Relay сервер
+│   └── server.js           # Express API
+│
+├── docs/                   # Документация
+│   ├── ARCHITECTURE.md     # Карта проекта
+│   ├── GLOSSARY.md         # Термины
+│   └── EXTENDING.md        # Гайды по расширению
+│
+├── .cursor/                # Контекст для AI-разработки
+│   ├── context.md          # Краткий контекст
+│   ├── common-tasks.md     # Частые задачи
+│   └── debug-guide.md      # Отладка
+│
+└── dist/                   # Результат сборки
+```
+
+## Документация
+
+| Документ | Описание |
+|----------|----------|
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Детальная карта проекта, диаграммы, потоки данных |
+| [GLOSSARY.md](docs/GLOSSARY.md) | Термины и концепции: Snippet, Container, CSVRow, Handler |
+| [EXTENDING.md](docs/EXTENDING.md) | Пошаговые гайды добавления handlers, полей, компонентов |
+| [STRUCTURE.md](docs/STRUCTURE.md) | Детали архитектуры модулей |
+
+## Для AI-разработки
+
+Проект оптимизирован для разработки через Cursor с Claude:
+
+- **`.cursorrules`** — полный контекст проекта, автоматически подключается
+- **`.cursor/`** — дополнительные гайды для AI
+
+При работе с AI рекомендуется:
+1. Читать `.cursorrules` для понимания ограничений
+2. Использовать `docs/EXTENDING.md` для типовых задач
+3. Смотреть `.cursor/debug-guide.md` для отладки
+
+## Технологии
+
+- **TypeScript** — типизация
+- **React 18** — UI плагина
+- **Rollup + Babel** — сборка в ES5
+- **Express** — Relay сервер
+- **Vitest** — тестирование
+
+## Ограничения
+
+- Figma Plugin API требует ES5 (транспиляция через Babel)
+- Никаких Node.js API в рантайме плагина
+- UI ↔ Code общение только через postMessage
+
+## Команды
+
+| Команда | Описание |
+|---------|----------|
+| `npm run build` | Полная сборка |
+| `npm run build:watch` | Watch mode |
+| `npm run dev` | Build + Relay server |
+| `npm run relay` | Только Relay server |
+| `npm run test` | Запуск тестов |
+| `npm run lint` | ESLint проверка |
+| `npm run lint:fix` | ESLint с автоисправлением |
+
+## Лицензия
+
+Proprietary

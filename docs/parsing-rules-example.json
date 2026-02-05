@@ -1,5 +1,5 @@
 {
-  "_comment": "EProductSnippet Plugin - Parsing Rules Configuration",
+  "_comment": "Contentify Plugin - Parsing Rules Configuration",
   "_description": {
     "purpose": "This file contains parsing rules for DOM and JSON extraction from Yandex search results",
     "usage": "The plugin will automatically check for updates on startup and prompt user to apply changes",

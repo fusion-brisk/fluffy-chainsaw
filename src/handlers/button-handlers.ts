@@ -116,11 +116,18 @@ export async function handleMarketCheckoutButton(context: HandlerContext): Promi
   const buttonView = row['#ButtonView'] || '';
   const isCheckout = hasRealCheckout(buttonType, buttonView);
   
-  // Для EShopItem/EOfferItem кнопка показывается всегда, но view зависит от checkout
+  // Определяем платформу из данных или компонента
+  const dataPlatform = row['#platform'];
+  const componentPlatformTouch = container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
+  const isTouch = dataPlatform === 'touch' || componentPlatformTouch;
+  
+  // Для EShopItem/EOfferItem:
+  // - Desktop: кнопка показывается всегда
+  // - Touch: кнопка показывается только при checkout
   // Для ESnippet/Snippet — только если есть checkout
   let hasButton: boolean;
   if (containerName === 'EShopItem' || containerName === 'EOfferItem') {
-    hasButton = true; // Всегда показываем
+    hasButton = isTouch ? isCheckout : true;
   } else if (containerName === 'ESnippet' || containerName === 'Snippet') {
     hasButton = isCheckout; // Только с checkout
   } else {
@@ -166,7 +173,15 @@ export async function handleEButton(context: HandlerContext): Promise<void> {
   const buttonType = row['#ButtonType'] ? String(row['#ButtonType']).trim() : '';
   const buttonViewData = row['#ButtonView'] || '';
   const isCheckout = hasRealCheckout(buttonType, buttonViewData);
-  const isTouch = container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
+  
+  // Определяем платформу:
+  // 1. Сначала проверяем #platform из данных (приоритет — данные парсинга)
+  // 2. Если нет — проверяем Platform property компонента
+  const dataPlatform = row['#platform'];
+  const componentPlatformTouch = container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
+  const isTouch = dataPlatform === 'touch' || componentPlatformTouch;
+  
+  Logger.debug(`   📱 [EButton] platform: data=${dataPlatform}, component=${componentPlatformTouch ? 'touch' : 'desktop'}, final isTouch=${isTouch}`);
   
   // Определяем hasButton по типу контейнера и Platform
   // Логика: кнопка показывается только если Platform = Desktop или есть checkout

@@ -118,6 +118,23 @@ export const CheckIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 );
 
+// Check Circle icon - for success headers (unified style)
+export const CheckCircleIcon: React.FC<{ className?: string; size?: number }> = ({ className, size = 24 }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="12" r="10" fill="var(--figma-color-text-success)" opacity="0.15" />
+    <circle cx="12" cy="12" r="8" fill="var(--figma-color-text-success)" />
+    <path d="M8 12l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+// Inbox/Received icon - for confirm dialog header
+export const InboxIcon: React.FC<{ className?: string; size?: number }> = ({ className, size = 24 }) => (
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M22 12h-6l-2 3h-4l-2-3H2" stroke="var(--figma-color-bg-brand)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" stroke="var(--figma-color-bg-brand)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 // Warning icon
 export const WarningIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -172,3 +189,5 @@ export const BrowserIllustration: React.FC<{ className?: string }> = ({ classNam
     </g>
   </svg>
 );
+
+// Note: Sparkle, RingSpinner, SuccessCheckmark, InboxGlass removed in Figma-style refactor

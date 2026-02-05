@@ -1,4 +1,4 @@
-# EProductSnippet Chrome Extension
+# Contentify Chrome Extension
 
 Chrome Extension для отправки данных страницы в Figma Plugin через Relay сервер.
 
@@ -18,7 +18,7 @@ Chrome Extension для отправки данных страницы в Figma 
 5. Опционально: укажите URL Figma файла для автоматического открытия
 6. Нажмите **Send to Figma**
 7. Token автоматически скопируется в буфер обмена
-8. Откройте Figma и запустите плагин EProductSnippet
+8. Откройте Figma и запустите плагин Contentify
 9. Вставьте token в секцию "Connect from Browser" и нажмите **Fetch**
 
 ## Иконки

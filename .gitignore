@@ -7,12 +7,26 @@ node_modules
 dist
 build
 
+# Relay binaries (built from relay/server.js, distributed via GitHub Releases)
+relay/dist/
+native-host/Contentify Relay.app/Contents/Resources/contentify-relay-*
+
+# Installer archives
+scripts/Contentify-Installer.zip
+
 # Misc
 .DS_Store
 .env
 .npmrc
 *.log
 npm-debug.log*
+
+# Extension keys (keep secret!)
+*.pem
+*.crx
+
+# Relay server data
+relay/.relay-queue.json
 
 # Editor directories and files
 .idea

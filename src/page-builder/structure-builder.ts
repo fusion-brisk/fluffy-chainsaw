@@ -209,12 +209,16 @@ export function buildPageStructure(
       
       if (containerTypeFromData === 'EntityOffers') {
         containerType = 'EntityOffers';
+      } else if (containerTypeFromData === 'EShopList') {
+        containerType = 'EShopList';
       } else if (containerTypeFromData === 'ProductsTiles') {
         containerType = 'ProductsTiles';
       } else if (containerTypeFromData === 'AdvProductGallery' || isAdv) {
         containerType = 'AdvProductGallery';
       } else if (firstSnippetType === 'EProductSnippet2') {
         containerType = 'ProductsTiles';
+      } else if (firstSnippetType === 'EShopItem') {
+        containerType = 'EShopList';
       } else if (firstSnippetType === 'ESnippet') {
         containerType = 'EntityOffers';
       } else {

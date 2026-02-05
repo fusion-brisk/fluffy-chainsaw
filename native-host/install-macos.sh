@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# EProductSnippet Relay - macOS Installer
+# Contentify Relay - macOS Installer
 # Устанавливает Native Messaging Host + автозапуск при входе в систему
 #
 
 set -e
 
 # === Конфигурация ===
-HOST_NAME="com.eproductsnippet.relay"
+HOST_NAME="com.contentify.relay"
 DEFAULT_EXTENSION_ID="bkgihkkkahjfjpbplmcpggfnfkckhpnm"
 EXTENSION_ID="${1:-$DEFAULT_EXTENSION_ID}"
 
@@ -17,21 +17,28 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # Определяем архитектуру и бинарник
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ]; then
-  BINARY_NAME="eproductsnippet-relay-host-arm64"
+  BINARY_NAME="contentify-relay-host-arm64"
 else
-  BINARY_NAME="eproductsnippet-relay-host-x64"
+  BINARY_NAME="contentify-relay-host-x64"
 fi
 
-# Ищем исполняемый файл
-if [ -f "$SCRIPT_DIR/dist/$BINARY_NAME" ]; then
+# Ищем исполняемый файл (порядок: relay/dist, native-host/dist, native-host/, .app Resources)
+RELAY_DIR="$(dirname "$SCRIPT_DIR")/relay"
+APP_RESOURCES="$SCRIPT_DIR/Contentify Relay.app/Contents/Resources"
+
+if [ -f "$RELAY_DIR/dist/$BINARY_NAME" ]; then
+  HOST_PATH="$RELAY_DIR/dist/$BINARY_NAME"
+elif [ -f "$SCRIPT_DIR/dist/$BINARY_NAME" ]; then
   HOST_PATH="$SCRIPT_DIR/dist/$BINARY_NAME"
 elif [ -f "$SCRIPT_DIR/$BINARY_NAME" ]; then
   HOST_PATH="$SCRIPT_DIR/$BINARY_NAME"
-elif [ -f "$SCRIPT_DIR/host.js" ]; then
-  HOST_PATH="$SCRIPT_DIR/host.js"
-  echo "⚠️  Бинарник не найден, используем host.js (требуется Node.js)"
+elif [ -f "$APP_RESOURCES/$BINARY_NAME" ]; then
+  HOST_PATH="$APP_RESOURCES/$BINARY_NAME"
 else
-  echo "❌ Ошибка: не найден ни бинарник ($BINARY_NAME), ни host.js"
+  echo "❌ Ошибка: бинарник не найден ($BINARY_NAME)"
+  echo ""
+  echo "   Попробуйте собрать бинарники:"
+  echo "   cd relay && npm install && npm run build"
   exit 1
 fi
 
@@ -40,7 +47,7 @@ CHROME_MANIFEST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessa
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 
 echo ""
-echo "🚀 EProductSnippet Relay - Установка"
+echo "🚀 Contentify Relay - Установка"
 echo ""
 echo "📋 Параметры:"
 echo "   Архитектура: $ARCH"
@@ -60,7 +67,7 @@ create_manifest() {
   cat > "$manifest_path" << EOF
 {
   "name": "$HOST_NAME",
-  "description": "EProductSnippet Relay - connects Chrome Extension with Figma Plugin",
+  "description": "Contentify Relay - connects Chrome Extension with Figma Plugin",
   "path": "$HOST_PATH",
   "type": "stdio",
   "allowed_origins": [
@@ -82,6 +89,14 @@ fi
 
 if [ -d "$HOME/Library/Application Support/Chromium" ]; then
   create_manifest "$HOME/Library/Application Support/Chromium/NativeMessagingHosts"
+fi
+
+if [ -d "$HOME/Library/Application Support/Microsoft Edge" ]; then
+  create_manifest "$HOME/Library/Application Support/Microsoft Edge/NativeMessagingHosts"
+fi
+
+if [ -d "$HOME/Library/Application Support/BraveSoftware/Brave-Browser" ]; then
+  create_manifest "$HOME/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts"
 fi
 
 chmod +x "$HOST_PATH"
@@ -116,10 +131,10 @@ cat > "$PLIST_PATH" << EOF
     </dict>
     
     <key>StandardOutPath</key>
-    <string>/tmp/eproductsnippet-relay.log</string>
+    <string>/tmp/contentify-relay.log</string>
     
     <key>StandardErrorPath</key>
-    <string>/tmp/eproductsnippet-relay.err</string>
+    <string>/tmp/contentify-relay.err</string>
     
     <key>ProcessType</key>
     <string>Background</string>
@@ -153,7 +168,7 @@ else
 fi
 
 # === 4. Устанавливаем .app в Applications ===
-APP_NAME="EProductSnippet Relay"
+APP_NAME="Contentify Relay"
 APP_SRC="$SCRIPT_DIR/$APP_NAME.app"
 APP_DEST="$HOME/Applications/$APP_NAME.app"
 

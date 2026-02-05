@@ -1,24 +1,18 @@
 /**
- * EProductSnippet Extension — Popup with Relay Setup
+ * Contentify Extension — Popup (Clipboard-First Architecture)
  * 
- * Single-click to parse & send to Figma.
- * Shows setup UI when relay is not connected.
+ * Single-click to parse & copy to clipboard.
+ * Relay is optional for automatic transfer.
+ * Always works without requiring any setup.
  */
 
 // Elements
 const mainView = document.getElementById('mainView');
-const setupView = document.getElementById('setupView');
 const indicator = document.getElementById('indicator');
 const statusEl = document.getElementById('status');
 const hintEl = document.getElementById('hint');
-const copyBtn = document.getElementById('copyBtn');
-const retryBtn = document.getElementById('retryBtn');
-const installScript = document.getElementById('installScript');
 
 let isProcessing = false;
-
-// Install script
-const INSTALL_SCRIPT = 'curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/scripts/install-relay.sh | bash';
 
 // Check if page is Yandex
 function isYandexPage(url) {
@@ -42,10 +36,10 @@ async function getRelayUrl() {
   return relayUrl || 'http://localhost:3847';
 }
 
-// Check relay availability
+// Check relay availability (non-blocking)
 async function checkRelay(url) {
   try {
-    const res = await fetch(`${url}/status`, { signal: AbortSignal.timeout(2000) });
+    const res = await fetch(`${url}/status`, { signal: AbortSignal.timeout(1500) });
     return res.ok;
   } catch {
     return false;
@@ -83,18 +77,6 @@ function transformRowsForRelay(rows) {
   }));
 }
 
-// Show main view
-function showMainView() {
-  mainView.style.display = 'flex';
-  setupView.classList.remove('visible');
-}
-
-// Show setup view
-function showSetupView() {
-  mainView.style.display = 'none';
-  setupView.classList.add('visible');
-}
-
 // Update UI state
 function setState(state, message, hint = '') {
   indicator.className = `indicator ${state}`;
@@ -117,39 +99,42 @@ function setState(state, message, hint = '') {
     case 'disabled':
       indicator.textContent = '🌐';
       break;
+    case 'copied':
+      indicator.textContent = '📋';
+      break;
     default:
       indicator.textContent = '📤';
   }
 }
 
-// Main send handler
+// Copy data to clipboard
+async function copyToClipboard(data) {
+  try {
+    await navigator.clipboard.writeText(data);
+    return true;
+  } catch (err) {
+    console.error('Clipboard copy failed:', err);
+    return false;
+  }
+}
+
+// Main send handler (clipboard-first)
 async function handleClick() {
   if (isProcessing) return;
   
   isProcessing = true;
-  setState('loading', 'Отправка...', '');
+  setState('loading', 'Парсинг...', '');
   
   try {
     const tab = await getCurrentTab();
     
     if (!isYandexPage(tab.url)) {
-      setState('disabled', 'Не страница Яндекса', 'Откройте ya.ru');
-      isProcessing = false;
-      return;
-    }
-    
-    const relayUrl = await getRelayUrl();
-    
-    // Check relay
-    const relayOk = await checkRelay(relayUrl);
-    if (!relayOk) {
-      showSetupView();
+      setState('disabled', 'Не Яндекс', 'Откройте ya.ru');
       isProcessing = false;
       return;
     }
     
     // Parse page
-    setState('loading', 'Парсинг...', '');
     const parseResult = await parsePageData(tab.id);
     
     if (!parseResult || parseResult.error || !parseResult.rows?.length) {
@@ -160,7 +145,7 @@ async function handleClick() {
     
     const rows = parseResult.rows;
     
-    // Send to relay
+    // Build payload
     setState('loading', `${rows.length} элементов...`, '');
     
     const payload = {
@@ -171,92 +156,85 @@ async function handleClick() {
       rawRows: rows
     };
     
-    const res = await fetch(`${relayUrl}/push`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payload,
-        meta: { url: tab.url, parsedAt: new Date().toISOString(), snippetCount: rows.length }
-      })
+    const meta = { 
+      url: tab.url, 
+      parsedAt: new Date().toISOString(), 
+      snippetCount: rows.length 
+    };
+    
+    // Always copy to clipboard first (clipboard-first architecture)
+    const clipboardData = JSON.stringify({
+      type: 'contentify-paste',
+      payload,
+      meta
     });
     
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+    const copySuccess = await copyToClipboard(clipboardData);
+    
+    if (!copySuccess) {
+      setState('error', 'Ошибка копирования', 'Попробуйте снова');
+      isProcessing = false;
+      return;
+    }
+    
+    // Try to send to relay (optional, non-blocking)
+    const relayUrl = await getRelayUrl();
+    let relaySuccess = false;
+    
+    try {
+      const relayOk = await checkRelay(relayUrl);
+      if (relayOk) {
+        const res = await fetch(`${relayUrl}/push`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payload, meta }),
+          signal: AbortSignal.timeout(2000)
+        });
+        relaySuccess = res.ok;
+      }
+    } catch {
+      // Relay not available — clipboard fallback is already done
     }
     
     // Success!
-    setState('success', `${rows.length} → Figma`, 'Готово!');
+    if (relaySuccess) {
+      setState('success', `${rows.length} → Figma`, 'Автоматически!');
+    } else {
+      setState('copied', `${rows.length} скопировано`, 'Вставьте в Figma (⌘V)');
+    }
     
     // Close popup after short delay
-    setTimeout(() => window.close(), 1200);
+    setTimeout(() => window.close(), relaySuccess ? 1000 : 1500);
     
   } catch (err) {
+    console.error('Error:', err);
     setState('error', 'Ошибка', err.message || 'Попробуйте снова');
   } finally {
     isProcessing = false;
   }
 }
 
-// Copy script to clipboard
-async function handleCopy() {
-  try {
-    await navigator.clipboard.writeText(INSTALL_SCRIPT);
-    copyBtn.textContent = '✓';
-    copyBtn.classList.add('copied');
-    setTimeout(() => {
-      copyBtn.textContent = '📋';
-      copyBtn.classList.remove('copied');
-    }, 2000);
-  } catch (err) {
-    console.error('Copy failed:', err);
-  }
-}
-
-// Retry connection
-async function handleRetry() {
-  retryBtn.textContent = '...';
-  retryBtn.disabled = true;
-  
-  const relayUrl = await getRelayUrl();
-  const relayOk = await checkRelay(relayUrl);
-  
-  if (relayOk) {
-    showMainView();
-    setState('ready', 'Готов', 'Клик для отправки');
-  } else {
-    retryBtn.textContent = 'Проверить';
-    retryBtn.disabled = false;
-  }
-}
-
 // Initialize
 (async () => {
   const tab = await getCurrentTab();
-  const relayUrl = await getRelayUrl();
-  
-  // Check relay availability first
-  const relayOk = await checkRelay(relayUrl);
-  
-  if (!relayOk) {
-    // Show setup view
-    showSetupView();
-    return;
-  }
   
   // Check if on Yandex page
   if (!isYandexPage(tab?.url)) {
     setState('disabled', 'Не Яндекс', 'Откройте ya.ru');
-    hintEl.textContent = '';
     return;
   }
   
-  // Ready to send
-  setState('ready', 'Готов', 'Клик для отправки');
+  // Ready to parse and copy
+  // Check relay for indicator only
+  const relayUrl = await getRelayUrl();
+  const relayOk = await checkRelay(relayUrl);
+  
+  if (relayOk) {
+    setState('ready', 'Готов', 'Клик → Figma');
+  } else {
+    setState('ready', 'Готов', 'Клик → Скопировать');
+  }
   
   // Bind click to main view
   mainView.addEventListener('click', handleClick);
 })();
-
-// Event listeners
-copyBtn.addEventListener('click', handleCopy);
-retryBtn.addEventListener('click', handleRetry);

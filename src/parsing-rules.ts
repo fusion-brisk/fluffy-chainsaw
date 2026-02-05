@@ -42,11 +42,11 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
     },
     '#OrganicTitle': {
       domSelectors: [
-        // Organic_withOfferInfo — приоритет
-        '.OrganicTitle',
-        '[class*="OrganicTitle"]',
-        '.Organic-Title',
-        '[class*="Organic-Title"]',
+        // Точные селекторы для текста заголовка (приоритет!)
+        '.OrganicTitleContentSpan',
+        '[class*="OrganicTitleContentSpan"]',
+        'h2.OrganicTitle-LinkText',
+        '.OrganicTitle-LinkText',
         // EProductSnippet2
         '.EProductSnippet2-Title',
         '[class*="EProductSnippet2-Title"]',
@@ -54,7 +54,12 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
         '[class*="EProductSnippet2-Title"] a',
         // EShopItem
         '.EShopItem-Title',
-        '[class*="EShopItem-Title"]'
+        '[class*="EShopItem-Title"]',
+        // Fallback для старых версий (менее точные)
+        '.OrganicTitle',
+        '[class*="OrganicTitle"]',
+        '.Organic-Title',
+        '[class*="Organic-Title"]'
       ],
       jsonKeys: ['title', 'name', 'headline', 'text'],
       type: 'text'
@@ -126,10 +131,18 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
         '.EProductSnippet2-Thumb img', 
         '[class*="EProductSnippet2-Thumb"] img',
         // EShopItem — наиболее специфичные селекторы
+        // Touch-версия использует .EShopItem-Leading вместо .EShopItem-Left
+        '.EShopItem-Leading img',
+        '[class*="EShopItem-Leading"] img',
         '.EShopItem-Image img',
         '[class*="EShopItem-Image"] img',
         '.EShopItem-Left img',
         'img.EThumb-Image',
+        // Touch-специфичные селекторы
+        '.TinySwiper-Item img',
+        '.EThumb.TinySwiper-Item img',
+        '.Thumb-Image',
+        '.Gallery-Thumb img',
         // Общий fallback
         '.EThumb-Image',
         '[class*="EThumb"] img'
@@ -352,7 +365,11 @@ export const DEFAULT_PARSING_RULES: ParsingSchema = {
           '.EDeliveryGroup:not(.EDeliveryGroup-Item)',
           '[class*="EDeliveryGroup"]:not([class*="EDeliveryGroup-Item"])',
           // MerchantDelivery тоже может содержать доставку
-          '.MerchantDelivery-MoBlock'
+          '.MerchantDelivery-MoBlock',
+          // Touch-версия использует EShopItem-Deliveries и EShopItem-DeliveriesBnpl
+          '.EShopItem-Deliveries',
+          '.EShopItem-DeliveriesBnpl',
+          '.ShopInfo-Deliveries'
         ],
         jsonKeys: [],
         type: 'boolean'

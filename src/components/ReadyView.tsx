@@ -1,53 +1,68 @@
 /**
- * ReadyView — Ready state with illustration
+ * ReadyView — Minimalist Waiting State (Figma-style)
  * 
- * Shows when relay is connected and plugin is ready to receive data.
- * Features animated icon and clear instructions with emoji.
+ * Shows when plugin is ready to receive data.
+ * Clean empty state with simple icon.
+ * 
+ * CLIPBOARD-FIRST: Works with or without relay connection.
  */
 
 import React, { memo } from 'react';
-import { ReadyIcon, BrowserIllustration, LogoIcon } from './Icons';
+import { InboxIcon } from './Icons';
+import { getPasteShortcut } from '../utils/format';
 
 interface ReadyViewProps {
   lastQuery?: string;
+  relayConnected?: boolean;
+  onShowExtensionGuide?: () => void;
 }
 
-export const ReadyView: React.FC<ReadyViewProps> = memo(({ lastQuery }) => {
+export const ReadyView: React.FC<ReadyViewProps> = memo(({ 
+  lastQuery,
+  relayConnected = false,
+  onShowExtensionGuide
+}) => {
   return (
-    <div className="ready-view">
-      {/* Left content */}
-      <div className="ready-view-content">
-        <div className="ready-view-icon">
-          <ReadyIcon className="ready-icon-svg" />
-        </div>
-        
-        <h2 className="ready-view-title">Готов к импорту</h2>
-        
-        {lastQuery && (
-          <div className="ready-view-last">
-            Последний: «{lastQuery}»
-          </div>
-        )}
-        
-        <div className="ready-view-steps">
-          <div className="ready-view-step">
-            <span className="ready-view-step-icon">🔍</span>
-            <span>1. Откройте поиск в браузере.</span>
-          </div>
-          <div className="ready-view-step">
-            <span className="ready-view-step-icon"><LogoIcon size={14} /></span>
-            <span>2. Нажмите на расширение.</span>
-          </div>
-          <div className="ready-view-step">
-            <span className="ready-view-step-icon">📄</span>
-            <span>Или перетащите HTML-файл.</span>
-          </div>
-        </div>
+    <div className="ready-view--figma view-animate-in">
+      {/* Icon */}
+      <div className="ready-view-icon">
+        <InboxIcon size={32} />
       </div>
       
-      {/* Right illustration */}
-      <div className="ready-view-illustration">
-        <BrowserIllustration className="browser-illustration-svg" />
+      {/* Title */}
+      <h2 className="ready-view-title">
+        Готов к работе
+      </h2>
+      
+      {/* Last query if available */}
+      {lastQuery && (
+        <div className="ready-view-last">
+          Последний: «{lastQuery}»
+        </div>
+      )}
+      
+      {/* Main instruction */}
+      <p className="ready-view-instruction">
+        Откройте поиск Яндекса и нажмите на иконку{' '}
+        <button 
+          type="button" 
+          className="ready-view-link"
+          onClick={onShowExtensionGuide}
+        >
+          расширения
+        </button>
+      </p>
+      
+      {/* Hints */}
+      <div className="ready-view-hints">
+        {!relayConnected && (
+          <span className="ready-view-hint">
+            <kbd>{getPasteShortcut()}</kbd> вставить данные
+          </span>
+        )}
+        <span className="ready-view-hint">
+          или перетащите HTML-файл
+        </span>
       </div>
     </div>
   );

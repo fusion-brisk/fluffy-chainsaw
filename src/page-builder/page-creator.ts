@@ -28,7 +28,9 @@ import {
   GROUP_COMPONENT_MAP,
   LAYOUT_COMPONENT_MAP,
   CONTAINER_CONFIG_MAP,
-  FILTER_COMPONENTS
+  FILTER_COMPONENTS,
+  PAINT_STYLE_KEYS,
+  VARIABLE_KEYS
 } from './component-map';
 import { parsePageStructure } from './structure-parser';
 import { buildPageStructure, sortContentNodes } from './structure-builder';
@@ -87,6 +89,107 @@ async function importComponent(key: string): Promise<ComponentNode | null> {
     Logger.error(`[PageCreator] Ошибка импорта компонента (key=${key}): ${msg}`);
     return null;
   }
+}
+
+/**
+ * Применить переменную заливки из библиотеки к узлу
+ * @param node - узел с поддержкой fills (Frame и т.д.)
+ * @param variableKey - ключ переменной из VARIABLE_KEYS
+ * @returns true если переменная успешно применена
+ */
+async function applyFillVariable(
+  node: SceneNode & { fills?: readonly Paint[] | typeof figma.mixed },
+  variableKey: string
+): Promise<boolean> {
+  if (!variableKey) {
+    Logger.debug('[PageCreator] Пустой ключ переменной');
+    return false;
+  }
+  
+  try {
+    // Импортируем переменную из библиотеки
+    const variable = await figma.variables.importVariableByKeyAsync(variableKey);
+    
+    if (!variable) {
+      Logger.warn(`[PageCreator] Переменная не найдена (key=${variableKey})`);
+      return false;
+    }
+    
+    // Создаём базовый solid paint
+    const basePaint: SolidPaint = {
+      type: 'SOLID',
+      color: { r: 1, g: 1, b: 1 }, // Белый как fallback
+    };
+    
+    // Привязываем переменную к цвету
+    const boundPaint = figma.variables.setBoundVariableForPaint(basePaint, 'color', variable);
+    
+    // Применяем к узлу
+    (node as FrameNode).fills = [boundPaint];
+    
+    Logger.debug(`[PageCreator] Применена переменная заливки: ${variable.name}`);
+    return true;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    Logger.warn(`[PageCreator] Не удалось применить переменную заливки (key=${variableKey}): ${msg}`);
+  }
+  return false;
+}
+
+/**
+ * Применить стиль заливки из библиотеки к узлу
+ * @param node - узел с поддержкой fills (Frame, Instance и т.д.)
+ * @param styleKey - ключ стиля из PAINT_STYLE_KEYS
+ * @returns true если стиль успешно применён
+ * 
+ * @deprecated Используйте applyFillVariable для более надёжной привязки
+ */
+async function applyFillStyle(
+  node: SceneNode & { fillStyleId?: string | typeof figma.mixed },
+  styleKey: string
+): Promise<boolean> {
+  try {
+    const style = await figma.importStyleByKeyAsync(styleKey);
+    if (style && style.type === 'PAINT') {
+      (node as FrameNode).fillStyleId = style.id;
+      Logger.debug(`[PageCreator] Применён стиль заливки: ${style.name}`);
+      return true;
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    Logger.warn(`[PageCreator] Не удалось применить стиль заливки (key=${styleKey}): ${msg}`);
+  }
+  return false;
+}
+
+/**
+ * Применить заливку к узлу (переменная или стиль как fallback)
+ * Сначала пытается применить переменную, если ключ задан.
+ * Если переменная не настроена или не удалось — пробует стиль.
+ * 
+ * @param node - узел с поддержкой fills
+ * @param colorName - имя цвета из VARIABLE_KEYS / PAINT_STYLE_KEYS (например, 'Background/Primary')
+ * @returns true если заливка успешно применена
+ */
+async function applyFill(
+  node: SceneNode & { fills?: readonly Paint[] | typeof figma.mixed; fillStyleId?: string | typeof figma.mixed },
+  colorName: keyof typeof VARIABLE_KEYS
+): Promise<boolean> {
+  // 1. Сначала пробуем переменную
+  const variableKey = VARIABLE_KEYS[colorName];
+  if (variableKey) {
+    const applied = await applyFillVariable(node, variableKey);
+    if (applied) return true;
+  }
+  
+  // 2. Fallback на стиль
+  const styleKey = PAINT_STYLE_KEYS[colorName];
+  if (styleKey) {
+    return applyFillStyle(node, styleKey);
+  }
+  
+  Logger.warn(`[PageCreator] Нет ключа для цвета: ${colorName}`);
+  return false;
 }
 
 /**
@@ -470,8 +573,35 @@ function createContainerFrame(config: ContainerConfig): FrameNode {
 function findImageLayer(container: SceneNode, names: string[]): SceneNode | null {
   if (!('children' in container)) return null;
   
+  // Сначала ищем точное совпадение
   for (const name of names) {
     const found = findLayerRecursive(container, name);
+    if (found) return found;
+  }
+  
+  // Fallback: ищем слой с "Image" или "Thumb" в имени (частичное совпадение)
+  const partialFound = findLayerByPartialName(container, ['Image', 'Thumb', 'image', 'thumb']);
+  if (partialFound) {
+    console.log(`[findImageLayer] Найден по частичному совпадению: "${partialFound.name}"`);
+    return partialFound;
+  }
+  
+  return null;
+}
+
+/**
+ * Ищет слой по частичному совпадению имени (contains)
+ */
+function findLayerByPartialName(node: SceneNode, patterns: string[]): SceneNode | null {
+  // Проверяем текущий узел — ищем только слои с fills (Rectangle, Frame)
+  if ('fills' in node && patterns.some(p => node.name.includes(p))) {
+    return node;
+  }
+  
+  if (!('children' in node)) return null;
+  
+  for (const child of node.children) {
+    const found = findLayerByPartialName(child, patterns);
     if (found) return found;
   }
   return null;
@@ -593,7 +723,17 @@ async function applySnippetImages(instance: InstanceNode, row: Record<string, st
   console.log(`[applySnippetImages] URL: "${imageUrl.substring(0, 60)}..."`);
 
   // Ищем слой изображения
-  const layerNames = ['#OrganicImage', '#ThumbImage', 'Image Ratio', 'EThumb-Image', '#Image', '#Image1'];
+  // Добавлены имена для AdvGallery и других вариантов компонентов
+  const layerNames = [
+    '#OrganicImage', '#ThumbImage', 
+    'Image Ratio', 'EThumb-Image', 
+    '#Image', '#Image1',
+    // Дополнительные имена для AdvGallery и других вариантов
+    'Image', 'Thumb', 'image',
+    'EProductSnippet2-Image', 'EProductSnippet2-Thumb',
+    'AdvGallery-Image', 'Card-Image',
+    'EThumb', 'Photo', 'Picture'
+  ];
   const layer = findImageLayer(instance, layerNames);
 
   if (!layer) {
@@ -1041,12 +1181,18 @@ async function createEQuickFiltersPanel(
 /**
  * Рендерить узел структуры в Figma
  * Возвращает созданный элемент (инстанс или фрейм)
+ * @param node - узел структуры
+ * @param platform - платформа (desktop/touch)
+ * @param errors - массив ошибок для накопления
+ * @param parentContainerType - тип родительского контейнера
+ * @param query - поисковый запрос (для заголовков)
  */
 async function renderStructureNode(
   node: StructureNode,
   platform: 'desktop' | 'touch',
   errors: PageCreationError[],
-  parentContainerType?: ContainerType
+  parentContainerType?: ContainerType,
+  query?: string
 ): Promise<{ element: SceneNode | null; count: number }> {
   let count = 0;
 
@@ -1067,19 +1213,272 @@ async function renderStructureNode(
       return { element: null, count: 0 };
     }
 
-    const containerFrame = createContainerFrame(containerConfig);
     const thisContainerType = node.type as ContainerType;
+    
+    // === ProductsTiles: оборачиваем в productTilesWrapper с Title ===
+    if (thisContainerType === 'ProductsTiles') {
+      const wrapper = figma.createFrame();
+      wrapper.name = 'productTilesWrapper';
+      wrapper.layoutMode = 'VERTICAL';
+      wrapper.primaryAxisSizingMode = 'AUTO';
+      wrapper.counterAxisSizingMode = 'AUTO';
+      wrapper.itemSpacing = 0;
+      wrapper.paddingTop = 16;
+      wrapper.paddingBottom = 16;
+      wrapper.paddingLeft = 15;
+      wrapper.paddingRight = 15;
+      wrapper.cornerRadius = 16;
+      wrapper.clipsContent = true;
+      await applyFill(wrapper, 'Background/Primary');
+      
+      // Добавляем Title
+      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+      if (titleConfig?.key) {
+        try {
+          const titleComponent = await importComponent(titleConfig.key);
+          if (titleComponent) {
+            const titleInstance = titleComponent.createInstance();
+            
+            // Применяем defaultVariant свойства (отключаем лишние элементы)
+            if (titleConfig.defaultVariant) {
+              try {
+                titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+              } catch (e) {
+                Logger.debug(`[PageCreator] Title setProperties: ${e}`);
+              }
+            }
+            
+            wrapper.appendChild(titleInstance);
+            titleInstance.layoutSizingHorizontal = 'FILL';
+            
+            // Устанавливаем текст заголовка
+            const titleText = query 
+              ? `Популярные товары по запросу «${query}»`
+              : 'Популярные товары';
+            const textNode = findTextNode(titleInstance);
+            if (textNode) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+              textNode.characters = titleText;
+            }
+            
+            Logger.debug(`[PageCreator] Title добавлен: "${titleText}"`);
+          }
+        } catch (e) {
+          Logger.warn(`[PageCreator] Не удалось создать Title: ${e}`);
+        }
+      }
+      
+      // Создаём ProductsTiles внутри wrapper
+      const containerFrame = createContainerFrame(containerConfig);
+      wrapper.appendChild(containerFrame);
+      containerFrame.layoutSizingHorizontal = 'FILL';
+      
+      // Рендерим дочерние узлы
+      if (node.children) {
+        for (const child of node.children) {
+          const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
+          if (result.element) {
+            containerFrame.appendChild(result.element);
+            
+            // Touch: FILL ширина, Desktop: фиксированная
+            const isProductsTilesOnTouch = platform === 'touch';
+            if (containerConfig.childWidth === 'FILL' || isProductsTilesOnTouch) {
+              (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
+            } else if (typeof containerConfig.childWidth === 'number') {
+              (result.element as InstanceNode).resize(
+                containerConfig.childWidth,
+                (result.element as InstanceNode).height
+              );
+            }
+            
+            count += result.count;
+          }
+        }
+      }
+      
+      Logger.debug(`[PageCreator] ProductsTiles wrapper: ${node.children?.length || 0} элементов`);
+      return { element: wrapper, count };
+    }
+
+    // === EntityOffers: оборачиваем в entityOffersWrapper с Title ===
+    if (thisContainerType === 'EntityOffers') {
+      const wrapper = figma.createFrame();
+      wrapper.name = 'entityOffersWrapper';
+      wrapper.layoutMode = 'VERTICAL';
+      wrapper.primaryAxisSizingMode = 'AUTO';
+      wrapper.counterAxisSizingMode = 'AUTO';
+      wrapper.clipsContent = true;
+      
+      // Desktop: без паддингов и скруглений
+      // Touch: паддинги, скругления, gap 12px между Title и контентом
+      if (platform === 'touch') {
+        wrapper.itemSpacing = 12;
+        wrapper.paddingTop = 16;
+        wrapper.paddingBottom = 16;
+        wrapper.paddingLeft = 15;
+        wrapper.paddingRight = 15;
+        wrapper.cornerRadius = 16;
+        await applyFill(wrapper, 'Background/Primary');
+      } else {
+        wrapper.itemSpacing = 0;
+        wrapper.paddingTop = 0;
+        wrapper.paddingBottom = 0;
+        wrapper.paddingLeft = 0;
+        wrapper.paddingRight = 0;
+        wrapper.cornerRadius = 0;
+        wrapper.fills = [];
+      }
+      
+      // Добавляем Title с текстом из данных (EntityOffersTitle) или дефолтным
+      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+      if (titleConfig?.key) {
+        try {
+          const titleComponent = await importComponent(titleConfig.key);
+          if (titleComponent) {
+            const titleInstance = titleComponent.createInstance();
+            
+            // Применяем defaultVariant свойства (отключаем лишние элементы)
+            if (titleConfig.defaultVariant) {
+              try {
+                titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+              } catch (e) {
+                Logger.debug(`[PageCreator] Title setProperties: ${e}`);
+              }
+            }
+            
+            wrapper.appendChild(titleInstance);
+            titleInstance.layoutSizingHorizontal = 'FILL';
+            
+            // Устанавливаем текст заголовка из данных первого ребёнка или дефолтный
+            const entityTitle = node.children?.[0]?.data?.['#EntityOffersTitle'] || 'Цены по вашему запросу';
+            const textNode = findTextNode(titleInstance);
+            if (textNode) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+              textNode.characters = String(entityTitle);
+            }
+            
+            Logger.debug(`[PageCreator] EntityOffers Title: "${entityTitle}"`);
+          }
+        } catch (e) {
+          Logger.warn(`[PageCreator] Не удалось создать Title для EntityOffers: ${e}`);
+        }
+      }
+      
+      // Создаём EntityOffers контейнер внутри wrapper
+      const containerFrame = createContainerFrame(containerConfig);
+      // Touch: gap 8px между элементами внутри EntityOffers
+      if (platform === 'touch') {
+        containerFrame.itemSpacing = 8;
+      }
+      wrapper.appendChild(containerFrame);
+      containerFrame.layoutSizingHorizontal = 'FILL';
+      
+      // Рендерим дочерние узлы (EShopItem)
+      if (node.children) {
+        for (const child of node.children) {
+          const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
+          if (result.element) {
+            containerFrame.appendChild(result.element);
+            (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
+            count += result.count;
+          }
+        }
+      }
+      
+      Logger.debug(`[PageCreator] EntityOffers wrapper: ${node.children?.length || 0} элементов`);
+      return { element: wrapper, count };
+    }
+
+    // === EShopList: оборачиваем в eShopListWrapper с Title ===
+    if (thisContainerType === 'EShopList') {
+      const wrapper = figma.createFrame();
+      wrapper.name = 'eShopListWrapper';
+      wrapper.layoutMode = 'VERTICAL';
+      wrapper.primaryAxisSizingMode = 'AUTO';
+      wrapper.counterAxisSizingMode = 'AUTO';
+      wrapper.clipsContent = true;
+      
+      // Touch: паддинги, скругления, gap 12px между Title и контентом
+      wrapper.itemSpacing = 12;
+      wrapper.paddingTop = 16;
+      wrapper.paddingBottom = 16;
+      wrapper.paddingLeft = 15;
+      wrapper.paddingRight = 15;
+      wrapper.cornerRadius = 16;
+      await applyFill(wrapper, 'Background/Primary');
+      
+      // Добавляем Title с текстом из данных (EShopListTitle) или дефолтным
+      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+      if (titleConfig?.key) {
+        try {
+          const titleComponent = await importComponent(titleConfig.key);
+          if (titleComponent) {
+            const titleInstance = titleComponent.createInstance();
+            
+            // Применяем defaultVariant свойства (отключаем лишние элементы)
+            if (titleConfig.defaultVariant) {
+              try {
+                titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+              } catch (e) {
+                Logger.debug(`[PageCreator] Title setProperties: ${e}`);
+              }
+            }
+            
+            wrapper.appendChild(titleInstance);
+            titleInstance.layoutSizingHorizontal = 'FILL';
+            
+            // Устанавливаем текст заголовка из данных первого ребёнка или дефолтный
+            const shopListTitle = node.children?.[0]?.data?.['#EShopListTitle'] || 'Цены в магазинах';
+            const textNode = findTextNode(titleInstance);
+            if (textNode) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+              textNode.characters = String(shopListTitle);
+            }
+            
+            Logger.debug(`[PageCreator] EShopList Title: "${shopListTitle}"`);
+          }
+        } catch (e) {
+          Logger.warn(`[PageCreator] Не удалось создать Title для EShopList: ${e}`);
+        }
+      }
+      
+      // Создаём EShopList контейнер внутри wrapper (с gap 6px)
+      const containerFrame = createContainerFrame(containerConfig);
+      wrapper.appendChild(containerFrame);
+      containerFrame.layoutSizingHorizontal = 'FILL';
+      
+      // Рендерим дочерние узлы (EShopItem)
+      if (node.children) {
+        for (const child of node.children) {
+          const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
+          if (result.element) {
+            containerFrame.appendChild(result.element);
+            (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
+            count += result.count;
+          }
+        }
+      }
+      
+      Logger.debug(`[PageCreator] EShopList wrapper: ${node.children?.length || 0} элементов`);
+      return { element: wrapper, count };
+    }
+
+    // === Остальные контейнеры ===
+    const containerFrame = createContainerFrame(containerConfig);
 
     // Рендерим дочерние узлы с передачей типа родительского контейнера
     if (node.children) {
       for (const child of node.children) {
-        const result = await renderStructureNode(child, platform, errors, thisContainerType);
+        const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
         if (result.element) {
           // Сначала добавляем в контейнер
           containerFrame.appendChild(result.element);
 
           // Потом устанавливаем ширину (FILL можно только после appendChild)
-          if (containerConfig.childWidth === 'FILL') {
+          // Touch: для ProductsTiles используем FILL вместо фиксированной ширины
+          const isProductsTilesOnTouch = platform === 'touch' && thisContainerType === 'ProductsTiles';
+          
+          if (containerConfig.childWidth === 'FILL' || isProductsTilesOnTouch) {
             (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
           } else if (typeof containerConfig.childWidth === 'number') {
             (result.element as InstanceNode).resize(
@@ -1190,13 +1589,21 @@ export async function createSerpPage(
   pageFrame.paddingRight = 0;
   pageFrame.paddingBottom = 0;
   pageFrame.paddingLeft = 0;
-  pageFrame.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+  
+  // Touch: фон overflow (серый), Desktop: белый
+  if (isTouch) {
+    await applyFill(pageFrame, 'Background/Overflow');
+  } else {
+    pageFrame.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
+  }
   
   // Позиционируем
   pageFrame.x = figma.viewport.center.x - pageWidth / 2;
   pageFrame.y = figma.viewport.center.y;
   
-  // === 2. Header ===
+  // === 2. Header (и headerWrapper для touch) ===
+  let headerWrapper: FrameNode | null = null;
+  
   try {
     const headerConfig = LAYOUT_COMPONENT_MAP['Header'];
     if (headerConfig?.key) {
@@ -1204,33 +1611,50 @@ export async function createSerpPage(
       if (headerComponent) {
         const headerInstance = headerComponent.createInstance();
         
-        // Для touch: Desktop=false (или desktop=false — проверим оба варианта)
         console.log(`[PageCreator] Header: isTouch=${isTouch}, platform=${platform}`);
         
-        // Сначала выведем доступные свойства Header
-        try {
-          const headerProps = Object.keys(headerInstance.componentProperties || {});
-          console.log(`[PageCreator] Header доступные свойства: ${headerProps.join(', ')}`);
-        } catch (e) {
-          console.log(`[PageCreator] Header: не удалось получить свойства`);
-        }
-        
         if (isTouch) {
-          // Desktop — это variant property со значениями "True" | "False" (строки!)
+          // Touch: создаём headerWrapper для группировки Header + EQuickFilters
+          headerWrapper = figma.createFrame();
+          headerWrapper.name = 'headerWrapper';
+          headerWrapper.layoutMode = 'VERTICAL';
+          headerWrapper.primaryAxisSizingMode = 'AUTO';
+          headerWrapper.counterAxisSizingMode = 'AUTO';
+          headerWrapper.itemSpacing = 0;
+          headerWrapper.paddingTop = 0;
+          headerWrapper.paddingRight = 0;
+          headerWrapper.paddingBottom = 0;
+          headerWrapper.paddingLeft = 0;
+          // Скругление только снизу
+          headerWrapper.topLeftRadius = 0;
+          headerWrapper.topRightRadius = 0;
+          headerWrapper.bottomLeftRadius = 16;
+          headerWrapper.bottomRightRadius = 16;
+          headerWrapper.clipsContent = true;
+          await applyFillStyle(headerWrapper, PAINT_STYLE_KEYS['Background/Primary']);
+          
+          pageFrame.appendChild(headerWrapper);
+          headerWrapper.layoutSizingHorizontal = 'FILL';
+          
+          // Header внутрь headerWrapper
           try {
             headerInstance.setProperties({
-              Desktop: 'False',  // Строка, не boolean!
+              Desktop: 'False',
             });
             console.log('[PageCreator] ✅ Header: Desktop="False" установлено');
           } catch (e1) {
             console.log(`[PageCreator] ❌ Header Desktop="False" failed: ${e1}`);
           }
+          
+          headerWrapper.appendChild(headerInstance);
+          headerInstance.layoutSizingHorizontal = 'FILL';
         } else {
-          console.log('[PageCreator] Header: Desktop="True" (по умолчанию, свойства не меняем)');
+          // Desktop: Header напрямую в pageFrame
+          console.log('[PageCreator] Header: Desktop="True" (по умолчанию)');
+          pageFrame.appendChild(headerInstance);
+          headerInstance.layoutSizingHorizontal = 'FILL';
         }
         
-        pageFrame.appendChild(headerInstance);
-        headerInstance.layoutSizingHorizontal = 'FILL';
         createdCount++;
         Logger.debug('[PageCreator] Header добавлен');
       }
@@ -1263,12 +1687,24 @@ export async function createSerpPage(
   mainContent.layoutMode = isTouch ? 'VERTICAL' : 'HORIZONTAL';
   mainContent.primaryAxisSizingMode = isTouch ? 'AUTO' : 'FIXED';
   mainContent.counterAxisSizingMode = 'AUTO';
-  mainContent.itemSpacing = contentGap;
-  mainContent.paddingTop = 0;
-  mainContent.paddingRight = 0;
-  mainContent.paddingBottom = 0;
-  mainContent.paddingLeft = leftPadding;
   mainContent.fills = [];
+  
+  if (isTouch) {
+    // Touch: padding top/bottom 8px, боковые 0, gap 8px
+    mainContent.itemSpacing = 8;
+    mainContent.paddingTop = 8;
+    mainContent.paddingRight = 0;
+    mainContent.paddingBottom = 8;
+    mainContent.paddingLeft = 0;
+  } else {
+    // Desktop: без padding (кроме left), gap из параметров
+    mainContent.itemSpacing = contentGap;
+    mainContent.paddingTop = 0;
+    mainContent.paddingRight = 0;
+    mainContent.paddingBottom = 0;
+    mainContent.paddingLeft = leftPadding;
+  }
+  
   mainCenter.appendChild(mainContent);
   mainContent.layoutSizingHorizontal = 'FILL';
   
@@ -1316,15 +1752,23 @@ export async function createSerpPage(
   
   // === 7. Рендерим структуру ===
   for (const node of sortedNodes) {
-    const result = await renderStructureNode(node, platform, errors);
+    const result = await renderStructureNode(node, platform, errors, undefined, String(query));
     
     if (result.element) {
-      // Сначала добавляем в контейнер
-      snippetsContainer.appendChild(result.element);
-      
-      // Потом устанавливаем fill width (только после appendChild)
-      if (result.element.type === 'FRAME' || result.element.type === 'INSTANCE') {
-        (result.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
+      // Touch: EQuickFilters добавляем в headerWrapper вместо snippetsContainer
+      if (isTouch && node.type === 'EQuickFilters' && headerWrapper) {
+        headerWrapper.appendChild(result.element);
+        if (result.element.type === 'FRAME' || result.element.type === 'INSTANCE') {
+          (result.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
+        }
+      } else {
+        // Остальные элементы — в snippetsContainer
+        snippetsContainer.appendChild(result.element);
+        
+        // Потом устанавливаем fill width (только после appendChild)
+        if (result.element.type === 'FRAME' || result.element.type === 'INSTANCE') {
+          (result.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
+        }
       }
       
       createdCount += result.count;

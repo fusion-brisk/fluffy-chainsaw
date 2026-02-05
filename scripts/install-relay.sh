@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# EProductSnippet Relay — One-Line Installer
+# Contentify Relay — One-Line Installer
 # 
 # Использование:
 #   curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/scripts/install-relay.sh | bash
@@ -9,24 +9,24 @@
 set -e
 
 # === Конфигурация ===
-INSTALL_DIR="$HOME/.eproductsnippet"
+INSTALL_DIR="$HOME/.contentify"
 RELEASE_URL="https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download"
-HOST_NAME="com.eproductsnippet.relay"
+HOST_NAME="com.contentify.relay"
 EXTENSION_ID="bkgihkkkahjfjpbplmcpggfnfkckhpnm"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🚀 EProductSnippet Relay — Установка"
+echo "  🚀 Contentify Relay — Установка"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
 # === Определяем архитектуру ===
 ARCH=$(uname -m)
 if [ "$ARCH" = "arm64" ]; then
-  BINARY_NAME="eproductsnippet-relay-host-arm64"
+  BINARY_NAME="contentify-relay-host-arm64"
   echo "📱 Платформа: Apple Silicon (arm64)"
 else
-  BINARY_NAME="eproductsnippet-relay-host-x64"
+  BINARY_NAME="contentify-relay-host-x64"
   echo "💻 Платформа: Intel (x64)"
 fi
 echo ""
@@ -69,7 +69,7 @@ if [ -d "$HOME/Library/Application Support/Google/Chrome" ]; then
   cat > "$CHROME_MANIFEST_DIR/$HOST_NAME.json" << EOF
 {
   "name": "$HOST_NAME",
-  "description": "EProductSnippet Relay - connects Chrome Extension with Figma Plugin",
+  "description": "Contentify Relay - connects Chrome Extension with Figma Plugin",
   "path": "$INSTALL_DIR/relay-host",
   "type": "stdio",
   "allowed_origins": [
@@ -94,6 +94,22 @@ if [ -d "$HOME/Library/Application Support/Chromium" ]; then
   mkdir -p "$CHROMIUM_MANIFEST_DIR"
   cp "$CHROME_MANIFEST_DIR/$HOST_NAME.json" "$CHROMIUM_MANIFEST_DIR/$HOST_NAME.json"
   echo "   ✓ Chromium"
+fi
+
+# Microsoft Edge
+EDGE_MANIFEST_DIR="$HOME/Library/Application Support/Microsoft Edge/NativeMessagingHosts"
+if [ -d "$HOME/Library/Application Support/Microsoft Edge" ]; then
+  mkdir -p "$EDGE_MANIFEST_DIR"
+  cp "$CHROME_MANIFEST_DIR/$HOST_NAME.json" "$EDGE_MANIFEST_DIR/$HOST_NAME.json"
+  echo "   ✓ Microsoft Edge"
+fi
+
+# Brave Browser
+BRAVE_MANIFEST_DIR="$HOME/Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts"
+if [ -d "$HOME/Library/Application Support/BraveSoftware/Brave-Browser" ]; then
+  mkdir -p "$BRAVE_MANIFEST_DIR"
+  cp "$CHROME_MANIFEST_DIR/$HOST_NAME.json" "$BRAVE_MANIFEST_DIR/$HOST_NAME.json"
+  echo "   ✓ Brave Browser"
 fi
 echo ""
 
@@ -127,10 +143,10 @@ cat > "$PLIST_PATH" << EOF
     </dict>
     
     <key>StandardOutPath</key>
-    <string>/tmp/eproductsnippet-relay.log</string>
+    <string>/tmp/contentify-relay.log</string>
     
     <key>StandardErrorPath</key>
-    <string>/tmp/eproductsnippet-relay.err</string>
+    <string>/tmp/contentify-relay.err</string>
     
     <key>ProcessType</key>
     <string>Background</string>

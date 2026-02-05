@@ -139,6 +139,9 @@ export type UIMessage =
   | { type: 'get-settings' }  // Response: 'settings-loaded'
   | { type: 'get-remote-url' }  // Response: 'remote-url-loaded'
   | { type: 'set-remote-url'; url: string }
+  // === SETUP WIZARD ===
+  | { type: 'get-setup-skipped' }  // Response: 'setup-skipped-loaded'
+  | { type: 'save-setup-skipped' }  // Persist that user skipped setup
   // === PARSING RULES ===
   | { type: 'get-parsing-rules' }  // Response: 'parsing-rules-loaded'
   | { type: 'check-remote-rules-update' }  // Response: 'rules-update-available' (if update exists)
@@ -221,25 +224,25 @@ export interface RelayPayload {
 /**
  * Состояния интерфейса плагина:
  * - 'checking': проверка подключения к relay
- * - 'ready': relay подключён, ожидание данных
+ * - 'ready': готов к работе (независимо от relay)
  * - 'confirming': показываем диалог подтверждения импорта
  * - 'processing': обработка данных
- * - 'setup': relay не подключён, показываем инструкцию
+ * - 'success': импорт успешно завершён
  * - 'fileDrop': показываем fallback для загрузки файлов
  */
-export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success' | 'setup' | 'fileDrop';
+export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success' | 'fileDrop';
 
 /**
  * Размеры окна плагина для разных состояний
  */
 export const UI_SIZES = {
   checking: { width: 320, height: 56 },
-  ready: { width: 400, height: 320 },
+  ready: { width: 400, height: 380 },
   confirming: { width: 340, height: 340 },
   processing: { width: 340, height: 300 },
   success: { width: 340, height: 320 },
-  setup: { width: 480, height: 420 },
-  fileDrop: { width: 320, height: 280 }
+  fileDrop: { width: 320, height: 280 },
+  extensionGuide: { width: 380, height: 520 }
 } as const;
 
 /**

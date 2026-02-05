@@ -35,6 +35,44 @@ import {
   queryAllFromCache
 } from './dom-cache';
 
+/**
+ * Определяет платформу по HTML контенту (local copy to avoid circular imports)
+ * @returns 'touch' | 'desktop'
+ */
+function detectPlatformFromHtmlContent(htmlContent: string): 'touch' | 'desktop' {
+  // Надёжные эвристики — проверяем touch ПЕРВЫМ (HeaderPhone более специфичен)
+  const hasHeaderPhone = htmlContent.includes('class="HeaderPhone"');
+  const hasHeaderDesktop = htmlContent.includes('class="HeaderDesktop');
+  
+  // Touch проверяем первым — если есть HeaderPhone, это точно touch
+  if (hasHeaderPhone) {
+    Logger.debug('[detectPlatform] → touch (HeaderPhone найден)');
+    return 'touch';
+  }
+  
+  // Проверяем платформу по классам body
+  if (htmlContent.includes('i-ua_platform_ios') || htmlContent.includes('i-ua_platform_android')) {
+    Logger.debug('[detectPlatform] → touch (i-ua_platform_*)');
+    return 'touch';
+  }
+  
+  // Проверяем наличие touch-phone модификаторов
+  if (htmlContent.includes('@touch-phone')) {
+    Logger.debug('[detectPlatform] → touch (@touch-phone modifier)');
+    return 'touch';
+  }
+  
+  // Desktop — если есть HeaderDesktop
+  if (hasHeaderDesktop) {
+    Logger.debug('[detectPlatform] → desktop (HeaderDesktop найден)');
+    return 'desktop';
+  }
+  
+  // По умолчанию — desktop
+  Logger.debug('[detectPlatform] → desktop (по умолчанию)');
+  return 'desktop';
+}
+
 // Извлекает все данные строки из контейнера
 // spriteState - состояние текущего спрайта
 // cssCache - кэш CSS правил (Phase 4 optimization)
@@ -47,11 +85,13 @@ export function extractRowData(
   cssCache: CSSCache,
   rawHtml?: string,
   containerCache?: ContainerCache,
-  parsingRules: ParsingSchema = DEFAULT_PARSING_RULES
+  parsingRules: ParsingSchema = DEFAULT_PARSING_RULES,
+  platform: 'desktop' | 'touch' = 'desktop'
 ): { row: CSVRow | null; spriteState: SpriteState | null } {
     // Phase 5: Строим кэш элементов контейнера, если не передан
     const cache = containerCache || buildContainerCache(container);
     const rules = parsingRules.rules;
+    const isTouch = platform === 'touch';
     
     // Пропускаем рекламные сниппеты
     // ОПТИМИЗИРОВАНО: используем кэш вместо querySelector
@@ -118,7 +158,10 @@ export function extractRowData(
     // Проверяем типы контейнеров (от более специфичных к общим)
     if (className.includes('AdvProductGallery')) {
       containerType = 'AdvProductGallery';
-    } else if (className.includes('ProductsTiles')) {
+    } else if (className.includes('ProductsTiles') || 
+               className.includes('ProductsModeTiles') ||
+               className.includes('ProductsModeRoot')) {
+      // ProductsTiles / ProductsModeTiles / ProductsModeRoot — группа товаров
       containerType = 'ProductsTiles';
     } else if (className.includes('EShopGroup')) {
       containerType = 'EShopGroup';
@@ -128,6 +171,27 @@ export function extractRowData(
       containerType = 'EntityOffers';
     } else if (className.includes('ProductTileRow')) {
       containerType = 'ProductTileRow';
+    }
+    
+    // Также проверяем data-fast-name на родительском li.serp-item
+    if (!containerType && searchParent.tagName === 'LI' && 
+        searchParent.classList.contains('serp-item')) {
+      const fastName = searchParent.getAttribute('data-fast-name') || '';
+      const fastSubtype = searchParent.getAttribute('data-fast-subtype') || '';
+      
+      if (fastName === 'products_mode_constr' || 
+          fastSubtype.includes('ecommerce_offers') ||
+          fastSubtype.includes('products_tiles')) {
+        // ВАЖНО: products_mode_constr может содержать как EProductSnippet2 (плитки), 
+        // так и EShopItem (список магазинов). Определяем по типу сниппета!
+        if (snippetTypeValue === 'EShopItem') {
+          containerType = 'EShopList';
+          Logger.debug(`📦 [PARSE] containerType=EShopList (EShopItem в products_mode)`);
+        } else {
+          containerType = 'ProductsTiles';
+          Logger.debug(`📦 [PARSE] containerType=ProductsTiles (from data-fast-name/subtype)`);
+        }
+      }
     }
     
     searchParent = searchParent.parentElement;
@@ -156,10 +220,46 @@ export function extractRowData(
     Logger.debug(`📦 [PARSE] containerType=${containerType} для "${snippetTypeValue}"`);
   }
   
+  // Извлекаем заголовок группы для EShopList
+  let shopListTitle = '';
+  if (containerType === 'EShopList') {
+    // Ищем заголовок в родительских элементах
+    let titleSearchParent: Element | null = container;
+    while (titleSearchParent && !shopListTitle) {
+      // Пробуем найти заголовок в текущем контейнере
+      const titleSelectors = [
+        '.DebrandingTitle-Text',
+        '.GoodsHeader h2',
+        '.Products-Title h2',
+        '.EntitySearchTitle',
+        '.ProductsTiles h2'
+      ];
+      for (const selector of titleSelectors) {
+        const titleEl = titleSearchParent.querySelector(selector);
+        if (titleEl && titleEl.textContent) {
+          shopListTitle = titleEl.textContent.trim();
+          Logger.debug(`📝 [PARSE] EShopListTitle="${shopListTitle}" (${selector})`);
+          break;
+        }
+      }
+      // Если это li.serp-item — прекращаем поиск
+      if (titleSearchParent.tagName === 'LI' && 
+          titleSearchParent.classList.contains('serp-item')) {
+        break;
+      }
+      titleSearchParent = titleSearchParent.parentElement;
+    }
+    // Fallback
+    if (!shopListTitle) {
+      shopListTitle = 'Цены в магазинах';
+    }
+  }
+  
   const row: CSVRow = {
     '#SnippetType': snippetTypeValue,
     '#serpItemId': serpItemId,
     '#containerType': containerType,
+    '#EShopListTitle': shopListTitle,
     '#query': '',
     '#ProductURL': '',
     '#OrganicTitle': '',
@@ -1572,17 +1672,25 @@ export function extractRowData(
   // - ESnippet/Organic: кнопка скрывается если нет красной (красная → primaryShort + visible, иначе → hidden)
   //
   if (snippetType === 'EShopItem') {
-    // EShopItem: кнопка ВСЕГДА видна
-    // Checkout → primaryLong, иначе → secondary
-    row['#BUTTON'] = 'true';  // Кнопка всегда есть
-    if (hasCheckoutButton) {
-      row['#ButtonView'] = 'primaryLong';
-      row['#ButtonType'] = 'checkout';
-      Logger.debug(`✅ [EShopItem] Checkout → ButtonView='primaryLong'`);
+    // Touch: кнопка скрыта, показываем только для checkout
+    // Desktop: кнопка ВСЕГДА видна
+    if (isTouch) {
+      row['#BUTTON'] = hasCheckoutButton ? 'true' : 'false';
+      row['#ButtonView'] = hasCheckoutButton ? 'primaryShort' : '';
+      row['#ButtonType'] = hasCheckoutButton ? 'checkout' : 'shop';
+      row['#EButton_visible'] = hasCheckoutButton ? 'true' : 'false';
+      Logger.debug(`✅ [EShopItem Touch] Checkout=${hasCheckoutButton} → BUTTON='${row['#BUTTON']}'`);
     } else {
-      row['#ButtonView'] = 'secondary';
-      row['#ButtonType'] = 'shop';
-      Logger.debug(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
+      row['#BUTTON'] = 'true';  // Кнопка всегда есть
+      if (hasCheckoutButton) {
+        row['#ButtonView'] = 'primaryLong';
+        row['#ButtonType'] = 'checkout';
+        Logger.debug(`✅ [EShopItem] Checkout → ButtonView='primaryLong'`);
+      } else {
+        row['#ButtonView'] = 'secondary';
+        row['#ButtonType'] = 'shop';
+        Logger.debug(`✅ [EShopItem] Нет красной кнопки → ButtonView='secondary'`);
+      }
     }
   } else if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
     // ESnippet/Organic: логика как у EProductSnippet2
@@ -1771,6 +1879,10 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   
+  // Определяем платформу (desktop/touch)
+  const platform = detectPlatformFromHtmlContent(html);
+  Logger.info(`📱 [PARSE] Платформа: ${platform}`);
+  
   // === Global field: #query (search request) ===
   // Важно: input часто находится ВНЕ контейнера сниппета, поэтому извлекаем 1 раз на документ.
   let globalQuery = '';
@@ -1836,12 +1948,13 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
     // Phase 5: Строим кэш элементов контейнера ОДИН РАЗ
     const containerCache = buildContainerCache(container);
     
-    // Передаем CSS кэш, полный контент и DOM кэш контейнера
-    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html, containerCache, parsingRules);
+    // Передаем CSS кэш, полный контент, DOM кэш контейнера и платформу
+    const result = extractRowData(container, doc, spriteState, cssCache, fullMhtml || html, containerCache, parsingRules, platform);
     spriteState = result.spriteState; // Обновляем состояние спрайта
     if (result.row) {
-      // Прокидываем global #query во все строки (дальше маппится в Figma слой "#query")
+      // Прокидываем global #query и #platform во все строки
       if (globalQuery) result.row['#query'] = globalQuery;
+      result.row['#platform'] = platform;
       results.push(result.row);
     }
   }

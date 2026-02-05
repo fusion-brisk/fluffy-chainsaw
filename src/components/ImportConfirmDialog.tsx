@@ -1,12 +1,13 @@
 /**
- * ImportConfirmDialog — Confirmation dialog with card style
+ * ImportConfirmDialog — Figma-style confirmation dialog
  * 
  * Shows when data is received from browser extension or file.
  * User can choose to create new artboard or fill selected elements.
  */
 
 import React, { memo, useEffect } from 'react';
-import { SearchIcon } from './Icons';
+import { SearchIcon, InboxIcon } from './Icons';
+import { formatItemWord } from '../utils/format';
 
 export type ImportMode = 'artboard' | 'selection';
 
@@ -19,32 +20,9 @@ interface Props {
   onCancel: () => void;
 }
 
-/**
- * Format item count with proper Russian word form
- */
-function formatItemWord(count: number): string {
-  const lastTwo = count % 100;
-  const lastOne = count % 10;
-  
-  if (lastTwo >= 11 && lastTwo <= 19) {
-    return 'товаров';
-  }
-  
-  if (lastOne === 1) {
-    return 'товар';
-  }
-  
-  if (lastOne >= 2 && lastOne <= 4) {
-    return 'товара';
-  }
-  
-  return 'товаров';
-}
-
 export const ImportConfirmDialog: React.FC<Props> = memo(({
   query,
   itemCount,
-  source,
   hasSelection,
   onConfirm,
   onCancel
@@ -64,54 +42,66 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
   }, [onCancel, onConfirm]);
 
   return (
-    <div className="confirm-view">
-      {/* Title */}
-      <h2 className="confirm-view-title">Данные успешно получены!</h2>
-      
-      {/* Query card */}
-      <div className="confirm-view-card">
-        <div className="confirm-view-card-content">
-          <div className="confirm-view-query" title={query}>
-            {query || 'Импорт данных'}
-          </div>
-          <div className="confirm-view-meta">
-            {itemCount} {formatItemWord(itemCount)}
-            {source && ` • ${source}`}
-          </div>
-        </div>
-        <div className="confirm-view-card-icon">
-          <SearchIcon className="search-icon-svg" />
-        </div>
+    <div className="confirm-view--figma view-animate-in">
+      {/* Icon */}
+      <div className="confirm-view-icon">
+        <InboxIcon size={24} />
       </div>
       
-      {/* Actions */}
+      {/* Title */}
+      <h2 className="confirm-view-title">Данные получены</h2>
+      
+      {/* Query card */}
+      <div className="confirm-view-query-card figma-card">
+        <span className="confirm-view-query-text" title={query}>
+          {query || 'Импорт данных'}
+        </span>
+        <SearchIcon className="confirm-view-query-icon" />
+      </div>
+      
+      {/* Item count */}
+      <div className="confirm-view-meta">
+        {itemCount} {formatItemWord(itemCount)}
+      </div>
+      
+      {/* Action buttons */}
       <div className="confirm-view-actions">
         <button 
           type="button"
-          className="confirm-view-btn confirm-view-btn-primary"
+          className="btn-primary"
           onClick={() => onConfirm('artboard')}
           autoFocus
         >
           Создать артборд
         </button>
         
-        {hasSelection && (
+        {hasSelection ? (
           <button 
             type="button"
-            className="confirm-view-btn confirm-view-btn-secondary"
+            className="btn-secondary"
             onClick={() => onConfirm('selection')}
           >
             Заполнить выделение
           </button>
+        ) : (
+          <div className="confirm-view-selection-hint">
+            Выделите контейнеры для заполнения
+          </div>
         )}
         
         <button 
           type="button"
-          className="confirm-view-btn confirm-view-btn-cancel"
+          className="btn-text"
           onClick={onCancel}
         >
           Отмена
         </button>
+      </div>
+      
+      {/* Keyboard shortcut hint */}
+      <div className="confirm-view-hint">
+        <kbd>Enter</kbd>
+        <span>— создать артборд</span>
       </div>
     </div>
   );

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>run</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.contentify.relay</string>
+    <key>CFBundleName</key>
+    <string>Contentify Relay</string>
+    <key>CFBundleDisplayName</key>
+    <string>Contentify Relay</string>
+    <key>CFBundleVersion</key>
+    <string>1.0.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>Contentify Relay</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>contentify</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>

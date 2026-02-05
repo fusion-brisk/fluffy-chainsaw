@@ -1,12 +1,18 @@
 /**
- * EProductSnippet Plugin — UI Entry Point (Redesigned)
+ * Contentify Plugin — UI Entry Point (Clipboard-First)
  * 
- * Glass UI with minimal states:
+ * Unified UI with minimal states:
  * - checking: Initial relay connection check
- * - ready: Relay connected, waiting for data
+ * - ready: Ready to work (relay status shown as indicator)
  * - processing: Importing/processing data
- * - setup: Relay not connected, show onboarding
+ * - confirming: Data received, awaiting user confirmation
+ * - success: Import completed successfully
  * - fileDrop: Hidden fallback for file import
+ * 
+ * CLIPBOARD-FIRST ARCHITECTURE:
+ * - Plugin works with or without relay connection
+ * - Users can always paste data from Chrome extension (Cmd+V)
+ * - Relay is optional for automatic data transfer (no paste needed)
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -30,17 +36,26 @@ import {
 // Components
 import { ReadyView } from './components/ReadyView';
 import { ProcessingView } from './components/ProcessingView';
-import { SetupView } from './components/SetupView';
 import { FileDropOverlay } from './components/FileDropOverlay';
 import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog, ImportMode } from './components/ImportConfirmDialog';
 import { SuccessView } from './components/SuccessView';
+import { ExtensionGuide } from './components/ExtensionGuide';
+import { RelayGuide } from './components/RelayGuide';
+import { StatusBar } from './components/StatusBar';
+import { SetupWizard } from './components/SetupWizard';
 
 // Default relay URL
 const DEFAULT_RELAY_URL = 'http://localhost:3847';
 
-// Relay check interval (ms)
-const RELAY_CHECK_INTERVAL = 3000;
+// WebSocket configuration
+const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000]; // Exponential backoff
+const WS_MAX_RECONNECT_DELAY = 16000;
+
+// HTTP Polling fallback intervals (used only when WebSocket is unavailable)
+const RELAY_CHECK_INTERVAL_ACTIVE = 1000;  // 1s when recently active
+const RELAY_CHECK_INTERVAL_IDLE = 5000;    // 5s when idle
+const ACTIVE_THRESHOLD_MS = 10000;         // Consider "active" for 10s after visibility change
 
 // Minimum processing display time (ms) for smooth UX
 const MIN_PROCESSING_TIME = 800;
@@ -57,6 +72,7 @@ interface PendingImport {
   query: string;
   source: string;
   htmlForBuild?: string;
+  entryId?: string;  // ID записи в relay для подтверждения
 }
 
 // Main App Component
@@ -77,6 +93,13 @@ const App: React.FC = () => {
   });
   const [hasSelection, setHasSelection] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [showExtensionGuide, setShowExtensionGuide] = useState(false);
+  const [showRelayGuide, setShowRelayGuide] = useState(false);
+  const [relayConnected, setRelayConnected] = useState(false);
+  
+  // Extension installed / setup skipped state (persisted in clientStorage)
+  const [extensionInstalled, setExtensionInstalled] = useState(false);
+  const previousStateRef = useRef<AppState | null>(null);
   
   // Drag counter to handle nested elements
   const dragCounterRef = useRef(0);
@@ -88,10 +111,21 @@ const App: React.FC = () => {
   const currentSizeRef = useRef({ width: UI_SIZES.checking.width, height: UI_SIZES.checking.height });
   const resizeAnimationRef = useRef<number | null>(null);
   const isFirstResizeRef = useRef(true);
+  const lastActivityTimeRef = useRef<number>(Date.now());  // For adaptive polling
+  
+  // WebSocket refs
+  const wsRef = useRef<WebSocket | null>(null);
+  const wsReconnectAttemptRef = useRef(0);
+  const wsReconnectTimeoutRef = useRef<number | null>(null);
+  const wsConnectedRef = useRef(false);  // Track if WS is connected for fallback logic
+  
+  // Track last processed entryId to avoid showing same data twice
+  const lastProcessedEntryIdRef = useRef<string | null>(null);
+  const isAckInProgressRef = useRef(false);  // Prevent peek during ack
 
   // === ANIMATED RESIZE HELPER ===
-  const resizeUI = useCallback((state: AppState) => {
-    const targetSize = UI_SIZES[state] || UI_SIZES.ready;
+  const resizeUI = useCallback((state: AppState | keyof typeof UI_SIZES) => {
+    const targetSize = UI_SIZES[state as keyof typeof UI_SIZES] || UI_SIZES.ready;
     const currentSize = currentSizeRef.current;
     
     // Cancel any ongoing animation
@@ -150,23 +184,47 @@ const App: React.FC = () => {
   
   // Store relay payload for later use
   const relayPayloadRef = useRef<unknown>(null);
+  
+  // Store entry ID for acknowledgment
+  const pendingEntryIdRef = useRef<string | null>(null);
 
-  // pullRelayData должен быть определён ДО checkRelay
-  const pullRelayData = useCallback(async () => {
-    console.log(`🔄 [pullRelayData] Начало, relayUrl=${relayUrl}`);
+  // peekRelayData — просмотр данных БЕЗ удаления из очереди
+  // Данные удаляются только после подтверждения через /ack
+  const peekRelayData = useCallback(async () => {
+    console.log(`👁️ [peekRelayData] Начало, relayUrl=${relayUrl}`);
+    
+    // Don't peek if ack is in progress
+    if (isAckInProgressRef.current) {
+      console.log(`👁️ [peekRelayData] Пропуск — ack в процессе`);
+      return;
+    }
+    
     try {
-      const response = await fetch(`${relayUrl}/pull`);
-      console.log(`🔄 [pullRelayData] Response status: ${response.status}`);
+      const response = await fetch(`${relayUrl}/peek`);
+      console.log(`👁️ [peekRelayData] Response status: ${response.status}`);
       if (!response.ok) return;
       
       const data = await response.json();
-      console.log(`🔄 [pullRelayData] Data:`, data);
+      console.log(`👁️ [peekRelayData] Data:`, data);
       if (!data.hasData || !data.payload) {
-        console.log(`🔄 [pullRelayData] Нет данных (hasData=${data.hasData})`);
+        console.log(`👁️ [peekRelayData] Нет данных (hasData=${data.hasData})`);
         return;
       }
       
       const payload = data.payload;
+      const entryId = data.entryId;
+      
+      // Skip if this is the same entry we just processed (and are waiting for ack)
+      if (entryId === lastProcessedEntryIdRef.current) {
+        console.log(`👁️ [peekRelayData] Пропуск — это та же запись, ожидаем ack: ${entryId}`);
+        return;
+      }
+      
+      // Skip if we already have this entry pending
+      if (entryId === pendingEntryIdRef.current) {
+        console.log(`👁️ [peekRelayData] Пропуск — уже показываем эту запись: ${entryId}`);
+        return;
+      }
       
       // Extract rows from payload
       let rows: CSVRow[] = [];
@@ -191,14 +249,23 @@ const App: React.FC = () => {
         }
       }
       
-      console.log(`📦 Получено ${rows.length} элементов из relay: "${query}"`);
+      console.log(`📦 Получено ${rows.length} элементов из relay: "${query}" (entryId: ${entryId})`);
       
-      // Store payload and show confirmation dialog
+      // Mark extension as installed (data received means extension is working)
+      if (!extensionInstalled) {
+        setExtensionInstalled(true);
+        sendMessageToPlugin({ type: 'save-setup-skipped' });
+      }
+      
+      // Store payload and entry ID for later acknowledgment
       relayPayloadRef.current = payload;
+      pendingEntryIdRef.current = entryId;
+      
       setPendingImport({
         rows,
         query: query || 'Импорт данных',
-        source: 'Яндекс'
+        source: 'Яндекс',
+        entryId
       });
       setImportInfo({
         query: query || 'Импорт данных',
@@ -209,11 +276,41 @@ const App: React.FC = () => {
       resizeUI('confirming');
       
     } catch (error) {
-      console.error('Error pulling relay data:', error);
+      console.error('Error peeking relay data:', error);
     }
-  }, [relayUrl, resizeUI]);
+  }, [relayUrl, resizeUI, extensionInstalled]);
+  
+  // Acknowledge relay data after successful import
+  const ackRelayData = useCallback(async (entryId: string) => {
+    console.log(`✓ [ackRelayData] Подтверждение: ${entryId}`);
+    
+    // Mark this entry as processed to prevent re-showing
+    lastProcessedEntryIdRef.current = entryId;
+    isAckInProgressRef.current = true;
+    
+    try {
+      const response = await fetch(`${relayUrl}/ack`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entryId })
+      });
+      if (response.ok) {
+        console.log(`✓ [ackRelayData] Данные подтверждены и удалены из очереди`);
+        // Clear the lastProcessedEntryId after successful ack
+        // so new entries with different IDs can be shown
+        lastProcessedEntryIdRef.current = null;
+      } else {
+        console.error(`✗ [ackRelayData] Ошибка: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error acknowledging relay data:', error);
+    } finally {
+      isAckInProgressRef.current = false;
+    }
+  }, [relayUrl]);
 
-  const checkRelay = useCallback(async (): Promise<boolean> => {
+  // checkRelay returns: 'connected' | 'connected-with-data' | 'disconnected'
+  const checkRelay = useCallback(async (): Promise<'connected' | 'connected-with-data' | 'disconnected'> => {
     console.log(`🔍 [checkRelay] Проверка relay: ${relayUrl}/status`);
     try {
       const controller = new AbortController();
@@ -225,26 +322,29 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
       
       console.log(`🔍 [checkRelay] Response status: ${response.status}`);
-      if (!response.ok) return false;
+      if (!response.ok) return 'disconnected';
       
       const data = await response.json();
       console.log(`🔍 [checkRelay] Queue status:`, data);
       
-      // Check if there's data in queue
-      if (data.queueSize && data.queueSize > 0) {
-        console.log(`🔍 [checkRelay] Есть данные в очереди (${data.queueSize}), вызываю pullRelayData`);
-        // Pull data from relay
-        await pullRelayData();
+      // Check if there's pending data in queue
+      // Support both pendingCount (new) and queueSize (legacy) for compatibility
+      const hasPendingData = data.hasData || (data.pendingCount > 0) || (data.queueSize > 0);
+      if (hasPendingData) {
+        console.log(`🔍 [checkRelay] Есть данные в очереди (pending=${data.pendingCount}, queue=${data.queueSize}), вызываю peekRelayData`);
+        // Peek data from relay (without removing)
+        await peekRelayData();
+        return 'connected-with-data';
       } else {
         console.log(`🔍 [checkRelay] Очередь пуста`);
       }
       
-      return true;
+      return 'connected';
     } catch (error) {
       console.log(`🔍 [checkRelay] Ошибка:`, error);
-      return false;
+      return 'disconnected';
     }
-  }, [relayUrl, pullRelayData]);
+  }, [relayUrl, peekRelayData]);
 
   // === INITIALIZATION ===
   useEffect(() => {
@@ -264,18 +364,25 @@ const App: React.FC = () => {
     // Initial relay check
     const doInitialCheck = async () => {
       console.log(`🚀 [Init] Начальная проверка relay...`);
-      const connected = await checkRelay();
-      console.log(`🚀 [Init] Результат проверки: connected=${connected}`);
+      const result = await checkRelay();
+      console.log(`🚀 [Init] Результат проверки: ${result}`);
       if (!isMountedRef.current) return;
       
-      if (connected) {
+      if (result === 'connected-with-data') {
+        // Data found and peekRelayData already set state to 'confirming'
+        console.log(`🚀 [Init] Relay подключён, есть данные для импорта`);
+        setRelayConnected(true);
+        // State already set by peekRelayData, don't override
+      } else if (result === 'connected') {
         console.log(`🚀 [Init] Relay подключён, переход в ready`);
+        setRelayConnected(true);
         setAppState('ready');
         resizeUI('ready');
       } else {
-        console.log(`🚀 [Init] Relay не подключён, переход в setup`);
-        setAppState('setup');
-        resizeUI('setup');
+        console.log(`🚀 [Init] Relay не подключён — готов к работе через clipboard (Cmd+V)`);
+        setRelayConnected(false);
+        setAppState('ready');
+        resizeUI('ready');
       }
     };
     
@@ -283,44 +390,253 @@ const App: React.FC = () => {
     
     // Request settings from plugin
     sendMessageToPlugin({ type: 'get-settings' });
+    sendMessageToPlugin({ type: 'get-setup-skipped' });
     
     return () => {
       isMountedRef.current = false;
     };
   }, [checkRelay, resizeUI]);
 
-  // === RELAY POLLING ===
+  // === WEBSOCKET CONNECTION ===
+  // Primary method for instant data delivery from relay
+  // Falls back to HTTP polling when WebSocket is unavailable
   useEffect(() => {
-    if (appState === 'processing' || appState === 'fileDrop') {
-      // Stop polling during processing
-      if (relayCheckIntervalRef.current) {
-        clearInterval(relayCheckIntervalRef.current);
-        relayCheckIntervalRef.current = null;
-      }
+    // Don't connect during processing or confirmation
+    if (appState === 'processing' || appState === 'fileDrop' || appState === 'confirming') {
       return;
     }
     
-    // Start polling
-    relayCheckIntervalRef.current = window.setInterval(async () => {
+    // Get WebSocket URL from relay URL
+    const wsUrl = relayUrl.replace(/^http/, 'ws');
+    
+    // Connect to WebSocket
+    const connectWebSocket = () => {
       if (!isMountedRef.current) return;
+      if (wsRef.current?.readyState === WebSocket.OPEN) return;
       
-      const connected = await checkRelay();
-      if (!isMountedRef.current) return;
+      console.log('🔌 [WebSocket] Подключение к', wsUrl);
       
-      if (connected && appState === 'setup') {
-        setAppState('ready');
-        resizeUI('ready');
-      } else if (!connected && appState === 'ready') {
-        setAppState('setup');
-        resizeUI('setup');
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+        
+        ws.onopen = () => {
+          if (!isMountedRef.current) return;
+          console.log('🔌 [WebSocket] Подключён');
+          wsConnectedRef.current = true;
+          wsReconnectAttemptRef.current = 0;
+          
+          // Stop HTTP polling when WS is connected
+          if (relayCheckIntervalRef.current) {
+            clearTimeout(relayCheckIntervalRef.current);
+            relayCheckIntervalRef.current = null;
+          }
+          
+          // Update relay connection status
+          setRelayConnected(true);
+        };
+        
+        ws.onmessage = async (event) => {
+          if (!isMountedRef.current) return;
+          
+          try {
+            const data = JSON.parse(event.data);
+            console.log('📨 [WebSocket] Сообщение:', data.type);
+            
+            if (data.type === 'new-data') {
+              // New data available — immediately fetch it
+              console.log(`📦 [WebSocket] Новые данные: ${data.itemCount} элементов, query: "${data.query}"`);
+              
+              // Don't process if we're already confirming or processing
+              if (appState === 'confirming' || appState === 'processing') {
+                console.log('📦 [WebSocket] Пропуск — уже обрабатываем');
+                return;
+              }
+              
+              // Fetch the data via HTTP (peek)
+              await peekRelayData();
+            } else if (data.type === 'connected') {
+              // Server sent connection confirmation with queue status
+              if (data.pendingCount > 0) {
+                console.log(`📦 [WebSocket] В очереди ${data.pendingCount} элементов`);
+                // Fetch pending data
+                if (appState !== 'confirming' && appState !== 'processing') {
+                  await peekRelayData();
+                }
+              }
+            }
+          } catch (e) {
+            console.error('📨 [WebSocket] Ошибка парсинга:', e);
+          }
+        };
+        
+        ws.onclose = () => {
+          if (!isMountedRef.current) return;
+          console.log('🔌 [WebSocket] Соединение закрыто');
+          wsConnectedRef.current = false;
+          wsRef.current = null;
+          setRelayConnected(false);
+          
+          // Start HTTP polling fallback
+          startPollingFallback();
+          
+          // Schedule reconnect with exponential backoff
+          scheduleReconnect();
+        };
+        
+        ws.onerror = (error) => {
+          console.error('🔌 [WebSocket] Ошибка:', error);
+          // onclose will be called after onerror
+        };
+        
+      } catch (e) {
+        console.error('🔌 [WebSocket] Не удалось подключиться:', e);
+        wsConnectedRef.current = false;
+        startPollingFallback();
+        scheduleReconnect();
       }
-    }, RELAY_CHECK_INTERVAL);
+    };
+    
+    // Schedule WebSocket reconnect with exponential backoff
+    const scheduleReconnect = () => {
+      if (!isMountedRef.current) return;
+      if (wsReconnectTimeoutRef.current) return;
+      
+      const attempt = wsReconnectAttemptRef.current;
+      const delay = WS_RECONNECT_DELAYS[Math.min(attempt, WS_RECONNECT_DELAYS.length - 1)];
+      
+      console.log(`🔌 [WebSocket] Повторное подключение через ${delay}ms (попытка ${attempt + 1})`);
+      
+      wsReconnectTimeoutRef.current = window.setTimeout(() => {
+        wsReconnectTimeoutRef.current = null;
+        wsReconnectAttemptRef.current++;
+        connectWebSocket();
+      }, delay);
+    };
+    
+    // HTTP polling fallback when WebSocket is unavailable
+    const startPollingFallback = () => {
+      if (relayCheckIntervalRef.current) return;  // Already polling
+      if (wsConnectedRef.current) return;  // WS is connected
+      
+      console.log('🔄 [Fallback] Запуск HTTP polling');
+      
+      const scheduleNextPoll = () => {
+        if (!isMountedRef.current) return;
+        if (wsConnectedRef.current) {
+          // WS reconnected, stop polling
+          console.log('🔄 [Fallback] WebSocket восстановлен, остановка polling');
+          return;
+        }
+        
+        // Calculate adaptive interval
+        const timeSinceActivity = Date.now() - lastActivityTimeRef.current;
+        const interval = timeSinceActivity < ACTIVE_THRESHOLD_MS 
+          ? RELAY_CHECK_INTERVAL_ACTIVE 
+          : RELAY_CHECK_INTERVAL_IDLE;
+        
+        relayCheckIntervalRef.current = window.setTimeout(async () => {
+          relayCheckIntervalRef.current = null;
+          if (!isMountedRef.current) return;
+          if (wsConnectedRef.current) return;  // WS reconnected
+          
+          // Skip polling if document is hidden
+          if (document.visibilityState === 'hidden') {
+            scheduleNextPoll();
+            return;
+          }
+          
+          const result = await checkRelay();
+          if (!isMountedRef.current) return;
+          
+          if (result === 'connected-with-data') {
+            setRelayConnected(true);
+            // State already set by peekRelayData
+            return;
+          }
+          
+          if (result === 'connected') {
+            setRelayConnected(true);
+          } else if (result === 'disconnected') {
+            setRelayConnected(false);
+          }
+          
+          // Schedule next poll
+          scheduleNextPoll();
+        }, interval);
+      };
+      
+      scheduleNextPoll();
+    };
+    
+    // Start WebSocket connection
+    connectWebSocket();
     
     return () => {
+      // Cleanup
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+      if (wsReconnectTimeoutRef.current) {
+        clearTimeout(wsReconnectTimeoutRef.current);
+        wsReconnectTimeoutRef.current = null;
+      }
       if (relayCheckIntervalRef.current) {
-        clearInterval(relayCheckIntervalRef.current);
+        clearTimeout(relayCheckIntervalRef.current);
         relayCheckIntervalRef.current = null;
       }
+    };
+  }, [appState, relayUrl, checkRelay, peekRelayData, resizeUI]);
+
+  // === INSTANT CHECK ON VISIBILITY CHANGE ===
+  // When Figma becomes active (user switches to it), check relay status
+  // With WebSocket, this mainly serves to:
+  // 1. Update activity timestamp for faster polling fallback
+  // 2. Trigger immediate check if WS was disconnected while hidden
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && isMountedRef.current) {
+        // Update activity timestamp for adaptive polling
+        lastActivityTimeRef.current = Date.now();
+        
+        // Don't check during processing or confirming states
+        if (appState === 'processing' || appState === 'confirming') {
+          return;
+        }
+        
+        console.log('👁️ [Visibility] Figma активирована');
+        
+        // If WebSocket is connected, just send a ping to keep alive
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'ping' }));
+          console.log('👁️ [Visibility] WebSocket активен, ping отправлен');
+          return;
+        }
+        
+        // WebSocket not connected — do HTTP check
+        console.log('👁️ [Visibility] WebSocket не подключён, HTTP проверка...');
+        const result = await checkRelay();
+        
+        if (!isMountedRef.current) return;
+        
+        if (result === 'connected-with-data') {
+          console.log('👁️ [Visibility] Найдены данные для импорта!');
+          setRelayConnected(true);
+          // State already set by peekRelayData
+        } else if (result === 'connected') {
+          console.log('👁️ [Visibility] Relay подключён');
+          setRelayConnected(true);
+        } else if (result === 'disconnected') {
+          setRelayConnected(false);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [appState, checkRelay, resizeUI]);
 
@@ -371,6 +687,13 @@ const App: React.FC = () => {
           // Settings loaded (for future use)
           break;
           
+        case 'setup-skipped-loaded':
+          // User previously skipped the setup wizard
+          if (msg.skipped) {
+            setExtensionInstalled(true);
+          }
+          break;
+          
         case 'selection-status':
           // Update selection state from plugin
           setHasSelection(msg.hasSelection === true);
@@ -388,17 +711,30 @@ const App: React.FC = () => {
         case 'relay-payload-applied':
           // Processing complete with min delay
           console.log('✅ Обработка завершена');
+          
+          // Acknowledge relay data after successful import (async, but we track it)
+          if (pendingEntryIdRef.current) {
+            const entryIdToAck = pendingEntryIdRef.current;
+            pendingEntryIdRef.current = null;
+            // Fire and forget, but ackRelayData sets flags to prevent re-peek
+            ackRelayData(entryIdToAck);
+          }
+          
           finishProcessing('success');
           break;
           
         case 'error':
           // Error occurred with min delay
           console.error('❌ Ошибка:', msg.message);
+          // Don't acknowledge on error — data stays in queue for retry
+          pendingEntryIdRef.current = null;
           finishProcessing('error');
           break;
           
         case 'import-cancelled':
           console.log('⛔ Импорт отменён');
+          // Don't acknowledge on cancel — data stays in queue
+          pendingEntryIdRef.current = null;
           finishProcessing('cancel');
           break;
       }
@@ -406,14 +742,19 @@ const App: React.FC = () => {
     
     window.onmessage = handleMessage;
     return () => { window.onmessage = null; };
-  }, [appState, finishProcessing]);
+  }, [appState, finishProcessing, ackRelayData]);
 
   // === CONFIRM IMPORT HANDLER ===
   const handleConfirmImport = useCallback((mode: ImportMode) => {
     if (!pendingImport) return;
     
-    const { rows, query, htmlForBuild } = pendingImport;
+    const { rows, query, htmlForBuild, entryId } = pendingImport;
     const scope = mode === 'selection' ? 'selection' : 'page';
+    
+    // Store entryId for acknowledgment after successful import
+    if (entryId) {
+      pendingEntryIdRef.current = entryId;
+    }
     
     setLastQuery(query);
     setImportInfo({
@@ -456,11 +797,49 @@ const App: React.FC = () => {
   }, [pendingImport, resizeUI]);
 
   const handleCancelImport = useCallback(() => {
+    // Temporarily block this entry from being shown again for 10 seconds
+    // This prevents the "cancel → immediately show same data" loop
+    const cancelledEntryId = pendingEntryIdRef.current;
+    if (cancelledEntryId) {
+      lastProcessedEntryIdRef.current = cancelledEntryId;
+      // Clear the block after 10 seconds so user can try again
+      setTimeout(() => {
+        if (lastProcessedEntryIdRef.current === cancelledEntryId) {
+          lastProcessedEntryIdRef.current = null;
+        }
+      }, 10000);
+    }
+    
     setPendingImport(null);
     relayPayloadRef.current = null;
+    pendingEntryIdRef.current = null;  // Don't acknowledge — data stays in queue
     setAppState('ready');
     resizeUI('ready');
   }, [resizeUI]);
+
+  // Clear relay queue handler
+  const handleClearQueue = useCallback(async () => {
+    try {
+      console.log('🗑️ [ClearQueue] Очистка очереди...');
+      const response = await fetch(`${relayUrl}/clear`, { method: 'DELETE' });
+      const result = await response.json();
+      console.log(`🗑️ [ClearQueue] Удалено записей: ${result.cleared}`);
+      
+      // Reset state
+      setPendingImport(null);
+      relayPayloadRef.current = null;
+      pendingEntryIdRef.current = null;
+      lastProcessedEntryIdRef.current = null;
+      setAppState('ready');
+      resizeUI('ready');
+    } catch (error) {
+      console.error('🗑️ [ClearQueue] Ошибка:', error);
+      // Still reset local state
+      setPendingImport(null);
+      setAppState('ready');
+      resizeUI('ready');
+    }
+  }, [relayUrl, resizeUI]);
 
   // === KEYBOARD SHORTCUTS ===
   useEffect(() => {
@@ -478,6 +857,86 @@ const App: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [appState, resizeUI]);
+
+  // === CLIPBOARD PASTE HANDLER (Fallback import) ===
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Process paste in ready or confirming states (allows re-import with new data)
+      if (appState !== 'ready' && appState !== 'confirming') {
+        return;
+      }
+      
+      const text = e.clipboardData?.getData('text');
+      if (!text) return;
+      
+      try {
+        const data = JSON.parse(text);
+        
+        // Check if this is contentify paste data
+        if (data.type === 'contentify-paste' && data.payload) {
+          e.preventDefault();
+          console.log('📋 Обнаружены данные из буфера обмена (clipboard fallback)');
+          
+          const payload = data.payload;
+          
+          // Extract rows from payload
+          let rows: CSVRow[] = [];
+          if (payload.rawRows && payload.rawRows.length > 0) {
+            rows = payload.rawRows;
+          } else if (payload.items && payload.items.length > 0) {
+            rows = payload.items
+              .map((item: { _rawCSVRow?: CSVRow }) => item._rawCSVRow)
+              .filter((row: CSVRow | undefined): row is CSVRow => row !== undefined);
+          }
+          
+          if (rows.length === 0) {
+            console.warn('📋 Нет данных для импорта в буфере обмена');
+            return;
+          }
+          
+          // Extract query
+          let query = rows[0]?.['#query'] || '';
+          if (!query && payload.source?.url) {
+            try {
+              const urlParams = new URL(payload.source.url).searchParams;
+              query = urlParams.get('text') || urlParams.get('q') || '';
+            } catch {
+              // Use empty query
+            }
+          }
+          
+          console.log(`📋 Получено ${rows.length} элементов из буфера обмена: "${query}"`);
+          
+          // Mark extension as installed (data from clipboard means extension is working)
+          if (!extensionInstalled) {
+            setExtensionInstalled(true);
+            sendMessageToPlugin({ type: 'save-setup-skipped' });
+          }
+          
+          // Store payload for later use
+          relayPayloadRef.current = payload;
+          
+          setPendingImport({
+            rows,
+            query: query || 'Импорт из буфера',
+            source: 'Буфер обмена'
+          });
+          setImportInfo({
+            query: query || 'Импорт из буфера',
+            itemCount: rows.length,
+            source: 'Буфер обмена'
+          });
+          setAppState('confirming');
+          resizeUI('confirming');
+        }
+      } catch {
+        // Not JSON or not our format, ignore
+      }
+    };
+    
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [appState, resizeUI, extensionInstalled]);
 
   // Store file HTML for later use
   const fileHtmlRef = useRef<string>('');
@@ -561,20 +1020,52 @@ const App: React.FC = () => {
   // Track if retry check is in progress (for SetupView indicator)
   const [isRetryChecking, setIsRetryChecking] = useState(false);
   
+  // Extension guide handlers
+  const handleShowExtensionGuide = useCallback(() => {
+    previousStateRef.current = appState;
+    setShowExtensionGuide(true);
+    resizeUI('extensionGuide');
+  }, [appState, resizeUI]);
+  
+  const handleCloseExtensionGuide = useCallback(() => {
+    setShowExtensionGuide(false);
+    const prevState = previousStateRef.current || appState;
+    resizeUI(prevState);
+    previousStateRef.current = null;
+  }, [appState, resizeUI]);
+  
+  // Relay guide handlers
+  const handleShowRelayGuide = useCallback(() => {
+    previousStateRef.current = appState;
+    setShowRelayGuide(true);
+    resizeUI('extensionGuide'); // Same size as extension guide
+  }, [appState, resizeUI]);
+  
+  const handleCloseRelayGuide = useCallback(() => {
+    setShowRelayGuide(false);
+    const prevState = previousStateRef.current || appState;
+    resizeUI(prevState);
+    previousStateRef.current = null;
+  }, [appState, resizeUI]);
+  
   const handleRetryConnection = useCallback(async () => {
-    // Don't resize — keep setup view visible during check
     setIsRetryChecking(true);
     
-    const connected = await checkRelay();
+    const result = await checkRelay();
     
     setIsRetryChecking(false);
     
-    if (connected) {
-      setAppState('ready');
-      resizeUI('ready');
+    if (result === 'connected-with-data') {
+      setRelayConnected(true);
+      // State already set by peekRelayData to 'confirming'
+      return;
     }
-    // If not connected, stay in setup (no state change needed)
-  }, [checkRelay, resizeUI]);
+    
+    if (result === 'connected') {
+      setRelayConnected(true);
+    }
+    // If disconnected, relayConnected stays false
+  }, [checkRelay]);
 
   const handleCloseFileDrop = useCallback(() => {
     setShowFileDrop(false);
@@ -624,6 +1115,9 @@ const App: React.FC = () => {
   }, [appState, handleFileSelect]);
 
   // === RENDER ===
+  // Determine if setup is needed
+  const needsSetup = !extensionInstalled;
+  
   return (
     <div 
       className="glass-app"
@@ -632,6 +1126,16 @@ const App: React.FC = () => {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* StatusBar — always visible except during checking or guides */}
+      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && (
+        <StatusBar
+          relayConnected={relayConnected}
+          extensionInstalled={extensionInstalled}
+          onRelayClick={handleShowRelayGuide}
+          onExtensionClick={handleShowExtensionGuide}
+        />
+      )}
+      
       {/* Checking state */}
       {appState === 'checking' && (
         <div className="checking-view">
@@ -640,13 +1144,29 @@ const App: React.FC = () => {
         </div>
       )}
       
-      {/* Ready state */}
-      {appState === 'ready' && (
-        <ReadyView lastQuery={lastQuery} />
+      {/* Ready state with SetupWizard or WaitingState */}
+      {appState === 'ready' && !showExtensionGuide && !showRelayGuide && (
+        needsSetup ? (
+          <SetupWizard
+            relayConnected={relayConnected}
+            extensionInstalled={extensionInstalled}
+            onSkip={() => {
+              // Mark as installed to skip setup and persist
+              setExtensionInstalled(true);
+              sendMessageToPlugin({ type: 'save-setup-skipped' });
+            }}
+          />
+        ) : (
+          <ReadyView 
+            lastQuery={lastQuery}
+            relayConnected={relayConnected}
+            onShowExtensionGuide={handleShowExtensionGuide}
+          />
+        )
       )}
       
       {/* Confirming state */}
-      {appState === 'confirming' && pendingImport && (
+      {appState === 'confirming' && pendingImport && !showExtensionGuide && !showRelayGuide && (
         <ImportConfirmDialog
           query={importInfo.query}
           itemCount={importInfo.itemCount}
@@ -658,7 +1178,7 @@ const App: React.FC = () => {
       )}
       
       {/* Processing state */}
-      {appState === 'processing' && (
+      {appState === 'processing' && !showExtensionGuide && !showRelayGuide && (
         <ProcessingView 
           importInfo={importInfo}
           onCancel={handleCancel}
@@ -666,7 +1186,7 @@ const App: React.FC = () => {
       )}
       
       {/* Success state */}
-      {appState === 'success' && (
+      {appState === 'success' && !showExtensionGuide && !showRelayGuide && (
         <SuccessView 
           query={importInfo.query}
           onComplete={handleSuccessComplete}
@@ -674,13 +1194,6 @@ const App: React.FC = () => {
         />
       )}
       
-      {/* Setup state */}
-      {appState === 'setup' && (
-        <SetupView 
-          onRetry={handleRetryConnection}
-          isChecking={isRetryChecking}
-        />
-      )}
       
       {/* File drop overlay (hidden fallback for Cmd+O) */}
       <FileDropOverlay
@@ -705,6 +1218,16 @@ const App: React.FC = () => {
         type={confetti.type}
         onComplete={() => setConfetti({ active: false, type: 'success' })}
       />
+      
+      {/* Extension installation guide - replaces current view */}
+      {showExtensionGuide && (
+        <ExtensionGuide onBack={handleCloseExtensionGuide} />
+      )}
+      
+      {/* Relay installation guide - replaces current view */}
+      {showRelayGuide && (
+        <RelayGuide onBack={handleCloseRelayGuide} />
+      )}
     </div>
   );
 };

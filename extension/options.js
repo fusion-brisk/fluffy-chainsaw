@@ -1,5 +1,5 @@
 /**
- * EProductSnippet Extension — Options Page
+ * Contentify Extension — Options Page
  */
 
 const DEFAULT_RELAY_URL = 'http://localhost:3847';

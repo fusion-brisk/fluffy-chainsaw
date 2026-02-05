@@ -33,10 +33,10 @@ jobs:
           # List what pkg created
           ls -la dist/
           # Rename binaries for clarity (pkg uses node18-macos-x64 format)
-          for f in dist/*-x64; do [ -f "$f" ] && mv "$f" dist/relay-host-x64; done
-          for f in dist/*-arm64; do [ -f "$f" ] && mv "$f" dist/relay-host-arm64; done
+          for f in dist/*-x64; do [ -f "$f" ] && mv "$f" dist/contentify-relay-host-x64; done
+          for f in dist/*-arm64; do [ -f "$f" ] && mv "$f" dist/contentify-relay-host-arm64; done
           # Make executable
-          chmod +x dist/relay-host-*
+          chmod +x dist/contentify-relay-host-*
           ls -la dist/
         working-directory: native-host
 
@@ -47,17 +47,17 @@ jobs:
 
       - name: Copy installer script
         run: |
-          cp scripts/EProductSnippet-Installer.command ./EProductSnippet-Installer.command
-          chmod +x ./EProductSnippet-Installer.command
+          cp scripts/Contentify-Installer.command ./Contentify-Installer.command
+          chmod +x ./Contentify-Installer.command
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            EProductSnippet-Installer.command
+            Contentify-Installer.command
             Extension.zip
-            native-host/dist/relay-host-arm64
-            native-host/dist/relay-host-x64
+            native-host/dist/contentify-relay-host-arm64
+            native-host/dist/contentify-relay-host-x64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

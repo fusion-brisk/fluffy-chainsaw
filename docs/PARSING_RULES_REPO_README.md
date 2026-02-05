@@ -1,14 +1,14 @@
-# EProductSnippet - Parsing Rules Configuration
+# Contentify - Parsing Rules Configuration
 
-> Remote configuration for [EProductSnippet Figma Plugin](https://github.com/yourusername/fluffy-chainsaw)
+> Remote configuration for [Contentify Figma Plugin](https://github.com/yourusername/fluffy-chainsaw)
 
 ## 📋 Overview
 
-This repository contains parsing rules for the **EProductSnippet** Figma plugin, which automatically fills design layouts with data from HTML/MHTML files (Yandex search results parsing).
+This repository contains parsing rules for the **Contentify** Figma plugin, which automatically fills design layouts with data from HTML/MHTML files (Yandex search results parsing).
 
 ## 🚀 Usage
 
-### In EProductSnippet Plugin:
+### In Contentify Plugin:
 
 1. Open plugin in Figma
 2. Navigate to **Settings** section
@@ -123,7 +123,7 @@ This repository contains parsing rules for the **EProductSnippet** Figma plugin,
 1. Fork this repository
 2. Create feature branch (`git checkout -b feature/new-field`)
 3. Edit `parsing-rules.json`
-4. Test in EProductSnippet plugin
+4. Test in Contentify plugin
 5. Commit changes (`git commit -am 'Add new field'`)
 6. Push to branch (`git push origin feature/new-field`)
 7. Create Pull Request
@@ -134,11 +134,11 @@ MIT License - see LICENSE file for details
 
 ## 🔗 Links
 
-- [EProductSnippet Plugin Repository](https://github.com/yourusername/fluffy-chainsaw)
+- [Contentify Plugin Repository](https://github.com/yourusername/fluffy-chainsaw)
 - [Figma Community](https://www.figma.com/community/plugin/...)
 - [Report Issues](https://github.com/yourusername/contentify-config/issues)
 
 ---
 
-**Note:** This configuration is automatically loaded by the EProductSnippet plugin. Changes will be applied after user confirmation.
+**Note:** This configuration is automatically loaded by the Contentify plugin. Changes will be applied after user confirmation.
 

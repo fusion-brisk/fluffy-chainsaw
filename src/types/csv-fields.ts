@@ -31,6 +31,8 @@ export interface CSVFields {
   '#ProductURL'?: string;
   /** Поисковый запрос */
   '#query'?: string;
+  /** Платформа источника (desktop/touch) */
+  '#platform'?: 'desktop' | 'touch';
   
   // === Основной контент ===
   /** Заголовок сниппета */
@@ -175,6 +177,10 @@ export interface CSVFields {
   '#serpItemId'?: string;
   /** Тип контейнера (EntityOffers, ProductsTiles, AdvProductGallery) */
   '#containerType'?: string;
+  /** Заголовок EntityOffers блока */
+  '#EntityOffersTitle'?: string;
+  /** Заголовок EShopList блока */
+  '#EShopListTitle'?: string;
   /** Наличие картинки в сниппете */
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */

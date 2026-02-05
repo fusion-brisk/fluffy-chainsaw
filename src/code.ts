@@ -1,5 +1,5 @@
 /**
- * EProductSnippet Plugin — Entry Point
+ * Contentify Plugin — Entry Point
  * 
  * Минимальный entry point, делегирующий логику в модули:
  * - plugin/message-router.ts — роутинг сообщений
@@ -14,7 +14,7 @@ import { ParsingRulesManager } from './parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
 import { createSerpPage, detectPlatformFromHtml } from './page-builder';
 
-console.log('🚀 Плагин EProductSnippet загружен');
+console.log('🚀 Плагин Contentify загружен');
 
 // Глобальные экземпляры
 const imageProcessor = new ImageProcessor();
@@ -187,13 +187,18 @@ figma.ui.onmessage = async (msg) => {
           operationType: 'relay-import' 
         });
         
+        // Определяем платформу из данных (первая строка с #platform)
+        const firstRowPlatform = rows.find(r => r['#platform'])?.['#platform'];
+        const platform: 'desktop' | 'touch' = firstRowPlatform === 'touch' ? 'touch' : 'desktop';
+        console.log(`📱 [Relay] Определена платформа: ${platform} (из данных: ${firstRowPlatform || 'не указана'})`);
+        
         // Создаём SERP страницу из библиотечных компонентов
         const result = await createSerpPage(rows, {
           query: query || undefined,
-          platform: 'desktop',
-          contentLeftWidth: 792,
+          platform,
+          contentLeftWidth: platform === 'desktop' ? 792 : undefined,
           contentGap: 0,
-          leftPadding: 100
+          leftPadding: platform === 'desktop' ? 100 : 0
         });
         
         // Отправляем progress: завершение

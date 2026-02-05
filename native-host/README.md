@@ -1,4 +1,4 @@
-# EProductSnippet Relay — Native Messaging Host (macOS)
+# Contentify Relay — Native Messaging Host (macOS)
 
 Автоматически запускает relay сервер для связи Chrome Extension с Figma Plugin.
 
@@ -39,13 +39,13 @@ curl http://localhost:3847/health
 
 ```bash
 # Остановить relay
-launchctl stop com.eproductsnippet.relay
+launchctl stop com.contentify.relay
 
 # Запустить relay
-launchctl start com.eproductsnippet.relay
+launchctl start com.contentify.relay
 
 # Перезапустить
-launchctl stop com.eproductsnippet.relay && launchctl start com.eproductsnippet.relay
+launchctl stop com.contentify.relay && launchctl start com.contentify.relay
 ```
 
 ## Удаление
@@ -58,26 +58,40 @@ launchctl stop com.eproductsnippet.relay && launchctl start com.eproductsnippet.
 
 ```bash
 # Вывод
-cat /tmp/eproductsnippet-relay.log
+cat /tmp/contentify-relay.log
 
 # Ошибки
-cat /tmp/eproductsnippet-relay.err
+cat /tmp/contentify-relay.err
 ```
 
 ## Для разработчиков
 
 ### Сборка бинарников
 
+Бинарники собираются из `relay/server.js`:
+
 ```bash
+cd ../relay
 npm install
 npm run build
 ```
 
+### Сборка .app bundle
+
+```bash
+./build-app.sh
+```
+
+Скрипт автоматически соберёт бинарники и скопирует их в `.app/Contents/Resources/`.
+
 ### Ручной запуск (для отладки)
 
 ```bash
-./dist/eproductsnippet-relay-host-arm64  # Apple Silicon
-./dist/eproductsnippet-relay-host-x64    # Intel
+# Из relay/
+node ../relay/server.js
+
+# Или бинарник из .app
+./Contentify\ Relay.app/Contents/Resources/contentify-relay-host-arm64
 ```
 
 ## Troubleshooting
@@ -86,10 +100,10 @@ npm run build
 
 ```bash
 # Проверить статус
-launchctl list | grep eproductsnippet
+launchctl list | grep contentify
 
 # Посмотреть ошибки
-cat /tmp/eproductsnippet-relay.err
+cat /tmp/contentify-relay.err
 ```
 
 ### Порт занят

@@ -85,7 +85,8 @@ export type LayoutElementType =
   | 'Footer'           // Подвал страницы
   | 'Pager'            // Пагинация
   | 'Related'          // Похожие запросы / Вместе с этим ищут
-  | 'EQuickFilters';   // Панель быстрых фильтров
+  | 'EQuickFilters'    // Панель быстрых фильтров
+  | 'Title';           // Заголовок секции (для ProductsTiles и т.д.)
 
 /**
  * Типы контейнеров (Auto Layout фреймы для группировки)

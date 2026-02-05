@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "EProductSnippet Parser",
+  "name": "Contentify Parser",
   "version": "1.4.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy58jsJWlvTGqNmsMKXb0qnkbx5FwMZeEXYEDnb/01Lh+ppjqDu4pKVL3fKMXoR2NZrZLEcF0JHvKK2BTosIEdDzayBItOHcnkqYK/iZAlVIdWANVurrcnBbYHjb3GjRi6v8tLhddqw+F1WX7gN9L1aIJJVoOJB49AGW2P6awjFuxbcRSoJAz7Xa+FR7yZI5wBBZB0VSeMM2B2X6PrygrlDMFBjzTxQVj8Q8Pu5ZDhw2FfUOQ4IhWA7o/pyVlK688DMnH4cO6JxFT+2LeYT0XOiWXZzRveUgOL5ehJg1OMsUpSI5ROAGsVH4+7UOY51ypfwQDVE75R2K3JlfGHnVTOwIDAQAB",
   "update_url": "https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/extension/updates.xml",

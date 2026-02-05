@@ -1,42 +1,194 @@
-# Глобальная цель
-Мы пишем Figma-плагин "Contentify": инструменты автозаполнения макетов данными.
+# Contentify — Figma Plugin для автозаполнения макетов
 
-# Хард-ограничения
-- Совместимость с Figma Plugin API и её окружением (ES5 в code.js).
-- Никаких Node.js API в рантайме плагина (code.js); только браузерное и Figma API.
-- UI собирается отдельно, общение через postMessage (figma.ui.postMessage ↔ onmessage).
-- Весь итоговый код должен быть без синтаксических ошибок, в одном файле при изменениях интерфейса (ui.html) — отдаём целиком.
-- Логирование шагов обязательно: UI-лог панель + события в консоли.
-- Поддержка смены Variant Properties у инстансов, обработка nested instances, кэширование изображений, правильный переход по строкам данных.
-- Строгая ES5-цель на выходе (babel → preset-env до IE11), без полифиллов.
+## Глобальная цель
 
-# Сборка
-- TypeScript только для типов. Транспиляция и бандлинг — через Rollup + Babel до ES5.
-- code.ts → dist/code.js (IIFE)
-- ui.tsx → dist/ui.js + dist/ui.html
+Figma-плагин "Contentify" автоматически заполняет макеты реальными данными из поисковой выдачи Яндекса. Система состоит из трёх частей:
 
-# Стиль кода
-- ESLint + Prettier + EditorConfig. Форматирование на сохранение.
+1. **Browser Extension** — парсит страницу Яндекса, извлекает данные сниппетов
+2. **Relay Server** — передаёт данные между браузером и Figma (localhost:3847)
+3. **Figma Plugin** — получает данные и заполняет слои в макете
 
-# Коммуникация с ИИ (Cursor)
-- Всегда соблюдать ES5 для code.js.
-- Не добавлять сторонние рантайм-зависимости, требующие нативных модулей.
-- При запросе изменений в ui.html — отдавать полный файл, а не дифф.
-- Обновления маленьких файлов (utils.ts и т.п.) — можно диффом, но без поломанной сборки.
-- При генерации кода — учитывать существующие файлы и импорты, не дублировать сущности.
+## Архитектура системы
 
-# Структура
-- src/code.ts — логика плагина
-- src/ui.tsx — логика окна
-- src/ui.html — каркас UI
-- src/styles.css — стили UI, нативный стиль Figma
-- rollup.config.mjs / babel.config.cjs / tsconfig.json — конфиги
-- dist/ — результат сборки, на него смотрит manifest.json
+```
+┌─────────────────┐     POST /push      ┌─────────────────┐     GET /pull      ┌─────────────────┐
+│   Browser       │ ─────────────────▶  │   Relay Server  │ ◀───────────────── │   Figma Plugin  │
+│   Extension     │                     │   (localhost)   │                     │   (sandbox)     │
+│                 │                     │                 │                     │                 │
+│ content.js      │                     │ server.js       │                     │ code.ts         │
+│ - парсит DOM    │                     │ - очередь       │                     │ - handlers      │
+│ - извлекает     │                     │ - push/pull API │                     │ - images        │
+│   CSVRow[]      │                     │                 │                     │ - UI (React)    │
+└─────────────────┘                     └─────────────────┘                     └─────────────────┘
+```
 
-# Логи и надёжность
-- Подробные логи этапов: поиск контейнеров, применение данных, варианты, изображение/ошибки.
-- На ошибках изображений — красная подсветка + лог содержимого ячейки URL.
-- Перебор слоёв строго в порядке столбцов таблицы; одна строка на один инстанс.
+## Ключевые концепции
 
-# Ответы Cursor
-- Держать ответы краткими и практичными. Для крупных блоков — предлагать отдельный полный файл.
+### Snippet (сниппет)
+Карточка товара/результата в поисковой выдаче Яндекса. Типы:
+- `EProductSnippet2` — товарный сниппет с ценой
+- `EOfferItem` — оффер магазина
+- `EShopItem` — карточка магазина
+- `ESnippet` — универсальный сниппет
+- `Organic` — обычный органический результат
+
+### Container (контейнер)
+Figma-инстанс компонента, в который заполняются данные. Список контейнеров:
+```
+SNIPPET_CONTAINER_NAMES = [
+  'EShopItem', 'EProductSnippet2', 'ESnippet', 'EProductSnippet',
+  'EOfferItem', 'Snippet', 'Organic_withOfferInfo', 'ProductTile-Item'
+]
+```
+
+### CSVRow
+Структура данных одного сниппета. Ключевые поля (все начинаются с `#`):
+- **Текст**: `#OrganicTitle`, `#OrganicPrice`, `#OldPrice`, `#ShopName`, `#ProductRating`
+- **Изображения**: `#OrganicImage`, `#ThumbImage`, `#FaviconImage`
+- **Флаги**: `#EPriceGroup_Discount`, `#BUTTON`, `#EDeliveryGroup`, `#OfficialShop`
+- **Мета**: `#SnippetType`, `#ButtonView`, `#EPrice_View`
+
+### Handler
+Функция обработки специфичной логики компонента. Приоритеты выполнения:
+- `CRITICAL (0)` — EPriceGroup, структурные изменения
+- `VARIANTS (10)` — переключение variant properties
+- `VISIBILITY (20)` — показ/скрытие элементов
+- `TEXT (30)` — текстовые поля
+- `FALLBACK (40)` — финальные обработки
+
+## Структура проекта
+
+```
+src/
+├── code.ts                 # Entry point плагина (Figma sandbox)
+├── ui.tsx                  # Entry point UI (React, iframe)
+├── handlers/               # Обработчики компонентной логики
+│   ├── registry.ts         # Реестр всех handlers с приоритетами
+│   ├── price-handlers.ts   # EPriceGroup, цены, скидки, fintech
+│   ├── label-handlers.ts   # Brand, рейтинги, барометр
+│   ├── button-handlers.ts  # EButton, MarketCheckoutButton
+│   ├── snippet-handlers.ts # ESnippet, EOfferItem, ShopInfo
+│   └── delivery-handlers.ts # Доставка, BNPL
+├── plugin/                 # Модули обработки данных
+│   ├── snippet-processor.ts # Главный процессор import-csv
+│   ├── data-assignment.ts   # Маппинг данных на контейнеры
+│   └── message-router.ts    # Роутинг postMessage
+├── page-builder/           # Создание страниц из HTML
+│   ├── component-map.ts    # Маппинг типов на ключи компонентов
+│   └── page-creator.ts     # Создание фреймов и инстансов
+├── utils/                  # Утилиты парсинга (UI thread)
+│   ├── snippet-parser.ts   # Парсинг HTML → CSVRow
+│   └── favicon-extractor.ts # Извлечение фавиконок
+└── types/                  # TypeScript типы
+    ├── csv-fields.ts       # Поля CSVRow
+    └── field-mapping.ts    # Маппинг полей на компоненты
+
+extension/                  # Chrome Extension
+├── content.js              # Парсинг страницы Яндекса
+├── background.js           # Service Worker
+└── popup.html/js           # UI расширения
+
+relay/                      # Relay сервер
+└── server.js               # Express, push/pull/health endpoints
+```
+
+## Хард-ограничения
+
+### ES5 для code.js
+- Figma sandbox требует ES5 (babel → preset-env до IE11)
+- Итоговый код транспилируется через Rollup + Babel
+- Никаких полифиллов в рантайме
+
+### Figma Plugin API
+- Никаких Node.js API в рантайме плагина
+- Только браузерное API и Figma API
+- Общение UI ↔ Code только через postMessage
+
+### Изображения
+- Загрузка через CORS-proxy (config.ts)
+- Обязательное кэширование (ImageProcessor)
+- Fallback на placeholder при ошибках
+
+## Паттерны расширения
+
+### Добавление нового Handler (краткий пример)
+
+```typescript
+// handlers/my-handlers.ts
+export async function handleMyFeature(context: HandlerContext): Promise<void> {
+  const { container, row } = context;
+  const value = row['#MyField'] === 'true';
+  const instance = getCachedInstance(context.instanceCache!, 'MyComponent');
+  if (instance) {
+    trySetProperty(instance, ['myProperty'], value, '#MyField');
+  }
+}
+
+// handlers/registry.ts — зарегистрировать
+this.register('MyFeature', handleMyFeature, {
+  priority: HandlerPriority.VARIANTS,
+  mode: 'async',
+  description: 'Описание'
+});
+```
+
+### Добавление нового поля CSVRow
+
+1. `types/csv-fields.ts` — добавить в CSVFields интерфейс
+2. `extension/content.js` — добавить извлечение в extractRowData()
+3. `parsing-rules.ts` — добавить селекторы (опционально)
+
+### Добавление нового компонента
+
+1. Получить ключ компонента из Figma Dev Console
+2. `page-builder/component-map.ts` — добавить в SNIPPET_COMPONENT_MAP
+3. `page-builder/structure-builder.ts` — добавить обработку типа
+4. Создать handler если нужна специальная логика
+
+**Подробные гайды**: см. `docs/EXTENDING.md`
+
+## Протокол сообщений
+
+### UI → Code (основные)
+- `import-csv` — импорт данных `{ rows, scope }`
+- `apply-relay-payload` — данные от браузера
+- `build-page` — создание страницы из HTML
+
+### Code → UI (основные)
+- `progress` — `{ current, total, message, operationType }`
+- `stats` — статистика обработки
+- `done` — завершение `{ count }`
+
+## Сборка
+
+```bash
+npm run build        # Полная сборка
+npm run build:watch  # Watch mode
+npm run dev          # Build + Relay server
+npm run test         # Vitest тесты
+```
+
+## Стиль кода
+
+- ESLint + Prettier + EditorConfig
+- TypeScript строгий режим
+- Логирование через `Logger` класс (levels: SILENT, ERROR, SUMMARY, VERBOSE, DEBUG)
+
+## Коммуникация с AI
+
+- Всегда соблюдать ES5 для code.js
+- При изменениях ui.html — отдавать полный файл
+- Не дублировать существующие сущности
+- Проверять импорты перед добавлением
+- Держать ответы краткими и практичными
+- **ВАЖНО: Парсинг данных реализован в ДВУХ местах:**
+  - `extension/content.js` — парсит HTML на странице Яндекса (основной путь данных)
+  - `src/utils/snippet-parser.ts` + `src/parsing-rules.ts` — парсит HTML в плагине (fallback для file drop/paste)
+  - При изменении логики парсинга (селекторы, извлечение полей) — проверять и обновлять ОБА места
+
+## Документация
+
+- `docs/ARCHITECTURE.md` — детальная карта проекта
+- `docs/GLOSSARY.md` — термины и концепции
+- `docs/EXTENDING.md` — примеры расширения
+- `docs/STRUCTURE.md` — детали архитектуры модулей

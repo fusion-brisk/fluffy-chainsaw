@@ -1,5 +1,5 @@
 /**
- * EProductSnippet Extension — Background Service Worker
+ * Contentify Extension — Background Service Worker
  * 
  * Handles toolbar icon click → parse page → send to Figma
  * 
@@ -9,7 +9,16 @@
  */
 
 const DEFAULT_RELAY_URL = 'http://localhost:3847';
-const NATIVE_HOST_NAME = 'com.eproductsnippet.relay';
+const NATIVE_HOST_NAME = 'com.contentify.relay';
+
+// === Retry Configuration ===
+const RETRY_DELAYS = [1000, 3000, 10000]; // Exponential backoff: 1s, 3s, 10s
+const MAX_RETRIES = 3;
+
+// === Retry Queue ===
+// Stores pending pushes that failed and need retry
+let retryQueue = [];
+let isRetrying = false;
 
 // === Native Messaging ===
 
@@ -159,8 +168,216 @@ function setBadge(text, color) {
 // Clear badge after delay
 function clearBadgeAfter(ms) {
   setTimeout(() => {
-    chrome.action.setBadgeText({ text: '' });
+    // Don't clear if there are pending retries
+    if (retryQueue.length === 0) {
+      chrome.action.setBadgeText({ text: '' });
+    }
   }, ms);
+}
+
+// === Retry Queue Functions ===
+
+/**
+ * Add item to retry queue
+ */
+function addToRetryQueue(item) {
+  retryQueue.push({
+    ...item,
+    retryCount: 0,
+    addedAt: Date.now()
+  });
+  updateRetryBadge();
+  console.log(`[Retry] Added to queue, size: ${retryQueue.length}`);
+  
+  // Also save to storage for clipboard fallback
+  savePendingDataToStorage(item);
+  
+  // Start retry process if not already running
+  if (!isRetrying) {
+    processRetryQueue();
+  }
+}
+
+/**
+ * Save pending data to chrome.storage.local for clipboard fallback
+ */
+async function savePendingDataToStorage(item) {
+  try {
+    await chrome.storage.local.set({
+      pendingData: {
+        payload: item.payload,
+        meta: item.meta,
+        savedAt: Date.now()
+      }
+    });
+    console.log('[Fallback] Data saved to storage for clipboard fallback');
+  } catch (err) {
+    console.error('[Fallback] Failed to save to storage:', err);
+  }
+}
+
+/**
+ * Clear pending data from storage (called after successful delivery)
+ */
+async function clearPendingDataFromStorage() {
+  try {
+    await chrome.storage.local.remove('pendingData');
+    console.log('[Fallback] Cleared pending data from storage');
+  } catch (err) {
+    console.error('[Fallback] Failed to clear storage:', err);
+  }
+}
+
+/**
+ * Update badge to show pending retries
+ */
+function updateRetryBadge() {
+  if (retryQueue.length > 0) {
+    setBadge(`${retryQueue.length}↻`, '#D29922'); // Yellow/orange for pending
+  }
+}
+
+/**
+ * Process retry queue with exponential backoff
+ */
+async function processRetryQueue() {
+  if (isRetrying || retryQueue.length === 0) return;
+  
+  isRetrying = true;
+  console.log(`[Retry] Processing queue, ${retryQueue.length} items`);
+  
+  while (retryQueue.length > 0) {
+    const item = retryQueue[0];
+    const delay = RETRY_DELAYS[Math.min(item.retryCount, RETRY_DELAYS.length - 1)];
+    
+    console.log(`[Retry] Attempt ${item.retryCount + 1}/${MAX_RETRIES} in ${delay}ms`);
+    setBadge(`${retryQueue.length}↻`, '#D29922');
+    
+    // Wait before retry
+    await new Promise(r => setTimeout(r, delay));
+    
+    // Try to send
+    const success = await attemptPush(item);
+    
+    if (success) {
+      // Remove from queue on success
+      retryQueue.shift();
+      console.log(`[Retry] Success! Remaining: ${retryQueue.length}`);
+      
+      // Clear pending data from storage on success
+      clearPendingDataFromStorage();
+      
+      if (retryQueue.length === 0) {
+        setBadge('✓', '#3FB950');
+        clearBadgeAfter(2000);
+        
+        // Open Figma on successful retry
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => {
+                const a = document.createElement('a');
+                a.href = 'figma://';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+              }
+            });
+          }
+        } catch {
+          // Deeplink failed, ignore
+        }
+      } else {
+        updateRetryBadge();
+      }
+    } else {
+      // Increment retry count
+      item.retryCount++;
+      
+      if (item.retryCount >= MAX_RETRIES) {
+        // Max retries reached, remove from queue
+        retryQueue.shift();
+        console.log(`[Retry] Max retries reached, dropping item. Remaining: ${retryQueue.length}`);
+        
+        if (retryQueue.length === 0) {
+          setBadge('✗', '#E5534B');
+          clearBadgeAfter(3000);
+        }
+      }
+    }
+  }
+  
+  isRetrying = false;
+}
+
+/**
+ * Attempt to push data to relay
+ * Returns true on success, false on failure
+ */
+async function attemptPush(item) {
+  const relayUrl = await getRelayUrl();
+  
+  try {
+    const res = await fetch(`${relayUrl}/push`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payload: item.payload,
+        meta: item.meta
+      }),
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    return res.ok;
+  } catch (err) {
+    console.log(`[Retry] Push failed:`, err.message);
+    return false;
+  }
+}
+
+/**
+ * Copy data to clipboard via content script
+ * Service workers can't access clipboard directly, so we inject a script
+ */
+async function copyToClipboard(tabId, data) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (jsonData) => {
+        // Copy to clipboard using modern API with fallback
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(jsonData).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = jsonData;
+            textarea.style.cssText = 'position:fixed;left:-9999px;';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+          });
+        } else {
+          // execCommand fallback
+          const textarea = document.createElement('textarea');
+          textarea.value = jsonData;
+          textarea.style.cssText = 'position:fixed;left:-9999px;';
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+        }
+      },
+      args: [data]
+    });
+    console.log('[Clipboard] Data copied to clipboard');
+    return true;
+  } catch (e) {
+    console.error('[Clipboard] Failed to copy:', e);
+    return false;
+  }
 }
 
 // Main handler for icon click
@@ -175,20 +392,17 @@ async function handleIconClick(tab) {
   // Show loading state
   setBadge('...', '#5865F2');
   
+  // Declare at higher scope for access in catch block
+  let parseResult = null;
+  
   try {
-    // Ensure relay is running (via Native Host or manual)
-    const relayOk = await ensureRelayRunning();
-    if (!relayOk) {
-      console.warn('Relay not available, trying anyway...');
-    }
-    
-    // Parse page using content script
+    // Parse page using content script (don't wait for relay)
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['content.js']
     });
     
-    const parseResult = results[0]?.result;
+    parseResult = results[0]?.result;
     
     if (!parseResult || parseResult.error || !parseResult.rows?.length) {
       setBadge('0', '#E5534B');
@@ -197,7 +411,6 @@ async function handleIconClick(tab) {
     }
     
     const rows = parseResult.rows;
-    const relayUrl = await getRelayUrl();
     
     // Build payload
     const payload = {
@@ -208,30 +421,58 @@ async function handleIconClick(tab) {
       rawRows: rows
     };
     
-    // Send to relay
-    const res = await fetch(`${relayUrl}/push`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        payload,
-        meta: { url: tab.url, parsedAt: new Date().toISOString(), snippetCount: rows.length }
-      })
+    const meta = { 
+      url: tab.url, 
+      parsedAt: new Date().toISOString(), 
+      snippetCount: rows.length 
+    };
+    
+    // ALWAYS copy to clipboard first (clipboard-first architecture)
+    const clipboardData = JSON.stringify({
+      type: 'contentify-paste',
+      payload,
+      meta
     });
     
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+    await copyToClipboard(tab.id, clipboardData);
+    
+    // Try to send to relay (optional, non-blocking)
+    const relayUrl = await getRelayUrl();
+    let relaySuccess = false;
+    
+    try {
+      // Quick relay check
+      const relayOk = await ensureRelayRunning();
+      if (relayOk) {
+        const res = await fetch(`${relayUrl}/push`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ payload, meta }),
+          signal: AbortSignal.timeout(3000)
+        });
+        relaySuccess = res.ok;
+      }
+    } catch (relayErr) {
+      console.log('[Relay] Not available, using clipboard fallback:', relayErr.message);
     }
     
-    // Success!
+    // Success! Data is copied (and optionally sent to relay)
     setBadge(`${rows.length}`, '#3FB950');
     clearBadgeAfter(3000);
     
-    // Open Figma via deeplink (execute in page context)
+    // Clear any pending fallback data
+    if (relaySuccess) {
+      clearPendingDataFromStorage();
+    } else {
+      // Save for retry if relay was unavailable
+      savePendingDataToStorage({ payload, meta });
+    }
+    
+    // Open Figma via deeplink
     try {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: () => {
-          // Create invisible link and click it to trigger deeplink
           const a = document.createElement('a');
           a.href = 'figma://';
           a.style.display = 'none';
@@ -245,15 +486,8 @@ async function handleIconClick(tab) {
     }
     
   } catch (err) {
-    console.error('Send to Figma error:', err);
-    
-    // Показываем более информативный бейдж
-    if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
-      setBadge('⚡', '#E5534B'); // Relay not running
-      console.log('Hint: Install Native Host or run "npm run relay" manually');
-    } else {
-      setBadge('!', '#E5534B');
-    }
+    console.error('Parse/copy error:', err);
+    setBadge('!', '#E5534B');
     clearBadgeAfter(2000);
   }
 }
@@ -307,14 +541,14 @@ function updateIconForTab(tab) {
 // При загрузке Service Worker — пробуем подключиться к Native Host
 // Это запустит relay автоматически, если host установлен
 (async () => {
-  console.log('[EProductSnippet] Background service worker loaded');
+  console.log('[Contentify] Background service worker loaded');
   
   // Пробуем Native Host в фоне (не блокируя)
   const connected = await connectToNativeHost();
   if (connected) {
-    console.log('[EProductSnippet] Native Host connected, relay should be running');
+    console.log('[Contentify] Native Host connected, relay should be running');
   } else {
-    console.log('[EProductSnippet] Native Host not available, relay needs manual start');
-    console.log('[EProductSnippet] Run: cd native-host && ./install-macos.sh (or .bat for Windows)');
+    console.log('[Contentify] Native Host not available, relay needs manual start');
+    console.log('[Contentify] Run: cd native-host && ./install-macos.sh (or .bat for Windows)');
   }
 })();

@@ -74,7 +74,7 @@ function updateHandlerStats(name: string, duration: number): void {
 // Import all handlers
 import { handleBrandLogic, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel } from './label-handlers';
 import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
-import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleMetaVisibility, handleEProductSnippet, handleQuoteText, handleOrganicPath } from './snippet-handlers';
+import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleEmptyGroups, handleEProductSnippet, handleQuoteText, handleOrganicPath, handleEcomMetaVisibility } from './snippet-handlers';
 import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
 import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView, handleInfoIcon } from './price-handlers';
 
@@ -314,11 +314,21 @@ class HandlerRegistry {
       description: 'Fallback для OrganicHost из favicon'
     });
 
-    // === FINAL (50) — финальные обработчики ===
-    this.register('MetaVisibility', handleMetaVisibility, {
-      priority: HandlerPriority.FINAL,
+    // === VISIBILITY (20) — EcomMeta visibility на основе данных ===
+    this.register('EcomMetaVisibility', handleEcomMetaVisibility, {
+      priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
-      description: 'Скрытие/показ группы Meta на основе видимости детей'
+      containers: ['ESnippet', 'Snippet'],
+      description: 'Скрытие EcomMeta если нет данных для его содержимого'
+    });
+
+    // === FINAL (50) — финальные обработчики ===
+    // ВАЖНО: mode='async' с dependsOn, чтобы выполниться ПОСЛЕ всех async handlers
+    this.register('EmptyGroups', handleEmptyGroups, {
+      priority: HandlerPriority.FINAL,
+      mode: 'async',
+      dependsOn: ['EPriceGroup', 'ESnippetProps', 'ELabelGroup', 'ImageType', 'EcomMetaVisibility'],
+      description: 'Автоматическое скрытие/показ "пустых" групп (EcomMeta, Meta и др.) на основе видимости детей'
     });
 
     this.initialized = true;

@@ -15,7 +15,13 @@ import {
   findFirstTextByPredicate,
   safeSetTextNode
 } from '../utils/node-search';
-import { getCachedInstance } from '../utils/instance-cache';
+import { 
+  getCachedInstance, 
+  getGroupsSortedByDepth,
+  shouldProcessGroupForEmptyCheck,
+  areAllChildrenHidden,
+  hasAnyVisibleChild
+} from '../utils/instance-cache';
 import { HandlerContext } from './types';
 import { CSVRow } from '../types/csv-fields';
 
@@ -1023,6 +1029,18 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
     
     Logger.debug(`   📦 [ESnippet] Пропсы: withReviews=${hasReviews}, withQuotes=${hasQuotes}, withDelivery=${hasDelivery}, withFintech=${hasFintech}, withAddress=${hasAddress}, withSitelinks=${hasSitelinks}, withPromo=${hasPromo}, withButton=${hasButton}, withMeta=${hasMeta}, withPrice=${hasPrice}`);
     Logger.debug(`   📝 [ESnippet] Тексты: title=${organicTitle?.substring(0, 30)}..., host=${organicHost}`);
+    
+    // --- Отключаем clipsContent для content__left ---
+    // Это нужно чтобы контент не обрезался при переполнении
+    const contentLeft = instance.findOne(n => n.name === 'content__left');
+    if (contentLeft && contentLeft.type === 'FRAME' && !contentLeft.removed) {
+      try {
+        (contentLeft as FrameNode).clipsContent = false;
+        Logger.debug(`   📐 [ESnippet] content__left.clipsContent = false`);
+      } catch (e) {
+        Logger.debug(`   ⚠️ [ESnippet] Не удалось отключить clipsContent для content__left`);
+      }
+    }
   }
 }
 
@@ -1574,12 +1592,180 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
 }
 
 /**
- * Управление видимостью группы Meta — DEPRECATED
- * Visibility теперь управляется через withMeta на сниппете
+ * Управление видимостью EcomMeta на основе наличия данных
+ * 
+ * EcomMeta содержит метаданные товара:
+ * - Рейтинг (#ProductRating)
+ * - Отзывы (#ReviewCount)  
+ * - Барометр (#EPriceBarometer_View)
+ * - Цена (#OrganicPrice)
+ * 
+ * Если ни одного из этих полей нет — скрываем EcomMeta целиком.
+ * Если есть данные — показываем (для reprocessing).
+ */
+export function handleEcomMetaVisibility(context: HandlerContext): void {
+  const { container, row, instanceCache } = context;
+  
+  console.log(`📦 [EcomMetaVisibility] ВЫЗВАН! container=${!!container}, row=${!!row}, instanceCache=${!!instanceCache}`);
+  
+  if (!container || !row || !instanceCache) {
+    console.log(`📦 [EcomMetaVisibility] Пропуск: нет контекста`);
+    return;
+  }
+  
+  const containerName = 'name' in container ? container.name : '';
+  console.log(`📦 [EcomMetaVisibility] Контейнер: "${containerName}"`);
+  
+  // Применяется только к ESnippet
+  if (containerName !== 'ESnippet' && containerName !== 'Snippet') {
+    console.log(`📦 [EcomMetaVisibility] Пропуск: контейнер "${containerName}" не ESnippet/Snippet`);
+    return;
+  }
+  
+  // Ищем группу EcomMeta
+  const ecomMeta = instanceCache.groups.get('EcomMeta');
+  console.log(`📦 [EcomMetaVisibility] EcomMeta в кэше: ${ecomMeta ? 'найден' : 'НЕ НАЙДЕН'}`);
+  
+  if (!ecomMeta || ecomMeta.removed) {
+    console.log(`📦 [EcomMetaVisibility] EcomMeta не найден или удалён в "${containerName}"`);
+    return;
+  }
+  
+  // Поля, которые отвечают за содержимое EcomMeta
+  const ecomMetaFields = [
+    '#ProductRating',
+    '#ReviewCount', 
+    '#OrganicPrice',
+    '#OldPrice',
+    '#EPriceBarometer_View',
+    '#ELabelGroup',
+  ];
+  
+  // Проверяем наличие хотя бы одного непустого поля
+  const hasData = ecomMetaFields.some(field => {
+    const value = row[field as keyof CSVRow];
+    return value !== undefined && value !== null && value !== '' && value !== 'false';
+  });
+  
+  console.log(`📦 [EcomMetaVisibility] EcomMeta в "${containerName}": hasData=${hasData}, visible=${ecomMeta.visible}`);
+  
+  if (!hasData && ecomMeta.visible) {
+    // Нет данных для EcomMeta → скрываем
+    ecomMeta.visible = false;
+    console.log(`📦 [EcomMetaVisibility] Скрыт EcomMeta (нет данных)`);
+    
+    // Также скрываем всех детей, чтобы handleEmptyGroups потом не показал группу
+    for (const child of ecomMeta.children) {
+      if ('visible' in child && !child.removed) {
+        (child as SceneNode).visible = false;
+      }
+    }
+  } else if (hasData && !ecomMeta.visible) {
+    // Есть данные, но группа скрыта → показываем (reprocessing)
+    ecomMeta.visible = true;
+    console.log(`📦 [EcomMetaVisibility] Показан EcomMeta (есть данные)`);
+  }
+}
+
+/**
+ * Управление видимостью "пустых" групп — FINAL handler
+ * 
+ * Автоматически скрывает группы, у которых все дети скрыты после обработки.
+ * При повторной обработке показывает группы, если какой-то ребёнок стал видимым.
+ * 
+ * Алгоритм:
+ * 1. Получаем все группы из кэша, отсортированные по глубине (глубокие первыми)
+ * 2. Для каждой группы с подходящим именем проверяем видимость детей
+ * 3. Если все дети скрыты → скрываем группу
+ * 4. Если есть видимые дети, но группа скрыта → показываем группу
+ * 
+ * Обрабатываемые группы (по имени):
+ * - EcomMeta, Meta, ESnippet-Meta
+ * - Rating + Reviews, Rating + Review + Quote
+ * - Sitelinks, Contacts, Promo, Price Block
+ * - Любые группы с суффиксами: Group, Container, Wrapper, Block
+ */
+export function handleEmptyGroups(context: HandlerContext): void {
+  const { container, instanceCache } = context;
+  
+  // ДИАГНОСТИКА: используем console.log вместо Logger.debug
+  console.log(`📦 [EmptyGroups] ВЫЗВАН! container=${!!container}, instanceCache=${!!instanceCache}`);
+  
+  if (!container || !instanceCache) {
+    console.log(`📦 [EmptyGroups] Пропуск: container=${!!container}, instanceCache=${!!instanceCache}`);
+    return;
+  }
+  
+  const containerName = 'name' in container ? container.name : 'unknown';
+  console.log(`📦 [EmptyGroups] Начало обработки для контейнера "${containerName}"`);
+  
+  // Диагностика: выводим все группы в кэше
+  const allGroupNames = Array.from(instanceCache.groups.keys());
+  console.log(`📦 [EmptyGroups] Все группы в кэше (${allGroupNames.length}): ${allGroupNames.slice(0, 20).join(', ')}${allGroupNames.length > 20 ? '...' : ''}`);
+  
+  // Получаем группы, отсортированные по глубине (глубокие первыми — bottom-up)
+  const groups = getGroupsSortedByDepth(instanceCache);
+  
+  if (groups.length === 0) {
+    console.log(`📦 [EmptyGroups] Нет групп для обработки (getGroupsSortedByDepth вернул пустой массив)`);
+    return;
+  }
+  
+  console.log(`📦 [EmptyGroups] Групп для обработки: ${groups.length}`);
+  
+  let hiddenCount = 0;
+  let shownCount = 0;
+  
+  for (const group of groups) {
+    // Пропускаем удалённые группы
+    if (group.removed) continue;
+    
+    // Проверяем, должна ли группа обрабатываться
+    if (!shouldProcessGroupForEmptyCheck(group.name)) continue;
+    
+    // EcomMeta обрабатывается отдельным handler (handleEcomMetaVisibility)
+    // Не трогаем его здесь, чтобы не переопределять решение
+    if (group.name === 'EcomMeta') {
+      console.log(`   📦 [EmptyGroups] Пропуск EcomMeta (обрабатывается отдельно)`);
+      continue;
+    }
+    
+    try {
+      // Проверяем видимость детей
+      // areAllChildrenHidden возвращает true для пустых групп (0 детей)
+      const allHidden = areAllChildrenHidden(group);
+      const hasVisible = hasAnyVisibleChild(group);
+      
+      console.log(`   📦 [EmptyGroups] Группа "${group.name}": children=${group.children.length}, allHidden=${allHidden}, hasVisible=${hasVisible}, visible=${group.visible}`);
+      
+      if (allHidden && group.visible) {
+        // Все дети скрыты (или нет детей) → скрываем группу
+        group.visible = false;
+        hiddenCount++;
+        console.log(`   📦 [EmptyGroups] Скрыта группа "${group.name}" (пустая или все дети скрыты)`);
+      } else if (hasVisible && !group.visible) {
+        // Есть видимые дети, но группа скрыта → показываем (reprocessing case)
+        group.visible = true;
+        shownCount++;
+        console.log(`   📦 [EmptyGroups] Показана группа "${group.name}" (есть видимые дети)`);
+      }
+    } catch (e) {
+      // Игнорируем ошибки (например, если группа защищена)
+      console.log(`   ⚠️ [EmptyGroups] Ошибка обработки "${group.name}": ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  
+  if (hiddenCount > 0 || shownCount > 0) {
+    console.log(`📦 [EmptyGroups] Итого: скрыто ${hiddenCount}, показано ${shownCount} групп`);
+  }
+}
+
+/**
+ * @deprecated Используйте handleEmptyGroups вместо handleMetaVisibility
+ * Оставлен для обратной совместимости
  */
 export function handleMetaVisibility(context: HandlerContext): void {
-  // Visibility теперь через withMeta на сниппете — ничего не делаем
-  Logger.debug(`📦 [Meta] Visibility через withMeta на сниппете`);
+  handleEmptyGroups(context);
 }
 
 /**

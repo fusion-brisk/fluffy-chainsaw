@@ -230,6 +230,155 @@ export function getCachedGroupByNames(
   return null;
 }
 
+// ==================== EMPTY GROUP VISIBILITY HELPERS ====================
+
+/**
+ * Список паттернов имён групп, которые должны быть обработаны для auto-hide
+ * Группы с этими именами будут скрыты, если все их дети скрыты
+ */
+const EMPTY_GROUP_PATTERNS = [
+  // Конкретные имена групп
+  'EcomMeta',
+  'Meta',
+  'ESnippet-Meta',
+  'Rating + Reviews',
+  'Rating + Review + Quote',
+  'Sitelinks',
+  'Contacts',
+  'Promo',
+  'Price Block',
+  'EDeliveryGroup',
+  'ShopInfo-DeliveryBnplContainer',
+];
+
+/**
+ * Суффиксы имён групп, которые должны быть обработаны
+ */
+const EMPTY_GROUP_SUFFIXES = ['Group', 'Container', 'Wrapper', 'Block'];
+
+/**
+ * Проверяет, должна ли группа обрабатываться для auto-hide
+ * @param name - имя группы
+ * @returns true если группа должна обрабатываться
+ */
+export function shouldProcessGroupForEmptyCheck(name: string): boolean {
+  // Проверка точного совпадения
+  if (EMPTY_GROUP_PATTERNS.includes(name)) {
+    return true;
+  }
+  
+  // Проверка case-insensitive для wrapper
+  const nameLower = name.toLowerCase();
+  if (nameLower.includes('wrapper')) {
+    return true;
+  }
+  
+  // Проверка суффиксов
+  for (const suffix of EMPTY_GROUP_SUFFIXES) {
+    if (name.endsWith(suffix)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Подсчитывает количество видимых детей в группе
+ * Учитывает только прямых детей, не рекурсивно
+ * 
+ * @param children - массив детей группы
+ * @returns количество видимых детей
+ */
+export function countVisibleChildren(children: readonly SceneNode[]): number {
+  let visibleCount = 0;
+  
+  for (const child of children) {
+    // Пропускаем удалённые ноды
+    if (child.removed) continue;
+    
+    // Проверяем свойство visible
+    // Если visible === true или не определено (по умолчанию visible) — считаем видимым
+    if ('visible' in child && child.visible === true) {
+      visibleCount++;
+    }
+  }
+  
+  return visibleCount;
+}
+
+/**
+ * Проверяет, все ли дети группы скрыты или группа пуста
+ * 
+ * @param group - группа для проверки
+ * @returns true если все дети скрыты ИЛИ группа пустая (нет детей)
+ */
+export function areAllChildrenHidden(group: FrameNode | GroupNode): boolean {
+  if (group.removed) return false;
+  
+  const children = group.children;
+  
+  // Пустая группа — считаем "все дети скрыты" (нет видимых детей)
+  if (children.length === 0) {
+    return true;
+  }
+  
+  return countVisibleChildren(children) === 0;
+}
+
+/**
+ * Проверяет, есть ли хотя бы один видимый ребёнок в группе
+ * 
+ * @param group - группа для проверки
+ * @returns true если есть хотя бы один видимый ребёнок (false если пустая или все скрыты)
+ */
+export function hasAnyVisibleChild(group: FrameNode | GroupNode): boolean {
+  if (group.removed) return false;
+  
+  const children = group.children;
+  
+  // Пустая группа — нет видимых детей
+  if (children.length === 0) {
+    return false;
+  }
+  
+  return countVisibleChildren(children) > 0;
+}
+
+/**
+ * Получает все группы из кэша, отсортированные по глубине (глубокие первыми)
+ * Это нужно для корректной обработки вложенных групп (bottom-up)
+ * 
+ * @param cache - кэш с группами
+ * @returns массив групп, отсортированный по глубине (глубокие первыми)
+ */
+export function getGroupsSortedByDepth(cache: DeepCache): Array<FrameNode | GroupNode> {
+  const groups: Array<{ group: FrameNode | GroupNode; depth: number }> = [];
+  
+  // Функция для подсчёта глубины (количество родителей)
+  const getDepth = (node: BaseNode): number => {
+    let depth = 0;
+    let current = node.parent;
+    while (current && current.type !== 'PAGE' && current.type !== 'DOCUMENT') {
+      depth++;
+      current = current.parent;
+    }
+    return depth;
+  };
+  
+  // Собираем группы с их глубиной
+  for (const group of cache.groups.values()) {
+    if (!group.removed) {
+      groups.push({ group, depth: getDepth(group) });
+    }
+  }
+  
+  // Сортируем по глубине (глубокие первыми)
+  groups.sort((a, b) => b.depth - a.depth);
+  
+  return groups.map(item => item.group);
+}
+
 // ==================== STATS ====================
 
 /**

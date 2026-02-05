@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# Contentify Relay Launcher
+# Запускает relay сервер в фоновом режиме
+#
+
+# Определяем путь к бинарнику
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_RESOURCES="$(dirname "$SCRIPT_DIR")/Resources"
+
+# Определяем архитектуру
+ARCH=$(uname -m)
+if [ "$ARCH" = "arm64" ]; then
+  BINARY_NAME="contentify-relay-host-arm64"
+else
+  BINARY_NAME="contentify-relay-host-x64"
+fi
+
+# Ищем бинарник: сначала в Resources, потом рядом с .app
+if [ -f "$APP_RESOURCES/$BINARY_NAME" ]; then
+  BINARY="$APP_RESOURCES/$BINARY_NAME"
+elif [ -f "$APP_RESOURCES/dist/$BINARY_NAME" ]; then
+  BINARY="$APP_RESOURCES/dist/$BINARY_NAME"
+else
+  # Ищем рядом с .app (в native-host/)
+  APP_DIR="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
+  if [ -f "$APP_DIR/dist/$BINARY_NAME" ]; then
+    BINARY="$APP_DIR/dist/$BINARY_NAME"
+  elif [ -f "$APP_DIR/$BINARY_NAME" ]; then
+    BINARY="$APP_DIR/$BINARY_NAME"
+  else
+    osascript -e 'display notification "Relay binary not found" with title "Contentify Relay" sound name "Basso"'
+    exit 1
+  fi
+fi
+
+# Проверяем, не запущен ли уже
+if lsof -i :3847 >/dev/null 2>&1; then
+  osascript -e 'display notification "Relay already running on port 3847" with title "Contentify Relay"'
+  exit 0
+fi
+
+# Запускаем
+osascript -e 'display notification "Starting relay server..." with title "Contentify Relay"'
+
+# Запускаем в фоне и держим процесс
+exec "$BINARY"

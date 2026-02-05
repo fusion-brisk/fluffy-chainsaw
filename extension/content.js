@@ -21,9 +21,11 @@
   const RATING_INVALID_START_REGEX = /^[\u2212\u002D\u2013\u2014]/;
 
   // Контейнеры сниппетов (CSS селекторы)
-  // ВАЖНО: Парсим на уровне <li.serp-item>, а не вложенных элементов
+  // Desktop: <li class="serp-item">
+  // Touch: <div class="serp-item serp-list__card">
   const CONTAINER_SELECTORS = [
-    'li.serp-item'
+    'li.serp-item',
+    'div.serp-item.serp-list__card'
   ].join(', ');
 
   // Селекторы для рекламных сниппетов (пропускаем)
@@ -69,6 +71,42 @@
       parent = parent.parentElement;
     }
     return false;
+  }
+
+  /**
+   * Определяет платформу страницы (desktop или touch)
+   * Touch-версия имеет другую структуру HTML и классы
+   */
+  function detectPlatform() {
+    // Проверяем HeaderPhone — надёжный маркер touch версии
+    if (document.querySelector('.HeaderPhone')) {
+      console.log('[Platform] Detected: touch (HeaderPhone)');
+      return 'touch';
+    }
+    
+    // Проверяем классы body на платформу
+    const bodyClass = document.body?.className || '';
+    if (bodyClass.includes('i-ua_platform_ios') || 
+        bodyClass.includes('i-ua_platform_android')) {
+      console.log('[Platform] Detected: touch (i-ua_platform_*)');
+      return 'touch';
+    }
+    
+    // Проверяем наличие touch-phone модификаторов в сниппетах
+    if (document.querySelector('[class*="@touch-phone"]')) {
+      console.log('[Platform] Detected: touch (@touch-phone modifier)');
+      return 'touch';
+    }
+    
+    // Проверяем HeaderDesktop — маркер desktop версии
+    if (document.querySelector('.HeaderDesktop')) {
+      console.log('[Platform] Detected: desktop (HeaderDesktop)');
+      return 'desktop';
+    }
+    
+    // По умолчанию — desktop
+    console.log('[Platform] Detected: desktop (default)');
+    return 'desktop';
   }
 
   /**
@@ -121,7 +159,15 @@
     }
     
     // Промо-сниппеты (рекламные органические сниппеты) — тип ESnippet
+    // Проверяем класс ИЛИ наличие AdvLabel внутри
     if (className.includes('Organic_withAdvLabel') || className.includes('Organic_withPromoOffer')) {
+      return 'Organic_Adv';
+    }
+    
+    // Также проверяем наличие AdvLabel внутри Organic сниппета
+    // (некоторые промо-сниппеты имеют просто класс "Organic organic" но с AdvLabel внутри)
+    if (className.includes('Organic') && container.querySelector('.AdvLabel, .OrganicAdvLabel')) {
+      console.log('[getSnippetType] Обнаружен промо-сниппет по наличию .AdvLabel внутри');
       return 'Organic_Adv';
     }
     
@@ -618,13 +664,23 @@
   /**
    * Извлекает данные из стандартного сниппета
    */
-  function extractStandardSnippet(container, snippetType) {
+  /**
+   * Извлекает данные из стандартного сниппета
+   * @param {Element} container - контейнер сниппета
+   * @param {string} snippetType - тип сниппета
+   * @param {string} platform - платформа ('desktop' или 'touch')
+   */
+  function extractStandardSnippet(container, snippetType, platform) {
+    platform = platform || 'desktop';
+    const isTouch = platform === 'touch';
+    
     // Получаем ID родительского serp-item
     const serpItemId = getSerpItemId(container);
 
     const row = {
       '#SnippetType': snippetType,
-      '#serpItemId': serpItemId || ''
+      '#serpItemId': serpItemId || '',
+      '#platform': platform
     };
 
     // #withThumb — наличие картинки в сниппете
@@ -654,11 +710,21 @@
       } catch (e) {}
     }
     
-    // #OrganicTitle
+    // #OrganicTitle — точные селекторы первыми!
     const titleSelectors = [
-      '.OrganicTitle', '.Organic-Title',
-      '.EProductSnippet2-Title', '.EProductSnippet2-Title a',
-      '.EShopItem-Title', '[class*="EShopItem-Title"]'
+      // Точные селекторы для текста заголовка (приоритет!)
+      '.OrganicTitleContentSpan',
+      'h2.OrganicTitle-LinkText',
+      '.OrganicTitle-LinkText span',
+      // EProductSnippet2
+      '.EProductSnippet2-Title',
+      '.EProductSnippet2-Title a',
+      // EShopItem
+      '.EShopItem-Title',
+      '[class*="EShopItem-Title"]',
+      // Fallback (менее точные)
+      '.OrganicTitle',
+      '.Organic-Title'
     ];
     for (const selector of titleSelectors) {
       const titleEl = container.querySelector(selector);
@@ -817,11 +883,20 @@
     
     // #OrganicImage — fallback если EThumbGroup не найден
     if (!row['#OrganicImage']) {
-      const imageSelectors = [
-        '.Organic-OfferThumb img', '.Organic-OfferThumbImage',
-        '.EProductSnippet2-Thumb img', '.EShopItem-Image img',
-        'img.EThumb-Image', '.EThumb-Image'
-      ];
+      // Touch-версия использует .EShopItem-Leading вместо .EShopItem-Left/.EShopItem-Image
+      const imageSelectors = isTouch
+        ? [
+            '.EShopItem-Leading img', '.EShopItem-Image img',  // Touch-first
+            '.Organic-OfferThumb img', '.Organic-OfferThumbImage',
+            '.EProductSnippet2-Thumb img',
+            'img.EThumb-Image', '.EThumb-Image'
+          ]
+        : [
+            '.Organic-OfferThumb img', '.Organic-OfferThumbImage',
+            '.EProductSnippet2-Thumb img', '.EShopItem-Image img',
+            '.EShopItem-Left img',  // Desktop-specific
+            'img.EThumb-Image', '.EThumb-Image'
+          ];
       row['#OrganicImage'] = extractImage(container, imageSelectors);
       row['#ThumbImage'] = row['#OrganicImage'];
       row['#imageType'] = row['#OrganicImage'] ? 'EThumb' : '';
@@ -998,8 +1073,10 @@
     row['#EMarketCheckoutLabel'] = checkoutLabel ? 'true' : 'false';
     
     // #EDeliveryGroup — доставки (Курьер, В ПВЗ и др.)
-    // Ищем в EDeliveryGroup или ShopInfo-Deliveries (Organic)
-    const deliveryGroup = container.querySelector('.EDeliveryGroup:not(.EDeliveryGroup-Item), .ShopInfo-Deliveries');
+    // Ищем в EDeliveryGroup, ShopInfo-Deliveries (Organic) или EShopItem-Deliveries (Touch)
+    const deliveryGroup = container.querySelector(
+      '.EDeliveryGroup:not(.EDeliveryGroup-Item), .ShopInfo-Deliveries, .EShopItem-Deliveries, .EShopItem-DeliveriesBnpl'
+    );
     if (deliveryGroup) {
       const items = deliveryGroup.querySelectorAll('.EDeliveryGroup-Item');
       const deliveryItems = [];
@@ -1146,9 +1223,19 @@
     const hasOrganicCheckout = (container.className || '').includes('Organic-Checkout');
     
     if (snippetType === 'EShopItem') {
-      row['#BUTTON'] = 'true';
-      row['#ButtonView'] = (hasCheckout || hasCheckoutModifier) ? 'primaryLong' : 'secondary';
-      row['#ButtonType'] = (hasCheckout || hasCheckoutModifier) ? 'checkout' : 'shop';
+      // Touch: кнопка скрыта, показываем только для checkout
+      // Desktop: кнопка всегда видна
+      if (isTouch) {
+        const hasCheckoutInTouch = hasCheckout || hasCheckoutModifier;
+        row['#BUTTON'] = hasCheckoutInTouch ? 'true' : 'false';
+        row['#ButtonView'] = hasCheckoutInTouch ? 'primaryShort' : '';
+        row['#ButtonType'] = hasCheckoutInTouch ? 'checkout' : 'shop';
+        row['#EButton_visible'] = hasCheckoutInTouch ? 'true' : 'false';
+      } else {
+        row['#BUTTON'] = 'true';
+        row['#ButtonView'] = (hasCheckout || hasCheckoutModifier) ? 'primaryLong' : 'secondary';
+        row['#ButtonType'] = (hasCheckout || hasCheckoutModifier) ? 'checkout' : 'shop';
+      }
     } else if (snippetType === 'Organic_withOfferInfo' || snippetType === 'Organic') {
       const hasRealCheckout = hasOrganicCheckout || checkoutLabel;
       if (hasRealCheckout) {
@@ -1249,13 +1336,31 @@
       };
       
       // === ИЗОБРАЖЕНИЕ ===
-      const imgEl = card.querySelector('.EThumb-Image');
-      if (imgEl) {
-        const src = imgEl.getAttribute('src') || imgEl.getAttribute('data-src');
-        if (src) {
-          row['#OrganicImage'] = src.startsWith('http') ? src : `https:${src}`;
-          row['#ThumbImage'] = row['#OrganicImage'];
+      // Пробуем несколько селекторов для изображения
+      const imgSelectors = [
+        '.EThumb-Image',
+        '.EProductSnippet2-Image img',
+        '.EProductSnippet2-Thumb img',
+        '.AdvProductGalleryCard-Image img',
+        'img[class*="Image"]',
+        'img'
+      ];
+      let imgFound = false;
+      for (const selector of imgSelectors) {
+        const imgEl = card.querySelector(selector);
+        if (imgEl) {
+          const src = imgEl.getAttribute('src') || imgEl.getAttribute('data-src');
+          if (src && src.length > 10) {
+            row['#OrganicImage'] = src.startsWith('http') ? src : `https:${src}`;
+            row['#ThumbImage'] = row['#OrganicImage'];
+            imgFound = true;
+            console.log(`[AdvProductGallery] Изображение найдено через "${selector}": ${src.substring(0, 50)}...`);
+            break;
+          }
         }
+      }
+      if (!imgFound) {
+        console.log('[AdvProductGallery] ⚠️ Изображение НЕ найдено для карточки');
       }
       
       // === ЦЕНА ===
@@ -1742,22 +1847,60 @@
       return 'EntityOffers';
     }
     
-    // ProductsTiles — плитки товаров
-    if (fastSubtype.includes('products_tiles') || fastSubtype.includes('products_additional')) {
-      return 'ProductsTiles';
-    }
-    
-    // AdvProductGallery — рекламная галерея
+    // AdvProductGallery — рекламная галерея (проверяем раньше других!)
     const advGallery = serpItem.querySelector('.AdvProductGallery');
     if (advGallery) {
       console.log(`[getSerpItemContainerType] AdvProductGallery найден! cid=${dataCid}, logNode=${dataLogNode}`);
       return 'AdvProductGallery';
     }
     
-    // EShopList — список магазинов (множественные EShopItem)
+    // ВАЖНО: Проверяем содержимое ПЕРЕД проверкой data-fast-name!
+    // products_mode_constr может содержать как EProductSnippet2 (плитки), так и EShopList (список магазинов)
+    
+    // Подсчитываем EProductSnippet2 и EShopItem
+    const productItems = serpItem.querySelectorAll('.EProductSnippet2.ProductTile-Item, .ProductTile-Item.EProductSnippet2');
     const shopItems = serpItem.querySelectorAll('.EShopItem');
-    if (shopItems.length > 1) {
+    
+    console.log(`[getSerpItemContainerType] cid=${dataCid}: EProductSnippet2=${productItems.length}, EShopItem=${shopItems.length}, fastName=${fastName}`);
+    
+    // EShopList — список магазинов (множественные EShopItem)
+    // Приоритет выше чем ProductsTiles по data-fast-name, потому что products_mode_constr может содержать EShopList!
+    if (shopItems.length > 1 && productItems.length === 0) {
+      console.log(`[getSerpItemContainerType] EShopList найден! ${shopItems.length} магазинов, cid=${dataCid}`);
       return 'EShopList';
+    }
+    
+    // ProductsTiles — плитки товаров (EProductSnippet2)
+    if (productItems.length > 1) {
+      console.log(`[getSerpItemContainerType] ProductsTiles найден! ${productItems.length} товаров, cid=${dataCid}`);
+      return 'ProductsTiles';
+    }
+    
+    // ProductsTiles по data-fast-name/subtype (только если есть хотя бы один EProductSnippet2)
+    if (fastSubtype.includes('products_tiles') || 
+        fastSubtype.includes('products_additional') ||
+        fastSubtype.includes('ecommerce_offers') ||
+        fastName === 'products_mode_constr') {
+      // Если есть EProductSnippet2 — ProductsTiles
+      if (productItems.length >= 1) {
+        console.log(`[getSerpItemContainerType] ProductsTiles по fastName="${fastName}", ${productItems.length} товаров`);
+        return 'ProductsTiles';
+      }
+      // Если нет EProductSnippet2, но есть EShopItem — EShopList
+      if (shopItems.length >= 1) {
+        console.log(`[getSerpItemContainerType] EShopList (в products_mode), ${shopItems.length} магазинов`);
+        return 'EShopList';
+      }
+      // Fallback на ProductsTiles если нет ни того ни другого (редкий случай)
+      console.log(`[getSerpItemContainerType] ProductsTiles (пустой?) по fastName="${fastName}"`);
+      return 'ProductsTiles';
+    }
+    
+    // ProductsTiles — также проверяем наличие класса ProductsTiles/ProductsModeTiles внутри
+    const hasProductsTilesClass = serpItem.querySelector('.ProductsTiles, .ProductsModeTiles, .ProductsModeRoot');
+    if (hasProductsTilesClass && productItems.length > 0) {
+      console.log(`[getSerpItemContainerType] ProductsTiles по классу! ${productItems.length} товаров, cid=${dataCid}`);
+      return 'ProductsTiles';
     }
     
     // Логирование для отладки
@@ -1774,29 +1917,84 @@
   /**
    * Извлекает данные из serp-item (li элемента)
    * Возвращает объект или массив объектов
+   * @param {Element} serpItem - контейнер serp-item
+   * @param {string} platform - платформа ('desktop' или 'touch')
    */
-  function extractRowData(serpItem) {
+  function extractRowData(serpItem, platform) {
+    platform = platform || 'desktop';
+    
     // Используем data-cid или data-log-node как fallback
     const serpItemId = serpItem.getAttribute('data-cid') || serpItem.getAttribute('data-log-node') || '';
     const containerType = getSerpItemContainerType(serpItem);
     
-    console.log(`[extractRowData] serpItemId=${serpItemId}, containerType=${containerType}`);
+    console.log(`[extractRowData] serpItemId=${serpItemId}, containerType=${containerType}, platform=${platform}`);
     
-    // === EntityOffers — группа Organic_withOfferInfo сниппетов ===
+    // === EntityOffers — группа сниппетов с заголовком ===
+    // Два варианта: 
+    // 1. EntityOffersOrganic — содержит .Organic.Organic_withOfferInfo элементы
+    // 2. Стандартный EntityOffers — содержит .EShopItem элементы
     if (containerType === 'EntityOffers') {
       const results = [];
-      // Ищем все Organic внутри
-      const organics = serpItem.querySelectorAll('.Organic');
-      console.log(`[EntityOffers] Найдено ${organics.length} Organic внутри`);
       
-      for (const organic of organics) {
-        const row = extractStandardSnippet(organic, 'ESnippet');
-        if (row) {
-          row['#serpItemId'] = serpItemId;
-          row['#containerType'] = 'EntityOffers';
-          results.push(row);
+      // Проверяем вариант EntityOffersOrganic
+      const isOrganicVariant = serpItem.querySelector('.EntityOffersOrganic') !== null;
+      
+      // Извлекаем заголовок — разные селекторы для разных вариантов
+      let entityTitle = 'Цены по вашему запросу';
+      const titleSelectors = [
+        '.EntitySearchTitle',
+        '.DebrandingTitle-Text',
+        '.GoodsHeader h2',
+        '.EntityOffersOrganic-UnitedHeader h2'
+      ];
+      for (const selector of titleSelectors) {
+        const titleEl = serpItem.querySelector(selector);
+        if (titleEl) {
+          entityTitle = titleEl.textContent.trim();
+          break;
         }
       }
+      console.log(`[EntityOffers] Заголовок: "${entityTitle}", isOrganicVariant=${isOrganicVariant}`);
+      
+      if (isOrganicVariant) {
+        // === Вариант EntityOffersOrganic ===
+        // Содержит .Organic.Organic_withOfferInfo элементы
+        // Для desktop → ESnippet, для touch → EShopItem
+        const organicItems = serpItem.querySelectorAll('.Organic.Organic_withOfferInfo');
+        console.log(`[EntityOffers] EntityOffersOrganic: найдено ${organicItems.length} Organic элементов`);
+        
+        // Тип сниппета зависит от платформы
+        const snippetType = platform === 'desktop' ? 'ESnippet' : 'EShopItem';
+        
+        for (const organic of organicItems) {
+          // Извлекаем данные как стандартный сниппет
+          const row = extractStandardSnippet(organic, snippetType, platform);
+          if (row) {
+            row['#serpItemId'] = serpItemId;
+            row['#containerType'] = 'EntityOffers';
+            row['#EntityOffersTitle'] = entityTitle;
+            row['#SnippetType'] = snippetType; // Принудительно устанавливаем тип
+            results.push(row);
+            console.log(`[EntityOffers] Organic → ${snippetType}: "${(row['#OrganicTitle'] || '').substring(0, 40)}..."`);
+          }
+        }
+      } else {
+        // === Стандартный вариант EntityOffers ===
+        // Содержит .EShopItem элементы
+        const shopItems = serpItem.querySelectorAll('.EShopItem');
+        console.log(`[EntityOffers] Стандартный: найдено ${shopItems.length} EShopItem внутри`);
+        
+        for (const shopItem of shopItems) {
+          const row = extractStandardSnippet(shopItem, 'EShopItem', platform);
+          if (row) {
+            row['#serpItemId'] = serpItemId;
+            row['#containerType'] = 'EntityOffers';
+            row['#EntityOffersTitle'] = entityTitle;
+            results.push(row);
+          }
+        }
+      }
+      
       return results.length > 0 ? results : null;
     }
     
@@ -1824,7 +2022,7 @@
       let skippedCount = 0;
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
-        const row = extractStandardSnippet(product, 'EProductSnippet2');
+        const row = extractStandardSnippet(product, 'EProductSnippet2', platform);
         if (row) {
           row['#serpItemId'] = serpItemId;
           row['#containerType'] = 'ProductsTiles';
@@ -1865,15 +2063,35 @@
     // === EShopList — список магазинов (множественные EShopItem) ===
     if (containerType === 'EShopList') {
       const results = [];
+      
+      // Извлекаем заголовок группы (например "Цены в магазинах")
+      let shopListTitle = 'Цены в магазинах'; // default
+      const titleSelectors = [
+        '.DebrandingTitle-Text',
+        '.GoodsHeader h2',
+        '.Products-Title h2',
+        '.EntitySearchTitle',
+        '.ProductsTiles h2'
+      ];
+      for (const selector of titleSelectors) {
+        const titleEl = serpItem.querySelector(selector);
+        if (titleEl) {
+          shopListTitle = titleEl.textContent?.trim() || shopListTitle;
+          console.log(`[EShopList] Заголовок найден: "${shopListTitle}" (селектор: ${selector})`);
+          break;
+        }
+      }
+      
       const shopItems = serpItem.querySelectorAll('.EShopItem');
-      console.log(`[EShopList] Найдено ${shopItems.length} EShopItem внутри`);
+      console.log(`[EShopList] Найдено ${shopItems.length} EShopItem внутри, заголовок="${shopListTitle}"`);
       
       for (let i = 0; i < shopItems.length; i++) {
         const shopItem = shopItems[i];
-        const row = extractStandardSnippet(shopItem, 'EShopItem');
+        const row = extractStandardSnippet(shopItem, 'EShopItem', platform);
         if (row) {
           row['#serpItemId'] = serpItemId;
           row['#containerType'] = 'EShopList';
+          row['#EShopListTitle'] = shopListTitle; // Добавляем заголовок группы
           results.push(row);
           const shopName = row['#ShopName'] || 'N/A';
           const price = row['#OrganicPrice'] || row['#EProductSnippet2_Price'] || 'N/A';
@@ -1921,7 +2139,7 @@
     
     // Органические сниппеты → ESnippet
     if (snippetType === 'Organic' || snippetType === 'Organic_withOfferInfo') {
-      const row = extractStandardSnippet(innerContent, 'ESnippet');
+      const row = extractStandardSnippet(innerContent, 'ESnippet', platform);
       if (row) {
         row['#serpItemId'] = serpItemId;
         row['#SnippetType'] = 'ESnippet';  // Принудительно ESnippet
@@ -1930,7 +2148,7 @@
     }
     
     // Остальные типы
-    const row = extractStandardSnippet(innerContent, snippetType);
+    const row = extractStandardSnippet(innerContent, snippetType, platform);
     if (row) {
       row['#serpItemId'] = serpItemId;
     }
@@ -2058,10 +2276,17 @@
       return { rows: [], error: 'Не страница Яндекса' };
     }
     
+    // Определяем платформу (desktop/touch)
+    const platform = detectPlatform();
+    console.log(`📱 [Content] Платформа: ${platform}`);
+    
     // Получаем поисковый запрос
     let query = '';
     try {
-      const queryEl = document.querySelector('.HeaderForm-Input');
+      // Touch версия может иметь другой селектор для поиска
+      const queryEl = document.querySelector('.HeaderForm-Input') || 
+                      document.querySelector('.HeaderPhone-Input') ||
+                      document.querySelector('input[name="text"]');
       if (queryEl) {
         query = queryEl.value || queryEl.getAttribute('value') || '';
       }
@@ -2091,23 +2316,26 @@
     const quickFilters = extractEQuickFilters();
     if (quickFilters) {
       if (query) quickFilters['#query'] = query;
+      quickFilters['#platform'] = platform;
       results.push(quickFilters);
     }
     
     // Затем извлекаем сниппеты
     for (const container of containers) {
-      const rowOrRows = extractRowData(container);
+      const rowOrRows = extractRowData(container, platform);
       if (rowOrRows) {
         // extractRowData может вернуть массив (для AdvProductGallery) или объект
         if (Array.isArray(rowOrRows)) {
           for (const row of rowOrRows) {
             if (row) {
               if (query) row['#query'] = query;
+              row['#platform'] = platform;
               results.push(row);
             }
           }
         } else {
           if (query) rowOrRows['#query'] = query;
+          rowOrRows['#platform'] = platform;
           results.push(rowOrRows);
         }
       }

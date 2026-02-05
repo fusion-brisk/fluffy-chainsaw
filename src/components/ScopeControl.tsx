@@ -58,7 +58,7 @@ export const ScopeControl: React.FC<ScopeControlProps> = memo(({
             title="Сбросить все сниппеты к исходному состоянию"
             aria-label="Сбросить сейчас"
           >
-            <ClearIcon size={14} />
+            <ClearIcon />
           </button>
         )}
       </div>
