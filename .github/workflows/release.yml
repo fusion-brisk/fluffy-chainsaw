@@ -36,8 +36,8 @@ jobs:
         run: |
           npm run build:arm64
           ls -la dist/
-          # Rename binary for clarity
-          mv dist/contentify-relay-macos-arm64 dist/contentify-relay-host-arm64
+          # Rename binary for clarity (pkg uses package name)
+          mv dist/contentify-relay dist/contentify-relay-host-arm64
           chmod +x dist/contentify-relay-host-arm64
           ls -la dist/
         working-directory: relay
