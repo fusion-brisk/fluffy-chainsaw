@@ -7,9 +7,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "build": "pkg . --targets node18-macos-x64,node18-macos-arm64 --out-path dist",
-    "build:arm64": "pkg . --targets node18-macos-arm64 --out-path dist",
-    "build:x64": "pkg . --targets node18-macos-x64 --out-path dist"
+    "build": "pkg . --targets node20-macos-x64,node20-macos-arm64 --out-path dist",
+    "build:arm64": "pkg . --targets node20-macos-arm64 --out-path dist",
+    "build:x64": "pkg . --targets node20-macos-x64 --out-path dist"
   },
   "pkg": {
     "assets": [],
