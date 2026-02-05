@@ -23,41 +23,49 @@ jobs:
           cache: 'npm'
           cache-dependency-path: native-host/package-lock.json
 
+      - name: Install root dependencies (for crx3)
+        run: npm ci
+
       - name: Install dependencies for native-host
         run: npm ci
         working-directory: native-host
 
-      - name: Build native binaries
+      - name: Build native binary (arm64)
         run: |
           npm run build
-          # List what pkg created
           ls -la dist/
-          # Rename binaries for clarity (pkg uses node18-macos-x64 format)
-          for f in dist/*-x64; do [ -f "$f" ] && mv "$f" dist/contentify-relay-host-x64; done
+          # Rename binary for clarity
           for f in dist/*-arm64; do [ -f "$f" ] && mv "$f" dist/contentify-relay-host-arm64; done
-          # Make executable
-          chmod +x dist/contentify-relay-host-*
+          chmod +x dist/contentify-relay-host-arm64
           ls -la dist/
         working-directory: native-host
 
-      - name: Package Chrome Extension
+      - name: Build Chrome Extension (.crx)
         run: |
-          cd extension
-          zip -r ../Extension.zip . -x "*.DS_Store" -x "__MACOSX/*"
+          # Создаём extension.crx с помощью crx3
+          # Если extension.pem существует — используем его, иначе создаём новый
+          if [ -f "extension/extension.pem" ]; then
+            npx crx3 pack extension -o extension.crx -p extension/extension.pem
+          else
+            npx crx3 pack extension -o extension.crx
+          fi
+          ls -la extension.crx
 
-      - name: Copy installer script
+      - name: Package Contentify Installer (.zip)
         run: |
-          cp scripts/Contentify-Installer.command ./Contentify-Installer.command
-          chmod +x ./Contentify-Installer.command
+          # Создаём Contentify-Installer.zip с Installer.app внутри
+          cd scripts
+          zip -r ../Contentify-Installer.zip "Contentify Installer.app" -x "*.DS_Store" -x "__MACOSX/*"
+          cd ..
+          ls -la Contentify-Installer.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            Contentify-Installer.command
-            Extension.zip
+            extension.crx
+            Contentify-Installer.zip
             native-host/dist/contentify-relay-host-arm64
-            native-host/dist/contentify-relay-host-x64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

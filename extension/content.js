@@ -642,9 +642,9 @@
       } else if (cls.includes('above-market') || cls.includes('EPriceBarometer-Expensive')) {
         row['#EPriceBarometer_View'] = 'above-market';
       }
-      // isCompact для EShopItem
-      row['#EPriceBarometer_isCompact'] = snippetType === 'EShopItem' ? 'true' : 'false';
-      console.log(`[Barometer] Найден: view=${row['#EPriceBarometer_View']}, isCompact=${row['#EPriceBarometer_isCompact']}`);
+      // isCompact: для EOfferItem всегда false (полноразмерный барометр)
+      row['#EPriceBarometer_isCompact'] = 'false';
+      console.log(`[Barometer] Найден в EOfferItem: view=${row['#EPriceBarometer_View']}, isCompact=false`);
     }
     
     // Модификаторы
@@ -2197,40 +2197,56 @@
       let key = '';
       let keyType = '';
       
-      // 1. Приоритет: do-waremd5 из URL (уникален для каждого оффера продавца)
-      const productURL = row['#ProductURL'] || '';
-      if (productURL.trim()) {
-        // Извлекаем do-waremd5 — уникальный идентификатор оффера
-        const waremd5Match = productURL.match(/do-waremd5=([^&]+)/);
-        if (waremd5Match) {
-          key = `waremd5:${waremd5Match[1]}`;
-          keyType = 'waremd5';
-        } else {
-          // Fallback: используем полный путь product/sku + hatter_id
-          const hatterMatch = productURL.match(/hatter_id=([^&]+)/);
-          if (hatterMatch) {
-            const skuMatch = productURL.match(/product\/(\d+)\/sku\/(\d+)/);
-            key = skuMatch ? `sku:${skuMatch[2]}:${hatterMatch[1]}` : productURL;
-            keyType = 'sku+hatter';
-          } else {
-            key = productURL;
-            keyType = 'URL';
-          }
-        }
-      }
+      const snippetType = row['#SnippetType'] || '';
+      const isMultiShopType = snippetType === 'EShopItem' || snippetType === 'EOfferItem';
       
-      // 2. Fallback: title + shop + price + image (максимально уникальная комбинация)
-      if (!key) {
-        const title = (row['#OrganicTitle'] || '').trim();
+      // === СПЕЦИАЛЬНАЯ ЛОГИКА ДЛЯ EShopItem/EOfferItem ===
+      // Это карточки РАЗНЫХ магазинов для ОДНОГО товара — нужно сохранить все!
+      // Ключ ДОЛЖЕН включать ShopName, чтобы не терять разные магазины
+      if (isMultiShopType) {
         const shop = (row['#ShopName'] || row['#OrganicHost'] || '').trim();
         const price = (row['#OrganicPrice'] || '').trim();
-        const image = (row['#OrganicImage'] || '').trim();
+        // Для EShopItem/EOfferItem: магазин + цена = уникальная карточка
+        // (один магазин может иметь разные цены на разные SKU, но для одного запроса обычно одна цена)
+        key = `shop:${shop}|${price}`;
+        keyType = 'shop+price';
+      } else {
+        // === СТАНДАРТНАЯ ЛОГИКА ДЛЯ ДРУГИХ ТИПОВ ===
+        // 1. Приоритет: do-waremd5 из URL (уникален для каждого оффера продавца)
+        const productURL = row['#ProductURL'] || '';
+        if (productURL.trim()) {
+          // Извлекаем do-waremd5 — уникальный идентификатор оффера
+          const waremd5Match = productURL.match(/do-waremd5=([^&]+)/);
+          if (waremd5Match) {
+            key = `waremd5:${waremd5Match[1]}`;
+            keyType = 'waremd5';
+          } else {
+            // Fallback: используем полный путь product/sku + hatter_id
+            const hatterMatch = productURL.match(/hatter_id=([^&]+)/);
+            if (hatterMatch) {
+              const skuMatch = productURL.match(/product\/(\d+)\/sku\/(\d+)/);
+              key = skuMatch ? `sku:${skuMatch[2]}:${hatterMatch[1]}` : productURL;
+              keyType = 'sku+hatter';
+            } else {
+              key = productURL;
+              keyType = 'URL';
+            }
+          }
+        }
+      
+        // 2. Fallback: title + shop + price + image (максимально уникальная комбинация)
+        if (!key) {
+          const title = (row['#OrganicTitle'] || '').trim();
+          const shop = (row['#ShopName'] || row['#OrganicHost'] || '').trim();
+          const price = (row['#OrganicPrice'] || '').trim();
+          const image = (row['#OrganicImage'] || '').trim();
         
-        // Используем хеш изображения если есть
-        const imageHash = image ? image.slice(-20) : '';
+          // Используем хеш изображения если есть
+          const imageHash = image ? image.slice(-20) : '';
         
-        key = `${title}|${shop}|${price}|${imageHash}`;
-        keyType = 'title|shop|price|img';
+          key = `${title}|${shop}|${price}|${imageHash}`;
+          keyType = 'title|shop|price|img';
+        }
       }
 
       if (unique.has(key)) {

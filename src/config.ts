@@ -3,7 +3,7 @@
 // Версия плагина для What's New экрана
 // Формат: MAJOR.MINOR.PATCH
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю
-export const PLUGIN_VERSION = '2.4.0';
+export const PLUGIN_VERSION = '2.4.1';
 
 // Сообщение о необходимости обновления библиотеки
 export const LIBRARY_UPDATE_NOTICE = {

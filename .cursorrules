@@ -192,3 +192,38 @@ npm run test         # Vitest тесты
 - `docs/GLOSSARY.md` — термины и концепции
 - `docs/EXTENDING.md` — примеры расширения
 - `docs/STRUCTURE.md` — детали архитектуры модулей
+
+## Релиз и артефакты
+
+При релизе плагина (push тега `v*`) GitHub Actions автоматически собирает следующие артефакты:
+
+| Артефакт | Описание | Используется в |
+|----------|----------|----------------|
+| `extension.crx` | Подписанное Chrome-расширение | `EXTENSION_URLS.EXTENSION_DOWNLOAD` в `src/config.ts` |
+| `Contentify-Installer.zip` | macOS установщик (Installer.app) | `EXTENSION_URLS.INSTALLER_DOWNLOAD` в `src/config.ts` |
+| `contentify-relay-host-arm64` | Relay бинарник для Apple Silicon | Скачивается установщиком |
+
+**ВАЖНО:** URL в `src/config.ts` должны совпадать с именами артефактов в GitHub Release:
+- `extension.crx` — НЕ `Extension.zip`
+- `Contentify-Installer.zip` — НЕ `Contentify-Installer.command`
+
+### Процесс релиза
+
+1. Обновить версии:
+   - `package.json` → `version`
+   - `src/config.ts` → `PLUGIN_VERSION`
+   - `extension/manifest.json` → `version`
+   - `extension/updates.xml` → `version`
+
+2. Закоммитить и создать тег:
+   ```bash
+   git add -A && git commit -m "chore: release v1.5.0"
+   git tag v1.5.0
+   git push origin main --tags
+   ```
+
+3. GitHub Actions автоматически:
+   - Соберёт `extension.crx` (через crx3)
+   - Упакует `Contentify-Installer.zip`
+   - Соберёт Relay бинарники
+   - Создаст GitHub Release с артефактами

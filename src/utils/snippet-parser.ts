@@ -93,7 +93,7 @@ export function extractRowData(
     const rules = parsingRules.rules;
     const isTouch = platform === 'touch';
     
-    // Пропускаем рекламные сниппеты
+    // Определяем рекламные сниппеты (НЕ пропускаем, а помечаем флагами)
     // ОПТИМИЗИРОВАНО: используем кэш вместо querySelector
     const hasAdvLabel = queryFromCache(cache, '.Organic-Label_type_advertisement') ||
                         queryFromCache(cache, '.Organic-Subtitle_type_advertisement') ||
@@ -110,14 +110,15 @@ export function extractRowData(
                              container.closest('.AdvProductGalleryCard') !== null ||
                              container.closest('[class*="AdvProductGalleryCard"]') !== null;
     
-    if (isInsideAdvProductGallery(container) || 
-        container.closest('.AdvProductGallery') || 
-        container.closest('[class*="AdvProductGallery"]') ||
-        isAdvGalleryCard ||
-        isAdvContainer ||  // ← ДОБАВЛЕНО: Organic_withAdvLabel
-        hasAdvLabel) {
-      Logger.debug('⚠️ Пропущен рекламный сниппет (Organic_withAdvLabel/AdvProductGallery/AdvLabel)');
-      return { row: null, spriteState: spriteState };
+    // Флаги рекламы (устанавливаются позже в row)
+    const isAdvProductGallery = isInsideAdvProductGallery(container) || 
+        container.closest('.AdvProductGallery') !== null || 
+        container.closest('[class*="AdvProductGallery"]') !== null ||
+        isAdvGalleryCard;
+    const isPromoSnippet = isAdvContainer || hasAdvLabel;
+    
+    if (isAdvProductGallery || isPromoSnippet) {
+      Logger.debug('📢 Рекламный сниппет обнаружен, парсим с флагом');
     }
     
   
@@ -260,6 +261,8 @@ export function extractRowData(
     '#serpItemId': serpItemId,
     '#containerType': containerType,
     '#EShopListTitle': shopListTitle,
+    '#isAdv': isAdvProductGallery ? 'true' : undefined,     // AdvProductGallery карточки
+    '#isPromo': isPromoSnippet ? 'true' : undefined,        // Organic с рекламным лейблом
     '#query': '',
     '#ProductURL': '',
     '#OrganicTitle': '',
@@ -402,15 +405,16 @@ export function extractRowData(
     }
     
     // EPriceBarometer — барометр цен (определяем view)
+    // Поддерживаем оба формата классов: EPriceBarometer_type_X и EPriceBarometer-X
     const barometerEl = queryFirstMatch(cache, eofferRules['EPriceBarometer']?.domSelectors || ['.EPriceBarometer']);
     if (barometerEl) {
       row['#ELabelGroup_Barometer'] = 'true';
       const barometerClasses = barometerEl.className || '';
-      if (barometerClasses.includes('EPriceBarometer-Cheap')) {
+      if (barometerClasses.includes('below-market') || barometerClasses.includes('EPriceBarometer-Cheap')) {
         row['#EPriceBarometer_View'] = 'below-market';
-      } else if (barometerClasses.includes('EPriceBarometer-Average')) {
+      } else if (barometerClasses.includes('in-market') || barometerClasses.includes('EPriceBarometer-Average')) {
         row['#EPriceBarometer_View'] = 'in-market';
-      } else if (barometerClasses.includes('EPriceBarometer-Expensive')) {
+      } else if (barometerClasses.includes('above-market') || barometerClasses.includes('EPriceBarometer-Expensive')) {
         row['#EPriceBarometer_View'] = 'above-market';
       }
       Logger.debug(`✅ Найден EPriceBarometer в EOfferItem: view="${row['#EPriceBarometer_View']}"`);
@@ -1387,6 +1391,7 @@ export function extractRowData(
   }
   
   // #EPriceBarometer - проверяем наличие и определяем view — ОПТИМИЗИРОВАНО (Phase 5)
+  // Поддерживаем оба формата классов: EPriceBarometer_type_X и EPriceBarometer-X
   const priceBarometer = queryFirstMatch(cache, rules['EPriceBarometer'].domSelectors);
   if (priceBarometer) {
     Logger.debug(`🔍 Найден EPriceBarometer в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
@@ -1395,24 +1400,25 @@ export function extractRowData(
     row['#ELabelGroup_Barometer'] = 'true';
     
     // Определяем view на основе дополнительных классов
-    const barometerClasses = priceBarometer.className.split(/\s+/);
+    // Поддерживаем оба формата: below-market/in-market/above-market И EPriceBarometer-Cheap/Average/Expensive
+    const barometerClassString = priceBarometer.className || '';
     let barometerView: string | null = null;
     
-    if (barometerClasses.some(cls => cls.includes('EPriceBarometer-Cheap'))) {
+    if (barometerClassString.includes('below-market') || barometerClassString.includes('EPriceBarometer-Cheap')) {
       barometerView = 'below-market';
-      Logger.debug(`✅ Определен view для EPriceBarometer: below-market (EPriceBarometer-Cheap)`);
-    } else if (barometerClasses.some(cls => cls.includes('EPriceBarometer-Average'))) {
+      Logger.debug(`✅ Определен view для EPriceBarometer: below-market`);
+    } else if (barometerClassString.includes('in-market') || barometerClassString.includes('EPriceBarometer-Average')) {
       barometerView = 'in-market';
-      Logger.debug(`✅ Определен view для EPriceBarometer: in-market (EPriceBarometer-Average)`);
-    } else if (barometerClasses.some(cls => cls.includes('EPriceBarometer-Expensive'))) {
+      Logger.debug(`✅ Определен view для EPriceBarometer: in-market`);
+    } else if (barometerClassString.includes('above-market') || barometerClassString.includes('EPriceBarometer-Expensive')) {
       barometerView = 'above-market';
-      Logger.debug(`✅ Определен view для EPriceBarometer: above-market (EPriceBarometer-Expensive)`);
+      Logger.debug(`✅ Определен view для EPriceBarometer: above-market`);
     }
     
     if (barometerView) {
       row['#EPriceBarometer_View'] = barometerView;
     } else {
-      Logger.warn(`⚠️ Не удалось определить view для EPriceBarometer. Классы: ${barometerClasses.join(', ')}`);
+      Logger.warn(`⚠️ Не удалось определить view для EPriceBarometer. Классы: ${barometerClassString}`);
     }
     
     // Определяем isCompact по типу сниппета

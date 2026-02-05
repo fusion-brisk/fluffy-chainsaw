@@ -1,6 +1,6 @@
 {
   "name": "contentify-figma-plugin",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Your Figma Plugin",
   "main": "code.js",
   "scripts": {
