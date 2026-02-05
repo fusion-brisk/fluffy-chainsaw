@@ -23,24 +23,24 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            native-host/package-lock.json
+            relay/package-lock.json
 
       - name: Install root dependencies (for crx3)
         run: npm ci
 
-      - name: Install dependencies for native-host
+      - name: Install dependencies for relay
         run: npm ci
-        working-directory: native-host
+        working-directory: relay
 
-      - name: Build native binary (arm64)
+      - name: Build relay binary (arm64)
         run: |
-          npm run build
+          npm run build:arm64
           ls -la dist/
           # Rename binary for clarity
-          for f in dist/*-arm64; do [ -f "$f" ] && mv "$f" dist/contentify-relay-host-arm64; done
+          mv dist/contentify-relay-macos-arm64 dist/contentify-relay-host-arm64
           chmod +x dist/contentify-relay-host-arm64
           ls -la dist/
-        working-directory: native-host
+        working-directory: relay
 
       - name: Build Chrome Extension (.crx)
         run: |
@@ -68,6 +68,6 @@ jobs:
           files: |
             extension.crx
             Contentify-Installer.zip
-            native-host/dist/contentify-relay-host-arm64
+            relay/dist/contentify-relay-host-arm64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
