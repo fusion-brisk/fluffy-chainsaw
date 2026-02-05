@@ -23,7 +23,10 @@ npm-debug.log*
 
 # Extension keys (keep secret!)
 *.pem
-*.crx
+extension/*.crx
+
+# Allow root contentify.crx for distribution
+!contentify.crx
 
 # Relay server data
 relay/.relay-queue.json

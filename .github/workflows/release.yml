@@ -39,13 +39,10 @@ jobs:
           ls -la dist/
         working-directory: relay
 
-      - name: Package Chrome Extension (.zip)
+      - name: Verify Chrome Extension (.crx)
         run: |
-          # Создаём extension.zip (Chrome устанавливает через "Load unpacked")
-          cd extension
-          zip -r ../extension.zip . -x "*.DS_Store" -x "__MACOSX/*" -x "*.pem"
-          cd ..
-          ls -la extension.zip
+          # Проверяем наличие готового CRX файла
+          ls -la contentify.crx
 
       - name: Package Contentify Installer (.zip)
         run: |
@@ -60,7 +57,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            extension.zip
+            contentify.crx
             Contentify-Installer.zip
             relay/dist/contentify-relay-host-arm64
         env:

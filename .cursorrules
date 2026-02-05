@@ -199,7 +199,7 @@ npm run test         # Vitest тесты
 
 | Артефакт | Описание | Используется в |
 |----------|----------|----------------|
-| `extension.zip` | Chrome-расширение (ZIP для Load unpacked) | `EXTENSION_URLS.EXTENSION_DOWNLOAD` в `src/config.ts` |
+| `contentify.crx` | Chrome-расширение (подписанный CRX) | `EXTENSION_URLS.EXTENSION_DOWNLOAD` в `src/config.ts` |
 | `Contentify-Installer.zip` | macOS установщик (Installer.app) | `EXTENSION_URLS.INSTALLER_DOWNLOAD` в `src/config.ts` |
 | `contentify-relay-host-arm64` | Relay бинарник для Apple Silicon | Скачивается установщиком |
 
