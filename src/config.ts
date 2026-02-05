@@ -187,7 +187,7 @@ export const IMAGE_CONFIG = {
 // URL для установки расширения
 export const EXTENSION_URLS = {
   // GitHub Releases страница расширения
-  EXTENSION_DOWNLOAD: 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/extension.crx',
+  EXTENSION_DOWNLOAD: 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/extension.zip',
   // GitHub Releases страница установщика Relay
   INSTALLER_DOWNLOAD: 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/Contentify-Installer.zip',
   // URL страницы расширений Chrome (для копирования в буфер)

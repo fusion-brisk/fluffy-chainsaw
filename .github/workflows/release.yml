@@ -19,14 +19,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
             relay/package-lock.json
-
-      - name: Install root dependencies (for crx3)
-        run: npm ci
 
       - name: Install dependencies for relay
         run: npm ci
@@ -42,16 +39,13 @@ jobs:
           ls -la dist/
         working-directory: relay
 
-      - name: Build Chrome Extension (.crx)
+      - name: Package Chrome Extension (.zip)
         run: |
-          # Создаём extension.crx с помощью crx3
-          # Если extension.pem существует — используем его, иначе создаём новый
-          if [ -f "extension/extension.pem" ]; then
-            npx crx3 pack extension -o extension.crx -p extension/extension.pem
-          else
-            npx crx3 pack extension -o extension.crx
-          fi
-          ls -la extension.crx
+          # Создаём extension.zip (Chrome устанавливает через "Load unpacked")
+          cd extension
+          zip -r ../extension.zip . -x "*.DS_Store" -x "__MACOSX/*" -x "*.pem"
+          cd ..
+          ls -la extension.zip
 
       - name: Package Contentify Installer (.zip)
         run: |
@@ -66,7 +60,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            extension.crx
+            extension.zip
             Contentify-Installer.zip
             relay/dist/contentify-relay-host-arm64
         env:
