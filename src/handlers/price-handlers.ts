@@ -11,7 +11,6 @@
  * настраиваются внутри handleEPriceGroup.
  */
 
-import { COMPONENT_CONFIG } from '../config';
 import { Logger } from '../logger';
 import { trySetProperty } from '../property-utils';
 import {
@@ -36,9 +35,8 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   if (!container || !row) return;
 
   const containerName = (container && 'name' in container) ? String(container.name) : 'unknown';
-  const config = COMPONENT_CONFIG.EPriceGroup;
-  
-  const ePriceGroupInstance = getCachedInstance(instanceCache!, config.name);
+
+  const ePriceGroupInstance = getCachedInstance(instanceCache!, 'EPriceGroup');
   
   if (!ePriceGroupInstance) {
     Logger.debug(`[EPriceGroup] ❌ Не найден в "${containerName}"`);

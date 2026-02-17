@@ -123,54 +123,8 @@ export const TEXT_FIELD_NAMES = [
   '#EPriceBarometer_View'
 ];
 
-// Конфигурация для специальных компонентов
-export const COMPONENT_CONFIG = {
-  EPriceGroup: {
-    name: 'EPriceGroup',
-    properties: {
-      discount: {
-        dataField: '#EPriceGroup_Discount',
-        variantName: 'Discount',
-        type: 'boolean'
-      },
-      oldPrice: {
-        dataField: '#EPriceGroup_OldPrice',
-        variantName: 'Old Price', // Также пробуем OldPrice, Old_Price
-        type: 'boolean'
-      }
-    }
-  },
-  ELabelGroup: {
-    name: 'ELabelGroup',
-    properties: {
-      rating: {
-        dataField: '#ProductRating', // Если есть значение, ставим true
-        variantName: 'Rating',
-        type: 'presence' // true если есть значение, false если нет
-      },
-      barometer: {
-        dataField: '#ELabelGroup_Barometer',
-        variantName: 'Barometer',
-        type: 'boolean'
-      }
-    }
-  },
-  EPriceBarometer: {
-    name: 'EPriceBarometer',
-    properties: {
-      view: {
-        dataField: '#EPriceBarometer_View',
-        variantName: 'View',
-        type: 'string'
-      },
-      isCompact: {
-        dataField: '#EPriceBarometer_isCompact',
-        variantName: 'isCompact',
-        type: 'boolean'
-      }
-    }
-  }
-};
+// COMPONENT_CONFIG удалён — значения инлайнены в handlers
+// (handleEPriceGroup, handleELabelGroup, handleEPriceBarometer)
 
 // Настройки для изображений
 export const IMAGE_CONFIG = {

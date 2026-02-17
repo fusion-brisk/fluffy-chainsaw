@@ -6,7 +6,7 @@
  * - handleEMarketCheckoutLabel — Лейбл чекаута
  */
 
-import { COMPONENT_CONFIG, SNIPPET_CONTAINER_NAMES } from '../config';
+import { SNIPPET_CONTAINER_NAMES } from '../config';
 import { Logger } from '../logger';
 import { trySetProperty, trySetVariantProperty, trySetVariantPropertyRecursive, boolToFigma } from '../property-utils';
 // findTextLayerByName больше не нужен — используем value через component properties
@@ -79,19 +79,17 @@ export async function handleELabelGroup(context: HandlerContext): Promise<void> 
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
-  const config = COMPONENT_CONFIG.ELabelGroup;
-  // ОПТИМИЗАЦИЯ: Кэш всегда доступен
-  const eLabelGroupInstance = getCachedInstance(instanceCache!, config.name);
-  
+  const eLabelGroupInstance = getCachedInstance(instanceCache!, 'ELabelGroup');
+
   // Rating (#ProductRating) — BOOLEAN свойство + текстовое value
-  const ratingVal = row[config.properties.rating.dataField];
+  const ratingVal = row['#ProductRating'];
   const hasRating = !!(ratingVal && ratingVal.trim() !== '');
-  
+
   // 1. Устанавливаем withRating (BOOLEAN) на ELabelGroup
   if (eLabelGroupInstance) {
-    trySetProperty(eLabelGroupInstance, ['Rating', 'withRating'], hasRating, config.properties.rating.dataField);
+    trySetProperty(eLabelGroupInstance, ['Rating', 'withRating'], hasRating, '#ProductRating');
   }
-  
+
   // 2. Устанавливаем value на ELabelRating через свойство компонента
   if (hasRating) {
     const eLabelRatingInstance = getCachedInstance(instanceCache!, 'ELabelRating');
@@ -100,13 +98,11 @@ export async function handleELabelGroup(context: HandlerContext): Promise<void> 
       Logger.debug(`⭐ [ELabelRating] value="${ratingVal.trim()}"`);
     }
   }
-  
+
   // Barometer — BOOLEAN свойство
-  // ВАЖНО: В Figma свойство называется "withBarometer" а не "Barometer"
   if (eLabelGroupInstance) {
-    const barometerVal = row[config.properties.barometer.dataField];
-    const hasBarometer = barometerVal === 'true';
-    trySetProperty(eLabelGroupInstance, ['withBarometer', 'Barometer'], hasBarometer, config.properties.barometer.dataField);
+    const hasBarometer = row['#ELabelGroup_Barometer'] === 'true';
+    trySetProperty(eLabelGroupInstance, ['withBarometer', 'Barometer'], hasBarometer, '#ELabelGroup_Barometer');
   }
 }
 
@@ -122,47 +118,31 @@ export async function handleEPriceBarometer(context: HandlerContext): Promise<vo
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
-  const config = COMPONENT_CONFIG.EPriceBarometer;
-  const barometerVal = row['#ELabelGroup_Barometer']; // Зависимость от поля ELabelGroup
-  const hasBarometer = barometerVal === 'true';
-  const viewVal = row[config.properties.view.dataField];
+  const hasBarometer = row['#ELabelGroup_Barometer'] === 'true';
+  const viewVal = row['#EPriceBarometer_View'];
   const containerName = ('name' in container) ? String(container.name) : '';
-  
+
   if (hasBarometer && viewVal) {
-    // ОПТИМИЗАЦИЯ: Кэш всегда доступен
-    const ePriceBarometerInstance = getCachedInstance(instanceCache!, config.name);
+    const ePriceBarometerInstance = getCachedInstance(instanceCache!, 'EPriceBarometer');
     if (ePriceBarometerInstance) {
-      // Устанавливаем View (below-market, in-market, above-market)
-      trySetProperty(
-        ePriceBarometerInstance,
-        [config.properties.view.variantName],
-        viewVal,
-        config.properties.view.dataField
-      );
-      
-      // Определяем isCompact на основе типа контейнера
+      // View (below-market, in-market, above-market)
+      trySetProperty(ePriceBarometerInstance, ['View'], viewVal, '#EPriceBarometer_View');
+
+      // isCompact — зависит от типа контейнера
       let isCompact: boolean;
-      
+
       if (containerName === 'ESnippet' || containerName === 'Snippet') {
-        // ESnippet: всегда isCompact=false
         isCompact = false;
         Logger.debug(`   📐 [EPriceBarometer] ESnippet → isCompact=false`);
       } else if (containerName === 'EProductSnippet2') {
-        // EProductSnippet2: проверяем ширину контейнера
         const containerWidth = ('width' in container) ? (container as SceneNode & { width: number }).width : 999;
         isCompact = containerWidth <= 182;
         Logger.debug(`   📐 [EPriceBarometer] EProductSnippet2 width=${containerWidth}px → isCompact=${isCompact}`);
       } else {
-        // Остальные: используем значение из парсера
-        const isCompactVal = row[config.properties.isCompact.dataField];
-        isCompact = isCompactVal === 'true';
+        isCompact = row['#EPriceBarometer_isCompact'] === 'true';
       }
-      
-      trySetVariantProperty(
-        ePriceBarometerInstance,
-        [`${config.properties.isCompact.variantName}=${isCompact}`],
-        config.properties.isCompact.dataField
-      );
+
+      trySetVariantProperty(ePriceBarometerInstance, [`isCompact=${isCompact}`], '#EPriceBarometer_isCompact');
       Logger.debug(`   📐 [EPriceBarometer] isCompact=${isCompact}`);
     }
   }
