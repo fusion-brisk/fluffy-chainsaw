@@ -84,7 +84,7 @@ async function importComponent(key: string): Promise<ComponentNode | null> {
   }
   
   try {
-    const component = await figma.importComponentAsync(key);
+    const component = await figma.importComponentByKeyAsync(key);
     componentCache.set(key, component);
     Logger.debug(`[PageCreator] Импортирован компонент: ${component.name} (key=${key})`);
     return component;
@@ -1078,7 +1078,7 @@ async function createEQuickFiltersPanel(
   // Добавляем кнопку "Все фильтры" если есть
   if (data['#AllFiltersButton'] === 'true' && FILTER_COMPONENTS.FilterButton.key) {
     try {
-      const filterBtnComponent = await figma.importComponentAsync(FILTER_COMPONENTS.FilterButton.variantKey);
+      const filterBtnComponent = await figma.importComponentByKeyAsync(FILTER_COMPONENTS.FilterButton.variantKey);
       if (filterBtnComponent) {
         const filterBtnInstance = filterBtnComponent.createInstance();
         panel.appendChild(filterBtnInstance);
@@ -1092,7 +1092,7 @@ async function createEQuickFiltersPanel(
   // Добавляем кнопки быстрых фильтров с разными типами
   if (FILTER_COMPONENTS.QuickFilterButton.key) {
     try {
-      const quickFilterBtnComponent = await figma.importComponentAsync(FILTER_COMPONENTS.QuickFilterButton.variantKey);
+      const quickFilterBtnComponent = await figma.importComponentByKeyAsync(FILTER_COMPONENTS.QuickFilterButton.variantKey);
       if (quickFilterBtnComponent) {
         for (let i = 0; i < filterButtons.length; i++) {
           const text = filterButtons[i];
