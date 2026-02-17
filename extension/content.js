@@ -2032,6 +2032,46 @@
    * Возвращает объект, массив объектов или null
    */
   /**
+   * Извлекает данные из блока «Картинки» (ImagesIdeasGrid)
+   * SOURCE OF TRUTH для логики парсинга ImagesGrid
+   * @param {Element} serpItem - контейнер serp-item
+   * @param {string} serpItemId - ID serp-item
+   * @returns {Object} CSVRow с #ImagesGrid_data JSON
+   */
+  function extractImagesGrid(serpItem, serpItemId) {
+    const images = [];
+    const rows = serpItem.querySelectorAll('.ImagesGridJustifier-Row');
+
+    rows.forEach(function(row, rowIndex) {
+      const imgs = row.querySelectorAll('img.Thumb-Image, .ImagesGridImages-Image img');
+      imgs.forEach(function(img) {
+        const src = img.getAttribute('src') || img.src || '';
+        images.push({
+          url: src.indexOf('//') === 0 ? 'https:' + src : src,
+          width: parseFloat(img.getAttribute('width')) || 150,
+          height: parseFloat(img.getAttribute('height')) || 150,
+          row: rowIndex
+        });
+      });
+    });
+
+    // Заголовок
+    const titleEl = serpItem.querySelector('.UniSearchHeader-TitleText');
+    const title = titleEl ? getTextContent(titleEl) : 'Картинки';
+
+    console.log('[extractImagesGrid] Найдено ' + images.length + ' картинок в ' + rows.length + ' рядах');
+
+    return {
+      '#SnippetType': 'ImagesGrid',
+      '#containerType': 'ImagesGrid',
+      '#serpItemId': serpItemId,
+      '#ImagesGrid_title': title,
+      '#ImagesGrid_data': JSON.stringify(images),
+      '#ImagesGrid_count': String(images.length)
+    };
+  }
+
+  /**
    * Определяет тип контейнера serp-item по классам и атрибутам
    */
   function getSerpItemContainerType(serpItem) {
@@ -2041,6 +2081,12 @@
     const dataCid = serpItem.getAttribute('data-cid') || '';
     const dataLogNode = serpItem.getAttribute('data-log-node') || '';
     
+    // ImagesGrid — блок «Картинки» (justified grid)
+    if (fastName === 'images' || serpItem.querySelector('.ImagesIdeasGrid, .ImagesGridImages')) {
+      console.log(`[getSerpItemContainerType] ImagesGrid найден! cid=${dataCid}`);
+      return 'ImagesGrid';
+    }
+
     // EntityOffers — группа офферов от разных магазинов
     if (className.includes('entity-offers') || fastName === 'entity_offers') {
       return 'EntityOffers';
@@ -2125,9 +2171,14 @@
     // Используем data-cid или data-log-node как fallback
     const serpItemId = serpItem.getAttribute('data-cid') || serpItem.getAttribute('data-log-node') || '';
     const containerType = getSerpItemContainerType(serpItem);
-    
+
     console.log(`[extractRowData] serpItemId=${serpItemId}, containerType=${containerType}, platform=${platform}`);
-    
+
+    // === ImagesGrid — блок «Картинки» ===
+    if (containerType === 'ImagesGrid') {
+      return extractImagesGrid(serpItem, serpItemId);
+    }
+
     // === EntityOffers — группа сниппетов с заголовком ===
     // Два варианта: 
     // 1. EntityOffersOrganic — содержит .Organic.Organic_withOfferInfo элементы

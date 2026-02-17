@@ -546,6 +546,43 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
     childTypes: ['Organic', 'Organic_withOfferInfo'],
     childWidth: 'FILL',
   },
+
+  'ImagesGrid': {
+    name: 'ImagesGrid',
+    layoutMode: 'VERTICAL',
+    width: 'FILL',
+    height: 'HUG',
+    itemSpacing: 6,        // gap между рядами
+    clipsContent: true,
+    padding: {
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    },
+    childTypes: [],        // не содержит стандартные сниппеты
+  },
+};
+
+/**
+ * Конфигурация EThumb для ImagesGrid
+ */
+export const ETHUMB_CONFIG = {
+  /** ComponentSet key */
+  componentSetKey: '8faefce0c971aee23cd154f600a4dfa1ae6cb50c',
+  /** Variant key: Type=New; feb-26, Ratio=Manual */
+  manualVariantKey: '931437402c9c36ddf674a5680541f1d6eaf9363c',
+  name: 'EThumb',
+  /** Properties для чистого отображения в grid */
+  gridDefaults: {
+    'Type': 'New; feb-26',
+    'Ratio': 'Manual',
+    'Label': false,
+    'Favorite': false,
+    'Dot indicator': false,
+    'White BG': false,
+    'Image Fill': true
+  } as Record<string, string | boolean>
 };
 
 /**

@@ -284,6 +284,14 @@ export interface CSVFields {
   /** Наличие иконки "Инфо" в Fintech */
   '#InfoIcon'?: 'true' | 'false';
 
+  // === ImagesGrid (блок «Картинки» в выдаче) ===
+  /** Заголовок блока картинок */
+  '#ImagesGrid_title'?: string;
+  /** JSON-массив картинок: [{url, width, height, row}] */
+  '#ImagesGrid_data'?: string;
+  /** Количество картинок в блоке */
+  '#ImagesGrid_count'?: string;
+
   // === Internal (runtime-only, не приходят из парсера) ===
   /** ID контейнера Figma (записывается в data-assignment, используется в image-handlers) */
   '#_containerId'?: string;

@@ -169,6 +169,8 @@ export function extractRowData(
       containerType = 'EOfferGroup';
     } else if (className.includes('EntityOffers')) {
       containerType = 'EntityOffers';
+    } else if (className.includes('ImagesIdeasGrid') || className.includes('ImagesGridImages')) {
+      containerType = 'ImagesGrid';
     } else if (className.includes('ProductTileRow')) {
       containerType = 'ProductTileRow';
     }
@@ -179,7 +181,10 @@ export function extractRowData(
       const fastName = searchParent.getAttribute('data-fast-name') || '';
       const fastSubtype = searchParent.getAttribute('data-fast-subtype') || '';
       
-      if (fastName === 'products_mode_constr' || 
+      if (fastName === 'images') {
+        containerType = 'ImagesGrid';
+        Logger.debug('📦 [PARSE] containerType=ImagesGrid (from data-fast-name)');
+      } else if (fastName === 'products_mode_constr' ||
           fastSubtype.includes('ecommerce_offers') ||
           fastSubtype.includes('products_tiles')) {
         // ВАЖНО: products_mode_constr может содержать как EProductSnippet2 (плитки), 
@@ -255,6 +260,35 @@ export function extractRowData(
     }
   }
   
+  // === ImagesGrid — блок «Картинки» (ранний возврат) ===
+  if (containerType === 'ImagesGrid') {
+    const gridImages: Array<{url: string; width: number; height: number; row: number}> = [];
+    const gridRows = container.querySelectorAll('.ImagesGridJustifier-Row');
+    gridRows.forEach((gridRow: Element, rowIndex: number) => {
+      const imgs = gridRow.querySelectorAll('img.Thumb-Image, .ImagesGridImages-Image img');
+      imgs.forEach((img: Element) => {
+        const src = img.getAttribute('src') || '';
+        gridImages.push({
+          url: src.indexOf('//') === 0 ? 'https:' + src : src,
+          width: parseFloat(img.getAttribute('width') || '150'),
+          height: parseFloat(img.getAttribute('height') || '150'),
+          row: rowIndex
+        });
+      });
+    });
+    const titleEl = container.querySelector('.UniSearchHeader-TitleText');
+    const gridTitle = titleEl ? (titleEl.textContent || '').trim() : 'Картинки';
+    Logger.debug(`📷 [ImagesGrid] ${gridImages.length} картинок в ${gridRows.length} рядах`);
+    return {
+      '#SnippetType': 'ImagesGrid',
+      '#containerType': 'ImagesGrid',
+      '#serpItemId': serpItemId,
+      '#ImagesGrid_title': gridTitle,
+      '#ImagesGrid_data': JSON.stringify(gridImages),
+      '#ImagesGrid_count': String(gridImages.length)
+    } as CSVRow;
+  }
+
   // Organic_Adv → ESnippet with isPromo=true (matching content.js behavior)
   const effectiveSnippetType = snippetTypeValue === 'Organic_Adv' ? 'ESnippet' : snippetTypeValue;
   const isOrgAdvPromo = snippetTypeValue === 'Organic_Adv' || isPromoSnippet;

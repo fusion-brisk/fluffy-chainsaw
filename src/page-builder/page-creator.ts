@@ -31,7 +31,8 @@ import {
   CONTAINER_CONFIG_MAP,
   FILTER_COMPONENTS,
   PAINT_STYLE_KEYS,
-  VARIABLE_KEYS
+  VARIABLE_KEYS,
+  ETHUMB_CONFIG
 } from './component-map';
 import { parsePageStructure } from './structure-parser';
 import { buildPageStructure, sortContentNodes } from './structure-builder';
@@ -83,7 +84,7 @@ async function importComponent(key: string): Promise<ComponentNode | null> {
   }
   
   try {
-    const component = await figma.importComponentByKeyAsync(key);
+    const component = await figma.importComponentAsync(key);
     componentCache.set(key, component);
     Logger.debug(`[PageCreator] Импортирован компонент: ${component.name} (key=${key})`);
     return component;
@@ -1077,7 +1078,7 @@ async function createEQuickFiltersPanel(
   // Добавляем кнопку "Все фильтры" если есть
   if (data['#AllFiltersButton'] === 'true' && FILTER_COMPONENTS.FilterButton.key) {
     try {
-      const filterBtnComponent = await figma.importComponentByKeyAsync(FILTER_COMPONENTS.FilterButton.variantKey);
+      const filterBtnComponent = await figma.importComponentAsync(FILTER_COMPONENTS.FilterButton.variantKey);
       if (filterBtnComponent) {
         const filterBtnInstance = filterBtnComponent.createInstance();
         panel.appendChild(filterBtnInstance);
@@ -1091,7 +1092,7 @@ async function createEQuickFiltersPanel(
   // Добавляем кнопки быстрых фильтров с разными типами
   if (FILTER_COMPONENTS.QuickFilterButton.key) {
     try {
-      const quickFilterBtnComponent = await figma.importComponentByKeyAsync(FILTER_COMPONENTS.QuickFilterButton.variantKey);
+      const quickFilterBtnComponent = await figma.importComponentAsync(FILTER_COMPONENTS.QuickFilterButton.variantKey);
       if (quickFilterBtnComponent) {
         for (let i = 0; i < filterButtons.length; i++) {
           const text = filterButtons[i];
@@ -1190,6 +1191,186 @@ async function createEQuickFiltersPanel(
  * @param parentContainerType - тип родительского контейнера
  * @param query - поисковый запрос (для заголовков)
  */
+
+// ============================================================================
+// ImagesGrid — justified grid из EThumb
+// ============================================================================
+
+/**
+ * Находит первый вложенный слой с поддержкой fills (для заливки изображением).
+ * Пропускает TEXT и слишком маленькие элементы.
+ */
+function findFillableLayer(node: SceneNode): SceneNode | null {
+  if ('children' in node) {
+    for (var ci = 0; ci < (node as FrameNode).children.length; ci++) {
+      var child = (node as FrameNode).children[ci];
+      if (child.removed || child.type === 'TEXT') continue;
+      if ('fills' in child && 'width' in child) {
+        var w = (child as SceneNode & { width: number }).width;
+        var h = (child as SceneNode & { height: number }).height;
+        if (w > 20 && h > 20) return child;
+      }
+      var deep = findFillableLayer(child);
+      if (deep) return deep;
+    }
+  }
+  return null;
+}
+
+interface ImageGridItem {
+  url: string;
+  width: number;
+  height: number;
+  row: number;
+}
+
+/**
+ * Создаёт панель ImagesGrid — justified grid из EThumb инстансов
+ */
+async function createImagesGridPanel(
+  node: StructureNode,
+  platform: 'desktop' | 'touch'
+): Promise<{ element: FrameNode; count: number } | null> {
+  var data = node.data || (node.children && node.children[0] && node.children[0].data) || {};
+  var imagesJson = data['#ImagesGrid_data'];
+  if (!imagesJson) {
+    Logger.warn('[ImagesGrid] Нет данных #ImagesGrid_data');
+    return null;
+  }
+
+  var images: ImageGridItem[];
+  try {
+    images = JSON.parse(imagesJson);
+  } catch (e) {
+    Logger.error('[ImagesGrid] Ошибка парсинга JSON:', e);
+    return null;
+  }
+
+  if (images.length === 0) {
+    Logger.warn('[ImagesGrid] Пустой массив картинок');
+    return null;
+  }
+
+  var title = data['#ImagesGrid_title'] || 'Картинки';
+
+  // Импортируем EThumb (variant: Type=New; feb-26, Ratio=Manual)
+  var eThumbComponent = await importComponent(ETHUMB_CONFIG.manualVariantKey);
+  if (!eThumbComponent) {
+    Logger.error('[ImagesGrid] Не удалось импортировать EThumb');
+    return null;
+  }
+
+  // === Wrapper frame (VERTICAL) ===
+  var wrapper = figma.createFrame();
+  wrapper.name = 'ImagesGrid';
+  wrapper.layoutMode = 'VERTICAL';
+  wrapper.primaryAxisSizingMode = 'AUTO';
+  wrapper.counterAxisSizingMode = 'FILL';
+  wrapper.itemSpacing = 12;
+  wrapper.fills = [];
+
+  // === Заголовок «Картинки» ===
+  var titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+  if (titleConfig && titleConfig.key) {
+    var titleComponent = await importComponent(titleConfig.key);
+    if (titleComponent) {
+      var titleInstance = titleComponent.createInstance();
+      wrapper.appendChild(titleInstance);
+      titleInstance.layoutSizingHorizontal = 'FILL';
+
+      var textNode = findTextNode(titleInstance);
+      if (textNode) {
+        try {
+          await figma.loadFontAsync(textNode.fontName as FontName);
+          textNode.characters = title;
+        } catch (e) { /* ignore */ }
+      }
+    }
+  }
+
+  // === Grid content (VERTICAL, gap=6 между рядами) ===
+  var gridFrame = figma.createFrame();
+  gridFrame.name = 'ImagesGridContent';
+  gridFrame.layoutMode = 'VERTICAL';
+  gridFrame.primaryAxisSizingMode = 'AUTO';
+  gridFrame.counterAxisSizingMode = 'FILL';
+  gridFrame.itemSpacing = 6;
+  gridFrame.fills = [];
+  wrapper.appendChild(gridFrame);
+
+  // Группируем по рядам
+  var rowMap = new Map<number, ImageGridItem[]>();
+  for (var i = 0; i < images.length; i++) {
+    var img = images[i];
+    var rowItems = rowMap.get(img.row);
+    if (!rowItems) {
+      rowItems = [];
+      rowMap.set(img.row, rowItems);
+    }
+    rowItems.push(img);
+  }
+
+  var count = 0;
+
+  // Создаём ряды
+  var rowIndices = Array.from(rowMap.keys()).sort();
+  for (var ri = 0; ri < rowIndices.length; ri++) {
+    var rowIndex = rowIndices[ri];
+    var rowImages = rowMap.get(rowIndex)!;
+
+    // Row frame (HORIZONTAL, gap=6)
+    var rowFrame = figma.createFrame();
+    rowFrame.name = 'ImagesGridRow-' + rowIndex;
+    rowFrame.layoutMode = 'HORIZONTAL';
+    rowFrame.primaryAxisSizingMode = 'AUTO';
+    rowFrame.counterAxisSizingMode = 'AUTO';
+    rowFrame.itemSpacing = 6;
+    rowFrame.fills = [];
+    gridFrame.appendChild(rowFrame);
+
+    // Создаём EThumb инстансы
+    for (var j = 0; j < rowImages.length; j++) {
+      var imageItem = rowImages[j];
+
+      var instance = eThumbComponent.createInstance();
+      rowFrame.appendChild(instance);
+
+      // Устанавливаем properties
+      try {
+        instance.setProperties(ETHUMB_CONFIG.gridDefaults);
+      } catch (e) {
+        Logger.debug('[ImagesGrid] Ошибка setProperties: ' + e);
+      }
+
+      // Resize to match original dimensions
+      try {
+        instance.resize(
+          Math.round(imageItem.width),
+          Math.round(imageItem.height)
+        );
+      } catch (e) {
+        Logger.debug('[ImagesGrid] Ошибка resize: ' + e);
+      }
+
+      // Загружаем и применяем изображение к вложенному fillable слою
+      if (imageItem.url) {
+        var imageLayer = findFillableLayer(instance);
+        if (imageLayer) {
+          await loadAndApplyImage(imageLayer, imageItem.url, '[ImagesGrid]');
+        } else {
+          // Fallback: применяем к самому инстансу
+          await loadAndApplyImage(instance, imageItem.url, '[ImagesGrid]');
+        }
+      }
+
+      count++;
+    }
+  }
+
+  Logger.debug('[ImagesGrid] Создано ' + count + ' картинок в ' + rowIndices.length + ' рядах');
+  return { element: wrapper, count: count };
+}
+
 async function renderStructureNode(
   node: StructureNode,
   platform: 'desktop' | 'touch',
@@ -1464,6 +1645,15 @@ async function renderStructureNode(
       
       Logger.debug(`[PageCreator] EShopList wrapper: ${node.children?.length || 0} элементов`);
       return { element: wrapper, count };
+    }
+
+    // === ImagesGrid: justified grid из EThumb ===
+    if (thisContainerType === 'ImagesGrid') {
+      const imagesGridResult = await createImagesGridPanel(node, platform);
+      if (imagesGridResult) {
+        return { element: imagesGridResult.element, count: imagesGridResult.count };
+      }
+      return { element: null, count: 0 };
     }
 
     // === Остальные контейнеры ===

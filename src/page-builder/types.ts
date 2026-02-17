@@ -99,7 +99,8 @@ export type ContainerType =
   | 'EntityOffers'       // Группа офферов от разных магазинов (vertical, ESnippet)
   | 'EShopList'          // Список магазинов (vertical)
   | 'EOfferList'         // Список офферов (vertical)
-  | 'OrganicList';       // Список органики (vertical)
+  | 'OrganicList'        // Список органики (vertical)
+  | 'ImagesGrid';        // Блок «Картинки» (justified grid из EThumb)
 
 /**
  * Типы групп сниппетов (устаревшее, для совместимости)

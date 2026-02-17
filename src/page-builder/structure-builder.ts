@@ -207,7 +207,9 @@ export function buildPageStructure(
       
       let containerType: ContainerType;
       
-      if (containerTypeFromData === 'EntityOffers') {
+      if (containerTypeFromData === 'ImagesGrid') {
+        containerType = 'ImagesGrid';
+      } else if (containerTypeFromData === 'EntityOffers') {
         containerType = 'EntityOffers';
       } else if (containerTypeFromData === 'EShopList') {
         containerType = 'EShopList';
