@@ -15,7 +15,9 @@
 
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const fs = require('fs');
+const fsPromises = require('fs').promises;
 const path = require('path');
 const http = require('http');
 const { WebSocketServer } = require('ws');
@@ -151,24 +153,70 @@ function loadQueue() {
   }
 }
 
-// === Сохранение очереди в файл ===
+// === Сохранение очереди в файл (async + debounce + atomic) ===
+let saveQueueTimer = null;
+let isSaving = false;
+
+async function saveQueueAsync() {
+  if (isSaving) return;
+  isSaving = true;
+  
+  try {
+    const tmpFile = DATA_FILE + '.tmp';
+    const data = JSON.stringify({
+      queue: dataQueue,
+      lastPushTimestamp,
+      savedAt: new Date().toISOString()
+    });
+    
+    // Atomic write: write to temp file, then rename
+    await fsPromises.writeFile(tmpFile, data, 'utf8');
+    await fsPromises.rename(tmpFile, DATA_FILE);
+  } catch (e) {
+    console.error('⚠️ Ошибка сохранения очереди:', e.message);
+  } finally {
+    isSaving = false;
+  }
+}
+
+// Debounced save: coalesces rapid push/ack operations into a single write
 function saveQueue() {
+  if (saveQueueTimer) clearTimeout(saveQueueTimer);
+  saveQueueTimer = setTimeout(() => {
+    saveQueueTimer = null;
+    saveQueueAsync();
+  }, 300);
+}
+
+// Immediate save (for shutdown)
+function saveQueueImmediate() {
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify({
       queue: dataQueue,
       lastPushTimestamp,
       savedAt: new Date().toISOString()
-    }, null, 2));
+    }));
   } catch (e) {
     console.error('⚠️ Ошибка сохранения очереди:', e.message);
   }
 }
+
+// Save on shutdown
+process.on('SIGINT', () => {
+  saveQueueImmediate();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  saveQueueImmediate();
+  process.exit(0);
+});
 
 // Загружаем очередь при старте
 loadQueue();
 
 // === Middleware ===
 app.use(cors({ origin: '*' }));
+app.use(compression({ threshold: 1024 })); // gzip responses > 1KB
 app.use(express.json({ limit: '2mb' }));
 
 // === Routes ===
@@ -182,6 +230,16 @@ app.post('/push', (req, res) => {
   if (!payload) {
     return res.status(400).json({ error: 'Missing payload' });
   }
+  
+  // Validate payload size: reject if rawRows exceeds 1MB when serialized
+  const MAX_PAYLOAD_SIZE = 1 * 1024 * 1024; // 1MB
+  try {
+    const rawRowsSize = payload.rawRows ? JSON.stringify(payload.rawRows).length : 0;
+    if (rawRowsSize > MAX_PAYLOAD_SIZE) {
+      console.warn(`⚠️ Push rejected: payload too large (${(rawRowsSize / 1024 / 1024).toFixed(2)}MB)`);
+      return res.status(413).json({ error: 'Payload too large', maxSizeMB: 1, actualSizeMB: +(rawRowsSize / 1024 / 1024).toFixed(2) });
+    }
+  } catch { /* size check failed, allow through */ }
   
   // Генерируем уникальный ID для записи
   const entryId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -205,8 +263,10 @@ app.post('/push', (req, res) => {
   // Сохраняем в файл
   saveQueue();
   
-  const itemCount = payload.rawRows?.length || payload.items?.length || 0;
-  console.log(`📥 Push: ${itemCount} items, queue: ${dataQueue.length}, id: ${entryId}`);
+  const snippetCount = payload.rawRows?.length || 0;
+  const wizardCount = payload.wizards?.length || 0;
+  const itemCount = snippetCount + wizardCount;
+  console.log(`📥 Push: ${snippetCount} snippets + ${wizardCount} wizards (schema v${payload.schemaVersion || 1}), queue: ${dataQueue.length}, id: ${entryId}`);
   
   // Broadcast to all WebSocket clients for instant delivery
   const query = payload.rawRows?.[0]?.['#query'] || '';
@@ -214,6 +274,8 @@ app.post('/push', (req, res) => {
     type: 'new-data',
     entryId,
     itemCount,
+    snippetCount,
+    wizardCount,
     query,
     timestamp: Date.now()
   });
@@ -230,8 +292,18 @@ app.post('/push', (req, res) => {
  * Используется для показа диалога подтверждения
  */
 app.get('/peek', (req, res) => {
-  // Находим первую неподтверждённую запись
-  const entry = dataQueue.find(e => !e.acknowledged);
+  const PEEK_STALE_MS = 60000; // Auto-unblock entries peeked > 60s ago
+  const now = Date.now();
+  
+  // Находим первую неподтверждённую запись (skip stale-peeked ones)
+  const entry = dataQueue.find(e => {
+    if (e.acknowledged) return false;
+    // If peeked long ago, treat as stale (auto-unblock)
+    if (e.lastPeekedAt && (now - e.lastPeekedAt) > PEEK_STALE_MS) {
+      e.lastPeekedAt = null; // Reset to allow re-peek
+    }
+    return true;
+  });
   
   if (!entry) {
     return res.json({
@@ -240,7 +312,10 @@ app.get('/peek', (req, res) => {
     });
   }
   
-  const itemCount = entry.payload?.rawRows?.length || entry.payload?.items?.length || 0;
+  // Mark when this entry was peeked
+  entry.lastPeekedAt = now;
+  
+  const itemCount = entry.payload?.rawRows?.length || 0;
   console.log(`👁️ Peek: ${itemCount} items, id: ${entry.id}`);
   
   res.json({
@@ -270,7 +345,7 @@ app.get('/pull', (req, res) => {
   // Сохраняем в файл
   saveQueue();
   
-  const itemCount = entry.payload?.rawRows?.length || entry.payload?.items?.length || 0;
+  const itemCount = entry.payload?.rawRows?.length || 0;
   console.log(`📤 Pull: ${itemCount} items, remaining: ${dataQueue.length}`);
   
   res.json({
@@ -312,7 +387,7 @@ app.post('/ack', (req, res) => {
   // Сохраняем в файл
   saveQueue();
   
-  const itemCount = removed.payload?.rawRows?.length || removed.payload?.items?.length || 0;
+  const itemCount = removed.payload?.rawRows?.length || 0;
   console.log(`✓ Ack: ${itemCount} items confirmed, id: ${entryId}, remaining: ${dataQueue.length}`);
   
   res.json({
@@ -347,7 +422,7 @@ app.get('/status', (req, res) => {
   let firstEntry = null;
   if (dataQueue.length > 0) {
     const entry = dataQueue[0];
-    const itemCount = entry.payload?.rawRows?.length || entry.payload?.items?.length || 0;
+    const itemCount = entry.payload?.rawRows?.length || 0;
     firstEntry = {
       id: entry.id,
       itemCount,

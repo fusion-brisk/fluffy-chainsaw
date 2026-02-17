@@ -129,13 +129,26 @@ export class ImageProcessor {
         Logger.warn('Error reading from clientStorage:', e);
       }
 
-      // 3. Fetch from network
-      let response: Response;
-      try {
-        response = await this.fetchWithTimeout(url, IMAGE_CONFIG.TIMEOUT_MS);
-      } catch (e) {
-        Logger.warn('⏱️ Повторная попытка загрузки без таймаута:', url, e);
-        response = await fetch(url);
+      // 3. Fetch from network (с retry)
+      const maxAttempts = (IMAGE_CONFIG.RETRY_COUNT || 1) + 1;
+      let response: Response | null = null;
+      let lastError: unknown = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          response = await this.fetchWithTimeout(url, IMAGE_CONFIG.TIMEOUT_MS);
+          lastError = null;
+          break;
+        } catch (e) {
+          lastError = e;
+          if (attempt < maxAttempts) {
+            const delay = (IMAGE_CONFIG.RETRY_DELAY_MS || 500) * attempt;
+            Logger.warn(`⏱️ Попытка ${attempt}/${maxAttempts} не удалась, повтор через ${delay}ms: ${url.substring(0, 60)}...`);
+            await new Promise(r => setTimeout(r, delay));
+          }
+        }
+      }
+      if (lastError || !response) {
+        throw lastError || new Error(`Не удалось загрузить: ${url}`);
       }
       
       if (!response.ok) {
@@ -268,18 +281,16 @@ export class ImageProcessor {
     return imagePromise;
   }
 
-  // Helper to mark layer as failed with visual feedback
+  // Helper to mark layer as failed — hide the layer to avoid gray/red placeholders
   private markAsFailed(item: LayerDataItem, message: string): void {
     try {
       if (item.layer.removed) return;
       
-      if (item.layer.type === 'RECTANGLE' || item.layer.type === 'ELLIPSE' || item.layer.type === 'POLYGON') {
-        const redPaint: SolidPaint = {
-          type: 'SOLID',
-          color: { r: 1, g: 0, b: 0 },
-          opacity: 0.3
-        };
-        (item.layer as RectangleNode | EllipseNode | PolygonNode).fills = [redPaint];
+      // Скрываем слой вместо красной заливки — это убирает серые плейсхолдеры
+      // для сниппетов без изображений (ozon.ru, wildberries.ru и т.д.)
+      if ('visible' in item.layer) {
+        (item.layer as SceneNode & { visible: boolean }).visible = false;
+        Logger.debug(`   🖼️ [markAsFailed] Скрыт слой "${item.fieldName}"`);
       }
     } catch (e) {
       // Ignore errors during marking

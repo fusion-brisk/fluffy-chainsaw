@@ -44,3 +44,9 @@ export type {
   ImportCSVResult
 } from './snippet-processor';
 
+// Wizard processor
+export {
+  renderWizards,
+  renderWizardPayload
+} from './wizard-processor';
+

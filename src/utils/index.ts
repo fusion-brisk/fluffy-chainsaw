@@ -62,12 +62,7 @@ export {
 } from './price-extractor';
 export type { PriceResult } from './price-extractor';
 
-// MHTML parsing utilities
-export { 
-  parseMhtmlFile 
-} from './mhtml-parser';
-
-// Streaming MHTML parser (Phase 8 optimization)
+// MHTML parsing utilities (streaming only — legacy non-streaming parser removed)
 export {
   parseMhtmlStreaming,
   parseMhtmlStreamingAsync

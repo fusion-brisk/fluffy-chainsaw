@@ -39,6 +39,54 @@
   ];
 
   // ============================================================================
+  // SHARED PARSING RULES SUPPORT
+  // ============================================================================
+
+  /**
+   * Queries a container using shared parsing rules for a given field.
+   * Returns the first matching element's text content, or null if no match.
+   * This enables the extension to use the same selectors as the plugin.
+   * 
+   * @param {Element} container - DOM element to search within
+   * @param {string} fieldName - Field name (e.g. '#OrganicTitle')
+   * @param {Object|null} parsingRules - Shared parsing rules (or null to skip)
+   * @param {Object} [options] - Options
+   * @param {string} [options.attribute] - Extract attribute instead of text
+   * @returns {string|null} Extracted value or null
+   */
+  function queryByRules(container, fieldName, parsingRules, options) {
+    if (!parsingRules?.rules?.[fieldName]?.domSelectors) return null;
+    
+    const rule = parsingRules.rules[fieldName];
+    const selectors = rule.domSelectors;
+    if (!selectors || selectors.length === 0) return null;
+    
+    for (const selector of selectors) {
+      try {
+        const el = container.querySelector(selector);
+        if (el) {
+          if (options?.attribute) {
+            return el.getAttribute(options.attribute) || null;
+          }
+          if (rule.domAttribute && rule.type === 'image') {
+            return el.getAttribute(rule.domAttribute) || el.getAttribute('src') || null;
+          }
+          if (rule.domAttribute && rule.type === 'attribute') {
+            return el.getAttribute(rule.domAttribute) || null;
+          }
+          if (rule.type === 'boolean') {
+            return 'true';
+          }
+          return getTextContent(el) || null;
+        }
+      } catch {
+        // Invalid selector, skip
+      }
+    }
+    return null;
+  }
+
+  // ============================================================================
   // UTILITY FUNCTIONS
   // ============================================================================
 
@@ -670,7 +718,7 @@
    * @param {string} snippetType - тип сниппета
    * @param {string} platform - платформа ('desktop' или 'touch')
    */
-  function extractStandardSnippet(container, snippetType, platform) {
+  function extractStandardSnippet(container, snippetType, platform, parsingRules) {
     platform = platform || 'desktop';
     const isTouch = platform === 'touch';
     
@@ -710,27 +758,28 @@
       } catch (e) {}
     }
     
-    // #OrganicTitle — точные селекторы первыми!
-    const titleSelectors = [
-      // Точные селекторы для текста заголовка (приоритет!)
-      '.OrganicTitleContentSpan',
-      'h2.OrganicTitle-LinkText',
-      '.OrganicTitle-LinkText span',
-      // EProductSnippet2
-      '.EProductSnippet2-Title',
-      '.EProductSnippet2-Title a',
-      // EShopItem
-      '.EShopItem-Title',
-      '[class*="EShopItem-Title"]',
-      // Fallback (менее точные)
-      '.OrganicTitle',
-      '.Organic-Title'
-    ];
-    for (const selector of titleSelectors) {
-      const titleEl = container.querySelector(selector);
-      if (titleEl) {
-        row['#OrganicTitle'] = getTextContent(titleEl);
-        break;
+    // #OrganicTitle — try shared parsing rules first, then hardcoded selectors
+    const rulesTitle = queryByRules(container, '#OrganicTitle', parsingRules);
+    if (rulesTitle) {
+      row['#OrganicTitle'] = rulesTitle;
+    } else {
+      const titleSelectors = [
+        '.OrganicTitleContentSpan',
+        'h2.OrganicTitle-LinkText',
+        '.OrganicTitle-LinkText span',
+        '.EProductSnippet2-Title',
+        '.EProductSnippet2-Title a',
+        '.EShopItem-Title',
+        '[class*="EShopItem-Title"]',
+        '.OrganicTitle',
+        '.Organic-Title'
+      ];
+      for (const selector of titleSelectors) {
+        const titleEl = container.querySelector(selector);
+        if (titleEl) {
+          row['#OrganicTitle'] = getTextContent(titleEl);
+          break;
+        }
       }
     }
     
@@ -871,6 +920,18 @@
           });
           row['#OrganicImage'] = images[0]; // Основная картинка
           row['#ThumbImage'] = images[0];
+          
+          // Проверяем наличие цены — если нет EPriceGroup, это каталожная страница
+          const hasEPriceGroup = container.querySelector('.EPriceGroup, [class*="EPriceGroup"], .EPrice, [class*="EPrice-Value"]');
+          if (!hasEPriceGroup) {
+            row['#isCatalogPage'] = 'true';
+            row['#TargetSnippetType'] = 'ESnippet';
+            row['#hidePriceBlock'] = 'true';
+            console.log(`[EThumbGroup] Каталог: ${images.length} картинок, без цены`);
+          } else {
+            row['#isCatalogPage'] = 'false';
+          }
+          
           console.log(`[EThumbGroup] Найден коллаж: ${images.length} картинок`);
         } else if (images.length === 1) {
           // Только одна картинка — обычный EThumb
@@ -1098,6 +1159,14 @@
       row['#EDeliveryGroup-Count'] = '0';
     }
     
+    // #EDelivery_abroad — признак доставки из-за границы (ECrossborderInfo)
+    const crossborderEl = container.querySelector('.ECrossborderInfo, .ShopInfo-Crossborder, [class*="Crossborder"]');
+    if (crossborderEl) {
+      row['#EDelivery_abroad'] = 'true';
+    } else {
+      row['#EDelivery_abroad'] = 'false';
+    }
+    
     // #ShopOfflineRegion — адрес магазина (Москва · м. Павелецкая · адрес)
     const shopOfflineRegion = container.querySelector('.ShopOfflineRegion');
     if (shopOfflineRegion) {
@@ -1136,14 +1205,23 @@
       row['#EPriceGroup_Fintech'] = 'true';
       const cls = fintech.className || '';
       
-      // Type
+      // Type — full mapping matching snippet-parser.ts (11 types)
       if (cls.includes('Fintech_type_split')) row['#Fintech_Type'] = 'split';
       else if (cls.includes('Fintech_type_yandexPay')) row['#Fintech_Type'] = 'yandexPay';
       else if (cls.includes('Fintech_type_pay')) row['#Fintech_Type'] = 'pay';
       else if (cls.includes('Fintech_type_ozon')) row['#Fintech_Type'] = 'ozon';
+      else if (cls.includes('Fintech_type_dolyame')) row['#Fintech_Type'] = 'Dolyami';
+      else if (cls.includes('Fintech_type_plait')) row['#Fintech_Type'] = 'Plait';
+      else if (cls.includes('Fintech_type_podeli')) row['#Fintech_Type'] = 'Podeli';
+      else if (cls.includes('Fintech_type_mokka')) row['#Fintech_Type'] = 'Mokka';
+      else if (cls.includes('Fintech_type_mtsPay')) row['#Fintech_Type'] = 'MTS Pay';
+      else if (cls.includes('Fintech_type_tPay')) row['#Fintech_Type'] = 'T-Pay';
+      else if (cls.includes('Fintech_type_alfa')) row['#Fintech_Type'] = 'alfaCard';
+      else if (cls.includes('Fintech_type_wildberries')) row['#Fintech_Type'] = 'Wildberries';
       
-      // View
+      // View — full mapping matching snippet-parser.ts (including extra-long)
       if (cls.includes('Fintech_view_extra-short')) row['#Fintech_View'] = 'extra-short';
+      else if (cls.includes('Fintech_view_extra-long')) row['#Fintech_View'] = 'extra-long';
       else if (cls.includes('Fintech_view_short')) row['#Fintech_View'] = 'short';
       else if (cls.includes('Fintech_view_long')) row['#Fintech_View'] = 'long';
       else row['#Fintech_View'] = 'default';
@@ -1154,6 +1232,56 @@
     } else {
       row['#EPriceGroup_Fintech'] = 'false';
       row['#InfoIcon'] = 'false';
+    }
+    
+    // #EPrice_View — специальный вид цены (зелёная)
+    const priceSpecial = container.querySelector('.EPrice_view_special, [class*="EPrice_view_special"]');
+    if (priceSpecial) {
+      row['#EPrice_View'] = 'special';
+    }
+    
+    // === EPriceGroup BEM-модификаторы ===
+    // Извлекаем свойства из BEM-классов EPriceGroup (size, withDisclaimer, plusCashback и др.)
+    const ePriceGroupEl = container.querySelector('.EPriceGroup, [class*="EPriceGroup"]');
+    if (ePriceGroupEl) {
+      const pgCls = ePriceGroupEl.className || '';
+      
+      // #EPriceGroup_Size — size variant (m, l, L2)
+      const sizeMatch = pgCls.match(/EPriceGroup_size_(\w+)/);
+      if (sizeMatch) {
+        row['#EPriceGroup_Size'] = sizeMatch[1]; // m, l, L2
+        console.log(`[EPriceGroup] size=${sizeMatch[1]}`);
+      }
+      
+      // #EPriceGroup_Barometer — withBarometer (boolean BEM modifier)
+      if (pgCls.includes('EPriceGroup_withBarometer')) {
+        row['#EPriceGroup_Barometer'] = 'true';
+      }
+      
+      // #PriceDisclaimer — withDisclaimer (boolean BEM modifier)
+      if (pgCls.includes('EPriceGroup_withDisclaimer')) {
+        row['#PriceDisclaimer'] = 'true';
+        console.log(`[EPriceGroup] withDisclaimer=true`);
+      }
+      
+      // #PlusCashback — plusCashback (boolean BEM modifier)
+      if (pgCls.includes('EPriceGroup_plusCashback') || pgCls.includes('EPriceGroup_withPlusCashback')) {
+        row['#PlusCashback'] = 'true';
+        console.log(`[EPriceGroup] plusCashback=true`);
+      }
+      
+      // #ExpCalculation — [EXP] Calculation (boolean BEM modifier)
+      if (pgCls.includes('EPriceGroup_expCalculation') || pgCls.includes('EPriceGroup_EXPCalculation')) {
+        row['#ExpCalculation'] = 'true';
+        console.log(`[EPriceGroup] expCalculation=true`);
+      }
+      
+      // #CombiningElements — Combining Elements variant
+      const combMatch = pgCls.match(/EPriceGroup_combiningElements_(\w+)/);
+      if (combMatch) {
+        row['#CombiningElements'] = combMatch[1]; // None, Discount, etc.
+        console.log(`[EPriceGroup] combiningElements=${combMatch[1]}`);
+      }
     }
     
     // #EPriceBarometer (дублирующая проверка удалена — уже обработано выше)
@@ -1177,8 +1305,13 @@
     }
     
     // #EBnpl — блок BNPL (Сплит, Подели и др.)
-    // Ищем в EShopItem-Bnpl, ShopInfo-Bnpl (Organic) или просто EBnpl
-    const ebnplContainer = container.querySelector('.EShopItem-Bnpl, .ShopInfo-Bnpl, [class*="EShopItem-Bnpl"], .EBnpl');
+    // Ищем в EShopItem-Bnpl, ShopInfo-Bnpl (Organic), EBnpl, а также
+    // в контейнерах доставки ESnippet (DeliveriesBnpl, EDeliveryGroup-Bnpl)
+    const ebnplContainer = container.querySelector(
+      '.EShopItem-Bnpl, .ShopInfo-Bnpl, [class*="EShopItem-Bnpl"], .EBnpl, ' +
+      '.EShopItem-DeliveriesBnpl .EBnpl, .DeliveriesBnpl, [class*="DeliveriesBnpl"], ' +
+      '.EDeliveryGroup-Bnpl, [class*="-Bnpl"]:not(.ShopInfo-Bnpl)'
+    );
     if (ebnplContainer) {
       const bnplItems = ebnplContainer.querySelectorAll('.Line-AddonContent, [class*="Line-AddonContent"]');
       const bnplOptions = [];
@@ -1203,6 +1336,44 @@
     } else {
       row['#EBnpl'] = 'false';
       row['#EBnpl-Count'] = '0';
+    }
+    
+    // #ShopInfo-Bnpl — BNPL иконки/лейблы в Organic/ESnippet
+    // Также проверяем Organic-Bnpl и ESnippet-Bnpl контейнеры
+    const shopInfoBnplEl = container.querySelector(
+      '.ShopInfo-Bnpl, [class*="ShopInfo-Bnpl"], .Organic-Bnpl, [class*="Organic-Bnpl"]'
+    );
+    if (shopInfoBnplEl) {
+      const bnplTexts = shopInfoBnplEl.querySelectorAll('p, span, a, div');
+      const bnplTypes = [];
+      
+      bnplTexts.forEach(function(el) {
+        if (bnplTypes.length >= 5) return;
+        const t = (el.textContent || '').trim().toLowerCase();
+        if (!t) return;
+        let normalized = null;
+        if (t.indexOf('сплит') !== -1) normalized = 'Сплит';
+        else if (t.indexOf('плайт') !== -1) normalized = 'Плайт';
+        else if (t.indexOf('долями') !== -1) normalized = 'Долями';
+        else if (t.indexOf('плати частями') !== -1) normalized = 'Плати частями';
+        else if (t.indexOf('мокка') !== -1) normalized = 'Мокка';
+        else if (t.indexOf('подели') !== -1) normalized = 'Подели';
+        else if (t.indexOf('мтс') !== -1 && (t.indexOf('пэй') !== -1 || t.indexOf('pay') !== -1)) normalized = 'МТС Пэй';
+        if (normalized && !bnplTypes.includes(normalized)) bnplTypes.push(normalized);
+      });
+      
+      bnplTypes.forEach(function(text, i) {
+        row['#ShopInfo-Bnpl-Item-' + (i + 1)] = text;
+      });
+      row['#ShopInfo-Bnpl-Count'] = String(bnplTypes.length);
+      row['#ShopInfo-Bnpl'] = bnplTypes.length > 0 ? 'true' : 'false';
+      
+      if (bnplTypes.length > 0) {
+        console.log('[ShopInfo-Bnpl] Найдено ' + bnplTypes.length + ' опций: ' + bnplTypes.join(', '));
+      }
+    } else {
+      row['#ShopInfo-Bnpl'] = 'false';
+      row['#ShopInfo-Bnpl-Count'] = '0';
     }
     
     // #BUTTON логика
@@ -1259,6 +1430,29 @@
         row['#ButtonType'] = 'shop';
         row['#EMarketCheckoutLabel'] = 'false';
       }
+    }
+    
+    // === САЙТЛИНКИ (для всех типов сниппетов) ===
+    const sitelinksContainer = container.querySelector('.Sitelinks');
+    if (sitelinksContainer) {
+      row['#Sitelinks'] = 'true';
+      const sitelinkItems = sitelinksContainer.querySelectorAll('.Sitelinks-Title, .Sitelinks-Item a.Sitelinks-Title');
+      const sitelinks = [];
+      sitelinkItems.forEach((item, i) => {
+        if (i >= 4) return; // Максимум 4 сайтлинка
+        const text = getTextContent(item);
+        if (text) {
+          sitelinks.push(text);
+          row[`#Sitelink_${i + 1}`] = text;
+        }
+      });
+      row['#SitelinksCount'] = String(sitelinks.length);
+      if (sitelinks.length > 0) {
+        console.log(`[${snippetType}] Найдено ${sitelinks.length} сайтлинков:`, sitelinks);
+      }
+    } else {
+      row['#Sitelinks'] = 'false';
+      row['#SitelinksCount'] = '0';
     }
     
     // Фильтр: Organic без цены пропускаем
@@ -1920,7 +2114,7 @@
    * @param {Element} serpItem - контейнер serp-item
    * @param {string} platform - платформа ('desktop' или 'touch')
    */
-  function extractRowData(serpItem, platform) {
+  function extractRowData(serpItem, platform, parsingRules) {
     platform = platform || 'desktop';
     
     // Используем data-cid или data-log-node как fallback
@@ -1968,7 +2162,7 @@
         
         for (const organic of organicItems) {
           // Извлекаем данные как стандартный сниппет
-          const row = extractStandardSnippet(organic, snippetType, platform);
+          const row = extractStandardSnippet(organic, snippetType, platform, parsingRules);
           if (row) {
             row['#serpItemId'] = serpItemId;
             row['#containerType'] = 'EntityOffers';
@@ -1985,7 +2179,7 @@
         console.log(`[EntityOffers] Стандартный: найдено ${shopItems.length} EShopItem внутри`);
         
         for (const shopItem of shopItems) {
-          const row = extractStandardSnippet(shopItem, 'EShopItem', platform);
+          const row = extractStandardSnippet(shopItem, 'EShopItem', platform, parsingRules);
           if (row) {
             row['#serpItemId'] = serpItemId;
             row['#containerType'] = 'EntityOffers';
@@ -2022,7 +2216,7 @@
       let skippedCount = 0;
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
-        const row = extractStandardSnippet(product, 'EProductSnippet2', platform);
+        const row = extractStandardSnippet(product, 'EProductSnippet2', platform, parsingRules);
         if (row) {
           row['#serpItemId'] = serpItemId;
           row['#containerType'] = 'ProductsTiles';
@@ -2087,7 +2281,7 @@
       
       for (let i = 0; i < shopItems.length; i++) {
         const shopItem = shopItems[i];
-        const row = extractStandardSnippet(shopItem, 'EShopItem', platform);
+        const row = extractStandardSnippet(shopItem, 'EShopItem', platform, parsingRules);
         if (row) {
           row['#serpItemId'] = serpItemId;
           row['#containerType'] = 'EShopList';
@@ -2139,7 +2333,7 @@
     
     // Органические сниппеты → ESnippet
     if (snippetType === 'Organic' || snippetType === 'Organic_withOfferInfo') {
-      const row = extractStandardSnippet(innerContent, 'ESnippet', platform);
+      const row = extractStandardSnippet(innerContent, 'ESnippet', platform, parsingRules);
       if (row) {
         row['#serpItemId'] = serpItemId;
         row['#SnippetType'] = 'ESnippet';  // Принудительно ESnippet
@@ -2148,7 +2342,7 @@
     }
     
     // Остальные типы
-    const row = extractStandardSnippet(innerContent, snippetType, platform);
+    const row = extractStandardSnippet(innerContent, snippetType, platform, parsingRules);
     if (row) {
       row['#serpItemId'] = serpItemId;
     }
@@ -2275,14 +2469,253 @@
   }
 
   // ============================================================================
+  // WIZARD PARSING — FuturisSearch (Alice's Answer)
+  // ============================================================================
+
+  /**
+   * Нормализует текст: множественные пробелы → один, trim
+   */
+  function normalizeWizardText(value) {
+    return (value || '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Нормализует текст спана: неразрывные пробелы → обычные
+   */
+  function normalizeWizardSpanText(value) {
+    return (value || '').replace(/\u00a0/g, ' ');
+  }
+
+  /**
+   * Извлекает спаны (text + bold) из элемента, пропуская FuturisFootnote
+   * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/utils/dom.js → extractSpans
+   */
+  function extractWizardSpans(containerEl) {
+    var spans = [];
+
+    function pushSpan(text, bold) {
+      var normalized = normalizeWizardSpanText(text);
+      if (!normalized) return;
+      var last = spans.length > 0 ? spans[spans.length - 1] : null;
+      if (last && last.bold === bold) {
+        last.text += normalized;
+        return;
+      }
+      spans.push({ text: normalized, bold: bold });
+    }
+
+    function walk(node, inheritedBold) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        pushSpan(node.nodeValue || '', inheritedBold);
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      
+      // Пропускаем footnote-ссылки
+      if (node.classList && node.classList.contains('FuturisFootnote')) return;
+
+      var isBold = inheritedBold || node.tagName === 'STRONG' || node.tagName === 'B';
+      var children = node.childNodes;
+      for (var i = 0; i < children.length; i++) {
+        walk(children[i], isBold);
+      }
+    }
+
+    walk(containerEl, false);
+    return spans;
+  }
+
+  /**
+   * Извлекает footnotes (источники) из элемента
+   * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/utils/dom.js → extractFootnotes
+   */
+  function extractWizardFootnotes(containerEl) {
+    var footnoteLinks = containerEl.querySelectorAll('a.Link.FuturisFootnote.FuturisFootnote_redesign');
+    var result = [];
+    for (var i = 0; i < footnoteLinks.length; i++) {
+      var link = footnoteLinks[i];
+      var iconEl = link.querySelector('.FuturisFootnote-Icon');
+      var iconUrl = '';
+      if (iconEl) {
+        // Извлекаем URL из style background-image
+        var style = iconEl.getAttribute('style') || '';
+        var match = style.match(/background-image:\s*url\(["']?(.*?)["']?\)/i);
+        if (match) {
+          iconUrl = match[1];
+        }
+        // Fallback: inline style
+        if (!iconUrl && iconEl.style && iconEl.style.backgroundImage) {
+          var bgMatch = iconEl.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/i);
+          if (bgMatch) iconUrl = bgMatch[1];
+        }
+      }
+      result.push({
+        text: normalizeWizardText(link.textContent || ''),
+        href: link.getAttribute('href') || '',
+        iconUrl: iconUrl,
+        debug: iconUrl ? null : { styleAttr: (iconEl && iconEl.getAttribute('style')) || '' }
+      });
+    }
+    return result;
+  }
+
+  /**
+   * Определяет тип компонента и извлекает данные из одного DOM-элемента
+   * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/parsers/ya-ru.js → buildComponentFromElement
+   */
+  function buildWizardComponent(el) {
+    // Заголовки: определяем уровень из tagName (h1–h6), fallback h2
+    if (el.classList.contains('FuturisContentSection-Title') || /^H[1-6]$/i.test(el.tagName || '')) {
+      var level = /^H([1-6])$/i.test(el.tagName || '') ? el.tagName.toLowerCase() : 'h2';
+      return {
+        type: level,
+        text: normalizeWizardText(el.textContent || '')
+      };
+    }
+
+    // Параграфы
+    if (el.classList.contains('FuturisMarkdown-Paragraph')) {
+      return {
+        type: 'p',
+        spans: extractWizardSpans(el),
+        footnotes: extractWizardFootnotes(el)
+      };
+    }
+
+    // Ненумерованные списки
+    if (el.classList.contains('FuturisMarkdown-UnorderedList')) {
+      var ulItems = el.querySelectorAll(':scope > li.FuturisMarkdown-ListItem');
+      var ulResult = [];
+      for (var i = 0; i < ulItems.length; i++) {
+        ulResult.push({
+          spans: extractWizardSpans(ulItems[i]),
+          footnotes: extractWizardFootnotes(ulItems[i])
+        });
+      }
+      return { type: 'ul', items: ulResult };
+    }
+
+    // Нумерованные списки
+    if (el.classList.contains('FuturisMarkdown-OrderedList')) {
+      var olItems = el.querySelectorAll(':scope > li.FuturisMarkdown-ListItem');
+      var olResult = [];
+      for (var j = 0; j < olItems.length; j++) {
+        olResult.push({
+          spans: extractWizardSpans(olItems[j]),
+          footnotes: extractWizardFootnotes(olItems[j])
+        });
+      }
+      return { type: 'ol', items: olResult };
+    }
+
+    // Изображения
+    if (el.classList.contains('FuturisImage-Image')) {
+      return {
+        type: 'img',
+        src: el.getAttribute('src') || '',
+        alt: normalizeWizardText(el.getAttribute('alt') || '')
+      };
+    }
+
+    // Видео
+    if (el.classList.contains('VideoSnippet') || el.classList.contains('VideoSnippet2')) {
+      var videoEl = el.querySelector('video.VideoThumb3-Video');
+      var poster = '';
+      if (videoEl) {
+        poster = videoEl.getAttribute('poster') || '';
+        if (!poster) {
+          var vStyle = videoEl.getAttribute('style') || '';
+          var vMatch = vStyle.match(/background-image:\s*url\(["']?(.*?)["']?\)/i);
+          if (vMatch) poster = vMatch[1];
+        }
+        if (poster && poster.indexOf('//') === 0) poster = 'https:' + poster;
+      }
+      var titleEl = el.querySelector('.VideoSnippet-Title');
+      var hostEl = el.querySelector('.VideoHostExtended-Host');
+      var durationEl = el.querySelector('.VideoSnippet-Duration .Label-Content');
+      return {
+        type: 'video',
+        poster: poster,
+        title: titleEl ? normalizeWizardText(titleEl.textContent || '') : '',
+        host: hostEl ? normalizeWizardText(hostEl.textContent || '') : '',
+        channelTitle: '',
+        views: '',
+        date: '',
+        duration: durationEl ? normalizeWizardText(durationEl.textContent || '') : ''
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Рекурсивно обходит DOM-дерево и собирает все компоненты wizard
+   * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/parsers/ya-ru.js → collectComponents
+   */
+  function collectWizardComponents(rootEl) {
+    var components = [];
+
+    function walk(node) {
+      var children = node.children;
+      if (!children) return;
+      for (var i = 0; i < children.length; i++) {
+        var child = children[i];
+        var component = buildWizardComponent(child);
+        if (component) {
+          components.push(component);
+          // Не спускаемся глубже если элемент распознан
+          continue;
+        }
+        // Если не распознан — рекурсивно обходим детей
+        walk(child);
+      }
+    }
+
+    walk(rootEl);
+    return components;
+  }
+
+  /**
+   * Извлекает все wizard-блоки (FuturisSearch) со страницы
+   * @returns {Array} WizardPayload[]
+   */
+  function extractFuturisSearchWizards() {
+    var wizards = [];
+    
+    // Ищем контейнеры FuturisSearch
+    // Основной селектор: .FuturisGPTMessage-GroupContentComponentWrapper
+    var wrappers = document.querySelectorAll('.FuturisGPTMessage-GroupContentComponentWrapper');
+    console.log('[Wizard] FuturisGPTMessage-GroupContentComponentWrapper найдено: ' + wrappers.length);
+    
+    for (var i = 0; i < wrappers.length; i++) {
+      var wrapper = wrappers[i];
+      var components = collectWizardComponents(wrapper);
+      
+      if (components.length > 0) {
+        wizards.push({
+          type: 'FuturisSearch',
+          components: components
+        });
+        console.log('[Wizard] FuturisSearch #' + (i + 1) + ': ' + components.length + ' компонентов');
+      }
+    }
+    
+    return wizards;
+  }
+
+  // ============================================================================
   // MAIN ENTRY POINT
   // ============================================================================
 
   /**
-   * Главная функция — извлекает все сниппеты со страницы
+   * Главная функция — извлекает все сниппеты и wizard-блоки со страницы
+   * @param {Object|null} parsingRules - Shared parsing rules from remote config (optional)
    */
-  function extractSnippets() {
+  function extractSnippets(parsingRules) {
     console.log('🔍 [Content] Начинаю парсинг страницы...');
+    if (parsingRules?.version) {
+      console.log(`📋 [Content] Используем shared parsing rules v${parsingRules.version}`);
+    }
     
     // Проверяем, что это страница Яндекса (yandex.ru, yandex.com, ya.ru)
     const hostname = window.location.hostname;
@@ -2338,7 +2771,7 @@
     
     // Затем извлекаем сниппеты
     for (const container of containers) {
-      const rowOrRows = extractRowData(container, platform);
+      const rowOrRows = extractRowData(container, platform, parsingRules);
       if (rowOrRows) {
         // extractRowData может вернуть массив (для AdvProductGallery) или объект
         if (Array.isArray(rowOrRows)) {
@@ -2369,9 +2802,17 @@
     }
     console.log('📊 [Content] Статистика:', stats);
     
-    return { rows: finalResults };
+    // Извлекаем wizard-блоки (FuturisSearch и пр.)
+    const wizards = extractFuturisSearchWizards();
+    if (wizards.length > 0) {
+      console.log(`🧙 [Content] Извлечено wizard-блоков: ${wizards.length}`);
+    }
+    
+    return { rows: finalResults, wizards: wizards };
   }
 
   // Выполняем парсинг и возвращаем результат
-  return extractSnippets();
+  // Shared parsing rules may have been injected by background.js
+  const parsingRules = (typeof window !== 'undefined' && window.__contentifyParsingRules) || null;
+  return extractSnippets(parsingRules);
 })();

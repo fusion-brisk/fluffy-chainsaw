@@ -800,10 +800,42 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
     const propNames = Object.keys(props);
     Logger.debug(`   📋 [ESnippet] Доступные свойства (${propNames.length}): ${propNames.join(', ')}`);
     
+    // Определяем, является ли это plain Organic (fallback на ESnippet)
+    const isPlainOrganic = row['#SnippetType'] === 'Organic';
+    if (isPlainOrganic) {
+      Logger.debug(`   📦 [ESnippet] Plain Organic → принудительно отключаем товарные фичи`);
+      // Plain Organic: принудительно скрываем все товарные элементы
+      trySetProperty(instance, ['withEcomMeta'], false, '#withEcomMeta');
+      trySetProperty(instance, ['withButton'], false, '#withButton');
+      trySetProperty(instance, ['withData'], false, '#withData');
+      trySetProperty(instance, ['withMeta'], false, '#withMeta');
+      trySetProperty(instance, ['withPrice'], false, '#withPrice');
+      trySetProperty(instance, ['withDelivery'], false, '#withDelivery');
+      trySetProperty(instance, ['withFintech'], false, '#withFintech');
+      trySetProperty(instance, ['withAddress'], false, '#withAddress');
+      trySetProperty(instance, ['withContacts'], false, '#withContacts');
+      trySetProperty(instance, ['withPromo'], false, '#withPromo');
+    }
+    
     // withThumb (boolean) — показать картинку сниппета
     const hasThumb = row['#withThumb'] === 'true';
-    trySetProperty(instance, ['withThumb'], hasThumb, '#withThumb');
+    const thumbPropSet = trySetProperty(instance, ['withThumb'], hasThumb, '#withThumb');
     Logger.debug(`   🖼️ [ESnippet] withThumb=${hasThumb}`);
+    
+    // Fallback: если withThumb=false, принудительно скрываем EThumb-слой
+    // Это нужно, чтобы серый placeholder не оставался видимым, даже если
+    // свойство компонента не смогло полностью скрыть изображение
+    if (!hasThumb) {
+      const eThumbLayer = findFirstNodeByName(instance, 'EThumb') ||
+                          findFirstNodeByName(instance, 'Organic-OfferThumb') ||
+                          findFirstNodeByName(instance, 'Thumb');
+      if (eThumbLayer && 'visible' in eThumbLayer) {
+        try {
+          (eThumbLayer as SceneNode & { visible: boolean }).visible = false;
+          Logger.debug(`   🖼️ [ESnippet] EThumb layer hidden (fallback)`);
+        } catch (_e) { /* ignore */ }
+      }
+    }
 
     // withReviews (boolean) — показать рейтинг и отзывы
     const hasReviews = !!(row['#ProductRating'] || row['#ShopInfo-Ugc'] || '').trim();
@@ -869,8 +901,10 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
       }
     }
     
-    // Кнопка показывается если: (Desktop) ИЛИ (checkout)
-    const hasButton = isDesktop || isCheckout;
+    // Кнопка показывается если: (есть данные кнопки И Desktop) ИЛИ (checkout)
+    // Для plain Organic: #BUTTON = 'false' → кнопка скрыта даже на Desktop
+    const hasButtonData = row['#BUTTON'] === 'true';
+    const hasButton = (hasButtonData && isDesktop) || isCheckout;
     trySetProperty(instance, ['withButton'], hasButton, '#withButton');
     
     // withMeta (boolean) — показать ShopInfo-DeliveryBnplContainer (доставка + BNPL в мета-блоке)
@@ -893,6 +927,14 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
     // withPrice (boolean) — показать блок цены
     const hasPrice = !!(row['#OrganicPrice'] || '').trim();
     trySetProperty(instance, ['withPrice'], hasPrice, '#withPrice');
+    
+    // withEcomMeta (boolean) — показать блок EcomMeta (рейтинг + цена + барометр + лейблы)
+    const hasEcomMeta = [
+      row['#ProductRating'], row['#ReviewCount'], row['#OrganicPrice'],
+      row['#OldPrice'], row['#EPriceBarometer_View'], row['#ELabelGroup']
+    ].some(v => v !== undefined && v !== null && v !== '' && v !== 'false');
+    trySetProperty(instance, ['withEcomMeta'], hasEcomMeta, '#withEcomMeta');
+    Logger.debug(`   📦 [ESnippet] withEcomMeta=${hasEcomMeta}`);
     
     // showKebab (boolean) — показать меню (обычно false)
     const showKebab = row['#showKebab'] === 'true';
@@ -1044,16 +1086,8 @@ export async function handleESnippetProps(context: HandlerContext): Promise<void
   }
 }
 
-/**
- * Обработка Rating + Review + Quote — DEPRECATED
- * Visibility теперь управляется через withReviews/withQuotes на сниппете
- * Оставлен только для логирования
- */
-export async function handleRatingReviewQuoteVisibility(context: HandlerContext): Promise<void> {
-  // Visibility теперь через withReviews/withQuotes на сниппете — ничего не делаем
-  // Логика перенесена в handleESnippetProps, handleEShopItem, handleEOfferItem
-  Logger.debug(`   📊 [RatingReviewQuote] Visibility через withReviews/withQuotes`);
-}
+// handleRatingReviewQuoteVisibility — REMOVED (deprecated, was no-op)
+// Visibility now managed via withReviews/withQuotes on snippet components
 
 /**
  * Обработка #QuoteText — заполнение текстового слоя с цитатой из отзыва
@@ -1290,7 +1324,7 @@ export function handleHidePriceBlock(context: HandlerContext): void {
  * Instance swap property для отображения одной картинки или коллажа
  */
 export async function handleImageType(context: HandlerContext): Promise<void> {
-  const { container, row } = context;
+  const { container, row, instanceCache } = context;
   
   // Диагностика — выводим ВСЕГДА (даже если row/container пустые)
   const containerName = container && 'name' in container ? container.name : 'NULL';
@@ -1353,12 +1387,19 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
   
   const instance = targetInstance;
   
-  // Ищем вложенный EThumb instance для установки State property
+  // Ищем вложенный EThumb instance — ОПТИМИЗИРОВАНО: instanceCache сначала
   let eThumbInstance: InstanceNode | null = null;
   
   if (instance.name.toLowerCase().includes('ethumb')) {
     eThumbInstance = instance;
-  } else if ('findOne' in instance) {
+  } else if (instanceCache) {
+    // Используем кэш для поиска EThumb вместо deep traversal
+    eThumbInstance = getCachedInstance(instanceCache, 'EThumb') || 
+                     getCachedInstance(instanceCache, 'Thumb') || null;
+  }
+  
+  // Fallback: deep traversal только если кэш не помог
+  if (!eThumbInstance && 'findOne' in instance) {
     const nodeWithFindOne = instance as unknown as { findOne: (callback: (node: SceneNode) => boolean) => SceneNode | null };
     eThumbInstance = nodeWithFindOne.findOne(n => {
       if (n.type !== 'INSTANCE') return false;
@@ -1606,30 +1647,12 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
 export function handleEcomMetaVisibility(context: HandlerContext): void {
   const { container, row, instanceCache } = context;
   
-  console.log(`📦 [EcomMetaVisibility] ВЫЗВАН! container=${!!container}, row=${!!row}, instanceCache=${!!instanceCache}`);
-  
-  if (!container || !row || !instanceCache) {
-    console.log(`📦 [EcomMetaVisibility] Пропуск: нет контекста`);
-    return;
-  }
+  if (!container || !row || !instanceCache) return;
   
   const containerName = 'name' in container ? container.name : '';
-  console.log(`📦 [EcomMetaVisibility] Контейнер: "${containerName}"`);
   
   // Применяется только к ESnippet
-  if (containerName !== 'ESnippet' && containerName !== 'Snippet') {
-    console.log(`📦 [EcomMetaVisibility] Пропуск: контейнер "${containerName}" не ESnippet/Snippet`);
-    return;
-  }
-  
-  // Ищем группу EcomMeta
-  const ecomMeta = instanceCache.groups.get('EcomMeta');
-  console.log(`📦 [EcomMetaVisibility] EcomMeta в кэше: ${ecomMeta ? 'найден' : 'НЕ НАЙДЕН'}`);
-  
-  if (!ecomMeta || ecomMeta.removed) {
-    console.log(`📦 [EcomMetaVisibility] EcomMeta не найден или удалён в "${containerName}"`);
-    return;
-  }
+  if (containerName !== 'ESnippet' && containerName !== 'Snippet') return;
   
   // Поля, которые отвечают за содержимое EcomMeta
   const ecomMetaFields = [
@@ -1647,12 +1670,33 @@ export function handleEcomMetaVisibility(context: HandlerContext): void {
     return value !== undefined && value !== null && value !== '' && value !== 'false';
   });
   
-  console.log(`📦 [EcomMetaVisibility] EcomMeta в "${containerName}": hasData=${hasData}, visible=${ecomMeta.visible}`);
+  // Способ 1: через свойство withEcomMeta на контейнере (новые компоненты)
+  if (container.type === 'INSTANCE' && !container.removed) {
+    const propSet = trySetProperty(
+      container as InstanceNode,
+      ['withEcomMeta'],
+      hasData,
+      '#withEcomMeta'
+    );
+    if (propSet) {
+      Logger.debug(`📦 [EcomMetaVisibility] withEcomMeta=${hasData} via property on "${containerName}"`);
+      return; // Figma управляет видимостью через свойство — ничего больше не нужно
+    }
+  }
+  
+  // Способ 2: fallback — напрямую управляем visible (старые компоненты без withEcomMeta)
+  const ecomMeta = instanceCache.groups.get('EcomMeta');
+  
+  if (!ecomMeta || ecomMeta.removed) {
+    Logger.debug(`📦 [EcomMetaVisibility] EcomMeta не найден или удалён в "${containerName}"`);
+    return;
+  }
+  
+  Logger.debug(`📦 [EcomMetaVisibility] fallback: hasData=${hasData}, visible=${ecomMeta.visible}`);
   
   if (!hasData && ecomMeta.visible) {
-    // Нет данных для EcomMeta → скрываем
     ecomMeta.visible = false;
-    console.log(`📦 [EcomMetaVisibility] Скрыт EcomMeta (нет данных)`);
+    Logger.debug(`📦 [EcomMetaVisibility] Скрыт EcomMeta (нет данных)`);
     
     // Также скрываем всех детей, чтобы handleEmptyGroups потом не показал группу
     for (const child of ecomMeta.children) {
@@ -1661,9 +1705,8 @@ export function handleEcomMetaVisibility(context: HandlerContext): void {
       }
     }
   } else if (hasData && !ecomMeta.visible) {
-    // Есть данные, но группа скрыта → показываем (reprocessing)
     ecomMeta.visible = true;
-    console.log(`📦 [EcomMetaVisibility] Показан EcomMeta (есть данные)`);
+    Logger.debug(`📦 [EcomMetaVisibility] Показан EcomMeta (есть данные)`);
   }
 }
 

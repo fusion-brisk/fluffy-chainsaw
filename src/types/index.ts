@@ -44,3 +44,22 @@ export {
   hasRequiredFields, 
   getMissingRequiredFields 
 } from './validation';
+
+// Wizard types
+export type {
+  WizardSpan,
+  WizardFootnote,
+  WizardHeading,
+  WizardParagraph,
+  WizardListItem,
+  WizardList,
+  WizardImage,
+  WizardVideo,
+  WizardTable,
+  WizardComponent,
+  WizardType,
+  WizardPayload,
+  WizardComponentKeys,
+  MarkdownVariant,
+  WizardProcessingResult
+} from './wizard-types';

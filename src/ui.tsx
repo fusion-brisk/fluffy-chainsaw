@@ -226,11 +226,13 @@ const App: React.FC = () => {
         return;
       }
       
-      // Extract rows from payload
+      // Extract rows from payload (schemaVersion 2: rawRows only)
+      // Backward compatible with v1 (items._rawCSVRow fallback)
       let rows: CSVRow[] = [];
       if (payload.rawRows && payload.rawRows.length > 0) {
         rows = payload.rawRows;
-      } else if (payload.items && payload.items.length > 0) {
+      } else if (payload.schemaVersion < 2 && payload.items && payload.items.length > 0) {
+        // Legacy v1 fallback: extract from items._rawCSVRow
         rows = payload.items
           .map((item: { _rawCSVRow?: CSVRow }) => item._rawCSVRow)
           .filter((row: CSVRow | undefined): row is CSVRow => row !== undefined);
@@ -249,7 +251,8 @@ const App: React.FC = () => {
         }
       }
       
-      console.log(`📦 Получено ${rows.length} элементов из relay: "${query}" (entryId: ${entryId})`);
+      const wizardCount = payload.wizards?.length || 0;
+      console.log(`📦 Получено ${rows.length} сниппетов + ${wizardCount} wizard из relay: "${query}" (entryId: ${entryId})`);
       
       // Mark extension as installed (data received means extension is working)
       if (!extensionInstalled) {
@@ -261,6 +264,7 @@ const App: React.FC = () => {
       relayPayloadRef.current = payload;
       pendingEntryIdRef.current = entryId;
       
+      const totalCount = rows.length + wizardCount;
       setPendingImport({
         rows,
         query: query || 'Импорт данных',
@@ -269,7 +273,7 @@ const App: React.FC = () => {
       });
       setImportInfo({
         query: query || 'Импорт данных',
-        itemCount: rows.length,
+        itemCount: totalCount,
         source: 'Яндекс'
       });
       setAppState('confirming');
@@ -280,7 +284,7 @@ const App: React.FC = () => {
     }
   }, [relayUrl, resizeUI, extensionInstalled]);
   
-  // Acknowledge relay data after successful import
+  // Acknowledge relay data after successful import (with retry)
   const ackRelayData = useCallback(async (entryId: string) => {
     console.log(`✓ [ackRelayData] Подтверждение: ${entryId}`);
     
@@ -288,25 +292,39 @@ const App: React.FC = () => {
     lastProcessedEntryIdRef.current = entryId;
     isAckInProgressRef.current = true;
     
-    try {
-      const response = await fetch(`${relayUrl}/ack`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entryId })
-      });
-      if (response.ok) {
-        console.log(`✓ [ackRelayData] Данные подтверждены и удалены из очереди`);
-        // Clear the lastProcessedEntryId after successful ack
-        // so new entries with different IDs can be shown
-        lastProcessedEntryIdRef.current = null;
-      } else {
+    const ACK_MAX_RETRIES = 3;
+    const ACK_RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
+    
+    for (let attempt = 0; attempt <= ACK_MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`${relayUrl}/ack`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entryId }),
+          signal: AbortSignal.timeout(5000)
+        });
+        if (response.ok) {
+          console.log(`✓ [ackRelayData] Данные подтверждены и удалены из очереди`);
+          lastProcessedEntryIdRef.current = null;
+          isAckInProgressRef.current = false;
+          return; // Success
+        }
         console.error(`✗ [ackRelayData] Ошибка: ${response.status}`);
+      } catch (error) {
+        console.error(`✗ [ackRelayData] Attempt ${attempt + 1} failed:`, error);
       }
-    } catch (error) {
-      console.error('Error acknowledging relay data:', error);
-    } finally {
-      isAckInProgressRef.current = false;
+      
+      // Wait before retry (unless last attempt)
+      if (attempt < ACK_MAX_RETRIES) {
+        const delay = ACK_RETRY_DELAYS[Math.min(attempt, ACK_RETRY_DELAYS.length - 1)];
+        console.log(`✓ [ackRelayData] Retry in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
+    
+    // All retries exhausted
+    console.error(`✗ [ackRelayData] All retries failed for ${entryId}`);
+    isAckInProgressRef.current = false;
   }, [relayUrl]);
 
   // checkRelay returns: 'connected' | 'connected-with-data' | 'disconnected'
@@ -754,6 +772,26 @@ const App: React.FC = () => {
     // Store entryId for acknowledgment after successful import
     if (entryId) {
       pendingEntryIdRef.current = entryId;
+      
+      // Safety timeout: if code.ts never sends 'done' within 30s, ack and warn
+      const safetyEntryId = entryId;
+      const safetyTimeout = window.setTimeout(() => {
+        if (pendingEntryIdRef.current === safetyEntryId) {
+          console.warn(`⏱️ [Safety] Timeout waiting for done, auto-acking ${safetyEntryId}`);
+          pendingEntryIdRef.current = null;
+          ackRelayData(safetyEntryId);
+        }
+      }, 30000);
+      
+      // Check periodically if entryId was already handled (cancel timeout early)
+      const checkInterval = window.setInterval(() => {
+        if (pendingEntryIdRef.current !== safetyEntryId) {
+          clearTimeout(safetyTimeout);
+          clearInterval(checkInterval);
+        }
+      }, 5000);
+      // Ensure interval doesn't outlive the timeout
+      setTimeout(() => clearInterval(checkInterval), 35000);
     }
     
     setLastQuery(query);
@@ -780,8 +818,10 @@ const App: React.FC = () => {
       sendMessageToPlugin({
         type: 'build-page',
         rows,
-        html: htmlForBuild
+        html: htmlForBuild,
+        wizards: fileWizardsRef.current || []
       });
+      fileWizardsRef.current = [];
     } else {
       // Regular import (selection mode or no HTML)
       sendMessageToPlugin({
@@ -793,6 +833,7 @@ const App: React.FC = () => {
     }
     
     fileHtmlRef.current = '';
+    fileWizardsRef.current = [];
     setPendingImport(null);
   }, [pendingImport, resizeUI]);
 
@@ -879,11 +920,13 @@ const App: React.FC = () => {
           
           const payload = data.payload;
           
-          // Extract rows from payload
+          // Extract rows from payload (schemaVersion 2: rawRows only)
+          // Backward compatible with v1 (items._rawCSVRow fallback)
           let rows: CSVRow[] = [];
           if (payload.rawRows && payload.rawRows.length > 0) {
             rows = payload.rawRows;
-          } else if (payload.items && payload.items.length > 0) {
+          } else if (payload.schemaVersion < 2 && payload.items && payload.items.length > 0) {
+            // Legacy v1 fallback: extract from items._rawCSVRow
             rows = payload.items
               .map((item: { _rawCSVRow?: CSVRow }) => item._rawCSVRow)
               .filter((row: CSVRow | undefined): row is CSVRow => row !== undefined);
@@ -940,19 +983,33 @@ const App: React.FC = () => {
 
   // Store file HTML for later use
   const fileHtmlRef = useRef<string>('');
+  const fileWizardsRef = useRef<unknown[]>([]);
 
   // === FILE PROCESSING ===
+  const MAX_FILE_SIZE_MB = 50;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+  
   const handleFileSelect = useCallback(async (files: FileList) => {
     if (!files || files.length === 0) return;
     
     setShowFileDrop(false);
     
     const file = files[0];
-    console.log(`📂 Обработка файла: ${file.name}`);
+    console.log(`📂 Обработка файла: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`);
+    
+    // File size limit
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      console.error(`❌ Файл слишком большой: ${(file.size / 1024 / 1024).toFixed(1)} MB (макс. ${MAX_FILE_SIZE_MB} MB)`);
+      setConfetti({ active: true, type: 'error' });
+      setAppState('ready');
+      resizeUI('ready');
+      return;
+    }
     
     try {
       let rows: CSVRow[] = [];
       let htmlForBuild = '';
+      let fileWizards: unknown[] = [];
       
       if (file.name.endsWith('.mhtml') || file.name.endsWith('.mht')) {
         const text = await file.text();
@@ -966,6 +1023,7 @@ const App: React.FC = () => {
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
+        fileWizards = result.wizards || [];
       } else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) {
         const text = await file.text();
         htmlForBuild = text;
@@ -974,6 +1032,7 @@ const App: React.FC = () => {
         if (result.error) throw new Error(result.error);
         
         rows = result.rows;
+        fileWizards = result.wizards || [];
       } else {
         throw new Error('Поддерживаются только HTML и MHTML файлы');
       }
@@ -987,8 +1046,9 @@ const App: React.FC = () => {
       
       console.log(`📋 Найдено ${rows.length} результатов`);
       
-      // Store HTML and show confirmation dialog
+      // Store HTML and wizards, show confirmation dialog
       fileHtmlRef.current = htmlForBuild;
+      fileWizardsRef.current = fileWizards;
       setPendingImport({
         rows,
         query,

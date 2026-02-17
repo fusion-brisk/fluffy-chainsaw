@@ -19,7 +19,7 @@ import {
   findFirstTextValue,
   safeSetTextNode
 } from '../utils/node-search';
-import { getCachedInstance } from '../utils/instance-cache';
+import { getCachedInstance, getCachedInstanceByNames } from '../utils/instance-cache';
 import { HandlerContext } from './types';
 
 /**
@@ -164,6 +164,15 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
     return;
   }
   
+  // === Устанавливаем видимость child-слотов через свойства (новые компоненты) ===
+  const childSlotNames = ['first-child', 'second-child', 'third-child'];
+  for (let i = 0; i < 3; i++) {
+    const itemValue = row[`#EDeliveryGroup-Item-${i + 1}`];
+    const hasItem = !!(itemValue && String(itemValue).trim() !== '' && (i + 1) <= itemCount);
+    trySetProperty(deliveryGroupInstance, [childSlotNames[i]], hasItem, `#EDeliveryGroup-slot-${i + 1}`);
+  }
+  Logger.debug(`🚚 [EDeliveryGroup] child slots set: count=${itemCount}`);
+
   // Заполняем items доставки
   const itemLayers = findAllNodesByName(deliveryGroupInstance, '#EDeliveryGroup-Item');
   const lineNodes = itemLayers.length === 0 ? findAllNodesByName(deliveryGroupInstance, 'Line') : [];
@@ -288,7 +297,7 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
  * ShopInfo-Bnpl — управление через withFintech на контейнере
  */
 export async function handleShopInfoBnpl(context: HandlerContext): Promise<void> {
-  const { container, row } = context;
+  const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
   const containerName = (container && 'name' in container) ? String(container.name) : '';
@@ -319,19 +328,14 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
   // Если нет финтеха — не настраиваем типы
   if (!hasFintech) return;
 
-  // Ищем BNPL root
-  const bnplRoot =
+  // Ищем BNPL root — ОПТИМИЗИРОВАНО: используем instanceCache вместо deep traversal
+  const bnplRoot: SceneNode | null =
+    getCachedInstanceByNames(instanceCache!, ['#ShopInfo-Bnpl', 'ShopInfo-Bnpl', 'Line / EBnpl Group']) ||
+    getCachedInstance(instanceCache!, 'EBnpl') ||
+    // Fallback на deep traversal только если кэш не помог
     (findAllNodesByName(container, '#ShopInfo-Bnpl')[0] as SceneNode | undefined) ||
     (findAllNodesByName(container, 'ShopInfo-Bnpl')[0] as SceneNode | undefined) ||
-    (findAllNodesByName(container, 'Line / EBnpl Group')[0] as SceneNode | undefined) ||
-    ((): SceneNode | undefined => {
-      const hits = findAllNodesByNameContains(container, 'EBnpl');
-      for (let i = 0; i < hits.length; i++) {
-        const n = hits[i];
-        if (n && !n.removed && (n.type === 'INSTANCE' || n.type === 'FRAME' || n.type === 'GROUP')) return n;
-      }
-      return hits && hits.length ? hits[0] : undefined;
-    })();
+    null;
 
   if (!bnplRoot) {
     Logger.debug(`🧾 [ShopInfo-Bnpl] BNPL root не найден`);
@@ -349,6 +353,16 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
   if (desiredTypes.length === 0) {
     Logger.debug(`🧾 [ShopInfo-Bnpl] Не удалось распознать типы`);
     return;
+  }
+
+  // === Устанавливаем видимость child-слотов через свойства (новые компоненты) ===
+  if (bnplRoot.type === 'INSTANCE' && !bnplRoot.removed) {
+    const childSlotNames = ['first-child', 'second-child', 'third-child'];
+    for (let i = 0; i < 3; i++) {
+      const hasItem = i < desiredTypes.length;
+      trySetProperty(bnplRoot as InstanceNode, [childSlotNames[i]], hasItem, `#Bnpl-slot-${i + 1}`);
+    }
+    Logger.debug(`🧾 [ShopInfo-Bnpl] child slots set: desiredTypes=${desiredTypes.length}`);
   }
 
   // Находим BNPL items и устанавливаем типы

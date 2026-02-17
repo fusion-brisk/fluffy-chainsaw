@@ -46,8 +46,29 @@ async function checkRelay(url) {
   }
 }
 
+// Load cached parsing rules (shared with plugin)
+async function loadCachedRules() {
+  try {
+    const cached = await chrome.storage.local.get('parsingRulesCache');
+    if (cached.parsingRulesCache?.rules) {
+      return cached.parsingRulesCache.rules;
+    }
+  } catch { /* no cached rules */ }
+  return null;
+}
+
 // Parse page data
 async function parsePageData(tabId) {
+  // Inject shared parsing rules before content script
+  const rules = await loadCachedRules();
+  if (rules) {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (r) => { window.__contentifyParsingRules = r; },
+      args: [rules]
+    });
+  }
+  
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     files: ['content.js']
@@ -55,25 +76,13 @@ async function parsePageData(tabId) {
   return results[0]?.result;
 }
 
-// Transform rows for relay
-function transformRowsForRelay(rows) {
+// Build human-readable summary for clipboard (debug-friendly, no raw data)
+function buildItemsSummary(rows) {
   return rows.map(row => ({
     title: row['#OrganicTitle'] || '',
     priceText: row['#OrganicPrice'] ? `${row['#OrganicPrice']} ${row['#Currency'] || '₽'}` : '',
-    href: row['#ProductURL'] || '',
-    imageUrl: row['#OrganicImage'] || '',
     shopName: row['#ShopName'] || '',
-    domain: row['#OrganicHost'] || '',
-    faviconUrl: row['#FaviconImage'] || '',
-    productRating: row['#ProductRating'] || '',
-    shopRating: row['#ShopInfo-Ugc'] || row['#ShopRating'] || '',
-    currentPrice: row['#OrganicPrice'] || '',
-    oldPrice: row['#OldPrice'] || '',
-    discountPercent: row['#DiscountPercent'] || '',
-    discount: row['#discount'] || '',
-    currency: row['#Currency'] || '₽',
-    snippetType: row['#SnippetType'] || 'Organic',
-    _rawCSVRow: row
+    snippetType: row['#SnippetType'] || 'Organic'
   }));
 }
 
@@ -144,28 +153,35 @@ async function handleClick() {
     }
     
     const rows = parseResult.rows;
+    const wizards = parseResult.wizards || [];
     
     // Build payload
-    setState('loading', `${rows.length} элементов...`, '');
+    const totalItems = rows.length + wizards.length;
+    setState('loading', `${totalItems} элементов...`, '');
     
     const payload = {
-      schemaVersion: 1,
+      schemaVersion: 3,
       source: { url: tab.url, title: tab.title },
       capturedAt: new Date().toISOString(),
-      items: transformRowsForRelay(rows),
-      rawRows: rows
+      rawRows: rows,
+      wizards: wizards
     };
     
     const meta = { 
       url: tab.url, 
       parsedAt: new Date().toISOString(), 
-      snippetCount: rows.length 
+      snippetCount: rows.length,
+      wizardCount: wizards.length
     };
     
     // Always copy to clipboard first (clipboard-first architecture)
+    // Clipboard payload includes human-readable items summary for debug
     const clipboardData = JSON.stringify({
       type: 'contentify-paste',
-      payload,
+      payload: {
+        ...payload,
+        items: buildItemsSummary(rows) // Debug-only summary, no _rawCSVRow
+      },
       meta
     });
     
@@ -197,10 +213,11 @@ async function handleClick() {
     }
     
     // Success!
+    const wizardSuffix = wizards.length > 0 ? ` + ${wizards.length} wizard` : '';
     if (relaySuccess) {
-      setState('success', `${rows.length} → Figma`, 'Автоматически!');
+      setState('success', `${rows.length}${wizardSuffix} → Figma`, 'Автоматически!');
     } else {
-      setState('copied', `${rows.length} скопировано`, 'Вставьте в Figma (⌘V)');
+      setState('copied', `${rows.length}${wizardSuffix} скопировано`, 'Вставьте в Figma (⌘V)');
     }
     
     // Close popup after short delay

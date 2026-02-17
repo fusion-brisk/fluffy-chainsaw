@@ -305,6 +305,12 @@ export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = 
       'ACTION ICON#22448:0': false,
     },
   },
+  
+  'FuturisSearch': {
+    key: '', // Wizard-блок создаётся программно через wizard-processor
+    name: 'FuturisSearch',
+    defaultVariant: {},
+  },
 };
 
 /**

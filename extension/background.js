@@ -137,25 +137,13 @@ async function getRelayUrl() {
   return relayUrl || DEFAULT_RELAY_URL;
 }
 
-// Transform rows for relay
-function transformRowsForRelay(rows) {
+// Build human-readable summary for clipboard (debug-friendly, no raw data)
+function buildItemsSummary(rows) {
   return rows.map(row => ({
     title: row['#OrganicTitle'] || '',
     priceText: row['#OrganicPrice'] ? `${row['#OrganicPrice']} ${row['#Currency'] || '₽'}` : '',
-    href: row['#ProductURL'] || '',
-    imageUrl: row['#OrganicImage'] || '',
     shopName: row['#ShopName'] || '',
-    domain: row['#OrganicHost'] || '',
-    faviconUrl: row['#FaviconImage'] || '',
-    productRating: row['#ProductRating'] || '',
-    shopRating: row['#ShopInfo-Ugc'] || row['#ShopRating'] || '',
-    currentPrice: row['#OrganicPrice'] || '',
-    oldPrice: row['#OldPrice'] || '',
-    discountPercent: row['#DiscountPercent'] || '',
-    discount: row['#discount'] || '',
-    currency: row['#Currency'] || '₽',
-    snippetType: row['#SnippetType'] || 'Organic',
-    _rawCSVRow: row
+    snippetType: row['#SnippetType'] || 'Organic'
   }));
 }
 
@@ -396,7 +384,19 @@ async function handleIconClick(tab) {
   let parseResult = null;
   
   try {
-    // Parse page using content script (don't wait for relay)
+    // Load shared parsing rules (cached, non-blocking)
+    const rules = await loadParsingRules();
+    
+    // Inject parsing rules into page before content script
+    if (rules) {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (r) => { window.__contentifyParsingRules = r; },
+        args: [rules]
+      });
+    }
+    
+    // Parse page using content script
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['content.js']
@@ -411,26 +411,32 @@ async function handleIconClick(tab) {
     }
     
     const rows = parseResult.rows;
+    const wizards = parseResult.wizards || [];
     
-    // Build payload
+    // Build payload (schemaVersion 3: rawRows + wizards)
     const payload = {
-      schemaVersion: 1,
+      schemaVersion: 3,
       source: { url: tab.url, title: tab.title },
       capturedAt: new Date().toISOString(),
-      items: transformRowsForRelay(rows),
-      rawRows: rows
+      rawRows: rows,
+      wizards: wizards
     };
     
     const meta = { 
       url: tab.url, 
       parsedAt: new Date().toISOString(), 
-      snippetCount: rows.length 
+      snippetCount: rows.length,
+      wizardCount: wizards.length
     };
     
     // ALWAYS copy to clipboard first (clipboard-first architecture)
+    // Clipboard payload includes human-readable items summary for debug
     const clipboardData = JSON.stringify({
       type: 'contentify-paste',
-      payload,
+      payload: {
+        ...payload,
+        items: buildItemsSummary(rows) // Debug-only summary, no _rawCSVRow
+      },
       meta
     });
     
@@ -536,12 +542,59 @@ function updateIconForTab(tab) {
   }
 }
 
+// === Parsing Rules (shared with plugin) ===
+
+const PARSING_RULES_URL = 'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json';
+const RULES_CACHE_KEY = 'parsingRulesCache';
+const RULES_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Загружает parsing rules из кэша или удалённого конфига
+ * Используется для синхронизации селекторов между extension и plugin
+ */
+async function loadParsingRules() {
+  try {
+    // Try cache first
+    const cached = await chrome.storage.local.get(RULES_CACHE_KEY);
+    if (cached[RULES_CACHE_KEY]) {
+      const { rules, fetchedAt } = cached[RULES_CACHE_KEY];
+      if (Date.now() - fetchedAt < RULES_CACHE_TTL && rules?.version) {
+        console.log(`[Rules] Using cached rules v${rules.version}`);
+        return rules;
+      }
+    }
+  } catch { /* cache miss */ }
+
+  // Fetch remote
+  try {
+    const res = await fetch(PARSING_RULES_URL, { signal: AbortSignal.timeout(5000) });
+    if (res.ok) {
+      const rules = await res.json();
+      if (rules?.version && rules?.rules) {
+        await chrome.storage.local.set({
+          [RULES_CACHE_KEY]: { rules, fetchedAt: Date.now() }
+        });
+        console.log(`[Rules] Fetched remote rules v${rules.version}`);
+        return rules;
+      }
+    }
+  } catch (e) {
+    console.log('[Rules] Remote fetch failed:', e.message);
+  }
+
+  // Return null — content.js will use its hardcoded selectors
+  return null;
+}
+
 // === Startup ===
 
 // При загрузке Service Worker — пробуем подключиться к Native Host
 // Это запустит relay автоматически, если host установлен
 (async () => {
   console.log('[Contentify] Background service worker loaded');
+  
+  // Загружаем parsing rules в фоне
+  loadParsingRules().catch(e => console.log('[Rules] Background load failed:', e));
   
   // Пробуем Native Host в фоне (не блокируя)
   const connected = await connectToNativeHost();

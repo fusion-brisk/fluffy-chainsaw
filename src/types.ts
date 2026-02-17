@@ -122,7 +122,7 @@ export type UIMessage =
   | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string; resetBeforeImport?: boolean }
   | { type: 'cancel-import' }  // Cancel current import operation
   // === BUILD PAGE ===
-  | { type: 'build-page'; rows: CSVRow[]; html: string }  // Create new page from HTML structure
+  | { type: 'build-page'; rows: CSVRow[]; html: string; wizards?: unknown[] }  // Create new page from HTML structure
   // === BROWSER RELAY ===
   | { type: 'apply-relay-payload'; payload: RelayPayload }  // Apply data from browser extension via relay
   // === RESET ===

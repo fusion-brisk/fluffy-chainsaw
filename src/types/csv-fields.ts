@@ -87,6 +87,18 @@ export interface CSVFields {
   '#EPriceGroup_OldPrice'?: 'true' | 'false';
   /** Включен ли Fintech */
   '#EPriceGroup_Fintech'?: 'true' | 'false';
+  /** Размер EPriceGroup (m, l, L2) */
+  '#EPriceGroup_Size'?: string;
+  /** Есть ли барометр в EPriceGroup (из BEM-класса EPriceGroup_withBarometer) */
+  '#EPriceGroup_Barometer'?: 'true' | 'false';
+  /** Есть ли дисклеймер цены ("Цена, доставка от Маркета") */
+  '#PriceDisclaimer'?: 'true' | 'false';
+  /** Есть ли кэшбек Plus */
+  '#PlusCashback'?: 'true' | 'false';
+  /** Есть ли расчёт ([EXP] Calculation) */
+  '#ExpCalculation'?: 'true' | 'false';
+  /** Combining Elements variant (None, Discount, etc.) */
+  '#CombiningElements'?: string;
   
   // === EPrice ===
   /** View EPrice (default/special) */
@@ -203,6 +215,74 @@ export interface CSVFields {
   '#AdvLabel'?: string;
   /** Тип верификации (goods, etc.) */
   '#VerifiedType'?: string;
+  /** Сайт прошёл верификацию */
+  '#isVerified'?: 'true' | 'false';
+  
+  // === Валюта ===
+  /** Символ валюты (₽, $, €) */
+  '#Currency'?: string;
+  
+  // === Изображения (доп.) ===
+  /** Тип изображения (EThumb, EThumbGroup) */
+  '#imageType'?: string;
+  /** Количество картинок в EThumbGroup */
+  '#ThumbGroupCount'?: string;
+  /** Есть ли цитата из отзывов */
+  '#withQuotes'?: 'true' | 'false';
+  /** Есть ли цена (для Organic_Adv) */
+  '#withPrice'?: 'true' | 'false';
+  
+  // === Каталожные страницы ===
+  /** Это страница каталога (без цены) */
+  '#isCatalogPage'?: 'true' | 'false';
+  /** Целевой тип сниппета для каталожных страниц */
+  '#TargetSnippetType'?: string;
+  /** Скрыть блок цены (каталожные страницы) */
+  '#hidePriceBlock'?: 'true' | 'false';
+  
+  // === Доставка (доп.) ===
+  /** Количество вариантов доставки */
+  '#EDeliveryGroup-Count'?: string;
+  /** Вариант доставки 1 */
+  '#EDeliveryGroup-Item-1'?: string;
+  /** Вариант доставки 2 */
+  '#EDeliveryGroup-Item-2'?: string;
+  /** Вариант доставки 3 */
+  '#EDeliveryGroup-Item-3'?: string;
+  /** Доставка из-за границы */
+  '#EDelivery_abroad'?: 'true' | 'false';
+  
+  // === BNPL (доп.) ===
+  /** Количество BNPL опций (EBnpl) */
+  '#EBnpl-Count'?: string;
+  /** BNPL опция 1 */
+  '#EBnpl-Item-1'?: string;
+  /** BNPL опция 2 */
+  '#EBnpl-Item-2'?: string;
+  /** BNPL опция 3 */
+  '#EBnpl-Item-3'?: string;
+  /** ShopInfo-Bnpl (Organic/ESnippet BNPL) */
+  '#ShopInfo-Bnpl'?: 'true' | 'false';
+  /** Количество ShopInfo-Bnpl опций */
+  '#ShopInfo-Bnpl-Count'?: string;
+  /** ShopInfo-Bnpl опция 1 */
+  '#ShopInfo-Bnpl-Item-1'?: string;
+  /** ShopInfo-Bnpl опция 2 */
+  '#ShopInfo-Bnpl-Item-2'?: string;
+  /** ShopInfo-Bnpl опция 3 */
+  '#ShopInfo-Bnpl-Item-3'?: string;
+  
+  // === Адрес ===
+  /** Есть ли офлайн адрес магазина */
+  '#hasShopOfflineRegion'?: 'true' | 'false';
+  /** Текст адреса (город, метро) */
+  '#addressText'?: string;
+  /** Ссылка адреса (текст) */
+  '#addressLink'?: string;
+  
+  // === InfoIcon ===
+  /** Наличие иконки "Инфо" в Fintech */
+  '#InfoIcon'?: 'true' | 'false';
 }
 
 /**
@@ -257,12 +337,17 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#EPriceGroup_Discount',
   '#EPriceGroup_OldPrice',
   '#EPriceGroup_Fintech',
+  '#EPriceGroup_Barometer',
+  '#PriceDisclaimer',
+  '#PlusCashback',
+  '#ExpCalculation',
   '#ELabelGroup_Barometer',
   '#EPriceBarometer_isCompact',
   '#BUTTON',
   '#EButton_visible',
   '#EMarketCheckoutLabel',
   '#EDeliveryGroup',
+  '#EDelivery_abroad',
   '#EBnpl',
   '#EOfferItem_defaultOffer',
   '#EOfferItem_hasButton',
@@ -270,8 +355,16 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#EOfferItem_hasDelivery',
   '#isPromo',
   '#isAdv',
+  '#isVerified',
   '#Sitelinks',
-  '#withPromo'
+  '#withPromo',
+  '#withQuotes',
+  '#withPrice',
+  '#isCatalogPage',
+  '#hidePriceBlock',
+  '#ShopInfo-Bnpl',
+  '#hasShopOfflineRegion',
+  '#InfoIcon'
 ];
 
 /**

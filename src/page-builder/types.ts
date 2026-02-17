@@ -5,6 +5,7 @@
  */
 
 import { CSVRow } from '../types';
+import type { WizardPayload } from '../types/wizard-types';
 
 // ============================================================================
 // COMPONENT CONFIGURATION
@@ -86,7 +87,8 @@ export type LayoutElementType =
   | 'Pager'            // Пагинация
   | 'Related'          // Похожие запросы / Вместе с этим ищут
   | 'EQuickFilters'    // Панель быстрых фильтров
-  | 'Title';           // Заголовок секции (для ProductsTiles и т.д.)
+  | 'Title'            // Заголовок секции (для ProductsTiles и т.д.)
+  | 'FuturisSearch';   // Ответ Алисы (wizard-блок)
 
 /**
  * Типы контейнеров (Auto Layout фреймы для группировки)
@@ -128,6 +130,8 @@ export interface StructureNode {
   children?: StructureNode[];
   /** Порядок в родителе */
   order: number;
+  /** Данные wizard-блока (для type === 'FuturisSearch') */
+  wizardData?: WizardPayload;
 }
 
 /**

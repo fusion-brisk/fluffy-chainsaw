@@ -13,6 +13,7 @@ import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from './parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
 import { createSerpPage, detectPlatformFromHtml } from './page-builder';
+import type { WizardPayload } from './types/wizard-types';
 
 console.log('🚀 Плагин Contentify загружен');
 
@@ -119,47 +120,37 @@ figma.ui.onmessage = async (msg) => {
         schemaVersion: number;
         source: { url: string; title: string };
         capturedAt: string;
-        items: Array<{ title?: string; priceText?: string; imageUrl?: string; href?: string; _rawCSVRow?: CSVRow }>;
+        items?: Array<{ title?: string; priceText?: string; imageUrl?: string; href?: string; _rawCSVRow?: CSVRow }>;
         rawRows?: CSVRow[];
+        wizards?: WizardPayload[];
         _isMockData?: boolean;
       };
       
-      Logger.info(`📦 Получен payload от браузерного расширения`);
+      const wizardCount = payload.wizards?.length || 0;
+      Logger.info(`📦 Получен payload от браузерного расширения (schema v${payload.schemaVersion || 1})`);
       Logger.info(`   Источник: ${payload.source?.url || 'unknown'}`);
-      Logger.info(`   Элементов: ${payload.items?.length || 0}`);
+      Logger.info(`   Сниппетов: ${payload.rawRows?.length || payload.items?.length || 0}, Wizard-блоков: ${wizardCount}`);
       
       if (payload._isMockData) {
         Logger.info('   ⚠️ Это тестовые данные (mock)');
       }
       
       try {
-        // Получаем CSVRow данные — приоритет rawRows, иначе извлекаем из items._rawCSVRow
+        // SchemaVersion 2+: rawRows is the single source of truth
+        // Backward compatible with v1 (items._rawCSVRow fallback)
         let rows: CSVRow[] = [];
         
         if (payload.rawRows && payload.rawRows.length > 0) {
           rows = payload.rawRows;
           Logger.info(`   Используем rawRows: ${rows.length} CSVRow`);
-        } else if (payload.items && payload.items.length > 0) {
-          // Извлекаем из _rawCSVRow каждого item
+        } else if ((payload.schemaVersion || 1) < 2 && payload.items && payload.items.length > 0) {
+          // Legacy v1 fallback: extract from items._rawCSVRow
           rows = payload.items
             .map(item => item._rawCSVRow)
             .filter((row): row is CSVRow => row !== undefined && row !== null);
           
           if (rows.length > 0) {
-            Logger.info(`   Извлечено из items._rawCSVRow: ${rows.length} CSVRow`);
-          } else {
-            // Fallback: конвертируем items в базовый CSVRow формат
-            Logger.info('   Конвертируем items в CSVRow формат');
-            rows = payload.items.map(item => ({
-              '#SnippetType': 'Organic',
-              '#OrganicTitle': item.title || '',
-              '#OrganicPrice': (item.priceText || '').replace(/[^\d]/g, ''),
-              '#Currency': '₽',
-              '#ProductURL': item.href || '',
-              '#OrganicImage': item.imageUrl || '',
-              '#ShopName': '',
-              '#OrganicHost': ''
-            } as CSVRow));
+            Logger.info(`   [v1 compat] Извлечено из items._rawCSVRow: ${rows.length} CSVRow`);
           }
         }
         
@@ -176,7 +167,8 @@ figma.ui.onmessage = async (msg) => {
           } catch (e) {}
         }
         
-        Logger.info(`🏗️ Создаём SERP страницу: ${rows.length} сниппетов, query="${query}"`);
+        const wizards = payload.wizards || [];
+        Logger.info(`🏗️ Создаём SERP страницу: ${rows.length} сниппетов + ${wizards.length} wizard, query="${query}"`);
         
         // Отправляем progress: начало
         figma.ui.postMessage({ 
@@ -198,7 +190,8 @@ figma.ui.onmessage = async (msg) => {
           platform,
           contentLeftWidth: platform === 'desktop' ? 792 : undefined,
           contentGap: 0,
-          leftPadding: platform === 'desktop' ? 100 : 0
+          leftPadding: platform === 'desktop' ? 100 : 0,
+          wizards
         });
         
         // Отправляем progress: завершение
@@ -249,11 +242,12 @@ figma.ui.onmessage = async (msg) => {
       const rows = (msg.rows || []) as CSVRow[];
       const query = msg.query as string | undefined;
       const htmlContent = (msg.html || '') as string;
+      const buildWizards = (msg.wizards || []) as WizardPayload[];
       
       // Автоопределение платформы из HTML
       const platform = detectPlatformFromHtml(htmlContent);
       
-      Logger.info(`🏗️ Начинаем создание SERP страницы из ${rows.length} элементов (platform=${platform})`);
+      Logger.info(`🏗️ Начинаем создание SERP страницы из ${rows.length} элементов + ${buildWizards.length} wizard (platform=${platform})`);
       
       try {
         const result = await createSerpPage(rows, {
@@ -262,6 +256,7 @@ figma.ui.onmessage = async (msg) => {
           contentLeftWidth: platform === 'desktop' ? 792 : undefined,
           contentGap: 0,
           leftPadding: platform === 'desktop' ? 100 : 0,
+          wizards: buildWizards
         });
         
         if (result.success) {

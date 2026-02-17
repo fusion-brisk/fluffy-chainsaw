@@ -35,6 +35,8 @@ import {
 import { parsePageStructure } from './structure-parser';
 import { buildPageStructure, sortContentNodes } from './structure-builder';
 import { StructureNode, ContainerType, SerpPageStructure, ContainerConfig } from './types';
+import { renderWizards } from '../plugin/wizard-processor';
+import type { WizardPayload } from '../types/wizard-types';
 
 /**
  * Дефолтные настройки создания страницы
@@ -1553,6 +1555,7 @@ export async function createSerpPage(
     contentLeftWidth?: number;
     contentGap?: number;
     leftPadding?: number;
+    wizards?: import('../types/wizard-types').WizardPayload[];
   } = {}
 ): Promise<PageCreationResult> {
   const startTime = Date.now();
@@ -1565,11 +1568,12 @@ export async function createSerpPage(
   const contentLeftWidth = options.contentLeftWidth || 792;
   const contentGap = options.contentGap ?? 0;
   const leftPadding = isTouch ? 0 : (options.leftPadding || 100);
+  const wizards = options.wizards || [];
   
   // Размеры для разных платформ
   const pageWidth = isTouch ? 393 : 1440;
   
-  Logger.info(`[PageCreator] Создание SERP страницы: "${query}", ${rows.length} сниппетов, platform=${platform}`);
+  Logger.info(`[PageCreator] Создание SERP страницы: "${query}", ${rows.length} сниппетов + ${wizards.length} wizard, platform=${platform}`);
   
   // === 0. Построение структуры из rows ===
   const structure = buildPageStructure(rows, { query, platform });
@@ -1751,6 +1755,8 @@ export async function createSerpPage(
   }
   
   // === 7. Рендерим структуру ===
+  let wizardsRendered = false;
+  
   for (const node of sortedNodes) {
     const result = await renderStructureNode(node, platform, errors, undefined, String(query));
     
@@ -1772,6 +1778,50 @@ export async function createSerpPage(
       }
       
       createdCount += result.count;
+    }
+    
+    // Вставляем wizard-блоки ПОСЛЕ EQuickFilters (перед первым контейнером сниппетов)
+    if (!wizardsRendered && node.type === 'EQuickFilters' && wizards.length > 0) {
+      wizardsRendered = true;
+      try {
+        const wizardResult = await renderWizards(wizards);
+        for (const wizFrame of wizardResult.frames) {
+          snippetsContainer.appendChild(wizFrame);
+          wizFrame.layoutSizingHorizontal = 'FILL';
+          createdCount++;
+        }
+        if (wizardResult.errors.length > 0) {
+          for (const err of wizardResult.errors) {
+            errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: err });
+          }
+        }
+        Logger.info(`[PageCreator] Wizard: ${wizardResult.wizardCount} блоков, ${wizardResult.componentCount} компонентов`);
+      } catch (e) {
+        errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: String(e) });
+        Logger.error(`[PageCreator] Ошибка рендеринга wizard: ${e}`);
+      }
+    }
+  }
+  
+  // Если нет EQuickFilters, рендерим wizard-блоки в начале snippetsContainer
+  if (!wizardsRendered && wizards.length > 0) {
+    try {
+      const wizardResult = await renderWizards(wizards);
+      // Вставляем в начало
+      const firstChild = snippetsContainer.children[0] || null;
+      for (const wizFrame of wizardResult.frames) {
+        if (firstChild) {
+          // insertBefore не поддерживается в Figma API, используем порядок
+          snippetsContainer.insertChild(0, wizFrame);
+        } else {
+          snippetsContainer.appendChild(wizFrame);
+        }
+        wizFrame.layoutSizingHorizontal = 'FILL';
+        createdCount++;
+      }
+      Logger.info(`[PageCreator] Wizard (fallback position): ${wizardResult.wizardCount} блоков`);
+    } catch (e) {
+      errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: String(e) });
     }
   }
   

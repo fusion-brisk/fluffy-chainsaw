@@ -1,13 +1,14 @@
 /**
  * Обработчики цен и скидок
- * - handleEPriceGroup — EPriceGroup (все boolean пропсы)
- * - handleEPriceView — EPrice view (special, default)
+ * - handleEPriceGroup — EPriceGroup (все свойства: boolean, variant, nested instances)
  * - handleLabelDiscountView — LabelDiscount view и текст
- * - handleInfoIcon — DEPRECATED: InfoIcon управляется через withFintech
  * 
- * Все visibility теперь через свойства EPriceGroup:
- * withBarometer, withDisclaimer, withLabelDiscount, withPriceOld, withFintech, 
- * expCalculation, plusCashback
+ * Все visibility и variant props через свойства инстанса EPriceGroup:
+ * size, Combining Elements, withBarometer, withDisclaimer, withLabelDiscount,
+ * withPriceOld, withFintech, [EXP] Calculation, Plus Cashback
+ * 
+ * Nested instances (EPrice, Fintech, LabelDiscount, EPriceBarometer)
+ * настраиваются внутри handleEPriceGroup.
  */
 
 import { COMPONENT_CONFIG } from '../config';
@@ -21,29 +22,46 @@ import {
 import { HandlerContext } from './types';
 
 /**
- * Обработка EPriceGroup — основной обработчик цен
- * Все visibility управляются через boolean свойства EPriceGroup
+ * Обработка EPriceGroup — единственный обработчик цен
+ * 
+ * Управляет:
+ * 1. Variant props: size, Combining Elements
+ * 2. Boolean props: withLabelDiscount, withPriceOld, withFintech, withBarometer,
+ *    withDisclaimer, Plus Cashback, [EXP] Calculation
+ * 3. Nested instances: EPrice (value + view), Fintech (type + view)
  */
 export async function handleEPriceGroup(context: HandlerContext): Promise<void> {
   const { container, row, instanceCache } = context;
-  
-  console.log(`🔵 [EPriceGroup] Handler вызван, container=${container ? 'есть' : 'null'}, row=${row ? 'есть' : 'null'}`);
   
   if (!container || !row) return;
 
   const containerName = (container && 'name' in container) ? String(container.name) : 'unknown';
   const config = COMPONENT_CONFIG.EPriceGroup;
   
-  console.log(`🔵 [EPriceGroup] Контейнер: "${containerName}", ищем EPriceGroup...`);
-  
   const ePriceGroupInstance = getCachedInstance(instanceCache!, config.name);
   
   if (!ePriceGroupInstance) {
-    console.log(`🔵 [EPriceGroup] ❌ Не найден в "${containerName}"`);
+    Logger.debug(`[EPriceGroup] ❌ Не найден в "${containerName}"`);
     return;
   }
   
-  console.log(`🔵 [EPriceGroup] ✅ Найден в "${containerName}"`);
+  Logger.debug(`[EPriceGroup] ✅ Найден в "${containerName}"`);
+  
+  // === Variant свойства EPriceGroup ===
+  
+  // size — размер (m, l, L2)
+  const size = row['#EPriceGroup_Size'];
+  if (size) {
+    trySetProperty(ePriceGroupInstance, ['size'], size, '#EPriceGroup_Size');
+    Logger.debug(`💰 [EPriceGroup] size=${size}`);
+  }
+  
+  // Combining Elements — комбинация элементов (None, Discount, etc.)
+  const combiningElements = row['#CombiningElements'];
+  if (combiningElements) {
+    trySetProperty(ePriceGroupInstance, ['Combining Elements', 'combiningElements'], combiningElements, '#CombiningElements');
+    Logger.debug(`💰 [EPriceGroup] combiningElements=${combiningElements}`);
+  }
   
   // === Boolean свойства EPriceGroup ===
   
@@ -60,18 +78,15 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   trySetProperty(ePriceGroupInstance, ['withFintech'], hasFintech, '#EPriceGroup_Fintech');
   
   // withBarometer — показать индикатор барометра в EPriceGroup
+  // Приоритет: 1) #EPriceGroup_Barometer (из BEM-класса), 2) #ELabelGroup_Barometer (fallback)
   // ВАЖНО: Для EProductSnippet/EProductSnippet2 барометр в EPriceGroup ВСЕГДА выключен!
   // (барометр показывается поверх картинки, а не в EPriceGroup)
   const isProductSnippet = containerName === 'EProductSnippet' || containerName === 'EProductSnippet2';
   
   let hasBarometer = false;
   if (!isProductSnippet) {
-    // Для других сниппетов — по данным
-    const barometerFlag = row['#ELabelGroup_Barometer'] || '';
-    hasBarometer = barometerFlag === 'true';
+    hasBarometer = row['#EPriceGroup_Barometer'] === 'true' || row['#ELabelGroup_Barometer'] === 'true';
   }
-  
-  console.log(`🔴 [EPriceGroup] Barometer: container="${containerName}", isProductSnippet=${isProductSnippet} → hasBarometer=${hasBarometer}`);
   
   trySetProperty(ePriceGroupInstance, ['withBarometer'], hasBarometer, '#withBarometer');
   
@@ -79,35 +94,56 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   const hasDisclaimer = row['#PriceDisclaimer'] === 'true';
   trySetProperty(ePriceGroupInstance, ['withDisclaimer'], hasDisclaimer, '#PriceDisclaimer');
   
-  // plusCashback — кэшбек Plus
+  // Plus Cashback — кэшбек Plus
   const hasPlusCashback = row['#PlusCashback'] === 'true';
-  trySetProperty(ePriceGroupInstance, ['plusCashback'], hasPlusCashback, '#PlusCashback');
+  trySetProperty(ePriceGroupInstance, ['Plus Cashback', 'plusCashback'], hasPlusCashback, '#PlusCashback');
   
-  // expCalculation — расчёт (4 × 10 000 ₽)
-  // ВАЖНО: В Figma свойство называется "[EXP] Calculation" с пробелами и скобками
+  // [EXP] Calculation — расчёт (4 × 10 000 ₽)
   const hasExpCalculation = row['#ExpCalculation'] === 'true';
   trySetProperty(ePriceGroupInstance, ['[EXP] Calculation', 'expCalculation'], hasExpCalculation, '#ExpCalculation');
   
-  Logger.debug(`💰 [EPriceGroup] Пропсы: withLabelDiscount=${hasDiscount}, withPriceOld=${hasOldPrice}, withFintech=${hasFintech}, withBarometer=${hasBarometer}, withDisclaimer=${hasDisclaimer}`);
-  Logger.debug(`💰 [EPriceGroup] Данные: #OrganicPrice="${row['#OrganicPrice'] || ''}", #OldPrice="${row['#OldPrice'] || ''}", #discount="${row['#discount'] || ''}"`);
+  Logger.debug(`💰 [EPriceGroup] Пропсы: size=${size || 'default'}, withLabelDiscount=${hasDiscount}, withPriceOld=${hasOldPrice}, withFintech=${hasFintech}, withBarometer=${hasBarometer}, withDisclaimer=${hasDisclaimer}, plusCashback=${hasPlusCashback}`);
   
-  // === Заполняем текстовые значения ===
+  // === EPrice view — объединённая логика (ранее handleEPriceView) ===
   
-  // Текущая цена
+  const explicitView = row['#EPrice_View'] as string | undefined;
+  // Маппинг: 'default' → 'undefined' (Figma convention), остальные как есть
+  let priceView: string;
+  if (explicitView === 'special') {
+    priceView = 'special';
+  } else if (explicitView === 'old') {
+    priceView = 'old';
+  } else {
+    priceView = 'undefined'; // Figma использует 'undefined' вместо 'default'
+  }
+  
+  // === Заполняем текстовые значения и view через nested EPrice instances ===
+  
+  const allEPrices = findAllEPriceInstances(ePriceGroupInstance);
+  
+  // Текущая цена + view (НЕ старая цена)
   const priceValue = row['#OrganicPrice'];
-  Logger.info(`💰 [EPriceGroup] Данные цен: #OrganicPrice="${priceValue || ''}", #OldPrice="${row['#OldPrice'] || ''}", hasOldPrice=${hasOldPrice}`);
+  Logger.debug(`💰 [EPriceGroup] Данные цен: #OrganicPrice="${priceValue || ''}", #OldPrice="${row['#OldPrice'] || ''}", #EPrice_View=${priceView}`);
   
-  if (priceValue) {
-    await setEPriceValue(ePriceGroupInstance, priceValue, instanceCache);
+  for (const ep of allEPrices) {
+    if (!isOldPriceInstance(ep, ePriceGroupInstance.id)) {
+      // Устанавливаем view
+      const viewSet = trySetProperty(ep, ['view', 'View'], priceView, '#EPrice_View');
+      Logger.debug(`💰 [EPrice] view=${priceView}, result=${viewSet}`);
+      
+      // Устанавливаем value
+      if (priceValue) {
+        setPriceToInstance(ep, priceValue, 'EPrice');
+      }
+      break; // Первый не-old EPrice — это текущая цена
+    }
   }
   
   // Старая цена
   const oldPriceValue = row['#OldPrice'];
   if (oldPriceValue && hasOldPrice) {
-    Logger.info(`💰 [EPriceGroup] Устанавливаем старую цену: "${oldPriceValue}"`);
+    Logger.debug(`💰 [EPriceGroup] Устанавливаем старую цену: "${oldPriceValue}"`);
     await setOldPriceValue(ePriceGroupInstance, oldPriceValue, instanceCache);
-  } else {
-    Logger.debug(`💰 [EPriceGroup] Пропуск старой цены: oldPriceValue="${oldPriceValue}", hasOldPrice=${hasOldPrice}`);
   }
   
   // Настройка Fintech type/view
@@ -226,28 +262,6 @@ function setPriceToInstance(ePriceInstance: InstanceNode, priceValue: string, la
 }
 
 /**
- * Устанавливает значение цены в EPrice (НЕ старую цену)
- */
-async function setEPriceValue(
-  ePriceGroupInstance: InstanceNode,
-  priceValue: string,
-  instanceCache: unknown
-): Promise<void> {
-  const allEPrices = findAllEPriceInstances(ePriceGroupInstance);
-  
-  // Ищем EPrice, который НЕ является старой ценой
-  for (const ep of allEPrices) {
-    if (!isOldPriceInstance(ep, ePriceGroupInstance.id)) {
-      if (setPriceToInstance(ep, priceValue, 'EPrice')) {
-        return;
-      }
-    }
-  }
-  
-  Logger.debug(`⚠️ [EPrice] Не найден для установки текущей цены`);
-}
-
-/**
  * Устанавливает значение СТАРОЙ цены в EPrice внутри контейнера "Old"
  */
 async function setOldPriceValue(
@@ -344,44 +358,6 @@ async function configureFintechType(
 }
 
 /**
- * Обработка EPrice view
- * Возможные значения: "undefined" (обычная), "special" (красная), "old" (зачёркнутая)
- */
-export async function handleEPriceView(context: HandlerContext): Promise<void> {
-  const { container, row, instanceCache } = context;
-  if (!container || !row) return;
-
-  const explicitView = row['#EPrice_View'] as string | undefined;
-  
-  // Маппинг значений: 'default' → 'undefined', остальные как есть
-  let priceView: string;
-  if (explicitView === 'special') {
-    priceView = 'special';
-  } else if (explicitView === 'old') {
-    priceView = 'old';
-  } else {
-    priceView = 'undefined'; // Figma использует 'undefined' вместо 'default'
-  }
-  
-  const ePriceInstance = getCachedInstance(instanceCache!, 'EPrice');
-  
-  if (ePriceInstance) {
-    // Устанавливаем view
-    const viewSet = trySetProperty(ePriceInstance, ['view', 'View'], priceView, '#EPrice_View');
-    Logger.debug(`🔍 [EPrice View] Найден EPrice, устанавливаем view=${priceView} (explicit: ${explicitView || 'none'}), result=${viewSet}`);
-    
-    // Устанавливаем value (текст цены) через свойство компонента
-    const priceValue = (row['#OrganicPrice'] || row['#EPrice_Value'] || '').trim();
-    if (priceValue) {
-      const valueSet = trySetProperty(ePriceInstance, ['value'], priceValue, '#EPrice_Value');
-      Logger.debug(`💰 [EPrice] value="${priceValue}", result=${valueSet}`);
-    }
-    
-    Logger.debug(`💰 [EPrice] view=${priceView}, result=${viewSet}`);
-  }
-}
-
-/**
  * Обработка LabelDiscount view и текст
  * Visibility теперь через withLabelDiscount на EPriceGroup
  */
@@ -442,13 +418,5 @@ export async function handleLabelDiscountView(context: HandlerContext): Promise<
   }
 }
 
-/**
- * Обработка InfoIcon — DEPRECATED
- * InfoIcon теперь управляется автоматически через withFintech на EPriceGroup
- * Оставлен для обратной совместимости
- */
-export function handleInfoIcon(context: HandlerContext): void {
-  // InfoIcon управляется через withFintech — ничего не делаем
-  // Figma сама показывает/скрывает InfoIcon вместе с Fintech блоком
-  Logger.debug(`ℹ️ [InfoIcon] Управляется через withFintech на EPriceGroup`);
-}
+// handleInfoIcon — REMOVED (deprecated, was no-op)
+// InfoIcon now managed automatically via withFintech on EPriceGroup

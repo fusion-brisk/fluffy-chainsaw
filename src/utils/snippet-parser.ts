@@ -1,6 +1,7 @@
 // Snippet parsing utilities for Yandex search results
 
 import { CSVRow } from '../types';
+import type { WizardPayload, WizardComponent, WizardSpan, WizardFootnote, WizardListItem } from '../types/wizard-types';
 import { Logger } from '../logger';
 import { ParsingSchema, DEFAULT_PARSING_RULES } from '../parsing-rules';
 import {
@@ -124,12 +125,19 @@ export function extractRowData(
   
   // Определяем тип сниппета
   // ВАЖНО: EOfferItem проверяем ПЕРВЫМ, так как он может быть вложен в другие контейнеры
+  // Определяем тип сниппета — порядок проверок соответствует content.js
+  const containerClassName = container.className || '';
   const snippetTypeValue = 
-    container.className.includes('EOfferItem') ? 'EOfferItem' :
-    container.className.includes('EProductSnippet2') ? 'EProductSnippet2' : 
-    container.className.includes('EShopItem') ? 'EShopItem' : 
-    container.className.includes('ProductTile-Item') ? 'ProductTile-Item' :
-    container.className.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
+    containerClassName.includes('EOfferItem') ? 'EOfferItem' :
+    containerClassName.includes('EProductSnippet2') ? 'EProductSnippet2' : 
+    containerClassName.includes('EShopItem') ? 'EShopItem' : 
+    containerClassName.includes('ProductTile-Item') ? 'ProductTile-Item' :
+    // ESnippet — товарный сниппет (по классу или вложенным элементам)
+    (containerClassName.includes('ESnippet') || container.querySelector('.ESnippet, .ESnippet-Title, .ESnippet-Price')) ? 'ESnippet' :
+    // Organic_Adv — промо-сниппет с AdvLabel
+    (containerClassName.includes('Organic_withAdvLabel') || containerClassName.includes('Organic_withPromoOffer') ||
+     (containerClassName.includes('Organic') && container.querySelector('.AdvLabel, .OrganicAdvLabel'))) ? 'Organic_Adv' :
+    containerClassName.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
     'Organic';
   
   // === ИЗВЛЕЧЕНИЕ #serpItemId и #containerType для группировки ===
@@ -256,13 +264,17 @@ export function extractRowData(
     }
   }
   
+  // Organic_Adv → ESnippet with isPromo=true (matching content.js behavior)
+  const effectiveSnippetType = snippetTypeValue === 'Organic_Adv' ? 'ESnippet' : snippetTypeValue;
+  const isOrgAdvPromo = snippetTypeValue === 'Organic_Adv' || isPromoSnippet;
+
   const row: CSVRow = {
-    '#SnippetType': snippetTypeValue,
+    '#SnippetType': effectiveSnippetType,
     '#serpItemId': serpItemId,
     '#containerType': containerType,
     '#EShopListTitle': shopListTitle,
     '#isAdv': isAdvProductGallery ? 'true' : undefined,     // AdvProductGallery карточки
-    '#isPromo': isPromoSnippet ? 'true' : undefined,        // Organic с рекламным лейблом
+    '#isPromo': isOrgAdvPromo ? 'true' : undefined,         // Organic с рекламным лейблом
     '#query': '',
     '#ProductURL': '',
     '#OrganicTitle': '',
@@ -562,6 +574,22 @@ export function extractRowData(
         Logger.debug(`✅ [OrganicHost] Использован ShopName как домен: ${row['#OrganicHost']}`);
       }
     }
+  }
+  
+  // #withThumb — наличие картинки в сниппете
+  const hasThumbClass = (container.className || '').includes('Organic_withThumb') ||
+                        (container.className || '').includes('_withThumb') ||
+                        (container.className || '').includes('withOfferThumb');
+  const hasThumbImage = queryFirstMatch(cache, ['.Organic-OfferThumb img', '.Organic-Thumb img', '.EThumb img', '[class*="Thumb"] img']);
+  row['#withThumb'] = (hasThumbClass || hasThumbImage) ? 'true' : 'false';
+  
+  // #isVerified / #VerifiedType — badge "Сайт специализируется на продаже товаров"
+  const verifiedEl = queryFirstMatch(cache, ['.Verified_type_goods', '.Verified']);
+  if (verifiedEl) {
+    row['#VerifiedType'] = 'goods';
+    row['#isVerified'] = 'true';
+  } else {
+    row['#isVerified'] = 'false';
   }
   
   // #OfficialShop — проверяем наличие метки официального магазина внутри EShopName
@@ -1182,7 +1210,8 @@ export function extractRowData(
   }
 
   // ShopInfo-Bnpl - BNPL иконки/лейблы в сниппете (используются для управления инстансами внутри #ShopInfo-Bnpl)
-  const shopInfoBnplEl = queryFirstMatch(cache, ['.ShopInfo-Bnpl', '[class*="ShopInfo-Bnpl"]']);
+  // Также проверяем Organic-Bnpl для ESnippet-типов
+  const shopInfoBnplEl = queryFirstMatch(cache, ['.ShopInfo-Bnpl', '[class*="ShopInfo-Bnpl"]', '.Organic-Bnpl', '[class*="Organic-Bnpl"]']);
   if (shopInfoBnplEl) {
     const bnplTypes: string[] = [];
     // В реальном HTML ярлыки могут быть не только в p/span/a, иногда это div
@@ -1218,6 +1247,51 @@ export function extractRowData(
   if (priceSpecial) {
     row['#EPrice_View'] = 'special';
     Logger.debug(`✅ Найден EPrice_view_special в сниппете "${row['#OrganicTitle']?.substring(0, 30)}..."`);
+  }
+  
+  // === EPriceGroup BEM-модификаторы ===
+  // Извлекаем свойства из BEM-классов EPriceGroup (size, withDisclaimer, plusCashback и др.)
+  const ePriceGroupEl = queryFirstMatch(cache, ['.EPriceGroup', '[class*="EPriceGroup"]']);
+  if (ePriceGroupEl) {
+    const pgCls = ePriceGroupEl.className || '';
+    
+    // #EPriceGroup_Size — size variant (m, l, L2)
+    const sizeMatch = pgCls.match(/EPriceGroup_size_(\w+)/);
+    if (sizeMatch) {
+      row['#EPriceGroup_Size'] = sizeMatch[1]; // m, l, L2
+      Logger.debug(`✅ EPriceGroup size=${sizeMatch[1]}`);
+    }
+    
+    // #EPriceGroup_Barometer — withBarometer (boolean BEM modifier)
+    if (pgCls.includes('EPriceGroup_withBarometer')) {
+      row['#EPriceGroup_Barometer'] = 'true';
+      Logger.debug(`✅ EPriceGroup withBarometer=true`);
+    }
+    
+    // #PriceDisclaimer — withDisclaimer (boolean BEM modifier)
+    if (pgCls.includes('EPriceGroup_withDisclaimer')) {
+      row['#PriceDisclaimer'] = 'true';
+      Logger.debug(`✅ EPriceGroup withDisclaimer=true`);
+    }
+    
+    // #PlusCashback — plusCashback (boolean BEM modifier)
+    if (pgCls.includes('EPriceGroup_plusCashback') || pgCls.includes('EPriceGroup_withPlusCashback')) {
+      row['#PlusCashback'] = 'true';
+      Logger.debug(`✅ EPriceGroup plusCashback=true`);
+    }
+    
+    // #ExpCalculation — [EXP] Calculation (boolean BEM modifier)
+    if (pgCls.includes('EPriceGroup_expCalculation') || pgCls.includes('EPriceGroup_EXPCalculation')) {
+      row['#ExpCalculation'] = 'true';
+      Logger.debug(`✅ EPriceGroup expCalculation=true`);
+    }
+    
+    // #CombiningElements — Combining Elements variant
+    const combMatch = pgCls.match(/EPriceGroup_combiningElements_(\w+)/);
+    if (combMatch) {
+      row['#CombiningElements'] = combMatch[1]; // None, Discount, etc.
+      Logger.debug(`✅ EPriceGroup combiningElements=${combMatch[1]}`);
+    }
   }
   
   // #LabelDiscount_View - вид лейбла скидки
@@ -1355,8 +1429,11 @@ export function extractRowData(
     Logger.debug(`✅ Установлен EPrice_View=default (нет скидки)`);
   }
   
-  // #EBnpl - блок BNPL (Buy Now Pay Later) в EShopItem
-  const ebnplSelectors = rules['EBnpl']?.domSelectors || ['.EShopItem-Bnpl', '[class*="EShopItem-Bnpl"]', '.EBnpl'];
+  // #EBnpl - блок BNPL (Buy Now Pay Later) в EShopItem и ESnippet delivery row
+  const ebnplSelectors = rules['EBnpl']?.domSelectors || [
+    '.EShopItem-Bnpl', '[class*="EShopItem-Bnpl"]', '.EBnpl',
+    '.DeliveriesBnpl', '[class*="DeliveriesBnpl"]', '.EDeliveryGroup-Bnpl', '[class*="-Bnpl"]'
+  ];
   const ebnplContainer = queryFirstMatch(cache, ebnplSelectors);
   if (ebnplContainer) {
     // Выставим флаг позже: только если реально нашли >= 1 опцию BNPL
@@ -1453,6 +1530,7 @@ export function extractRowData(
         row['#EQuote-Text'] = quoteText;
         // Legacy поле для совместимости
         row['#QuoteText'] = quoteText;
+        row['#withQuotes'] = 'true';
         Logger.debug(`✅ [EQuote-Text] Найдена цитата: "${quoteText.substring(0, 50)}..."`);
       }
     }
@@ -1496,6 +1574,10 @@ export function extractRowData(
       }
     }
   }
+  // Если цитата не была найдена, явно устанавливаем withQuotes=false
+  if (!row['#withQuotes']) {
+    row['#withQuotes'] = 'false';
+  }
   // ВАЖНО: Убран fallback на OrganicUgcReviews-Text, т.к. этот класс используется
   // для количества отзывов (#EReviews_shopText), а не для цитаты.
   // Цитата парсится ТОЛЬКО из EQuote / OrganicUgcReviews-QuoteWrapper.
@@ -1519,16 +1601,16 @@ export function extractRowData(
     }
     
     for (let i = 0; i < sitelinks.length; i++) {
-      row[`#Sitelinks-Item-${i + 1}`] = sitelinks[i];
+      row[`#Sitelink_${i + 1}`] = sitelinks[i];
     }
-    row['#Sitelinks-Count'] = String(sitelinks.length);
+    row['#SitelinksCount'] = String(sitelinks.length);
     
     if (sitelinks.length > 0) {
       Logger.debug(`✅ Найдены сайтлинки (${sitelinks.length}): ${sitelinks.join(', ')}`);
     }
   } else {
     row['#Sitelinks'] = 'false';
-    row['#Sitelinks-Count'] = '0';
+    row['#SitelinksCount'] = '0';
   }
   
   // #Phone - телефон (для ESnippet)
@@ -1856,7 +1938,210 @@ export function deduplicateRows(rows: CSVRow[]): CSVRow[] {
 }
 
 // Parse Yandex search results from HTML
-export function parseYandexSearchResults(html: string, fullMhtml?: string, parsingRules?: ParsingSchema): { rows: CSVRow[], error?: string } {
+// ============================================================================
+// WIZARD PARSING — FuturisSearch (Alice's Answer)
+// ============================================================================
+
+function normalizeWizardText(value: string): string {
+  return (value || '').replace(/\s+/g, ' ').trim();
+}
+
+function normalizeWizardSpanText(value: string): string {
+  return (value || '').replace(/\u00a0/g, ' ');
+}
+
+/**
+ * Извлекает спаны (text + bold) из элемента, пропуская FuturisFootnote.
+ * Логика аналогична mishamisha/llm-answers-exporter/src/utils/dom.js → extractSpans
+ */
+function extractWizardSpans(containerEl: Element): WizardSpan[] {
+  const spans: WizardSpan[] = [];
+
+  function pushSpan(text: string, bold: boolean): void {
+    const normalized = normalizeWizardSpanText(text);
+    if (!normalized) return;
+    const last = spans.length > 0 ? spans[spans.length - 1] : null;
+    if (last && last.bold === bold) {
+      last.text += normalized;
+      return;
+    }
+    spans.push({ text: normalized, bold });
+  }
+
+  function walk(node: Node, inheritedBold: boolean): void {
+    if (node.nodeType === Node.TEXT_NODE) {
+      pushSpan(node.nodeValue || '', inheritedBold);
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const el = node as Element;
+    if (el.classList.contains('FuturisFootnote')) return;
+
+    const isBold = inheritedBold || el.tagName === 'STRONG' || el.tagName === 'B';
+    const children = el.childNodes;
+    for (let i = 0; i < children.length; i++) {
+      walk(children[i], isBold);
+    }
+  }
+
+  walk(containerEl, false);
+  return spans;
+}
+
+/**
+ * Извлекает footnotes (источники) из элемента.
+ * Логика аналогична mishamisha/llm-answers-exporter/src/utils/dom.js → extractFootnotes
+ */
+function extractWizardFootnotes(containerEl: Element): WizardFootnote[] {
+  const footnoteLinks = containerEl.querySelectorAll('a.Link.FuturisFootnote.FuturisFootnote_redesign');
+  const result: WizardFootnote[] = [];
+  for (let i = 0; i < footnoteLinks.length; i++) {
+    const link = footnoteLinks[i] as HTMLAnchorElement;
+    const iconEl = link.querySelector('.FuturisFootnote-Icon');
+    let iconUrl = '';
+    if (iconEl) {
+      const style = iconEl.getAttribute('style') || '';
+      const match = style.match(/background-image:\s*url\(["']?(.*?)["']?\)/i);
+      if (match) {
+        iconUrl = match[1];
+      }
+    }
+    result.push({
+      text: normalizeWizardText(link.textContent || ''),
+      href: link.getAttribute('href') || '',
+      iconUrl,
+      debug: iconUrl ? null : { styleAttr: (iconEl && iconEl.getAttribute('style')) || '' }
+    });
+  }
+  return result;
+}
+
+/**
+ * Определяет тип компонента и извлекает данные из одного DOM-элемента.
+ * Логика аналогична mishamisha/llm-answers-exporter/src/parsers/ya-ru.js → buildComponentFromElement
+ */
+function buildWizardComponent(el: Element): WizardComponent | null {
+  // Заголовки: определяем уровень из tagName (h1–h6), fallback h2
+  if (el.classList.contains('FuturisContentSection-Title') || /^H[1-6]$/i.test(el.tagName || '')) {
+    const level = /^H[1-6]$/i.test(el.tagName || '') ? el.tagName.toLowerCase() as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' : 'h2';
+    return { type: level, text: normalizeWizardText(el.textContent || '') };
+  }
+
+  if (el.classList.contains('FuturisMarkdown-Paragraph')) {
+    return {
+      type: 'p',
+      spans: extractWizardSpans(el),
+      footnotes: extractWizardFootnotes(el)
+    };
+  }
+
+  if (el.classList.contains('FuturisMarkdown-UnorderedList')) {
+    const items: WizardListItem[] = [];
+    const lis = el.querySelectorAll(':scope > li.FuturisMarkdown-ListItem');
+    for (let i = 0; i < lis.length; i++) {
+      items.push({
+        spans: extractWizardSpans(lis[i]),
+        footnotes: extractWizardFootnotes(lis[i])
+      });
+    }
+    return { type: 'ul', items };
+  }
+
+  if (el.classList.contains('FuturisMarkdown-OrderedList')) {
+    const items: WizardListItem[] = [];
+    const lis = el.querySelectorAll(':scope > li.FuturisMarkdown-ListItem');
+    for (let i = 0; i < lis.length; i++) {
+      items.push({
+        spans: extractWizardSpans(lis[i]),
+        footnotes: extractWizardFootnotes(lis[i])
+      });
+    }
+    return { type: 'ol', items };
+  }
+
+  if (el.classList.contains('FuturisImage-Image')) {
+    return {
+      type: 'img',
+      src: el.getAttribute('src') || '',
+      alt: normalizeWizardText(el.getAttribute('alt') || '')
+    };
+  }
+
+  if (el.classList.contains('VideoSnippet') || el.classList.contains('VideoSnippet2')) {
+    const videoEl = el.querySelector('video.VideoThumb3-Video');
+    let poster = '';
+    if (videoEl) {
+      poster = videoEl.getAttribute('poster') || '';
+      if (!poster) {
+        const vStyle = videoEl.getAttribute('style') || '';
+        const vMatch = vStyle.match(/background-image:\s*url\(["']?(.*?)["']?\)/i);
+        if (vMatch) poster = vMatch[1];
+      }
+      if (poster && poster.startsWith('//')) poster = 'https:' + poster;
+    }
+    const titleEl = el.querySelector('.VideoSnippet-Title');
+    const hostEl = el.querySelector('.VideoHostExtended-Host');
+    const durationEl = el.querySelector('.VideoSnippet-Duration .Label-Content');
+    return {
+      type: 'video',
+      poster,
+      title: titleEl ? normalizeWizardText(titleEl.textContent || '') : '',
+      host: hostEl ? normalizeWizardText(hostEl.textContent || '') : '',
+      channelTitle: '',
+      views: '',
+      date: '',
+      duration: durationEl ? normalizeWizardText(durationEl.textContent || '') : ''
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Рекурсивно обходит DOM-дерево и собирает все компоненты wizard.
+ */
+function collectWizardComponents(rootEl: Element): WizardComponent[] {
+  const components: WizardComponent[] = [];
+
+  function walk(node: Element): void {
+    const children = node.children;
+    if (!children) return;
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i];
+      const component = buildWizardComponent(child);
+      if (component) {
+        components.push(component);
+        continue;
+      }
+      walk(child);
+    }
+  }
+
+  walk(rootEl);
+  return components;
+}
+
+/**
+ * Извлекает все wizard-блоки (FuturisSearch) из документа.
+ */
+function extractFuturisSearchWizards(doc: Document): WizardPayload[] {
+  const wizards: WizardPayload[] = [];
+  const wrappers = doc.querySelectorAll('.FuturisGPTMessage-GroupContentComponentWrapper');
+  Logger.debug(`[Wizard] FuturisGPTMessage-GroupContentComponentWrapper найдено: ${wrappers.length}`);
+
+  for (let i = 0; i < wrappers.length; i++) {
+    const components = collectWizardComponents(wrappers[i]);
+    if (components.length > 0) {
+      wizards.push({ type: 'FuturisSearch', components });
+      Logger.debug(`[Wizard] FuturisSearch #${i + 1}: ${components.length} компонентов`);
+    }
+  }
+
+  return wizards;
+}
+
+export function parseYandexSearchResults(html: string, fullMhtml?: string, parsingRules?: ParsingSchema): { rows: CSVRow[], wizards?: WizardPayload[], error?: string } {
   Logger.debug('🔍 HTML разбор начат');
   try {
   Logger.debug('📄 Размер HTML:', html.length);
@@ -2003,7 +2288,13 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
   Logger.debug(`   🖼️ EThumb (товар): ${thumbCount}`);
   Logger.debug(`   📂 #isCatalogPage=true: ${catalogCount}`);
   
-  return { rows: finalResults };
+  // Извлекаем wizard-блоки (FuturisSearch)
+  const wizards = extractFuturisSearchWizards(doc);
+  if (wizards.length > 0) {
+    Logger.info(`🧙 [PARSE] Извлечено wizard-блоков: ${wizards.length}, всего компонентов: ${wizards.reduce((sum, w) => sum + w.components.length, 0)}`);
+  }
+
+  return { rows: finalResults, wizards: wizards.length > 0 ? wizards : undefined };
   } catch (e) {
     Logger.error('Error in parseYandexSearchResults:', e);
     return { rows: [], error: e instanceof Error ? e.message : String(e) };
