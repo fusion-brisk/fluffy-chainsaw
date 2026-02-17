@@ -240,8 +240,21 @@ export function buildPageStructure(
     } else {
       // Один элемент в <li> — без контейнера
       for (const row of serpGroup.rows) {
-        const snippetNode = buildSnippetNode(row, order++);
-        contentLeft.push(snippetNode);
+        // ImagesGrid: одиночный row, но это контейнер (не сниппет)
+        if (row['#containerType'] === 'ImagesGrid') {
+          const imagesNode: StructureNode = {
+            id: generateNodeId(),
+            type: 'ImagesGrid' as ContainerType,
+            data: row,
+            children: [],
+            order: order++
+          };
+          contentLeft.push(imagesNode);
+          Logger.debug('[StructureBuilder] ImagesGrid node создан');
+        } else {
+          const snippetNode = buildSnippetNode(row, order++);
+          contentLeft.push(snippetNode);
+        }
       }
     }
   }
