@@ -3,11 +3,10 @@
  */
 
 // CSV Fields
-export type { 
-  CSVFields, 
-  CSVRow, 
-  StrictCSVRow, 
-  SnippetType 
+export type {
+  CSVFields,
+  CSVRow,
+  SnippetType
 } from './csv-fields';
 
 export { 

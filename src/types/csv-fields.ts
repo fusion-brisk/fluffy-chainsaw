@@ -283,20 +283,17 @@ export interface CSVFields {
   // === InfoIcon ===
   /** Наличие иконки "Инфо" в Fintech */
   '#InfoIcon'?: 'true' | 'false';
+
+  // === Internal (runtime-only, не приходят из парсера) ===
+  /** ID контейнера Figma (записывается в data-assignment, используется в image-handlers) */
+  '#_containerId'?: string;
 }
 
 /**
- * CSVRow с поддержкой как типизированных, так и произвольных полей
- * Это позволяет постепенную миграцию без breaking changes
+ * CSVRow — типизированная строка данных сниппета.
+ * Все поля явно объявлены в CSVFields.
  */
-export type CSVRow = CSVFields & {
-  [key: string]: string | undefined;
-};
-
-/**
- * Строгий CSVRow только с известными полями
- */
-export type StrictCSVRow = CSVFields;
+export type CSVRow = CSVFields;
 
 /**
  * Список обязательных полей для разных типов сниппетов

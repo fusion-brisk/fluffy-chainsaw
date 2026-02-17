@@ -3,7 +3,7 @@ import type { ParsingSchema } from './parsing-rules';
 import type { CSVRow as CSVRowType } from './types/csv-fields';
 
 // CSVRow реэкспортируется из types/csv-fields.ts (типизированный)
-export type { CSVRow, CSVFields, StrictCSVRow, SnippetType } from './types/csv-fields';
+export type { CSVRow, CSVFields, SnippetType } from './types/csv-fields';
 
 // Локальный alias для использования в этом файле
 type CSVRow = CSVRowType;
