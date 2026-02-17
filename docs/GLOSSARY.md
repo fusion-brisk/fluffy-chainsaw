@@ -14,7 +14,17 @@ Figma-инстанс компонента из библиотеки, в кото
 Структура данных одного сниппета — объект с полями, начинающимися с `#`. Формируется парсером из HTML и передаётся в плагин для заполнения Figma-компонентов.
 
 ### Handler
-Функция обработки специфичной логики компонента. Handlers выполняются в порядке приоритетов и применяют данные к Figma-инстансам.
+Императивная функция обработки сложной логики компонента. Handlers выполняются в порядке приоритетов. Для простого маппинга свойств используйте Schema вместо Handler.
+
+### Schema (ComponentSchema)
+Декларативное описание маппинга данных CSVRow на свойства Figma-инстанса. Заменяет императивные handlers для контейнеров EShopItem, EOfferItem, EProductSnippet, ESnippet. Определяется в `src/schema/*.ts`.
+
+### PropertyMapping
+Единица маппинга внутри Schema: связывает поле(я) CSVRow со свойством Figma. 4 режима значений:
+- `hasValue` — boolean: поле непустое
+- `stringValue` — string: значение as-is
+- `equals` — boolean: точное совпадение
+- `compute` — произвольная функция
 
 ### HandlerContext
 Контекст, передаваемый каждому handler:
@@ -23,7 +33,7 @@ interface HandlerContext {
   container: BaseNode;       // Figma контейнер
   containerKey: string;      // ID контейнера
   row: CSVRow;              // Данные для заполнения
-  instanceCache?: Map<...>; // Кэш найденных инстансов
+  instanceCache?: DeepCache; // Кэш найденных инстансов
 }
 ```
 

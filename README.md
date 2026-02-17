@@ -63,7 +63,8 @@ npm run test
 ├── src/                    # Исходный код плагина
 │   ├── code.ts             # Entry point (Figma sandbox)
 │   ├── ui.tsx              # React UI
-│   ├── handlers/           # Обработчики компонентов
+│   ├── schema/             # Декларативный маппинг данных → Figma
+│   ├── handlers/           # Императивные обработчики (сложная логика)
 │   ├── plugin/             # Модули обработки данных
 │   ├── page-builder/       # Создание страниц
 │   ├── utils/              # Утилиты парсинга

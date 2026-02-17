@@ -66,35 +66,55 @@ Code: processImportCSV()
 postMessage({ type: 'done', count })
 ```
 
+### Schema Engine (src/schema/)
+
+Декларативная система маппинга данных на свойства Figma-компонентов. Заменяет императивные handlers для 4 типов контейнеров.
+
+**Принцип:** Вместо императивного кода `if (row['#X'] === 'true') trySetProperty(...)` — декларативная запись:
+```typescript
+{ propertyNames: ['withX'], fieldName: '#X', equals: { field: '#X', value: 'true' } }
+```
+
+**Покрытые контейнеры:**
+
+| Контейнер | Schema файл | Props | Nested |
+|-----------|-------------|-------|--------|
+| EShopItem | `eshop-item.ts` | 11 | EShopName (2) |
+| EOfferItem | `eoffer-item.ts` | 10 | — |
+| EProductSnippet/2 | `eproduct-snippet.ts` | 4 | EShopName (1) |
+| ESnippet/Snippet | `esnippet.ts` | 21 | — |
+
+**PropertyMapping — 4 режима значений:**
+- `hasValue: '#Field'` — boolean: поле непустое
+- `stringValue: '#Field'` — string: значение as-is
+- `equals: { field, value }` — boolean: точное совпадение
+- `compute: (row, container, cache) => value` — произвольная логика
+
+**Structural hooks:** Операции, которые нельзя описать декларативно (сайтлинки, промо-текст, EThumb fallback), вынесены в `esnippet-hooks.ts`.
+
+**skipForContainers:** Handlers, которые дублировали логику schema (BrandLogic, MarketCheckoutButton, OfficialShop, ShopInfoDeliveryBnplContainer), пропускаются для контейнеров, обрабатываемых schema engine.
+
 ### Handler Registry
 
-Централизованная система обработчиков компонентов.
+Оставшиеся императивные handlers для сложной логики, которую нельзя описать декларативно.
 
 **Приоритеты выполнения:**
 
 | Приоритет | Название | Handlers |
 |-----------|----------|----------|
-| 0 | CRITICAL | EPriceGroup, EPriceView |
-| 10 | VARIANTS | BrandLogic, EOfferItem, EShopItem, ESnippetProps |
-| 20 | VISIBILITY | EButton, OfficialShop, InfoIcon |
-| 30 | TEXT | LabelDiscountView, ShopOfflineRegion, QuoteText |
-| 40 | FALLBACK | ESnippetOrganicTextFallback, MetaVisibility |
+| 0 | CRITICAL | EPriceGroup |
+| 10 | VARIANTS | BrandLogic*, ELabelGroup, EPriceBarometer, ShopInfoBnpl |
+| 20 | VISIBILITY | EButton, OfficialShop*, HidePriceBlock, ImageType, EcomMetaVisibility |
+| 30 | TEXT | LabelDiscountView, ShopInfoUgcAndEReviewsShopText, ShopOfflineRegion, QuoteText, OrganicPath, EDeliveryGroup |
+| 40 | FALLBACK | ESnippetOrganicTextFallback, ESnippetOrganicHostFromFavicon |
+| 50 | FINAL | EmptyGroups |
+
+\* — пропускается для контейнеров, обрабатываемых schema engine
 
 **Режимы выполнения:**
 - `sync` — синхронное выполнение
 - `async` — асинхронное, но последовательное
 - `parallel` — параллельное выполнение независимых handlers
-
-**Регистрация handler:**
-
-```typescript
-handlerRegistry.register('MyHandler', handleMyFeature, {
-  priority: HandlerPriority.VARIANTS,
-  mode: 'async',
-  containers: ['EShopItem', 'EOfferItem'], // опционально
-  description: 'Описание функции'
-});
-```
 
 ### Property Utils
 

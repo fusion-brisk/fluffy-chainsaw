@@ -2,9 +2,125 @@
 
 Пошаговые гайды для добавления новой функциональности.
 
+## 0. Выбор подхода: Schema vs. Handler
+
+| Когда | Подход |
+|-------|--------|
+| Boolean/string свойства на контейнере | **Schema** — одна строка в `.ts` файле |
+| Вложенные свойства (EShopName.name) | **Schema** — `nestedInstances` |
+| Сложная вложенная логика (EPriceGroup: EPrice + OldPrice + Fintech) | **Handler** |
+| Заполнение слотов (доставка, BNPL items) | **Handler** |
+| Instance swap (imageType: EThumb ↔ EThumbGroup) | **Handler** |
+| Текстовые fallback с поиском по DOM | **Handler** или **Structural hook** |
+
+**Правило:** если логика сводится к `trySetProperty(container, [...], value, field)` — это schema. Если нужен обход дерева, async операции или findAll — это handler.
+
+---
+
+## 0.1. Добавление свойства в существующую Schema
+
+Самый частый случай — добавить новое boolean/string свойство для контейнера.
+
+### Пример: добавить `withNewFeature` в EShopItem
+
+```typescript
+// src/schema/eshop-item.ts — добавить в containerProperties:
+{
+  propertyNames: ['withNewFeature'],
+  fieldName: '#NewFeature',
+  equals: { field: '#NewFeature', value: 'true' }
+}
+```
+
+### 4 режима значений PropertyMapping
+
+```typescript
+// 1. hasValue — boolean: поле непустое
+{ propertyNames: ['brand'], fieldName: '#Brand', hasValue: '#Brand' }
+
+// 2. stringValue — string: значение as-is
+{ propertyNames: ['organicTitle'], fieldName: '#OrganicTitle', stringValue: '#OrganicTitle', skipIfEmpty: true }
+
+// 3. equals — boolean: точное совпадение
+{ propertyNames: ['withFintech'], fieldName: '#withFintech', equals: { field: '#EPriceGroup_Fintech', value: 'true' } }
+
+// 4. compute — произвольная функция (для сложной логики)
+{ propertyNames: ['withButton'], fieldName: '#BUTTON', compute: function(row, container) { return computeWithButton(row, container); } }
+```
+
+### Добавление transform-функции
+
+Если значение зависит от нескольких полей, создайте функцию в `src/schema/transforms.ts`:
+
+```typescript
+export function computeMyFeature(row: CSVRow): boolean {
+  return row['#FieldA'] === 'true' || !!((row['#FieldB'] || '') as string).trim();
+}
+```
+
+---
+
+## 0.2. Создание новой Schema для нового контейнера
+
+### Шаг 1: Создать файл schema
+
+```typescript
+// src/schema/my-component.ts
+import type { ComponentSchema } from './types';
+
+export var MY_COMPONENT_SCHEMA: ComponentSchema = {
+  containerNames: ['MyComponent'],
+  containerProperties: [
+    { propertyNames: ['withFeature'], fieldName: '#Feature', equals: { field: '#Feature', value: 'true' } },
+    { propertyNames: ['title'], fieldName: '#Title', stringValue: '#Title', skipIfEmpty: true }
+  ],
+  nestedInstances: [
+    {
+      instanceName: 'EShopName',
+      properties: [
+        { propertyNames: ['name'], fieldName: '#ShopName', stringValue: '#ShopName', skipIfEmpty: true }
+      ]
+    }
+  ],
+  replacesHandlers: ['MyComponent']  // какие handlers заменяет
+};
+```
+
+### Шаг 2: Зарегистрировать в registry
+
+```typescript
+// src/handlers/registry.ts
+import { MY_COMPONENT_SCHEMA } from '../schema/my-component';
+
+this.register('MyComponent', (context: HandlerContext) => {
+  const { container, row, instanceCache } = context;
+  if (!container || !row || !instanceCache) return;
+  if (container.type !== 'INSTANCE' || container.removed) return;
+  applySchema(container as InstanceNode, row, MY_COMPONENT_SCHEMA, instanceCache);
+}, {
+  priority: HandlerPriority.VARIANTS,
+  mode: 'sync',
+  containers: ['MyComponent'],
+  description: 'MyComponent schema-based mapping'
+});
+```
+
+### Шаг 3: skipForContainers (если нужно)
+
+Если существующие handlers дублируют логику вашей schema, добавьте `skipForContainers`:
+
+```typescript
+this.register('BrandLogic', handleBrandLogic, {
+  // ...
+  skipForContainers: ['EShopItem', 'EOfferItem', 'MyComponent']  // добавить
+});
+```
+
+---
+
 ## 1. Добавление нового Handler
 
-Handlers — функции обработки специфичной логики компонентов Figma.
+Handlers — императивные функции для сложной логики, которую нельзя описать декларативно.
 
 ### Шаг 1: Создать функцию handler
 

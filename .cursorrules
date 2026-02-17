@@ -62,12 +62,21 @@ SNIPPET_CONTAINER_NAMES = [
 src/
 ├── code.ts                 # Entry point плагина (Figma sandbox)
 ├── ui.tsx                  # Entry point UI (React, iframe)
-├── handlers/               # Обработчики компонентной логики
-│   ├── registry.ts         # Реестр всех handlers с приоритетами
+├── schema/                 # Декларативный маппинг данных → Figma свойства
+│   ├── types.ts            # ComponentSchema, PropertyMapping типы
+│   ├── engine.ts           # applySchema() — generic движок
+│   ├── transforms.ts       # Вычисляемые трансформы (чистые функции)
+│   ├── eshop-item.ts       # EShopItem schema
+│   ├── eoffer-item.ts      # EOfferItem schema
+│   ├── eproduct-snippet.ts # EProductSnippet/2 schema
+│   ├── esnippet.ts         # ESnippet/Snippet schema
+│   └── esnippet-hooks.ts   # Structural hooks (сайтлинки, промо)
+├── handlers/               # Императивные обработчики (сложная логика)
+│   ├── registry.ts         # Реестр handlers + schema обёртки
 │   ├── price-handlers.ts   # EPriceGroup, цены, скидки, fintech
 │   ├── label-handlers.ts   # Brand, рейтинги, барометр
 │   ├── button-handlers.ts  # EButton, MarketCheckoutButton
-│   ├── snippet-handlers.ts # ESnippet, EOfferItem, ShopInfo
+│   ├── snippet-handlers.ts # Fallbacks, ShopInfo, ImageType
 │   └── delivery-handlers.ts # Доставка, BNPL
 ├── plugin/                 # Модули обработки данных
 │   ├── snippet-processor.ts # Главный процессор import-csv
@@ -111,7 +120,17 @@ relay/                      # Relay сервер
 
 ## Паттерны расширения
 
-### Добавление нового Handler (краткий пример)
+### Добавление свойства контейнера (Schema — предпочтительный способ)
+
+```typescript
+// src/schema/eshop-item.ts — добавить в containerProperties:
+{ propertyNames: ['withNewFeature'], fieldName: '#NewFeature', equals: { field: '#NewFeature', value: 'true' } }
+```
+
+Schema покрывает: EShopItem, EOfferItem, EProductSnippet/2, ESnippet/Snippet.
+Подробнее: `docs/EXTENDING.md` → секция 0.
+
+### Добавление императивного Handler (для сложной логики)
 
 ```typescript
 // handlers/my-handlers.ts

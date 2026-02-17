@@ -25,11 +25,26 @@
     *   Отправляет данные в `code.ts`.
 
 #### Модули логики (Logic Thread)
-*   `component-handlers.ts`: Логика для специфических компонентов (Brand, Price, Label, Barometer).
+*   `component-handlers.ts`: Реэкспорт handlers и schema engine.
+*   `schema/`: **Декларативный маппинг** — schemas для EShopItem, EOfferItem, EProductSnippet, ESnippet (см. ниже).
+*   `handlers/`: **Императивные handlers** — сложная логика (EPriceGroup, EDeliveryGroup, BNPL, кнопки).
 *   `image-handlers.ts`: Класс `ImageProcessor` для скачивания, обработки и кэширования изображений.
 *   `text-handlers.ts`: Функции для работы с текстом и загрузки шрифтов (`loadFonts`, `processTextLayers`).
 *   `logger.ts`: Утилита для логирования.
 *   `config.ts`: Константы и конфигурация.
+
+#### `src/schema/` — Декларативный Schema Engine
+
+| Файл | Описание |
+|------|----------|
+| `types.ts` | Типы: `ComponentSchema`, `PropertyMapping`, `NestedInstanceMapping`, `ComputedTransform` |
+| `engine.ts` | Generic `applySchema()` — обходит schema, резолвит значения, вызывает `trySetProperty` |
+| `transforms.ts` | 24 чистые функции-трансформы для вычисления значений |
+| `eshop-item.ts` | EShopItem: 11 container props + 2 nested (EShopName) |
+| `eoffer-item.ts` | EOfferItem: 10 container props |
+| `eproduct-snippet.ts` | EProductSnippet/2: 4 container props + 1 nested (EShopName) |
+| `esnippet.ts` | ESnippet/Snippet: 21 container prop |
+| `esnippet-hooks.ts` | Structural hooks: сайтлинки, промо-текст, EThumb fallback, clipsContent |
 
 #### Модули UI (UI Thread)
 *   `ui.html`: Шаблон HTML для UI (каркас).
@@ -209,6 +224,7 @@ interface ContainerCache {
 | 4 | Кэширование CSS-парсинга (css-cache.ts) | ✅ |
 | 5 | Оптимизация DOM-обхода (dom-cache.ts, TreeWalker) | ✅ |
 | 6 | Потоковая обработка MHTML | 📋 Опционально |
+| 7 | Schema Engine — декларативный маппинг для 4 типов контейнеров | ✅ |
 
 Подробности в `docs/OPTIMIZATION_STATUS.md`.
 
