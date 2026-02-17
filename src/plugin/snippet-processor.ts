@@ -3,7 +3,8 @@
  */
 
 import { Logger } from '../logger';
-import { handlerRegistry, HandlerContext } from '../component-handlers';
+import { handlerRegistry } from '../handlers/registry';
+import type { HandlerContext } from '../handlers/types';
 import { resetHandlerStats, logHandlerStats } from '../handlers/registry';
 import { ImageProcessor } from '../image-handlers';
 import { loadFonts, processTextLayers } from '../text-handlers';

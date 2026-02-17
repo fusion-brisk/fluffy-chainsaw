@@ -17,20 +17,6 @@ export {
   NUMERIC_FIELDS 
 } from './csv-fields';
 
-// Field Mapping
-export type { 
-  FieldMappingType, 
-  FieldMappingConfig, 
-  ComponentMappingGroup 
-} from './field-mapping';
-
-export { 
-  FIELD_MAPPINGS, 
-  getMappingForComponent, 
-  getMappingsForField, 
-  getAllDataFields 
-} from './field-mapping';
-
 // Validation
 export type { 
   ValidationResult, 

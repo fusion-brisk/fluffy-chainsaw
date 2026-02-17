@@ -9,10 +9,6 @@ export type { CSVRow, CSVFields, StrictCSVRow, SnippetType } from './types/csv-f
 type CSVRow = CSVRowType;
 export { REQUIRED_FIELDS, IMAGE_FIELDS, BOOLEAN_FIELDS, NUMERIC_FIELDS } from './types/csv-fields';
 
-// Реэкспорт маппинга
-export type { FieldMappingType, FieldMappingConfig, ComponentMappingGroup } from './types/field-mapping';
-export { FIELD_MAPPINGS, getMappingForComponent, getMappingsForField, getAllDataFields } from './types/field-mapping';
-
 // Реэкспорт валидации
 export type { ValidationResult, ValidationError, ValidationWarning } from './types/validation';
 export { validateRow, validateRows, hasRequiredFields, getMissingRequiredFields } from './types/validation';

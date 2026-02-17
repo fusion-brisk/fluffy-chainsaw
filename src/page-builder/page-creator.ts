@@ -6,7 +6,8 @@
  */
 
 import { Logger } from '../logger';
-import { handlerRegistry, HandlerContext } from '../component-handlers';
+import { handlerRegistry } from '../handlers/registry';
+import type { HandlerContext } from '../handlers/types';
 import { buildInstanceCache } from '../utils/instance-cache';
 import { findTextNode } from '../utils/node-search';
 import { 
