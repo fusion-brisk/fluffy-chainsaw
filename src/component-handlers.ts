@@ -39,9 +39,7 @@ export {
   handleESnippetOrganicTextFallback,
   handleESnippetOrganicHostFromFavicon,
   handleShopInfoUgcAndEReviewsShopText,
-  handleOfficialShop,
-  handleEOfferItem,
-  handleEProductSnippet
+  handleOfficialShop
 } from './handlers/snippet-handlers';
 
 // Re-export from delivery-handlers
@@ -54,6 +52,5 @@ export {
 // Re-export from price-handlers
 export {
   handleEPriceGroup,
-  handleEPriceView,
   handleLabelDiscountView
 } from './handlers/price-handlers';

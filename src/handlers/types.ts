@@ -53,6 +53,8 @@ export interface HandlerMetadata {
   dependsOn: string[];
   /** Описание обработчика */
   description: string;
+  /** Контейнеры, для которых этот handler пропускается (обрабатывается schema engine) */
+  skipForContainers?: string[];
 }
 
 /**

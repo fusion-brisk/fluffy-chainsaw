@@ -74,9 +74,17 @@ function updateHandlerStats(name: string, duration: number): void {
 // Import all handlers
 import { handleBrandLogic, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel } from './label-handlers';
 import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
-import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleEOfferItem, handleEShopItem, handleESnippetProps, handleRatingReviewQuoteVisibility, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleEmptyGroups, handleEProductSnippet, handleQuoteText, handleOrganicPath, handleEcomMetaVisibility } from './snippet-handlers';
+import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleEmptyGroups, handleQuoteText, handleOrganicPath, handleEcomMetaVisibility } from './snippet-handlers';
 import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
-import { handleEPriceGroup, handleEPriceView, handleLabelDiscountView, handleInfoIcon } from './price-handlers';
+import { handleEPriceGroup, handleLabelDiscountView } from './price-handlers';
+
+// Schema engine
+import { applySchema } from '../schema/engine';
+import { ESHOP_ITEM_SCHEMA } from '../schema/eshop-item';
+import { EOFFER_ITEM_SCHEMA } from '../schema/eoffer-item';
+import { EPRODUCT_SNIPPET_SCHEMA } from '../schema/eproduct-snippet';
+import { ESNIPPET_SCHEMA } from '../schema/esnippet';
+import { handleESnippetStructural } from '../schema/esnippet-hooks';
 
 /**
  * Приоритеты выполнения обработчиков
@@ -123,7 +131,8 @@ class HandlerRegistry {
       mode: metadata.mode ?? 'sync',
       containers: metadata.containers ?? [],
       dependsOn: metadata.dependsOn ?? [],
-      description: metadata.description ?? ''
+      description: metadata.description ?? '',
+      skipForContainers: metadata.skipForContainers
     };
 
     this.handlers.push({ name, handler, metadata: fullMetadata });
@@ -145,23 +154,15 @@ class HandlerRegistry {
       description: 'Обработка цен, скидок, Fintech'
     });
 
-    this.register('EPriceView', handleEPriceView, {
-      priority: HandlerPriority.CRITICAL,
-      mode: 'async',
-      description: 'EPrice view (special/default)'
-    });
-
-    this.register('InfoIcon', handleInfoIcon, {
-      priority: HandlerPriority.VISIBILITY,
-      mode: 'sync',
-      description: 'Показ/скрытие иконки "Инфо" в EPriceGroup-Fintech'
-    });
+    // EPriceView — merged into EPriceGroup (view + value теперь устанавливаются там)
+    // InfoIcon — removed (deprecated no-op, managed via withFintech)
 
     // === VARIANTS (10) — варианты компонентов ===
     this.register('BrandLogic', handleBrandLogic, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
-      description: 'Brand variant'
+      description: 'Brand variant',
+      skipForContainers: ['EShopItem', 'EOfferItem', 'EProductSnippet', 'EProductSnippet2', 'ESnippet', 'Snippet']
     });
 
     this.register('EPriceBarometer', handleEPriceBarometer, {
@@ -179,44 +180,71 @@ class HandlerRegistry {
     this.register('MarketCheckoutButton', handleMarketCheckoutButton, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
-      description: 'BUTTON variant на контейнере'
+      description: 'BUTTON variant на контейнере',
+      skipForContainers: ['EShopItem', 'EOfferItem', 'EProductSnippet', 'EProductSnippet2', 'ESnippet', 'Snippet']
     });
 
-    this.register('EOfferItem', handleEOfferItem, {
+    // EOfferItem — schema engine (заменяет императивный handleEOfferItem)
+    this.register('EOfferItem', (context: HandlerContext) => {
+      const { container, row, instanceCache } = context;
+      if (!container || !row || !instanceCache) return;
+      if (container.type !== 'INSTANCE' || container.removed) return;
+      applySchema(container as InstanceNode, row, EOFFER_ITEM_SCHEMA, instanceCache);
+    }, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'async',
+      mode: 'sync',
       containers: ['EOfferItem'],
-      description: 'Модификаторы карточки предложения'
+      description: 'EOfferItem schema-based property mapping'
     });
 
-    this.register('EShopItem', handleEShopItem, {
+    // EShopItem — schema engine (заменяет императивный handleEShopItem)
+    this.register('EShopItem', (context: HandlerContext) => {
+      const { container, row, instanceCache } = context;
+      if (!container || !row || !instanceCache) return;
+      if (container.type !== 'INSTANCE' || container.removed) return;
+      applySchema(container as InstanceNode, row, ESHOP_ITEM_SCHEMA, instanceCache);
+    }, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'async',
+      mode: 'sync',
       containers: ['EShopItem'],
-      description: 'Модификаторы карточки магазина (priceDisclaimer, favoriteBtn)'
+      description: 'EShopItem schema-based property mapping'
     });
 
-    this.register('ESnippetProps', handleESnippetProps, {
+    // ESnippet — schema engine (заменяет императивный handleESnippetProps)
+    this.register('ESnippetProps', (context: HandlerContext) => {
+      const { container, row, instanceCache } = context;
+      if (!container || !row || !instanceCache) return;
+      if (container.type !== 'INSTANCE' || container.removed) return;
+      applySchema(container as InstanceNode, row, ESNIPPET_SCHEMA, instanceCache);
+    }, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'async',
+      mode: 'sync',
       containers: ['ESnippet', 'Snippet'],
-      description: 'Boolean пропсы ESnippet (withReviews, withQuotes, withDelivery, withFintech, withAddress, withButton, withMeta, withPrice)'
+      description: 'ESnippet schema-based property mapping'
     });
 
-    this.register('EProductSnippet', handleEProductSnippet, {
+    // ESnippet structural hooks (сайтлинки, промо-текст, EThumb fallback, clipsContent)
+    this.register('ESnippetStructural', handleESnippetStructural, {
       priority: HandlerPriority.VARIANTS,
-      mode: 'async',
-      containers: ['EProductSnippet', 'EProductSnippet2'],
-      description: 'Модификаторы карточки товара (withDelivery, withButton, organicTitle, ShopName)'
+      mode: 'sync',
+      containers: ['ESnippet', 'Snippet'],
+      description: 'ESnippet structural hooks (sitelinks, promo, thumb, clipsContent)'
     });
 
-    this.register('RatingReviewQuoteVisibility', handleRatingReviewQuoteVisibility, {
-      priority: HandlerPriority.VISIBILITY,
-      mode: 'async',
-      // Убираем ограничение по контейнерам - применяем ко ВСЕМ контейнерам
-      description: 'Скрывает группу Rating + Review + Quote если нет данных'
+    // EProductSnippet — schema engine (заменяет императивный handleEProductSnippet)
+    this.register('EProductSnippet', (context: HandlerContext) => {
+      const { container, row, instanceCache } = context;
+      if (!container || !row || !instanceCache) return;
+      if (container.type !== 'INSTANCE' || container.removed) return;
+      applySchema(container as InstanceNode, row, EPRODUCT_SNIPPET_SCHEMA, instanceCache);
+    }, {
+      priority: HandlerPriority.VARIANTS,
+      mode: 'sync',
+      containers: ['EProductSnippet', 'EProductSnippet2'],
+      description: 'EProductSnippet schema-based property mapping'
     });
-    Logger.debug(`[HandlerRegistry] RatingReviewQuoteVisibility зарегистрирован!`);
+
+    // RatingReviewQuoteVisibility — removed (deprecated no-op)
 
     this.register('ShopInfoBnpl', handleShopInfoBnpl, {
       priority: HandlerPriority.VARIANTS,
@@ -227,7 +255,8 @@ class HandlerRegistry {
     this.register('ShopInfoDeliveryBnplContainer', handleShopInfoDeliveryBnplContainer, {
       priority: HandlerPriority.VARIANTS,
       mode: 'sync',
-      description: 'Контейнер доставки/BNPL'
+      description: 'Контейнер доставки/BNPL',
+      skipForContainers: ['EShopItem', 'EOfferItem', 'ESnippet', 'Snippet']
     });
 
     // === VISIBILITY (20) — видимость элементов ===
@@ -240,7 +269,8 @@ class HandlerRegistry {
     this.register('OfficialShop', handleOfficialShop, {
       priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
-      description: 'Галочка официального магазина'
+      description: 'Галочка официального магазина',
+      skipForContainers: ['EShopItem', 'ESnippet', 'Snippet']
     });
 
     // === TEXT (30) — текстовые поля ===
@@ -362,6 +392,13 @@ class HandlerRegistry {
       // Проверяем ограничение по контейнерам
       if (h.metadata.containers && h.metadata.containers.length > 0) {
         if (!h.metadata.containers.includes(containerName)) {
+          continue;
+        }
+      }
+
+      // Проверяем skipForContainers (schema engine обрабатывает этот контейнер)
+      if (h.metadata.skipForContainers && h.metadata.skipForContainers.length > 0) {
+        if (h.metadata.skipForContainers.includes(containerName)) {
           continue;
         }
       }
