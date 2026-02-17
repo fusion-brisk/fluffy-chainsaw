@@ -25,6 +25,7 @@ import {
   extractProductURL
 } from './dom-utils';
 import { extractPrices, formatPriceWithThinSpace } from './price-extractor';
+import { getSnippetType } from './yandex-shared';
 import { extractFavicon, SpriteState } from './favicon-extractor';
 import { CSSCache, buildCSSCache } from './css-cache';
 // Phase 5: DOM cache for optimized element lookup
@@ -123,22 +124,12 @@ export function extractRowData(
     }
     
   
-  // Определяем тип сниппета
-  // ВАЖНО: EOfferItem проверяем ПЕРВЫМ, так как он может быть вложен в другие контейнеры
-  // Определяем тип сниппета — порядок проверок соответствует content.js
+  // Определяем тип сниппета (единая логика из yandex-shared.ts)
   const containerClassName = container.className || '';
-  const snippetTypeValue = 
-    containerClassName.includes('EOfferItem') ? 'EOfferItem' :
-    containerClassName.includes('EProductSnippet2') ? 'EProductSnippet2' : 
-    containerClassName.includes('EShopItem') ? 'EShopItem' : 
-    containerClassName.includes('ProductTile-Item') ? 'ProductTile-Item' :
-    // ESnippet — товарный сниппет (по классу или вложенным элементам)
-    (containerClassName.includes('ESnippet') || container.querySelector('.ESnippet, .ESnippet-Title, .ESnippet-Price')) ? 'ESnippet' :
-    // Organic_Adv — промо-сниппет с AdvLabel
-    (containerClassName.includes('Organic_withAdvLabel') || containerClassName.includes('Organic_withPromoOffer') ||
-     (containerClassName.includes('Organic') && container.querySelector('.AdvLabel, .OrganicAdvLabel'))) ? 'Organic_Adv' :
-    containerClassName.includes('Organic_withOfferInfo') ? 'Organic_withOfferInfo' :
-    'Organic';
+  const snippetTypeValue = getSnippetType(
+    containerClassName,
+    (selector: string) => !!container.querySelector(selector)
+  );
   
   // === ИЗВЛЕЧЕНИЕ #serpItemId и #containerType для группировки ===
   // Ищем родительский <li data-cid="..."> для группировки сниппетов

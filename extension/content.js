@@ -9,8 +9,10 @@
 
   // ============================================================================
   // CONSTANTS & REGEX
+  // SOURCE OF TRUTH: src/utils/yandex-shared.ts + src/utils/regex.ts
+  // При изменении — обновлять и здесь, и в yandex-shared.ts
   // ============================================================================
-  
+
   const PRICE_DIGITS_REGEX = /[^0-9]/g;
   const CURRENCY_RUB_REGEX = /₽|руб/i;
   const CURRENCY_USD_REGEX = /\$/i;
@@ -21,14 +23,14 @@
   const RATING_INVALID_START_REGEX = /^[\u2212\u002D\u2013\u2014]/;
 
   // Контейнеры сниппетов (CSS селекторы)
-  // Desktop: <li class="serp-item">
-  // Touch: <div class="serp-item serp-list__card">
+  // SOURCE OF TRUTH: src/utils/yandex-shared.ts → CONTAINER_SELECTORS
   const CONTAINER_SELECTORS = [
     'li.serp-item',
     'div.serp-item.serp-list__card'
   ].join(', ');
 
   // Селекторы для рекламных сниппетов (пропускаем)
+  // SOURCE OF TRUTH: src/utils/yandex-shared.ts → ADV_SELECTORS
   const ADV_SELECTORS = [
     '.Organic-Label_type_advertisement',
     '.Organic-Subtitle_type_advertisement',
@@ -100,6 +102,7 @@
 
   /**
    * Форматирует цену с математическим пробелом (U+2009)
+   * SOURCE OF TRUTH: src/utils/price-extractor.ts → formatPriceWithThinSpace
    */
   function formatPriceWithThinSpace(priceStr) {
     if (!priceStr || priceStr.length < 4) return priceStr;
@@ -123,7 +126,7 @@
 
   /**
    * Определяет платформу страницы (desktop или touch)
-   * Touch-версия имеет другую структуру HTML и классы
+   * SOURCE OF TRUTH: src/utils/yandex-shared.ts → detectPlatform
    */
   function detectPlatform() {
     // Проверяем HeaderPhone — надёжный маркер touch версии
@@ -175,6 +178,8 @@
 
   /**
    * Определяет тип сниппета
+   * SOURCE OF TRUTH: src/utils/yandex-shared.ts → getSnippetType
+   * Порядок проверок критичен — должен совпадать с yandex-shared.ts
    */
   function getSnippetType(container) {
     const className = container.className || '';

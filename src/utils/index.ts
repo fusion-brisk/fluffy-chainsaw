@@ -133,6 +133,14 @@ export {
 } from './component-cache';
 export type { PropertyMetadata, ComponentPropertyInfo } from './component-cache';
 
+// Yandex shared parsing logic (single source of truth for extension + plugin)
+export {
+  getSnippetType,
+  detectPlatform,
+  CONTAINER_SELECTORS,
+  ADV_SELECTORS
+} from './yandex-shared';
+
 // ============================================
 // UI Utilities
 // ============================================
