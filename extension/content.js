@@ -2452,8 +2452,15 @@
       let keyType = '';
       
       const snippetType = row['#SnippetType'] || '';
+
+      // === ImagesGrid, EQuickFilters — всегда уникальны ===
+      if (snippetType === 'ImagesGrid' || snippetType === 'EQuickFilters') {
+        unique.set(`${snippetType}:${row['#serpItemId'] || Math.random()}`, row);
+        continue;
+      }
+
       const isMultiShopType = snippetType === 'EShopItem' || snippetType === 'EOfferItem';
-      
+
       // === СПЕЦИАЛЬНАЯ ЛОГИКА ДЛЯ EShopItem/EOfferItem ===
       // Это карточки РАЗНЫХ магазинов для ОДНОГО товара — нужно сохранить все!
       // Ключ ДОЛЖЕН включать ShopName, чтобы не терять разные магазины
