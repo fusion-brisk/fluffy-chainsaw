@@ -368,6 +368,69 @@ async function copyToClipboard(tabId, data) {
   }
 }
 
+// === Full-Page Screenshot Capture ===
+
+const MAX_CAPTURES = 20; // Cap to avoid runaway on infinite-scroll pages
+const SCROLL_SETTLE_MS = 300; // Wait for lazy-loaded content to render
+
+/**
+ * Captures full-page screenshot by scrolling through the page.
+ * Returns { screenshots: [dataUrl, ...], totalHeight, viewportHeight, viewportWidth, devicePixelRatio }
+ */
+async function captureFullPage(tabId) {
+  // Read page dimensions and current scroll position
+  const [{ result: dims }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      innerHeight: window.innerHeight,
+      innerWidth: window.innerWidth,
+      scrollY: window.scrollY,
+      devicePixelRatio: window.devicePixelRatio || 1
+    })
+  });
+
+  const { scrollHeight, innerHeight, innerWidth, scrollY: originalScrollY, devicePixelRatio } = dims;
+  const screenshots = [];
+  const captureCount = Math.min(Math.ceil(scrollHeight / innerHeight), MAX_CAPTURES);
+
+  for (let i = 0; i < captureCount; i++) {
+    const scrollTo = i * innerHeight;
+
+    // Scroll to position
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      func: (y) => window.scrollTo(0, y),
+      args: [scrollTo]
+    });
+
+    // Wait for lazy-load content to settle
+    await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
+
+    // Capture visible viewport
+    const dataUrl = await chrome.tabs.captureVisibleTab(null, {
+      format: 'jpeg',
+      quality: 80
+    });
+    screenshots.push(dataUrl);
+  }
+
+  // Restore original scroll position
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (y) => window.scrollTo(0, y),
+    args: [originalScrollY]
+  });
+
+  return {
+    screenshots,
+    totalHeight: scrollHeight,
+    viewportHeight: innerHeight,
+    viewportWidth: innerWidth,
+    devicePixelRatio
+  };
+}
+
 // Main handler for icon click
 async function handleIconClick(tab) {
   // Check if on Yandex page
@@ -413,13 +476,34 @@ async function handleIconClick(tab) {
     const rows = parseResult.rows;
     const wizards = parseResult.wizards || [];
     
+    // Capture full-page screenshot (scroll + capture loop)
+    let screenshots = [];
+    let screenshotMeta = null;
+    try {
+      const result = await captureFullPage(tab.id);
+      screenshots = result.screenshots;
+      screenshotMeta = {
+        totalHeight: result.totalHeight,
+        viewportHeight: result.viewportHeight,
+        viewportWidth: result.viewportWidth,
+        devicePixelRatio: result.devicePixelRatio,
+        count: result.screenshots.length
+      };
+      const totalKB = screenshots.reduce((sum, s) => sum + s.length, 0);
+      console.log(`[Screenshot] Captured ${screenshots.length} segments, total: ${Math.round(totalKB / 1024)}KB`);
+    } catch (screenshotErr) {
+      console.log('[Screenshot] Failed:', screenshotErr.message);
+    }
+
     // Build payload (schemaVersion 3: rawRows + wizards)
     const payload = {
       schemaVersion: 3,
       source: { url: tab.url, title: tab.title },
       capturedAt: new Date().toISOString(),
       rawRows: rows,
-      wizards: wizards
+      wizards: wizards,
+      screenshots: screenshots.length > 0 ? screenshots : undefined,
+      screenshotMeta: screenshotMeta
     };
     
     const meta = { 

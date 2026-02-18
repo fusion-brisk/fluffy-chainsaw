@@ -217,7 +217,7 @@ loadQueue();
 // === Middleware ===
 app.use(cors({ origin: '*' }));
 app.use(compression({ threshold: 1024 })); // gzip responses > 1KB
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' })); // Increased for full-page screenshot segments
 
 // === Routes ===
 
@@ -241,6 +241,23 @@ app.post('/push', (req, res) => {
     }
   } catch { /* size check failed, allow through */ }
   
+  // Extract and store screenshot segments separately (don't persist in queue)
+  if (payload.screenshots && payload.screenshots.length > 0) {
+    const query = payload.rawRows?.[0]?.['#query'] || '';
+    screenshotSegments = payload.screenshots;
+    screenshotMeta = {
+      ...(payload.screenshotMeta || {}),
+      capturedAt: payload.capturedAt || new Date().toISOString(),
+      query,
+      url: payload.source?.url || '',
+      count: payload.screenshots.length
+    };
+    const totalKB = Math.round(screenshotSegments.reduce((sum, s) => sum + s.length, 0) / 1024);
+    console.log(`📸 ${screenshotSegments.length} screenshot segments stored: ${totalKB}KB, query: "${query}"`);
+    delete payload.screenshots; // Don't persist in queue file
+    delete payload.screenshotMeta;
+  }
+
   // Генерируем уникальный ID для записи
   const entryId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
@@ -464,6 +481,72 @@ app.get('/health', (req, res) => {
     queueSize: dataQueue.length,
     pendingCount: dataQueue.filter(e => !e.acknowledged).length,
     lastPushAt: lastPushTimestamp
+  });
+});
+
+// === Screenshot Storage ===
+// Stores full-page screenshot segments (array of data URLs)
+let screenshotSegments = [];
+let screenshotMeta = null;
+
+/**
+ * GET /screenshot — Serve full-page screenshot segments
+ *
+ * No params     → JSON metadata (count, dimensions, segment sizes)
+ * ?index=N      → serve segment N as image/jpeg
+ * ?index=all    → JSON array of all data URLs (batch fetch)
+ */
+app.get('/screenshot', (req, res) => {
+  if (screenshotSegments.length === 0) {
+    return res.status(404).json({ error: 'No screenshot available. Click the extension icon on a Yandex page.' });
+  }
+
+  const index = req.query.index;
+
+  // ?index=all — return all data URLs as JSON array
+  if (index === 'all') {
+    return res.json({
+      segments: screenshotSegments,
+      meta: screenshotMeta
+    });
+  }
+
+  // ?index=N — serve single segment as image
+  if (index !== undefined) {
+    const i = parseInt(index, 10);
+    if (isNaN(i) || i < 0 || i >= screenshotSegments.length) {
+      return res.status(400).json({
+        error: `Invalid index. Valid range: 0..${screenshotSegments.length - 1}`
+      });
+    }
+
+    const dataUrl = screenshotSegments[i];
+    const matches = dataUrl.match(/^data:image\/([\w+]+);base64,(.+)$/);
+    if (!matches) {
+      return res.status(500).json({ error: 'Invalid screenshot data' });
+    }
+
+    const ext = matches[1];
+    const buf = Buffer.from(matches[2], 'base64');
+
+    res.set('Content-Type', `image/${ext}`);
+    res.set('Content-Length', buf.length);
+    res.set('X-Segment-Index', String(i));
+    res.set('X-Segment-Count', String(screenshotSegments.length));
+    return res.send(buf);
+  }
+
+  // No params — return metadata
+  const segmentSizes = screenshotSegments.map(s => {
+    const matches = s.match(/^data:image\/[\w+]+;base64,(.+)$/);
+    return matches ? Math.round(Buffer.from(matches[1], 'base64').length / 1024) : 0;
+  });
+
+  res.json({
+    hasScreenshot: true,
+    count: screenshotSegments.length,
+    meta: screenshotMeta,
+    segments: segmentSizes.map((sizeKB, i) => ({ index: i, sizeKB }))
   });
 });
 
