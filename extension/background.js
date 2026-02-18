@@ -371,7 +371,7 @@ async function copyToClipboard(tabId, data) {
 // === Full-Page Screenshot Capture ===
 
 const MAX_CAPTURES = 20; // Cap to avoid runaway on infinite-scroll pages
-const SCROLL_SETTLE_MS = 300; // Wait for lazy-loaded content to render
+const SCROLL_SETTLE_MS = 500; // Wait for lazy-load + respect captureVisibleTab rate limit
 
 /**
  * Captures full-page screenshot by scrolling through the page.
