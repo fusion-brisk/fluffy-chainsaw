@@ -2082,7 +2082,11 @@
     const dataLogNode = serpItem.getAttribute('data-log-node') || '';
     
     // ImagesGrid — блок «Картинки» (justified grid)
-    if (fastName === 'images' || serpItem.querySelector('.ImagesIdeasGrid, .ImagesGridImages')) {
+    // Проверяем только по классу ImagesIdeasGrid, НЕ по data-fast-name:
+    // - data-fast-name="images" может быть и ImagesScroller (горизонтальная лента)
+    // - data-fast-name="images_ideas" тоже бывает для grid
+    // ImagesIdeasGrid содержит .ImagesGridJustifier-Row с justified layout
+    if (serpItem.querySelector('.ImagesIdeasGrid')) {
       console.log(`[getSerpItemContainerType] ImagesGrid найден! cid=${dataCid}`);
       return 'ImagesGrid';
     }

@@ -181,9 +181,10 @@ export function extractRowData(
       const fastName = searchParent.getAttribute('data-fast-name') || '';
       const fastSubtype = searchParent.getAttribute('data-fast-subtype') || '';
       
-      if (fastName === 'images') {
+      if (fastName === 'images_ideas') {
+        // images_ideas + grid subtype → ImagesIdeasGrid (justified grid)
         containerType = 'ImagesGrid';
-        Logger.debug('📦 [PARSE] containerType=ImagesGrid (from data-fast-name)');
+        Logger.debug('📦 [PARSE] containerType=ImagesGrid (from data-fast-name=images_ideas)');
       } else if (fastName === 'products_mode_constr' ||
           fastSubtype.includes('ecommerce_offers') ||
           fastSubtype.includes('products_tiles')) {
