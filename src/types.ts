@@ -83,6 +83,34 @@ export interface PluginSettings {
   remoteUrl: string;
 }
 
+// ============================================================================
+// DEBUG REPORT
+// ============================================================================
+
+export interface DebugReport {
+  timestamp: string;
+  operation: 'build-page' | 'import-csv' | 'relay-import';
+  success: boolean;
+  duration: number;
+  query?: string;
+  platform?: string;
+  structure?: {
+    totalNodes: number;
+    containers: number;
+    byType: Record<string, number>;
+  };
+  created?: {
+    total: number;
+    byType?: Record<string, number>;
+  };
+  errors: Array<{ type: string; message: string; count?: number }>;
+  images?: {
+    success: number;
+    failed: number;
+    skipped: number;
+  };
+}
+
 // Экспортируем ParsingSchema как ParsingRulesData для совместимости
 export type ParsingRulesData = ParsingSchema;
 

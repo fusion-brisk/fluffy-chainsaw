@@ -741,6 +741,19 @@ const App: React.FC = () => {
           finishProcessing('success');
           break;
           
+        case 'debug-report':
+          // Forward debug report to relay server
+          try {
+            const debugRelayUrl = localStorage.getItem('contentify-relay-url') || 'http://localhost:3847';
+            fetch(`${debugRelayUrl}/debug`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(msg.report || {}),
+              signal: AbortSignal.timeout(3000)
+            }).catch(() => {});
+          } catch (e) { /* ignore */ }
+          break;
+
         case 'error':
           // Error occurred with min delay
           console.error('❌ Ошибка:', msg.message);

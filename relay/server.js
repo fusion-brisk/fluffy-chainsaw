@@ -467,6 +467,38 @@ app.get('/health', (req, res) => {
   });
 });
 
+// === Debug Endpoint ===
+// Plugin отправляет debug-отчёт после каждой операции.
+// Claude Code читает через GET /debug.
+const debugReports = [];
+const MAX_DEBUG_REPORTS = 5;
+
+app.post('/debug', (req, res) => {
+  const report = req.body;
+  if (!report) {
+    return res.status(400).json({ error: 'Empty body' });
+  }
+  report._receivedAt = new Date().toISOString();
+  debugReports.unshift(report);
+  if (debugReports.length > MAX_DEBUG_REPORTS) {
+    debugReports.length = MAX_DEBUG_REPORTS;
+  }
+  console.log(`[Debug] Report received: ${report.operation || 'unknown'}, success=${report.success}, errors=${(report.errors || []).length}`);
+  res.json({ ok: true, stored: debugReports.length });
+});
+
+app.get('/debug', (req, res) => {
+  if (debugReports.length === 0) {
+    return res.json({ hasReport: false, message: 'No debug reports yet. Run an import in Figma.' });
+  }
+  const latest = debugReports[0];
+  res.json({ hasReport: true, report: latest, totalReports: debugReports.length });
+});
+
+app.get('/debug/all', (req, res) => {
+  res.json({ reports: debugReports, count: debugReports.length });
+});
+
 // === Start ===
 server.listen(PORT, () => {
   console.log(`\n🚀 Relay Server — http://localhost:${PORT}`);

@@ -1265,9 +1265,11 @@ async function createImagesGridPanel(
   wrapper.name = 'ImagesGrid';
   wrapper.layoutMode = 'VERTICAL';
   wrapper.primaryAxisSizingMode = 'AUTO';
-  wrapper.counterAxisSizingMode = 'FILL';
+  wrapper.counterAxisSizingMode = 'AUTO';
   wrapper.itemSpacing = 12;
   wrapper.fills = [];
+  // FILL width устанавливается после appendChild в родитель
+  // (layoutSizingHorizontal = 'FILL' требует наличия parent)
 
   // === Заголовок «Картинки» ===
   var titleConfig = LAYOUT_COMPONENT_MAP['Title'];
@@ -1293,7 +1295,7 @@ async function createImagesGridPanel(
   gridFrame.name = 'ImagesGridContent';
   gridFrame.layoutMode = 'VERTICAL';
   gridFrame.primaryAxisSizingMode = 'AUTO';
-  gridFrame.counterAxisSizingMode = 'FILL';
+  gridFrame.counterAxisSizingMode = 'AUTO';
   gridFrame.itemSpacing = 6;
   gridFrame.fills = [];
   wrapper.appendChild(gridFrame);
@@ -2045,7 +2047,90 @@ export async function createSerpPage(
   if (errors.length > 0) {
     Logger.warn(`[PageCreator] Ошибок: ${errors.length}`);
   }
-  
+
+  // === Debug Frame ===
+  try {
+    var debugFrame = figma.createFrame();
+    debugFrame.name = '__contentify_debug__';
+    debugFrame.visible = false;
+    debugFrame.resize(1, 1);
+    debugFrame.fills = [];
+    pageFrame.appendChild(debugFrame);
+
+    var debugLines = [
+      'operation: build-page',
+      'query: ' + (options.query || '?'),
+      'platform: ' + platform,
+      'nodes: ' + structure.stats.totalSnippets + ' snippets, ' + structure.stats.containers + ' containers',
+      'created: ' + createdCount + ' elements in ' + creationTime + 'ms'
+    ];
+
+    // Ошибки по типам
+    var errorsByType: Record<string, string[]> = {};
+    for (var ei = 0; ei < errors.length; ei++) {
+      var err = errors[ei];
+      if (!errorsByType[err.elementType]) errorsByType[err.elementType] = [];
+      errorsByType[err.elementType].push(err.message);
+    }
+    for (var etype in errorsByType) {
+      if (Object.prototype.hasOwnProperty.call(errorsByType, etype)) {
+        var msgs = errorsByType[etype];
+        var uniqueMsgs = Array.from(new Set(msgs));
+        debugLines.push('[' + etype + '] errors(' + msgs.length + '): ' + uniqueMsgs.join('; '));
+      }
+    }
+
+    // Типы созданных нод
+    var nodeTypes: Record<string, number> = {};
+    if (structure.stats.byType) {
+      nodeTypes = structure.stats.byType;
+    }
+    for (var nt in nodeTypes) {
+      if (Object.prototype.hasOwnProperty.call(nodeTypes, nt)) {
+        debugLines.push('[' + nt + '] x ' + nodeTypes[nt]);
+      }
+    }
+
+    debugLines.push('errors_total: ' + errors.length);
+
+    for (var di = 0; di < debugLines.length; di++) {
+      var lineFrame = figma.createFrame();
+      lineFrame.name = debugLines[di];
+      lineFrame.resize(1, 1);
+      lineFrame.fills = [];
+      debugFrame.appendChild(lineFrame);
+    }
+  } catch (debugErr) {
+    // Debug frame creation should never block main flow
+  }
+
+  // === Debug Report (sent to UI → relay) ===
+  var debugReport = {
+    timestamp: new Date().toISOString(),
+    operation: 'build-page',
+    success: errors.length === 0 || createdCount > 0,
+    duration: creationTime,
+    query: options.query || '',
+    platform: platform,
+    structure: {
+      totalNodes: structure.stats.totalSnippets,
+      containers: structure.stats.containers,
+      byType: structure.stats.byType || {}
+    },
+    created: {
+      total: createdCount
+    },
+    errors: Object.keys(errorsByType || {}).map(function(t) {
+      return { type: t, message: (errorsByType || {})[t].join('; '), count: ((errorsByType || {})[t] || []).length };
+    })
+  };
+
+  try {
+    figma.ui.postMessage({ type: 'debug-report', report: debugReport });
+  } catch (e) {
+    // ignore
+  }
+
   return {
     success: errors.length === 0 || createdCount > 0,
     frame: pageFrame,
