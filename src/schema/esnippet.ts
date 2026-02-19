@@ -156,6 +156,13 @@ export var ESNIPPET_SCHEMA: ComponentSchema = {
       stringValue: '#OrganicHost',
       skipIfEmpty: true
     },
+    // organicPath (string) — путь в greenurl
+    {
+      propertyNames: ['organicPath'],
+      fieldName: '#OrganicPath',
+      stringValue: '#OrganicPath',
+      skipIfEmpty: true
+    },
     // promoText (string) — текст промо через property
     {
       propertyNames: ['promoText', 'promo'],

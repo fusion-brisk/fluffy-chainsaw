@@ -13,13 +13,166 @@ import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from './parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
 import { createSerpPage, detectPlatformFromHtml } from './page-builder';
+import { schemaDebugLog } from './schema/engine';
 import type { WizardPayload } from './types/wizard-types';
+
+const RELAY_URL = 'http://localhost:3847';
+
+/** Pure JS base64 encoder — no btoa dependency, safe for Figma sandbox */
+function bytesToBase64(bytes: Uint8Array): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  const len = bytes.length;
+  const rem = len % 3;
+  const mainLen = len - rem;
+
+  for (let i = 0; i < mainLen; i += 3) {
+    const b0 = bytes[i];
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    result += chars[b0 >> 2]
+            + chars[((b0 & 3) << 4) | (b1 >> 4)]
+            + chars[((b1 & 15) << 2) | (b2 >> 6)]
+            + chars[b2 & 63];
+  }
+
+  if (rem === 1) {
+    const b0 = bytes[mainLen];
+    result += chars[b0 >> 2] + chars[(b0 & 3) << 4] + '==';
+  } else if (rem === 2) {
+    const b0 = bytes[mainLen];
+    const b1 = bytes[mainLen + 1];
+    result += chars[b0 >> 2]
+            + chars[((b0 & 3) << 4) | (b1 >> 4)]
+            + chars[(b1 & 15) << 2]
+            + '=';
+  }
+
+  return result;
+}
+
+/** Dump component properties of first ESnippet instances for debugging */
+async function dumpInstanceStructure(frame: FrameNode): Promise<void> {
+  try {
+    // Find first 2 ESnippet/Snippet instances recursively
+    const found = frame.findAll(
+      (n: SceneNode) => n.type === 'INSTANCE' && (n.name === 'ESnippet' || n.name === 'Snippet')
+    ).slice(0, 2) as InstanceNode[];
+
+    const instances = found.map(inst => {
+      const props: Record<string, string> = {};
+      try {
+        const cpDefs = inst.componentProperties;
+        for (const key in cpDefs) {
+          props[key] = `${cpDefs[key].type}=${String(cpDefs[key].value)}`;
+        }
+      } catch (_e) { /* ignore */ }
+      return { name: inst.name, props };
+    });
+
+    await fetch(RELAY_URL + '/debug', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'instance-props-dump',
+        success: true,
+        errors: [],
+        instances,
+        schemaDebug: schemaDebugLog.slice(0, 50),
+        timestamp: new Date().toISOString()
+      })
+    });
+  } catch (e) {
+    console.error('dumpInstanceStructure error:', e);
+  }
+}
+
+/** Export the created SERP frame to the relay for visual comparison */
+async function exportResultToRelay(frame: FrameNode, query: string): Promise<void> {
+  // Always export at 1x for readable text in comparisons
+  const scale = 1;
+
+  const jpegBytes = await frame.exportAsync({
+    format: 'JPG',
+    constraint: { type: 'SCALE', value: scale }
+  });
+
+  const base64 = bytesToBase64(jpegBytes);
+  const dataUrl = 'data:image/jpeg;base64,' + base64;
+
+  await fetch(RELAY_URL + '/result', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      dataUrl,
+      meta: {
+        width: frame.width,
+        height: frame.height,
+        query,
+        scale
+      }
+    })
+  });
+
+  Logger.info(`🖼️ Result exported to relay: ${Math.round(base64.length / 1024)}KB, scale=${scale}`);
+}
 
 console.log('🚀 Плагин Contentify загружен');
 
 // Глобальные экземпляры
 const imageProcessor = new ImageProcessor();
 const rulesManager = new ParsingRulesManager();
+
+// Загрузка скриншотов и размещение рядом с SERP фреймом
+async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Promise<void> {
+  // Fetch screenshot metadata
+  const metaRes = await fetch(`${RELAY_URL}/screenshot`);
+  if (!metaRes.ok) return;
+
+  const meta = await metaRes.json() as {
+    count: number;
+    meta: { viewportWidth: number; viewportHeight: number };
+  };
+  if (meta.count === 0) return;
+
+  // Fetch all segment images
+  const imageHashes: string[] = [];
+  for (let i = 0; i < meta.count; i++) {
+    const segRes = await fetch(`${RELAY_URL}/screenshot?index=${i}`);
+    if (!segRes.ok) continue;
+    const buffer = await segRes.arrayBuffer();
+    const image = figma.createImage(new Uint8Array(buffer));
+    imageHashes.push(image.hash);
+  }
+
+  if (imageHashes.length === 0) return;
+
+  const { viewportWidth, viewportHeight } = meta.meta;
+
+  // Create container frame
+  const frame = figma.createFrame();
+  frame.name = `Screenshot — ${query}`;
+  frame.x = pageFrame.x + pageFrame.width + 100;
+  frame.y = pageFrame.y;
+  frame.resize(viewportWidth, viewportHeight * imageHashes.length);
+  frame.clipsContent = true;
+
+  // Place each segment as a rectangle with image fill
+  for (let i = 0; i < imageHashes.length; i++) {
+    const rect = figma.createRectangle();
+    rect.resize(viewportWidth, viewportHeight);
+    rect.x = 0;
+    rect.y = i * viewportHeight;
+    rect.fills = [{
+      type: 'IMAGE',
+      imageHash: imageHashes[i],
+      scaleMode: 'FILL',
+    }];
+    frame.appendChild(rect);
+  }
+
+  Logger.info(`📸 Размещено ${imageHashes.length} сегментов скриншота`);
+}
 
 // Флаг отмены текущей операции
 let isImportCancelled = false;
@@ -219,6 +372,21 @@ figma.ui.onmessage = async (msg) => {
           });
           
           Logger.info(`✅ Создан SERP фрейм "${result.frame.name}" с ${count} сниппетами`);
+
+          // Размещаем скриншоты рядом с SERP фреймом (не блокирует основной поток)
+          placeScreenshotSegments(result.frame, query).catch(err =>
+            Logger.error('Screenshot placement failed:', err)
+          );
+
+          // Export result frame to relay for visual comparison (fire-and-forget)
+          exportResultToRelay(result.frame, query).catch(err =>
+            Logger.error('Result export failed:', err)
+          );
+
+          // Dump instance structure for debugging prop/layer names
+          dumpInstanceStructure(result.frame).catch(err =>
+            Logger.error('Structure dump failed:', err)
+          );
         } else {
           const errorMsg = result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
           throw new Error(errorMsg);

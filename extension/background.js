@@ -375,10 +375,46 @@ const SCROLL_SETTLE_MS = 500; // Wait for lazy-load + respect captureVisibleTab 
 
 /**
  * Captures full-page screenshot by scrolling through the page.
+ * Resizes viewport to match Figma layout width and hides sticky header / technical UI.
  * Returns { screenshots: [dataUrl, ...], totalHeight, viewportHeight, viewportWidth, devicePixelRatio }
  */
-async function captureFullPage(tabId) {
-  // Read page dimensions and current scroll position
+async function captureFullPage(tabId, platform) {
+  const targetWidth = platform === 'touch' ? 393 : 1440;
+
+  // --- Resize window to match Figma layout width ---
+  const tabInfo = await chrome.tabs.get(tabId);
+  const win = await chrome.windows.get(tabInfo.windowId);
+  const originalWindowWidth = win.width;
+
+  const [{ result: currentInnerWidth }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => window.innerWidth
+  });
+  const chromeWidth = win.width - currentInnerWidth;
+  const newWindowWidth = targetWidth + chromeWidth;
+
+  let didResize = false;
+  if (newWindowWidth !== win.width) {
+    await chrome.windows.update(win.id, { width: newWindowWidth });
+    didResize = true;
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  // --- Hide technical UI only (header stays for first segment) ---
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const style = document.createElement('style');
+      style.id = 'contentify-screenshot-fix';
+      style.textContent = [
+        '#ulitochka-container { display: none !important; }',
+        '.YndxBug { display: none !important; }',
+      ].join('\n');
+      document.head.appendChild(style);
+    }
+  });
+
+  // Read page dimensions (header still visible)
   const [{ result: dims }] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => ({
@@ -392,35 +428,64 @@ async function captureFullPage(tabId) {
 
   const { scrollHeight, innerHeight, innerWidth, scrollY: originalScrollY, devicePixelRatio } = dims;
   const screenshots = [];
-  const captureCount = Math.min(Math.ceil(scrollHeight / innerHeight), MAX_CAPTURES);
 
-  for (let i = 0; i < captureCount; i++) {
-    const scrollTo = i * innerHeight;
+  // --- Segment 0: capture WITH header (natural page top) ---
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => window.scrollTo(0, 0)
+  });
+  await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
+  screenshots.push(await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 80 }));
 
-    // Scroll to position
+  // --- Hide header for remaining segments ---
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const fix = document.getElementById('contentify-screenshot-fix');
+      if (fix) fix.textContent += '\n.HeaderDesktop, .HeaderPhone { display: none !important; }';
+    }
+  });
+
+  // Measure how much content shifted up after hiding header
+  const [{ result: newScrollHeight }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => document.documentElement.scrollHeight
+  });
+  const headerOffset = scrollHeight - newScrollHeight;
+
+  // Remaining segments: adjust scroll to account for hidden header
+  const remainingCount = Math.min(
+    Math.ceil(Math.max(0, newScrollHeight - (innerHeight - headerOffset)) / innerHeight),
+    MAX_CAPTURES - 1
+  );
+
+  for (let i = 0; i < remainingCount; i++) {
+    const scrollTo = (i + 1) * innerHeight - headerOffset;
+
     await chrome.scripting.executeScript({
       target: { tabId },
       func: (y) => window.scrollTo(0, y),
       args: [scrollTo]
     });
 
-    // Wait for lazy-load content to settle
     await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
-
-    // Capture visible viewport
-    const dataUrl = await chrome.tabs.captureVisibleTab(null, {
-      format: 'jpeg',
-      quality: 80
-    });
-    screenshots.push(dataUrl);
+    screenshots.push(await chrome.tabs.captureVisibleTab(null, { format: 'jpeg', quality: 80 }));
   }
 
-  // Restore original scroll position
+  // Restore: scroll position, hidden elements, window size
   await chrome.scripting.executeScript({
     target: { tabId },
-    func: (y) => window.scrollTo(0, y),
+    func: (y) => {
+      window.scrollTo(0, y);
+      const fix = document.getElementById('contentify-screenshot-fix');
+      if (fix) fix.remove();
+    },
     args: [originalScrollY]
   });
+
+  if (didResize) {
+    await chrome.windows.update(win.id, { width: originalWindowWidth });
+  }
 
   return {
     screenshots,
@@ -477,10 +542,12 @@ async function handleIconClick(tab) {
     const wizards = parseResult.wizards || [];
     
     // Capture full-page screenshot (scroll + capture loop)
+    // Determine platform to match Figma layout width
+    const platform = rows.find(r => r['#platform'])?.['#platform'] || 'desktop';
     let screenshots = [];
     let screenshotMeta = null;
     try {
-      const result = await captureFullPage(tab.id);
+      const result = await captureFullPage(tab.id, platform);
       screenshots = result.screenshots;
       screenshotMeta = {
         totalHeight: result.totalHeight,

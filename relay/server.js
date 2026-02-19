@@ -2,13 +2,17 @@
  * Contentify Relay Server — with WebSocket
  * 
  * Relay для localhost с WebSocket поддержкой:
- * - POST /push   — Extension отправляет данные
- * - GET  /peek   — Plugin просматривает данные БЕЗ удаления
- * - GET  /pull   — Plugin получает данные (удаляет из очереди)
- * - POST /ack    — Plugin подтверждает принятие данных
- * - GET  /status — Статус очереди
- * - GET  /health — проверка
- * - WS  /        — WebSocket для instant push notifications
+ * - POST /push    — Extension отправляет данные
+ * - GET  /peek    — Plugin просматривает данные БЕЗ удаления
+ * - GET  /pull    — Plugin получает данные (удаляет из очереди)
+ * - POST /ack     — Plugin подтверждает принятие данных
+ * - GET  /status  — Статус очереди
+ * - POST /result  — Plugin отправляет экспорт Figma фрейма
+ * - GET  /result  — Отдаёт экспортированное изображение результата
+ * - POST /reimport — Повторная очередь последнего импорта
+ * - GET  /comparison — Статус screenshot vs result для сравнения
+ * - GET  /health  — проверка
+ * - WS  /         — WebSocket для instant push notifications
  * 
  * Без авторизации, один пользователь.
  */
@@ -285,6 +289,11 @@ app.post('/push', (req, res) => {
   const itemCount = snippetCount + wizardCount;
   console.log(`📥 Push: ${snippetCount} snippets + ${wizardCount} wizards (schema v${payload.schemaVersion || 1}), queue: ${dataQueue.length}, id: ${entryId}`);
   
+  // Store deep copy for reimport (before broadcast, after screenshot extraction)
+  try {
+    lastImportPayload = JSON.parse(JSON.stringify(req.body));
+  } catch { /* ignore clone errors */ }
+
   // Broadcast to all WebSocket clients for instant delivery
   const query = payload.rawRows?.[0]?.['#query'] || '';
   broadcast({
@@ -489,6 +498,14 @@ app.get('/health', (req, res) => {
 let screenshotSegments = [];
 let screenshotMeta = null;
 
+// === Result Export Storage ===
+// Stores plugin-exported Figma frame as data URL
+let resultSegments = [];
+let resultMeta = null;
+
+// === Last Import Payload (for reimport) ===
+let lastImportPayload = null;
+
 /**
  * GET /screenshot — Serve full-page screenshot segments
  *
@@ -582,15 +599,201 @@ app.get('/debug/all', (req, res) => {
   res.json({ reports: debugReports, count: debugReports.length });
 });
 
+// === Result Export (Figma frame → relay) ===
+
+/**
+ * POST /result — Plugin sends exported Figma frame as base64 data URL
+ * Body: { dataUrl: "data:image/jpeg;base64,...", meta: { width, height, query, scale } }
+ */
+app.post('/result', (req, res) => {
+  const { dataUrl, meta } = req.body;
+
+  if (!dataUrl || typeof dataUrl !== 'string') {
+    return res.status(400).json({ error: 'Missing or invalid dataUrl' });
+  }
+
+  resultSegments = [dataUrl];
+  resultMeta = {
+    ...(meta || {}),
+    receivedAt: new Date().toISOString()
+  };
+
+  const sizeKB = Math.round(dataUrl.length * 3 / 4 / 1024); // approx decoded size
+  console.log(`🖼️ Result export stored: ~${sizeKB}KB, query: "${meta?.query || ''}"`);
+
+  res.json({ success: true, sizeKB });
+});
+
+/**
+ * GET /result — Serve the stored result image
+ * No params  → JSON metadata
+ * ?index=0   → raw JPEG bytes (Content-Type: image/jpeg)
+ */
+app.get('/result', (req, res) => {
+  if (resultSegments.length === 0) {
+    return res.status(404).json({ error: 'No result export available. Run an import in Figma first.' });
+  }
+
+  const index = req.query.index;
+
+  // ?index=N — serve as raw image
+  if (index !== undefined) {
+    const i = parseInt(index, 10);
+    if (isNaN(i) || i < 0 || i >= resultSegments.length) {
+      return res.status(400).json({ error: `Invalid index. Valid range: 0..${resultSegments.length - 1}` });
+    }
+
+    const dataUrl = resultSegments[i];
+    const matches = dataUrl.match(/^data:image\/([\w+]+);base64,(.+)$/);
+    if (!matches) {
+      return res.status(500).json({ error: 'Invalid result data' });
+    }
+
+    const ext = matches[1];
+    const buf = Buffer.from(matches[2], 'base64');
+
+    res.set('Content-Type', `image/${ext}`);
+    res.set('Content-Length', buf.length);
+    return res.send(buf);
+  }
+
+  // No params — return metadata
+  const segmentSizes = resultSegments.map(s => {
+    const matches = s.match(/^data:image\/[\w+]+;base64,(.+)$/);
+    return matches ? Math.round(Buffer.from(matches[1], 'base64').length / 1024) : 0;
+  });
+
+  res.json({
+    hasResult: true,
+    count: resultSegments.length,
+    meta: resultMeta,
+    segments: segmentSizes.map((sizeKB, i) => ({ index: i, sizeKB }))
+  });
+});
+
+/**
+ * POST /reimport — Re-queue the last imported payload
+ * Clones lastImportPayload into a new queue entry and broadcasts WebSocket event
+ */
+app.post('/reimport', (req, res) => {
+  if (!lastImportPayload) {
+    return res.status(404).json({ error: 'No previous import to replay. Send data via POST /push first.' });
+  }
+
+  // Clear previous result so the new export replaces it
+  resultSegments = [];
+  resultMeta = null;
+
+  // Clone and inject into /push logic
+  const cloned = JSON.parse(JSON.stringify(lastImportPayload));
+  const payload = cloned.payload || cloned;
+  const meta = cloned.meta || {};
+
+  const entryId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  lastPushTimestamp = new Date().toISOString();
+
+  dataQueue.push({
+    id: entryId,
+    payload,
+    meta,
+    pushedAt: lastPushTimestamp,
+    acknowledged: false
+  });
+
+  while (dataQueue.length > MAX_QUEUE) {
+    dataQueue.shift();
+  }
+
+  saveQueue();
+
+  const snippetCount = payload.rawRows?.length || 0;
+  const wizardCount = payload.wizards?.length || 0;
+  console.log(`🔄 Reimport: ${snippetCount} snippets + ${wizardCount} wizards, id: ${entryId}`);
+
+  // Broadcast to trigger plugin pickup
+  const query = payload.rawRows?.[0]?.['#query'] || '';
+  broadcast({
+    type: 'new-data',
+    entryId,
+    itemCount: snippetCount + wizardCount,
+    snippetCount,
+    wizardCount,
+    query,
+    timestamp: Date.now()
+  });
+
+  res.json({ success: true, entryId, queueSize: dataQueue.length });
+});
+
+/**
+ * GET /comparison — Convenience endpoint: availability of screenshot, result, source data
+ */
+app.get('/comparison', (req, res) => {
+  const pendingCount = dataQueue.filter(e => !e.acknowledged).length;
+
+  res.json({
+    screenshot: {
+      available: screenshotSegments.length > 0,
+      count: screenshotSegments.length,
+      meta: screenshotMeta
+    },
+    result: {
+      available: resultSegments.length > 0,
+      count: resultSegments.length,
+      meta: resultMeta
+    },
+    sourceData: {
+      available: pendingCount > 0,
+      queueSize: dataQueue.length,
+      pendingCount
+    },
+    canReimport: lastImportPayload !== null
+  });
+});
+
+/**
+ * GET /source-data — Serve last import's CSV rows for field-level verification
+ * No params     → all rows + metadata
+ * ?index=N      → single row by index
+ */
+app.get('/source-data', (req, res) => {
+  if (!lastImportPayload) {
+    return res.status(404).json({ error: 'No import data available. Send data via POST /push first.' });
+  }
+
+  const payload = lastImportPayload.payload || lastImportPayload;
+  const rows = payload.rawRows || [];
+
+  const index = req.query.index;
+  if (index !== undefined) {
+    const i = parseInt(index, 10);
+    if (isNaN(i) || i < 0 || i >= rows.length) {
+      return res.status(400).json({ error: `Invalid index. Valid range: 0..${rows.length - 1}` });
+    }
+    return res.json({ row: rows[i], index: i, totalRows: rows.length });
+  }
+
+  res.json({
+    totalRows: rows.length,
+    query: rows[0]?.['#query'] || '',
+    capturedAt: payload.capturedAt || null,
+    rows
+  });
+});
+
 // === Start ===
 server.listen(PORT, () => {
   console.log(`\n🚀 Relay Server — http://localhost:${PORT}`);
-  console.log(`   POST /push  — send data from extension`);
-  console.log(`   GET  /peek  — preview data (без удаления)`);
-  console.log(`   GET  /pull  — receive data (удаляет из очереди)`);
-  console.log(`   POST /ack   — confirm data received`);
-  console.log(`   GET  /status — queue status`);
-  console.log(`   WS   /      — WebSocket for instant notifications\n`);
+  console.log(`   POST /push    — send data from extension`);
+  console.log(`   GET  /peek    — preview data (без удаления)`);
+  console.log(`   GET  /pull    — receive data (удаляет из очереди)`);
+  console.log(`   POST /ack     — confirm data received`);
+  console.log(`   GET  /status  — queue status`);
+  console.log(`   POST /result  — plugin exports Figma frame`);
+  console.log(`   GET  /result  — serve exported result image`);
+  console.log(`   POST /reimport — re-queue last import`);
+  console.log(`   GET  /comparison — screenshot vs result status`);
+  console.log(`   WS   /        — WebSocket for instant notifications\n`);
   
   if (dataQueue.length > 0) {
     console.log(`   📦 В очереди ${dataQueue.length} записей, ожидающих обработки\n`);

@@ -32,13 +32,17 @@ export function handleESnippetStructural(context: HandlerContext): void {
   // 1. EThumb visibility fallback
   applyThumbFallback(instance, row);
 
-  // 2. Sitelinks text filling
+  // 2. Sitelinks: visibility + text filling
   applySitelinks(instance, row);
 
-  // 3. Promo text filling (через текстовые слои, дополнительно к property из schema)
-  applyPromoText(instance, row);
+  // 3. Promo: force-set withPromo property + visibility + text filling
+  forceSetWithPromo(instance, row);
+  applyPromoSection(instance, row);
 
-  // 4. content__left clipsContent
+  // 4. Address link text
+  applyAddressLink(instance, row);
+
+  // 5. content__left clipsContent
   applyClipsContentFix(instance);
 }
 
@@ -63,19 +67,41 @@ function applyThumbFallback(instance: InstanceNode, row: CSVRow): void {
 }
 
 /**
- * Сайтлинки: 3 стратегии поиска текстовых слоёв
+ * Сайтлинки: visibility + text filling
  */
 function applySitelinks(instance: InstanceNode, row: CSVRow): void {
-  if (row['#Sitelinks'] !== 'true') return;
-
   var sitelinksContainer =
     findFirstNodeByName(instance, 'Sitelinks') ||
     findFirstNodeByName(instance, 'Block / Snippet-staff / Sitelinks');
+
+  // Hide sitelinks section when #Sitelinks is not 'true'
+  if (row['#Sitelinks'] !== 'true') {
+    // Try direct container first
+    if (sitelinksContainer && 'visible' in sitelinksContainer) {
+      try {
+        (sitelinksContainer as SceneNode & { visible: boolean }).visible = false;
+        Logger.debug('   [ESnippet-hook] Sitelinks hidden (#Sitelinks!=true)');
+      } catch (_e) { /* ignore */ }
+    }
+    // Broader search: hide any descendant frame/instance with 'Sitelink' or 'sitelink' in name
+    if ('findAll' in instance) {
+      var sitelinkNodes = instance.findAll(function(n) {
+        return n.name.indexOf('itelink') !== -1 && n.type !== 'TEXT';
+      });
+      for (var si = 0; si < sitelinkNodes.length; si++) {
+        if ('visible' in sitelinkNodes[si]) {
+          try { (sitelinkNodes[si] as SceneNode).visible = false; } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+    return;
+  }
+
   if (!sitelinksContainer) return;
 
   var texts: string[] = [];
   for (var i = 1; i <= 4; i++) {
-    var text = (row['#Sitelink_' + i] || '').trim();
+    var text = ((row as any)['#Sitelink_' + i] || '').trim();
     if (text) texts.push(text);
   }
   if (texts.length === 0) return;
@@ -93,7 +119,7 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
   }
   if (filled > 0) return;
 
-  // Стратегия 2: Sitelinks-Item
+  // Стратегия 2: Sitelinks-Item instances
   if ('findAll' in sitelinksContainer) {
     var items = (sitelinksContainer as FrameNode).findAll(function(n) {
       return n.name === 'Sitelinks-Item' || n.name.indexOf('Sitelinks-Item') !== -1;
@@ -108,31 +134,163 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
   }
   if (filled > 0) return;
 
-  // Стратегия 3: Sitelinks-Title
+  // Стратегия 3: text nodes containing 'Title'
   if ('findAll' in sitelinksContainer) {
     var titleNodes = (sitelinksContainer as FrameNode).findAll(function(n) {
       return n.type === 'TEXT' && (n.name === 'Sitelinks-Title' || n.name.indexOf('Title') !== -1);
     }) as TextNode[];
     for (var m = 0; m < Math.min(titleNodes.length, texts.length); m++) {
       safeSetTextNode(titleNodes[m], texts[m]);
+      filled++;
+    }
+  }
+  if (filled > 0) return;
+
+  // Стратегия 4 (fallback): all text nodes with placeholder "Ссылка"
+  if ('findAll' in sitelinksContainer) {
+    var placeholders = (sitelinksContainer as FrameNode).findAll(function(n) {
+      return n.type === 'TEXT' && (n as TextNode).characters === 'Ссылка';
+    }) as TextNode[];
+    for (var p = 0; p < Math.min(placeholders.length, texts.length); p++) {
+      safeSetTextNode(placeholders[p], texts[p]);
+      filled++;
+    }
+    if (filled > 0) {
+      Logger.debug('   [ESnippet-hook] Sitelinks set via placeholder fallback (' + filled + ')');
     }
   }
 }
 
 /**
- * Промо-текст: установка через текстовые слои (дополнительно к property)
+ * Force-set withPromo via full property key.
+ * Workaround: setProperties({'withPromo': false}) silently fails on this component.
  */
-function applyPromoText(instance: InstanceNode, row: CSVRow): void {
-  var promoText = (row['#Promo'] || '').trim();
-  if (!promoText) return;
+function forceSetWithPromo(instance: InstanceNode, row: CSVRow): void {
+  var hasPromo = !!((row['#Promo'] || '') as string).trim();
+  if (hasPromo) return; // Only need to force when setting to false
 
+  // Find the full key for withPromo (e.g. 'withPromo#8042:21')
+  var props = instance.componentProperties;
+  for (var key in props) {
+    if (key.split('#')[0] === 'withPromo') {
+      try {
+        // Try full key
+        instance.setProperties(Object.fromEntries([[key, false]]));
+      } catch (_e1) {
+        try {
+          // Try setting all current props + withPromo=false together
+          var allProps: Record<string, string | boolean> = {};
+          for (var k in props) {
+            var p = props[k];
+            if (p && typeof p === 'object' && 'value' in p) {
+              var simpleName = k.split('#')[0];
+              var val = p.value;
+              if (typeof val === 'string' || typeof val === 'boolean') {
+                allProps[simpleName] = val;
+              }
+            }
+          }
+          allProps['withPromo'] = false;
+          instance.setProperties(allProps);
+        } catch (_e2) { /* ignore */ }
+      }
+      break;
+    }
+  }
+}
+
+/**
+ * Промо-секция: visibility + text
+ */
+function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
+  var promoText = (row['#Promo'] || '').trim();
+  var isPromo = row['#isPromo'] === 'true';
+
+  // Find promo container for visibility control
+  var promoContainer =
+    findFirstNodeByName(instance, 'Promo') ||
+    findFirstNodeByName(instance, 'PromoOffer') ||
+    findFirstNodeByName(instance, 'InfoSection');
+
+  // Hide promo section when no promo content
+  if (!promoText && !isPromo) {
+    if (promoContainer && 'visible' in promoContainer) {
+      try {
+        (promoContainer as SceneNode & { visible: boolean }).visible = false;
+        Logger.debug('   [ESnippet-hook] Promo hidden (no promo data)');
+      } catch (_e) { /* ignore */ }
+    }
+    // Broader search: hide any descendant with 'Promo' or 'promo' in name
+    if ('findAll' in instance) {
+      var promoNodes = instance.findAll(function(n) {
+        return (n.name.indexOf('romo') !== -1 || n.name.indexOf('InfoSection') !== -1) && n.type !== 'TEXT';
+      });
+      for (var pi = 0; pi < promoNodes.length; pi++) {
+        if ('visible' in promoNodes[pi]) {
+          try { (promoNodes[pi] as SceneNode).visible = false; } catch (_e) { /* ignore */ }
+        }
+      }
+    }
+    return;
+  }
+
+  // Set promo text if available
+  if (promoText) {
+    var layer =
+      findTextLayerByName(instance, '#Promo') ||
+      findTextLayerByName(instance, 'InfoSection-Text') ||
+      findTextLayerByName(instance, 'PromoText');
+    if (layer) {
+      safeSetTextNode(layer, promoText);
+      Logger.debug('   [ESnippet-hook] Promo text set');
+    }
+  }
+}
+
+/**
+ * Address link: set #addressLink text on the address layer
+ */
+function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
+  var addressLink = (row['#addressLink'] || '').trim();
+  if (!addressLink) return;
+
+  // Try multiple name variants for the address link text layer
   var layer =
-    findTextLayerByName(instance, '#Promo') ||
-    findTextLayerByName(instance, 'InfoSection-Text') ||
-    findTextLayerByName(instance, 'PromoText');
+    findTextLayerByName(instance, '#addressLink') ||
+    findTextLayerByName(instance, 'addressLink') ||
+    findTextLayerByName(instance, 'Address-Link') ||
+    findTextLayerByName(instance, 'ShopAddress-Link');
+
   if (layer) {
-    safeSetTextNode(layer, promoText);
-    Logger.debug('   [ESnippet-hook] Promo text set');
+    safeSetTextNode(layer, addressLink);
+    Logger.debug('   [ESnippet-hook] addressLink set: "' + addressLink + '"');
+    return;
+  }
+
+  // Fallback: find the address container and look for link-like text nodes
+  var addressContainer =
+    findFirstNodeByName(instance, 'ShopOfflineRegion') ||
+    findFirstNodeByName(instance, 'Address') ||
+    findFirstNodeByName(instance, 'ShopAddress');
+
+  if (addressContainer && 'findAll' in addressContainer) {
+    // Find text nodes that look like address links (contain "ул." or typical defaults)
+    var textNodes = (addressContainer as FrameNode).findAll(function(n) {
+      return n.type === 'TEXT';
+    }) as TextNode[];
+
+    // The address link is typically the second text node (after city/metro text)
+    // or the one containing typical address patterns
+    for (var i = 0; i < textNodes.length; i++) {
+      var chars = textNodes[i].characters;
+      if (chars.indexOf('ул.') !== -1 || chars.indexOf('переулок') !== -1 ||
+          chars.indexOf('пр.') !== -1 || chars.indexOf('ш.') !== -1 ||
+          chars === '#addressLink') {
+        safeSetTextNode(textNodes[i], addressLink);
+        Logger.debug('   [ESnippet-hook] addressLink set via fallback: "' + addressLink + '"');
+        return;
+      }
+    }
   }
 }
 

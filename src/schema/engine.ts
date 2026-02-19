@@ -11,6 +11,9 @@ import { getCachedInstance, DeepCache } from '../utils/instance-cache';
 import type { CSVRow } from '../types/csv-fields';
 import type { ComponentSchema, PropertyMapping } from './types';
 
+// Temporary debug log for schema engine
+export var schemaDebugLog: string[] = [];
+
 /**
  * Вычисляет значение PropertyMapping из данных строки.
  * @returns boolean | string — значение для trySetProperty, или null если пропустить
@@ -69,6 +72,11 @@ function applyProperties(
       value,
       mapping.fieldName
     );
+
+    // Collect debug info for key properties
+    if (mapping.propertyNames[0] === 'withPromo' || mapping.propertyNames[0] === 'withSitelinks' || mapping.propertyNames[0] === 'organicPath') {
+      schemaDebugLog.push(mapping.propertyNames[0] + '=' + String(value) + '(type=' + typeof value + ') result=' + result + ' target=' + target.name);
+    }
 
     Logger.debug(
       '   ' + logPrefix + ' ' + mapping.propertyNames[0] + '=' + String(value) + ', result=' + result

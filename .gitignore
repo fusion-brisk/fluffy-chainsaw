@@ -31,6 +31,9 @@ extension/*.crx
 # Relay server data
 relay/.relay-queue.json
 
+# MCP config (local dev)
+.mcp.json
+
 # Editor directories and files
 .idea
 .vscode

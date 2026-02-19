@@ -1852,6 +1852,29 @@ export async function createSerpPage(
           headerInstance.layoutSizingHorizontal = 'FILL';
         }
         
+        // Set search query text on the header
+        if (query && query !== 'query') {
+          // Try exact names first, then find any text node with default placeholder
+          const queryNode = headerInstance.findOne(
+            (n: SceneNode) => n.type === 'TEXT' && (
+              n.name === '#query' || n.name === 'query' || n.name === 'запрос' ||
+              n.name === 'Input' || n.name === 'input' ||
+              n.name.indexOf('earch') !== -1 || n.name.indexOf('nput') !== -1
+            )
+          ) as TextNode | null;
+          // Fallback: find text node containing "запрос" placeholder text
+          const targetNode = queryNode || headerInstance.findOne(
+            (n: SceneNode) => n.type === 'TEXT' && (n as TextNode).characters === 'запрос'
+          ) as TextNode | null;
+          if (targetNode) {
+            await figma.loadFontAsync(targetNode.fontName as FontName);
+            targetNode.characters = query;
+            Logger.debug(`[PageCreator] Header query set: "${query}" (layer: ${targetNode.name})`);
+          } else {
+            console.log(`[PageCreator] ⚠️ Could not find query text node in Header`);
+          }
+        }
+
         createdCount++;
         Logger.debug('[PageCreator] Header добавлен');
       }
