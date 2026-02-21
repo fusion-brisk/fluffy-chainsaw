@@ -531,8 +531,10 @@ figma.ui.onmessage = async (msg) => {
 
 // === TEMP DEBUG: удалить после использования ===
 figma.on('selectionchange', () => {
+  console.log('[DEBUG] selectionchange fired, selection count:', figma.currentPage.selection.length);
   const sel = figma.currentPage.selection[0];
-  if (!sel) return;
+  if (!sel) { console.log('[DEBUG] no selection'); return; }
+  console.log('[DEBUG] selected:', sel.type, sel.name);
 
   async function dump(node: SceneNode, depth: number): Promise<string> {
     const pad = '  '.repeat(depth);
@@ -563,19 +565,41 @@ figma.on('selectionchange', () => {
       }
     }
 
-    if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
-      const defs = (node as ComponentNode).componentPropertyDefinitions;
-      if (defs) {
-        const keys = Object.keys(defs).sort();
-        out += pad + '  PropertyDefinitions:\n';
-        for (const k of keys) {
-          const d = defs[k];
-          let extra = '';
-          if (d.type === 'VARIANT') extra = ' options=' + JSON.stringify((d as any).variantOptions);
-          else if (d.type === 'BOOLEAN') extra = ' default=' + d.defaultValue;
-          else if (d.type === 'TEXT') extra = ' default="' + d.defaultValue + '"';
-          out += pad + '    ' + k + ': ' + d.type + extra + '\n';
+    if (node.type === 'COMPONENT_SET') {
+      try {
+        const defs = (node as ComponentSetNode).componentPropertyDefinitions;
+        if (defs) {
+          const keys = Object.keys(defs).sort();
+          out += pad + '  PropertyDefinitions:\n';
+          for (const k of keys) {
+            const d = defs[k];
+            let extra = '';
+            if (d.type === 'VARIANT') extra = ' options=' + JSON.stringify((d as any).variantOptions);
+            else if (d.type === 'BOOLEAN') extra = ' default=' + d.defaultValue;
+            else if (d.type === 'TEXT') extra = ' default="' + d.defaultValue + '"';
+            out += pad + '    ' + k + ': ' + d.type + extra + '\n';
+          }
         }
+      } catch (_e) { /* variant inside set — skip */ }
+    } else if (node.type === 'COMPONENT') {
+      // Only non-variant components (not inside a COMPONENT_SET) have propertyDefinitions
+      const comp = node as ComponentNode;
+      if (!comp.parent || comp.parent.type !== 'COMPONENT_SET') {
+        try {
+          const defs = comp.componentPropertyDefinitions;
+          if (defs) {
+            const keys = Object.keys(defs).sort();
+            out += pad + '  PropertyDefinitions:\n';
+            for (const k of keys) {
+              const d = defs[k];
+              let extra = '';
+              if (d.type === 'VARIANT') extra = ' options=' + JSON.stringify((d as any).variantOptions);
+              else if (d.type === 'BOOLEAN') extra = ' default=' + d.defaultValue;
+              else if (d.type === 'TEXT') extra = ' default="' + d.defaultValue + '"';
+              out += pad + '    ' + k + ': ' + d.type + extra + '\n';
+            }
+          }
+        } catch (_e) { /* ignore */ }
       }
     }
 

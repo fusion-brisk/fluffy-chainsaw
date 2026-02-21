@@ -201,94 +201,38 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
     return;
   }
 
-  // MODE B: EProductSnippet-style (Line groups with plain Text)
-  const slots: Array<{ line: SceneNode; text: TextNode | null; original: string }> = [];
-  for (let i = 0; i < lineNodes.length; i++) {
-    const ln = lineNodes[i] as SceneNode;
-    const tn = findFirstTextByPredicate(ln, () => true);
-    const orig = tn ? (tn.characters || '') : '';
-    slots.push({ line: ln, text: tn, original: orig });
-  }
-
-  const bulletSlots: Array<{ idx: number }> = [];
-  const plainSlots: Array<{ idx: number }> = [];
-  for (let i = 0; i < slots.length; i++) {
-    const txt = (slots[i].original || '').trim();
-    if (txt.indexOf('·') === 0) bulletSlots.push({ idx: i });
-    else plainSlots.push({ idx: i });
-  }
-
+  // MODE B: Line instances with value property
   const values: string[] = [];
   for (let i = 1; i <= Math.min(3, itemCount); i++) {
     const v = row[`#EDeliveryGroup-Item-${i}`];
     if (v && String(v).trim() !== '') values.push(String(v).trim());
   }
 
-  async function showSlot(slotIndex: number, value: string, forceBullet: boolean): Promise<void> {
-    const slot = slots[slotIndex];
-    const finalValue = forceBullet ? withBulletPrefixIfNeeded(value) : value;
-    if (slot.text) {
-      await safeSetTextNode(slot.text, finalValue);
+  // Strategy 1: Set value property on Line instances directly
+  if (lineNodes.length > 0 && values.length > 0) {
+    let valueSet = 0;
+    for (let i = 0; i < Math.min(lineNodes.length, values.length); i++) {
+      const ln = lineNodes[i] as SceneNode;
+      if (ln.type === 'INSTANCE') {
+        const finalValue = i > 0 ? withBulletPrefixIfNeeded(values[i]) : values[i];
+        try {
+          (ln as InstanceNode).setProperties({ value: finalValue });
+          valueSet++;
+          Logger.debug(`      ✅ Line[${i}].value set: "${finalValue}"`);
+        } catch (_e) { /* fallback below */ }
+      }
     }
-    // Показываем Line слот
-    if (slot.line && 'visible' in slot.line) {
-      (slot.line as SceneNode).visible = true;
-    }
+    if (valueSet > 0) return;
   }
 
-  async function hideSlot(slotIndex: number): Promise<void> {
-    const slot = slots[slotIndex];
-    // Скрываем Line слот
-    if (slot.line && 'visible' in slot.line) {
-      (slot.line as SceneNode).visible = false;
-      Logger.debug(`      🙈 Скрыт слот ${slotIndex}`);
-    }
-  }
-
-  // Скрываем все слоты кроме тех что будем использовать
-  const usedSlotIndices = new Set<number>();
-
-  if (values.length === 1 && bulletSlots.length > 0) {
-    const v0 = values[0];
-    const v0l = String(v0).toLowerCase();
-    if (plainSlots.length > 0 && v0l.indexOf('пвз') !== -1) {
-      await showSlot(plainSlots[0].idx, 'Курьер', false);
-      usedSlotIndices.add(plainSlots[0].idx);
-      await showSlot(bulletSlots[0].idx, v0, true);
-      usedSlotIndices.add(bulletSlots[0].idx);
-    } else {
-      await showSlot(bulletSlots[0].idx, v0, true);
-      usedSlotIndices.add(bulletSlots[0].idx);
-    }
-  } else if (values.length >= 2 && (plainSlots.length > 0 || bulletSlots.length > 0)) {
-    if (plainSlots.length > 0) {
-      await showSlot(plainSlots[0].idx, values[0], false);
-      usedSlotIndices.add(plainSlots[0].idx);
-    } else {
-      await showSlot(bulletSlots[0].idx, values[0], true);
-      usedSlotIndices.add(bulletSlots[0].idx);
-    }
-    if (bulletSlots.length > 0) {
-      await showSlot(bulletSlots[0].idx, values[1], true);
-      usedSlotIndices.add(bulletSlots[0].idx);
-    } else if (plainSlots.length > 1) {
-      await showSlot(plainSlots[1].idx, values[1], true);
-      usedSlotIndices.add(plainSlots[1].idx);
-    }
-  } else if (values.length === 1 && plainSlots.length > 0) {
-    await showSlot(plainSlots[0].idx, values[0], false);
-    usedSlotIndices.add(plainSlots[0].idx);
-  } else if (values.length > 0) {
-    for (let i = 0; i < values.length && i < slots.length; i++) {
-      await showSlot(i, values[i], i > 0);
-      usedSlotIndices.add(i);
-    }
-  }
-
-  // Скрываем неиспользуемые слоты
-  for (let i = 0; i < slots.length; i++) {
-    if (!usedSlotIndices.has(i)) {
-      await hideSlot(i);
+  // Strategy 2: Fallback to text node search inside Line instances
+  for (let i = 0; i < Math.min(lineNodes.length, values.length); i++) {
+    const ln = lineNodes[i] as SceneNode;
+    const finalValue = i > 0 ? withBulletPrefixIfNeeded(values[i]) : values[i];
+    const tn = findFirstTextByPredicate(ln, () => true);
+    if (tn) {
+      await safeSetTextNode(tn, finalValue);
+      Logger.debug(`      ✅ Line[${i}] text fallback: "${finalValue}"`);
     }
   }
 }
@@ -380,21 +324,12 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
     return;
   }
 
-  // Устанавливаем типы для items и скрываем неиспользуемые
-  const maxSlots = Math.min(3, allItems.length);
+  // Устанавливаем типы для видимых items (visibility через child-slot properties выше)
+  const maxSlots = Math.min(3, allItems.length, desiredTypes.length);
   for (let i = 0; i < maxSlots; i++) {
-    const inst = allItems[i];
-    if (i < desiredTypes.length) {
-      // Показываем и устанавливаем тип
-      const t = desiredTypes[i];
-      const ok = trySetProperty(inst, ['type', 'Type'], t, '#ShopInfo-Bnpl');
-      inst.visible = true;
-      Logger.debug(`🧾 [ShopInfo-Bnpl] item[${i}] type=${t}, set=${ok}, visible=true`);
-    } else {
-      // Скрываем неиспользуемый слот
-      inst.visible = false;
-      Logger.debug(`🧾 [ShopInfo-Bnpl] item[${i}] скрыт`);
-    }
+    const t = desiredTypes[i];
+    const ok = trySetProperty(allItems[i], ['type', 'Type'], t, '#ShopInfo-Bnpl');
+    Logger.debug(`🧾 [ShopInfo-Bnpl] item[${i}] type=${t}, set=${ok}`);
   }
 }
 

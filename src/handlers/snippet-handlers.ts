@@ -483,8 +483,36 @@ export async function handleShopInfoUgcAndEReviewsShopText(context: HandlerConte
   if (!ratingDisplay && !reviewsTextRaw) return;
   
   const reviewsLabelGroup = findFirstNodeByName(container, 'EReviewsLabel');
-  
-  // 1) Named targets
+
+  // 0) Set value on Line instances inside EReviewsLabel (new structure: 2 × Line with value property)
+  if (reviewsLabelGroup && reviewsLabelGroup.type === 'INSTANCE') {
+    const inst = reviewsLabelGroup as InstanceNode;
+    if ('findAll' in inst) {
+      const lineInstances = inst.findAll((n: SceneNode) =>
+        n.type === 'INSTANCE' && n.name === 'Line'
+      ) as InstanceNode[];
+
+      let linesSet = 0;
+      // First Line = rating, Second Line = reviews text
+      if (ratingDisplay && lineInstances.length >= 1) {
+        try {
+          lineInstances[0].setProperties({ value: ratingDisplay });
+          linesSet++;
+          Logger.debug(`   ⭐ [EReviewsLabel] Line[0].value set: ${ratingDisplay}`);
+        } catch (_e) { /* fallback below */ }
+      }
+      if (reviewsTextRaw && lineInstances.length >= 2) {
+        try {
+          lineInstances[1].setProperties({ value: reviewsTextRaw });
+          linesSet++;
+          Logger.debug(`   📝 [EReviewsLabel] Line[1].value set: ${reviewsTextRaw}`);
+        } catch (_e) { /* fallback below */ }
+      }
+      if (linesSet > 0) return; // Lines set, skip text fallbacks
+    }
+  }
+
+  // 1) Named targets (legacy fallback)
   if (ratingDisplay) {
     const namedRating = findTextLayerByName(container, '#ShopInfo-Ugc');
     if (namedRating) {
@@ -1101,27 +1129,45 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
   
   // Применяем текст цитаты, если он есть
   if (quoteText) {
-    // Ищем текстовый слой для цитаты
-    const quoteLayerNames = ['#QuoteText', '#EQuote-Text', 'EQuote-Text', 'Quote'];
     let textApplied = false;
-    for (const name of quoteLayerNames) {
-      const layer = findTextLayerByName(container, name);
-      if (layer) {
-        await safeSetTextNode(layer, quoteText);
-        Logger.debug(`   💬 [QuoteText] Установлена цитата: "${quoteText.substring(0, 40)}..."`);
-        textApplied = true;
-        break;
+
+    // Strategy 0: Set value on Line instance inside Line / EQuote
+    const eQuoteWrapper = findFirstNodeByName(container, 'Line / EQuote');
+    if (eQuoteWrapper && eQuoteWrapper.type === 'INSTANCE') {
+      // Line / EQuote contains a nested Line instance with value property
+      const innerLine = (eQuoteWrapper as InstanceNode).findOne((n: SceneNode) =>
+        n.type === 'INSTANCE' && n.name === 'Line'
+      ) as InstanceNode | null;
+      if (innerLine) {
+        try {
+          innerLine.setProperties({ value: quoteText });
+          textApplied = true;
+          Logger.debug(`   💬 [QuoteText] Line.value set: "${quoteText.substring(0, 40)}..."`);
+        } catch (_e) { /* fallback below */ }
       }
     }
 
-    // Fallback: ищем через findFirstNodeByName
+    // Strategy 1: Named text layers (legacy)
+    if (!textApplied) {
+      const quoteLayerNames = ['#QuoteText', '#EQuote-Text', 'EQuote-Text', 'Quote'];
+      for (const name of quoteLayerNames) {
+        const layer = findTextLayerByName(container, name);
+        if (layer) {
+          await safeSetTextNode(layer, quoteText);
+          Logger.debug(`   💬 [QuoteText] Установлена цитата: "${quoteText.substring(0, 40)}..."`);
+          textApplied = true;
+          break;
+        }
+      }
+    }
+
+    // Strategy 2: Predicate search inside EQuote container
     if (!textApplied) {
       const quoteContainer = findFirstNodeByName(container, 'EQuote') ||
                              findFirstNodeByName(container, 'OrganicUgcReviews-QuoteWrapper');
       if (quoteContainer) {
         const textNode = findFirstTextByPredicate(quoteContainer, (t) => {
           const s = (t.characters || '').trim();
-          // Ищем текст похожий на цитату (с кавычками или «)
           return s.includes('«') || s.includes('»') || s.includes('"') || s.length > 10;
         });
         if (textNode) {
@@ -1731,30 +1777,14 @@ export function handleEcomMetaVisibility(context: HandlerContext): void {
 export function handleEmptyGroups(context: HandlerContext): void {
   const { container, instanceCache } = context;
   
-  // ДИАГНОСТИКА: используем console.log вместо Logger.debug
-  console.log(`📦 [EmptyGroups] ВЫЗВАН! container=${!!container}, instanceCache=${!!instanceCache}`);
-  
-  if (!container || !instanceCache) {
-    console.log(`📦 [EmptyGroups] Пропуск: container=${!!container}, instanceCache=${!!instanceCache}`);
-    return;
-  }
-  
+  if (!container || !instanceCache) return;
+
   const containerName = 'name' in container ? container.name : 'unknown';
-  console.log(`📦 [EmptyGroups] Начало обработки для контейнера "${containerName}"`);
-  
-  // Диагностика: выводим все группы в кэше
-  const allGroupNames = Array.from(instanceCache.groups.keys());
-  console.log(`📦 [EmptyGroups] Все группы в кэше (${allGroupNames.length}): ${allGroupNames.slice(0, 20).join(', ')}${allGroupNames.length > 20 ? '...' : ''}`);
-  
+  Logger.debug(`📦 [EmptyGroups] Начало обработки для "${containerName}"`);
+
   // Получаем группы, отсортированные по глубине (глубокие первыми — bottom-up)
   const groups = getGroupsSortedByDepth(instanceCache);
-  
-  if (groups.length === 0) {
-    console.log(`📦 [EmptyGroups] Нет групп для обработки (getGroupsSortedByDepth вернул пустой массив)`);
-    return;
-  }
-  
-  console.log(`📦 [EmptyGroups] Групп для обработки: ${groups.length}`);
+  if (groups.length === 0) return;
   
   let hiddenCount = 0;
   let shownCount = 0;
@@ -1767,39 +1797,26 @@ export function handleEmptyGroups(context: HandlerContext): void {
     if (!shouldProcessGroupForEmptyCheck(group.name)) continue;
     
     // EcomMeta обрабатывается отдельным handler (handleEcomMetaVisibility)
-    // Не трогаем его здесь, чтобы не переопределять решение
-    if (group.name === 'EcomMeta') {
-      console.log(`   📦 [EmptyGroups] Пропуск EcomMeta (обрабатывается отдельно)`);
-      continue;
-    }
-    
+    if (group.name === 'EcomMeta') continue;
+
     try {
-      // Проверяем видимость детей
-      // areAllChildrenHidden возвращает true для пустых групп (0 детей)
       const allHidden = areAllChildrenHidden(group);
       const hasVisible = hasAnyVisibleChild(group);
-      
-      console.log(`   📦 [EmptyGroups] Группа "${group.name}": children=${group.children.length}, allHidden=${allHidden}, hasVisible=${hasVisible}, visible=${group.visible}`);
-      
+
       if (allHidden && group.visible) {
-        // Все дети скрыты (или нет детей) → скрываем группу
         group.visible = false;
         hiddenCount++;
-        console.log(`   📦 [EmptyGroups] Скрыта группа "${group.name}" (пустая или все дети скрыты)`);
       } else if (hasVisible && !group.visible) {
-        // Есть видимые дети, но группа скрыта → показываем (reprocessing case)
         group.visible = true;
         shownCount++;
-        console.log(`   📦 [EmptyGroups] Показана группа "${group.name}" (есть видимые дети)`);
       }
-    } catch (e) {
-      // Игнорируем ошибки (например, если группа защищена)
-      console.log(`   ⚠️ [EmptyGroups] Ошибка обработки "${group.name}": ${e instanceof Error ? e.message : String(e)}`);
+    } catch (_e) {
+      // Игнорируем ошибки (группа может быть защищена)
     }
   }
-  
+
   if (hiddenCount > 0 || shownCount > 0) {
-    console.log(`📦 [EmptyGroups] Итого: скрыто ${hiddenCount}, показано ${shownCount} групп`);
+    Logger.debug(`📦 [EmptyGroups] Скрыто ${hiddenCount}, показано ${shownCount} групп`);
   }
 }
 
