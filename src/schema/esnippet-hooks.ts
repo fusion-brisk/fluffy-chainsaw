@@ -146,7 +146,7 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
   }
   if (filled > 0) return;
 
-  // Стратегия 4 (fallback): all text nodes with placeholder "Ссылка"
+  // Стратегия 4: all text nodes with placeholder "Ссылка"
   if ('findAll' in sitelinksContainer) {
     var placeholders = (sitelinksContainer as FrameNode).findAll(function(n) {
       return n.type === 'TEXT' && (n as TextNode).characters === 'Ссылка';
@@ -156,7 +156,22 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
       filled++;
     }
     if (filled > 0) {
-      Logger.debug('   [ESnippet-hook] Sitelinks set via placeholder fallback (' + filled + ')');
+      Logger.debug('   [ESnippet-hook] Sitelinks set via placeholder "Ссылка" (' + filled + ')');
+    }
+  }
+  if (filled > 0) return;
+
+  // Стратегия 5: text nodes with placeholder "Link" (English variant)
+  if ('findAll' in sitelinksContainer) {
+    var linkNodes = (sitelinksContainer as FrameNode).findAll(function(n) {
+      return n.type === 'TEXT' && (n as TextNode).characters === 'Link';
+    }) as TextNode[];
+    for (var q = 0; q < Math.min(linkNodes.length, texts.length); q++) {
+      safeSetTextNode(linkNodes[q], texts[q]);
+      filled++;
+    }
+    if (filled > 0) {
+      Logger.debug('   [ESnippet-hook] Sitelinks set via placeholder "Link" (' + filled + ')');
     }
   }
 }
@@ -240,6 +255,19 @@ function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
       findTextLayerByName(instance, '#Promo') ||
       findTextLayerByName(instance, 'InfoSection-Text') ||
       findTextLayerByName(instance, 'PromoText');
+
+    // Fallback: text nodes named "Text" inside Promo container
+    // Structure: Promo → tag-v2 (icon) + TEXT "Text" (label) + TEXT "Text" (description)
+    // Take the last one — it's the promo description
+    if (!layer && promoContainer && 'findAll' in promoContainer) {
+      var promoTextNodes = (promoContainer as FrameNode).findAll(function(n) {
+        return n.type === 'TEXT' && n.name === 'Text';
+      }) as TextNode[];
+      if (promoTextNodes.length > 0) {
+        layer = promoTextNodes[promoTextNodes.length - 1];
+      }
+    }
+
     if (layer) {
       safeSetTextNode(layer, promoText);
       Logger.debug('   [ESnippet-hook] Promo text set');
@@ -267,27 +295,33 @@ function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
     return;
   }
 
-  // Fallback: find the address container and look for link-like text nodes
+  // Fallback: find Line instance inside Address container and set its value property
+  // Structure: Address → ItemList → TEXT "#addressText" + INSTANCE "Line" (value="...")
   var addressContainer =
-    findFirstNodeByName(instance, 'ShopOfflineRegion') ||
     findFirstNodeByName(instance, 'Address') ||
+    findFirstNodeByName(instance, 'ItemList') ||
+    findFirstNodeByName(instance, 'ShopOfflineRegion') ||
     findFirstNodeByName(instance, 'ShopAddress');
 
   if (addressContainer && 'findAll' in addressContainer) {
-    // Find text nodes that look like address links (contain "ул." or typical defaults)
-    var textNodes = (addressContainer as FrameNode).findAll(function(n) {
-      return n.type === 'TEXT';
-    }) as TextNode[];
+    var lineInstances = (addressContainer as FrameNode).findAll(function(n) {
+      return n.type === 'INSTANCE' && n.name === 'Line';
+    }) as InstanceNode[];
 
-    // The address link is typically the second text node (after city/metro text)
-    // or the one containing typical address patterns
-    for (var i = 0; i < textNodes.length; i++) {
-      var chars = textNodes[i].characters;
-      if (chars.indexOf('ул.') !== -1 || chars.indexOf('переулок') !== -1 ||
-          chars.indexOf('пр.') !== -1 || chars.indexOf('ш.') !== -1 ||
-          chars === '#addressLink') {
-        safeSetTextNode(textNodes[i], addressLink);
-        Logger.debug('   [ESnippet-hook] addressLink set via fallback: "' + addressLink + '"');
+    for (var li = 0; li < lineInstances.length; li++) {
+      try {
+        lineInstances[li].setProperties({ value: addressLink });
+        Logger.debug('   [ESnippet-hook] addressLink set via Line.value: "' + addressLink + '"');
+        return;
+      } catch (_e) { /* try next */ }
+    }
+
+    // Last resort: find text node "Title" inside Line (direct text child)
+    for (var lj = 0; lj < lineInstances.length; lj++) {
+      var titleNode = findTextLayerByName(lineInstances[lj], 'Title');
+      if (titleNode) {
+        safeSetTextNode(titleNode, addressLink);
+        Logger.debug('   [ESnippet-hook] addressLink set via Line/Title text: "' + addressLink + '"');
         return;
       }
     }

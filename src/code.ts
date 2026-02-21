@@ -528,3 +528,80 @@ figma.ui.onmessage = async (msg) => {
     });
   }
 };
+
+// === TEMP DEBUG: удалить после использования ===
+figma.on('selectionchange', () => {
+  const sel = figma.currentPage.selection[0];
+  if (!sel) return;
+
+  async function dump(node: SceneNode, depth: number): Promise<string> {
+    const pad = '  '.repeat(depth);
+    const vis = node.visible ? '' : ' [HIDDEN]';
+    let out = pad + node.type + ' "' + node.name + '"' + vis + '\n';
+
+    if (node.type === 'INSTANCE') {
+      const inst = node as InstanceNode;
+      try {
+        const comp = await inst.getMainComponentAsync();
+        if (comp) out += pad + '  → Component: "' + comp.name + '" (' + (comp.parent?.name || '?') + ')\n';
+      } catch (_e) { /* ignore */ }
+      const props = inst.componentProperties;
+      const keys = Object.keys(props).sort();
+      if (keys.length) {
+        out += pad + '  Props:\n';
+        for (const k of keys) {
+          const p = props[k];
+          let val = JSON.stringify(p.value);
+          if (p.type === 'INSTANCE_SWAP' && typeof p.value === 'string') {
+            try {
+              const swapped = await figma.getNodeByIdAsync(p.value);
+              val = swapped ? '"' + swapped.name + '"' : val;
+            } catch (_e) { /* ignore */ }
+          }
+          out += pad + '    ' + k + ': ' + p.type + ' = ' + val + '\n';
+        }
+      }
+    }
+
+    if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
+      const defs = (node as ComponentNode).componentPropertyDefinitions;
+      if (defs) {
+        const keys = Object.keys(defs).sort();
+        out += pad + '  PropertyDefinitions:\n';
+        for (const k of keys) {
+          const d = defs[k];
+          let extra = '';
+          if (d.type === 'VARIANT') extra = ' options=' + JSON.stringify((d as any).variantOptions);
+          else if (d.type === 'BOOLEAN') extra = ' default=' + d.defaultValue;
+          else if (d.type === 'TEXT') extra = ' default="' + d.defaultValue + '"';
+          out += pad + '    ' + k + ': ' + d.type + extra + '\n';
+        }
+      }
+    }
+
+    if ('children' in node) {
+      for (const child of (node as FrameNode).children) {
+        out += await dump(child, depth + 1);
+      }
+    }
+    return out;
+  }
+
+  dump(sel, 0).then(result => {
+    console.log('\n=== COMPONENT DUMP ===');
+    console.log(result);
+    console.log('=== END DUMP ===\n');
+    // Send to relay for remote reading
+    fetch(RELAY_URL + '/debug', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operation: 'component-dump',
+        selection: sel.name,
+        dump: result,
+        timestamp: new Date().toISOString()
+      })
+    }).catch(() => {});
+  }).catch(err => console.error('Dump error:', err));
+});
+// === END TEMP DEBUG ===
