@@ -148,7 +148,7 @@ export type UIMessage =
   // === BUILD PAGE ===
   | { type: 'build-page'; rows: CSVRow[]; html: string; wizards?: unknown[] }  // Create new page from HTML structure
   // === BROWSER RELAY ===
-  | { type: 'apply-relay-payload'; payload: RelayPayload }  // Apply data from browser extension via relay
+  | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string }  // Apply data from browser extension via relay
   // === RESET ===
   | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
   // === LIFECYCLE ===
@@ -219,7 +219,11 @@ export type CodeMessage =
   // === WHATS NEW ===
   | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string }
   // === LOGGING ===
-  | { type: 'log-level-loaded'; level: number };  // Current log level
+  | { type: 'log-level-loaded'; level: number }  // Current log level
+  // === SETUP WIZARD ===
+  | { type: 'setup-skipped-loaded'; skipped: boolean }  // Response to get-setup-skipped
+  // === DEBUG ===
+  | { type: 'debug-report'; report: unknown };  // Debug report from page-creator
 
 /** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;

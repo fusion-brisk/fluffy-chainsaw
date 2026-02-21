@@ -141,6 +141,10 @@ export {
   ADV_SELECTORS
 } from './yandex-shared';
 
+// Relay payload parsing
+export { extractRowsFromPayload } from './relay-payload';
+export type { ParsedRelayData } from './relay-payload';
+
 // ============================================
 // UI Utilities
 // ============================================
