@@ -842,23 +842,12 @@ export function handleHidePriceBlock(context: HandlerContext): void {
 export async function handleImageType(context: HandlerContext): Promise<void> {
   const { container, row, instanceCache } = context;
   
-  // Диагностика — выводим ВСЕГДА (даже если row/container пустые)
-  const containerName = container && 'name' in container ? container.name : 'NULL';
-  const containerType = container && 'type' in container ? container.type : 'NULL';
-  const hasRow = row !== null && row !== undefined;
-  
-  Logger.debug(`🖼️ [imageType] ВХОД: container="${containerName}" (${containerType}), row=${hasRow ? 'да' : 'НЕТ'}`);
-  
-  if (!container || !row) {
-    Logger.debug(`🖼️ [imageType] ПРОПУСК: container=${!!container}, row=${!!row}`);
-    return;
-  }
+  if (!container || !row) return;
 
+  const containerName = container && 'name' in container ? container.name : 'unknown';
   const imageType = row['#imageType'];
   const isCatalogPage = row['#isCatalogPage'];
-  
-  // Диагностика — выводим данные из row
-  Logger.debug(`🖼️ [imageType] Данные: imageType=${imageType || 'N/A'}, isCatalogPage=${isCatalogPage || 'N/A'}`);
+  Logger.debug(`🖼️ [imageType] container="${containerName}", imageType=${imageType || 'N/A'}`);
   
   // ВАЖНО: Независимо от imageType, пробуем применить изображения к EThumbGroup
   // Это нужно потому что в Figma может быть EThumbGroup по умолчанию
@@ -1051,17 +1040,7 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
           // Ищем вложенный instance EThumb и переключаем на нужный вариант
           // Используем findOne вместо рекурсии для производительности
           
-          let eThumbInstance: InstanceNode | null = null;
-          if ('findOne' in instance) {
-            // InstanceNode имеет findOne через ChildrenMixin
-            const nodeWithFindOne = instance as unknown as { findOne: (callback: (node: SceneNode) => boolean) => SceneNode | null };
-            eThumbInstance = nodeWithFindOne.findOne(n => {
-              if (n.type !== 'INSTANCE') return false;
-              const nameLower = n.name.toLowerCase();
-              return nameLower.includes('ethumb') || nameLower.includes('thumb') || nameLower === 'imagetype';
-            }) as InstanceNode | null;
-          }
-          
+          // Reuse eThumbInstance found above (line ~907)
           if (eThumbInstance) {
             Logger.debug(`🖼️ [imageType] Найден вложенный EThumb: "${eThumbInstance.name}" (id=${eThumbInstance.id})`);
             

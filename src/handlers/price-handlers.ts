@@ -124,7 +124,7 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   Logger.debug(`💰 [EPriceGroup] Данные цен: #OrganicPrice="${priceValue || ''}", #OldPrice="${row['#OldPrice'] || ''}", #EPrice_View=${priceView}`);
   
   for (const ep of allEPrices) {
-    if (!isOldPriceInstance(ep, ePriceGroupInstance.id)) {
+    if (!isOldPriceInstance(ep)) {
       // Устанавливаем view
       const viewSet = trySetProperty(ep, ['view', 'View'], priceView, '#EPrice_View');
       Logger.debug(`💰 [EPrice] view=${priceView}, result=${viewSet}`);
@@ -177,33 +177,14 @@ function findAllEPriceInstances(ePriceGroupInstance: InstanceNode): InstanceNode
  * Проверяет, является ли EPrice старой ценой
  * Критерий: свойство view=old или View=old
  */
-function isOldPriceInstance(ep: InstanceNode, _rootId: string): boolean {
+function isOldPriceInstance(ep: InstanceNode): boolean {
   if (!ep.componentProperties) return false;
-  
-  // Ищем свойство view/View
   for (const propKey in ep.componentProperties) {
-    const propLower = propKey.toLowerCase();
-    if (propLower === 'view' || propLower.startsWith('view#')) {
+    if (propKey === 'view' || propKey.toLowerCase().startsWith('view#')) {
       const prop = ep.componentProperties[propKey];
-      if (prop.type === 'VARIANT' && typeof prop.value === 'string') {
-        const val = prop.value.toLowerCase();
-        if (val === 'old') {
-          return true;
-        }
+      if (prop.type === 'VARIANT' && String(prop.value).toLowerCase() === 'old') {
+        return true;
       }
-    }
-  }
-  
-  // Fallback: проверка родителя на "Old" в имени
-  let parent = ep.parent;
-  while (parent) {
-    if (parent.name && (parent.name.includes('Old') || parent.name.includes('old') || parent.name.includes('PriceOld'))) {
-      return true;
-    }
-    if ('parent' in parent) {
-      parent = parent.parent;
-    } else {
-      break;
     }
   }
   return false;
@@ -263,7 +244,7 @@ async function setOldPriceValue(
   
   // Ищем EPrice, который ЯВЛЯЕТСЯ старой ценой (внутри контейнера "Old")
   for (const ep of allEPrices) {
-    const isOld = isOldPriceInstance(ep, ePriceGroupInstance.id);
+    const isOld = isOldPriceInstance(ep);
     Logger.info(`💰 [OldPrice] Проверяем "${ep.name}" → isOld=${isOld}`);
     if (isOld) {
       Logger.info(`💰 [OldPrice] Найден EPrice внутри Old-контейнера: "${ep.name}"`);
