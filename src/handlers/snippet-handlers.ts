@@ -67,22 +67,6 @@ export function clearComponentsCache(): void {
 }
 
 /**
- * Рекурсивно ищет слой по имени во всех вложенных nodes (включая instances)
- */
-function findLayerDeep(node: SceneNode, name: string): SceneNode | null {
-  if (node.name === name) return node;
-  
-  if ('children' in node) {
-    for (const child of (node as FrameNode | GroupNode).children) {
-      const found = findLayerDeep(child, name);
-      if (found) return found;
-    }
-  }
-  
-  return null;
-}
-
-/**
  * Применяет одиночное изображение к слою #OrganicImage / #ThumbImage / Image Ratio
  * Вызывается для State=Default (одна картинка)
  */
@@ -99,7 +83,7 @@ async function applySingleImage(container: SceneNode, row: CSVRow): Promise<void
   let layer: SceneNode | null = null;
   
   for (const name of layerNames) {
-    layer = findLayerDeep(container, name);
+    layer = findFirstNodeByName(container, name);
     if (layer) {
       Logger.debug(`🖼️ [applySingleImage] Найден слой "${name}"`);
       break;
@@ -208,7 +192,7 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
   
   for (let i = 0; i < 3; i++) {
     for (const name of exactNames[i]) {
-      const layer = findLayerDeep(container, name);
+      const layer = findFirstNodeByName(container, name);
       if (layer && 'fills' in layer) {
         foundLayers[i] = layer;
         Logger.debug(`🖼️ [applyThumbGroupImages] Найден слой для Image${i + 1}: "${layer.name}"`);
@@ -221,7 +205,7 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
   if (!foundLayers[0]) {
     const generalNames = ['Image Ratio', 'EThumb-Image', '#OrganicImage', '#ThumbImage'];
     for (const name of generalNames) {
-      const layer = findLayerDeep(container, name);
+      const layer = findFirstNodeByName(container, name);
       if (layer && 'fills' in layer) {
         foundLayers[0] = layer;
         Logger.debug(`🖼️ [applyThumbGroupImages] Fallback: найден слой "${layer.name}" для Image1`);
@@ -686,7 +670,7 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
   let layer: SceneNode | null = null;
   
   for (const name of layerNames) {
-    layer = findLayerDeep(sceneContainer, name);
+    layer = findFirstNodeByName(sceneContainer, name);
     if (layer && 'fills' in layer) {
       break;
     }
@@ -695,13 +679,13 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
   
   if (!layer) {
     // Fallback: ищем внутри EQuote или OrganicUgcReviews-QuoteWrapper
-    const quoteWrapper = findLayerDeep(sceneContainer, 'EQuote') ||
-                         findLayerDeep(sceneContainer, 'OrganicUgcReviews-QuoteWrapper');
+    const quoteWrapper = findFirstNodeByName(sceneContainer, 'EQuote') ||
+                         findFirstNodeByName(sceneContainer, 'OrganicUgcReviews-QuoteWrapper');
     if (quoteWrapper) {
       // Ищем любой небольшой квадратный/круглый слой (аватар обычно маленький)
       const avatarCandidates = ['Avatar', 'Image', 'Photo'];
       for (const name of avatarCandidates) {
-        layer = findLayerDeep(quoteWrapper, name);
+        layer = findFirstNodeByName(quoteWrapper, name);
         if (layer && 'fills' in layer) break;
         layer = null;
       }
@@ -882,7 +866,7 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
   // Проверяем что container является SceneNode (имеет 'type')
   if ('type' in container && container.type !== 'DOCUMENT' && container.type !== 'PAGE') {
     const sceneContainer = container as SceneNode;
-    const hasImage1Layer = findLayerDeep(sceneContainer, '#Image1') !== null;
+    const hasImage1Layer = findFirstNodeByName(sceneContainer, '#Image1') !== null;
     
     if (hasImage1Layer) {
       Logger.debug(`🖼️ [imageType] Найден слой #Image1 — применяем изображения к EThumbGroup`);

@@ -137,11 +137,11 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
     }
   }
   
-  // Старая цена
+  // Старая цена (reuse allEPrices from above)
   const oldPriceValue = row['#OldPrice'];
   if (oldPriceValue && hasOldPrice) {
     Logger.debug(`💰 [EPriceGroup] Устанавливаем старую цену: "${oldPriceValue}"`);
-    await setOldPriceValue(ePriceGroupInstance, oldPriceValue, instanceCache);
+    await setOldPriceValue(ePriceGroupInstance, oldPriceValue, instanceCache, allEPrices);
   }
   
   // Настройка Fintech type/view
@@ -218,45 +218,29 @@ function setPriceToInstance(ePriceInstance: InstanceNode, priceValue: string, la
     Logger.warn(`⚠️ [${label}] Пустая числовая цена из "${priceValue}"`);
     return false;
   }
-  
-  // Выводим все доступные свойства для диагностики
-  const allProps = ePriceInstance.componentProperties 
-    ? Object.keys(ePriceInstance.componentProperties) 
-    : [];
-  Logger.info(`💰 [${label}] EPrice свойства: [${allProps.join(', ')}]`);
-  
-  // Расширенный список возможных имён свойств для цены
-  const priceProps = ['value', 'text', 'content', 'price', 'amount', 'sum', 'cost'];
-  let valuePropKey: string | null = null;
-  
-  if (ePriceInstance.componentProperties) {
-    for (const propKey in ePriceInstance.componentProperties) {
-      const propLower = propKey.toLowerCase();
-      for (const pn of priceProps) {
-        if (propLower === pn || propLower.startsWith(pn + '#')) {
-          valuePropKey = propKey;
-          break;
+
+  // EPrice component uses 'value' TEXT property (value#28592:0)
+  try {
+    ePriceInstance.setProperties({ value: numericPrice });
+    Logger.debug(`✅ [${label}] EPrice.value="${numericPrice}"`);
+    return true;
+  } catch (_e) {
+    // Fallback: search by property key prefix
+    const props = ePriceInstance.componentProperties;
+    if (props) {
+      for (const key in props) {
+        if (key.split('#')[0] === 'value' && props[key].type === 'TEXT') {
+          try {
+            ePriceInstance.setProperties({ [key]: numericPrice });
+            Logger.debug(`✅ [${label}] EPrice.${key}="${numericPrice}" (full key)`);
+            return true;
+          } catch (_e2) { /* give up */ }
         }
       }
-      if (valuePropKey) break;
     }
-    
-    if (valuePropKey) {
-      try {
-        ePriceInstance.setProperties({ [valuePropKey]: numericPrice });
-        Logger.info(`✅ [${label}] Цена установлена через ${valuePropKey}: "${numericPrice}"`);
-        return true;
-      } catch (e) {
-        Logger.warn(`⚠️ [${label}] Ошибка setProperties(${valuePropKey}): ${e}`);
-      }
-    } else {
-      Logger.warn(`⚠️ [${label}] Не найдено свойство цены среди [${allProps.join(', ')}]`);
-    }
-  } else {
-    Logger.warn(`⚠️ [${label}] У EPrice нет componentProperties`);
+    Logger.warn(`⚠️ [${label}] Не удалось установить цену "${numericPrice}"`);
+    return false;
   }
-  
-  return false;
 }
 
 /**
@@ -265,9 +249,10 @@ function setPriceToInstance(ePriceInstance: InstanceNode, priceValue: string, la
 async function setOldPriceValue(
   ePriceGroupInstance: InstanceNode,
   oldPriceValue: string,
-  instanceCache: unknown
+  instanceCache: unknown,
+  allEPrices?: InstanceNode[]
 ): Promise<void> {
-  const allEPrices = findAllEPriceInstances(ePriceGroupInstance);
+  if (!allEPrices) allEPrices = findAllEPriceInstances(ePriceGroupInstance);
   
   // Выводим имена всех найденных EPrice для диагностики
   const ePriceNames = allEPrices.map(ep => {
