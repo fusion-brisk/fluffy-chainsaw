@@ -35,6 +35,10 @@ export interface HandlerResult {
   duration: number;
   /** Сообщение об ошибке (если есть) */
   error?: string;
+  /** Count of successfully set properties */
+  fieldsSet?: number;
+  /** Count of failed property sets */
+  fieldsFailed?: number;
   /** Дополнительные данные */
   data?: Record<string, unknown>;
 }

@@ -1,6 +1,15 @@
 import React, { useState, useMemo, useEffect, memo } from 'react';
-import { ParsingRulesMetadata } from '../../types';
+import { ParsingRulesMetadata, UserSettings } from '../../types';
 import { debounce } from '../../utils';
+import { sendMessageToPlugin } from '../../utils/plugin-bridge';
+
+const LOG_LEVEL_OPTIONS = [
+  { value: 0, label: 'Silent' },
+  { value: 1, label: 'Error' },
+  { value: 2, label: 'Summary' },
+  { value: 3, label: 'Verbose' },
+  { value: 4, label: 'Debug' },
+];
 
 interface SettingsViewProps {
   remoteUrl: string;
@@ -8,6 +17,7 @@ interface SettingsViewProps {
   parsingRulesMetadata: ParsingRulesMetadata | null;
   onRefreshRules: () => void;
   onResetCache: () => void;
+  settings?: UserSettings;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = memo(({
@@ -15,13 +25,45 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({
   onUpdateUrl,
   parsingRulesMetadata,
   onRefreshRules,
-  onResetCache
+  onResetCache,
+  settings
 }) => {
   const [localUrl, setLocalUrl] = useState(remoteUrl);
   const [isEditingUrl, setIsEditingUrl] = useState(false);
   const [filterText, setFilterText] = useState('');
   const [debouncedFilter, setDebouncedFilter] = useState('');
   const [viewMode, setViewMode] = useState<'table' | 'json'>('table');
+
+  // Advanced settings local state
+  const [imageTimeout, setImageTimeout] = useState(settings?.imageTimeoutMs ?? 10000);
+  const [maxConcurrent, setMaxConcurrent] = useState(settings?.maxConcurrentImages ?? 6);
+  const [logLevel, setLogLevel] = useState(settings?.logLevel ?? 2);
+
+  // Sync from props when settings load/change
+  useEffect(() => {
+    if (settings?.imageTimeoutMs !== undefined) setImageTimeout(settings.imageTimeoutMs);
+    if (settings?.maxConcurrentImages !== undefined) setMaxConcurrent(settings.maxConcurrentImages);
+    if (settings?.logLevel !== undefined) setLogLevel(settings.logLevel);
+  }, [settings?.imageTimeoutMs, settings?.maxConcurrentImages, settings?.logLevel]);
+
+  const saveSettings = (patch: Partial<UserSettings>) => {
+    sendMessageToPlugin({ type: 'save-settings', settings: patch as UserSettings });
+  };
+
+  const handleImageTimeoutChange = (value: number) => {
+    setImageTimeout(value);
+    saveSettings({ imageTimeoutMs: value });
+  };
+
+  const handleMaxConcurrentChange = (value: number) => {
+    setMaxConcurrent(value);
+    saveSettings({ maxConcurrentImages: value });
+  };
+
+  const handleLogLevelChange = (value: number) => {
+    setLogLevel(value);
+    saveSettings({ logLevel: value });
+  };
   
   // Debounced filter update
   const updateDebouncedFilter = useMemo(
@@ -192,6 +234,70 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({
         </div>
       </section>
 
+      {/* Advanced Settings Section */}
+      <section className="settings-section">
+        <div className="settings-section-header">
+          <h3 className="settings-section-title">Advanced</h3>
+        </div>
+
+        <div className="settings-section-content">
+          {/* Image Timeout */}
+          <div className="settings-field">
+            <label className="settings-label">
+              Image timeout: {(imageTimeout / 1000).toFixed(0)}s
+            </label>
+            <input
+              type="range"
+              className="settings-range"
+              min={5000}
+              max={30000}
+              step={1000}
+              value={imageTimeout}
+              onChange={(e) => handleImageTimeoutChange(Number(e.target.value))}
+            />
+            <div className="settings-hint">
+              How long to wait for each image download (5-30s)
+            </div>
+          </div>
+
+          {/* Max Concurrent Images */}
+          <div className="settings-field">
+            <label className="settings-label">
+              Concurrent images: {maxConcurrent}
+            </label>
+            <input
+              type="range"
+              className="settings-range"
+              min={1}
+              max={10}
+              step={1}
+              value={maxConcurrent}
+              onChange={(e) => handleMaxConcurrentChange(Number(e.target.value))}
+            />
+            <div className="settings-hint">
+              Number of parallel image downloads (1-10)
+            </div>
+          </div>
+
+          {/* Log Level */}
+          <div className="settings-field">
+            <label className="settings-label">Log level</label>
+            <select
+              className="settings-select"
+              value={logLevel}
+              onChange={(e) => handleLogLevelChange(Number(e.target.value))}
+            >
+              {LOG_LEVEL_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <div className="settings-hint">
+              Controls console and UI log verbosity
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Parsing Rules Section */}
       {parsingRulesMetadata && (
         <section className="settings-section">
@@ -201,16 +307,16 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({
               <span className="settings-version-badge">v{rules?.version}</span>
             </h3>
             <div className="settings-section-actions">
-              <button 
-                className="settings-btn" 
+              <button
+                className="settings-btn"
                 onClick={onRefreshRules}
                 title="Check for updates"
               >
                 Refresh
               </button>
               {parsingRulesMetadata.source !== 'embedded' && (
-                <button 
-                  className="settings-btn settings-btn-danger" 
+                <button
+                  className="settings-btn settings-btn-danger"
                   onClick={onResetCache}
                   title="Reset to defaults"
                 >

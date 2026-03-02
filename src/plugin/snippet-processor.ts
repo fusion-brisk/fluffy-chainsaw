@@ -41,6 +41,9 @@ export interface ImportCSVResult {
     skippedImages: number;
     errors: DetailedError[];
   };
+  fieldsSet?: number;
+  fieldsFailed?: number;
+  handlerErrors?: number;
 }
 
 // Yield to main thread to allow message processing (cancel, etc.)
@@ -215,6 +218,8 @@ export async function processImportCSV(
   // Агрегированная статистика контейнеров
   const containerTypeCounts: Record<string, number> = {};
   let handlerErrorCount = 0;
+  let totalFieldsSet = 0;
+  let totalFieldsFailed = 0;
   
   // ДИАГНОСТИКА: Статистика DeepCache
   let totalCacheTime = 0;
@@ -271,6 +276,8 @@ export async function processImportCSV(
         Logger.error(`[${res.handlerName}] Error: ${res.error}`);
         handlerErrorCount++;
       }
+      totalFieldsSet += res.fieldsSet || 0;
+      totalFieldsFailed += res.fieldsFailed || 0;
       // Логируем handlers занявшие >100ms только в debug
       if (res.duration && res.duration > 100) {
         Logger.debug(`⚠️ Slow handler: ${res.handlerName} took ${res.duration}ms on ${containerName}`);
@@ -431,7 +438,10 @@ export async function processImportCSV(
   return {
     processedCount: processingIndex,
     totalContainers: snippetGroups.size,
-    imageStats
+    imageStats,
+    fieldsSet: totalFieldsSet,
+    fieldsFailed: totalFieldsFailed,
+    handlerErrors: handlerErrorCount
   };
 }
 

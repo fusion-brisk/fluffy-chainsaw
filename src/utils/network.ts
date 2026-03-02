@@ -4,15 +4,15 @@ import { Config, CSVRow } from '../types';
 import { Logger } from '../logger';
 
 export const CONFIG: Config = {
-  CORS_PROXY: 'https://proxy.cors.sh/',
-  CORS_KEY: 'live_ad2976dadc87176d0acc2af12774c65db5ef345ea278a779350258330573dde4',
-  FETCH_TIMEOUT: 30000, // 30 seconds
+  CORS_PROXY: '',
+  CORS_KEY: '',
+  FETCH_TIMEOUT: 30000,
   RETRY_ATTEMPTS: 2,
-  RETRY_DELAY: 1000 // 1 second
+  RETRY_DELAY: 1000
 };
 
-export const SPREADSHEET_ID = '1Qk6Lki3Jm88lBA04YmW7LKfKKbKFPJm9O3Vq3yQsOhw';
-export const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxNjv0lTBwBOjE9QI2WOT0eViw_kikZ1bX65L28fIXGIlsyauYe0Jlf5dTXnHlF7iwYyg/exec';
+export const SPREADSHEET_ID = '';
+export const APPS_SCRIPT_URL = '';
 
 // Fetch with retry logic
 export async function fetchWithRetry(

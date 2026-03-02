@@ -9,7 +9,19 @@
  */
 
 import { Logger } from '../logger';
+import { resetFieldCounts, getFieldCounts } from '../property-utils';
 import { HandlerContext, HandlerResult, HandlerMetadata, RegisteredHandler } from './types';
+
+const HANDLER_TIMEOUT_MS = 10000; // 10 seconds max per handler
+
+function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Handler "' + name + '" timed out after ' + ms + 'ms')), ms)
+    )
+  ]);
+}
 
 // === Агрегированная статистика handlers ===
 interface HandlerStats {
@@ -117,6 +129,7 @@ class HandlerRegistry {
   private handlers: RegisteredHandler[] = [];
   private initialized = false;
   private loggedHandlers = false;
+  private aborted = false;
 
   /**
    * Регистрация обработчика
@@ -139,6 +152,13 @@ class HandlerRegistry {
     
     // Сортируем по приоритету после каждой регистрации
     this.handlers.sort((a, b) => a.metadata.priority - b.metadata.priority);
+  }
+
+  /**
+   * Прерывание текущего выполнения обработчиков
+   */
+  abort(): void {
+    this.aborted = true;
   }
 
   /**
@@ -370,6 +390,7 @@ class HandlerRegistry {
    */
   async executeAll(context: HandlerContext): Promise<HandlerResult[]> {
     if (!this.initialized) this.initialize();
+    this.aborted = false;
 
     const results: HandlerResult[] = [];
     const containerName = context.container && 'name' in context.container 
@@ -414,18 +435,20 @@ class HandlerRegistry {
 
     // 1. Выполняем sync обработчики
     for (const h of syncHandlers) {
+      if (this.aborted) break;
       const result = await this.executeHandler(h, context);
       results.push(result);
     }
 
     // 2. Выполняем async с зависимостями последовательно
     for (const h of asyncSequential) {
+      if (this.aborted) break;
       const result = await this.executeHandler(h, context);
       results.push(result);
     }
 
     // 3. Выполняем независимые async параллельно
-    if (asyncParallel.length > 0) {
+    if (asyncParallel.length > 0 && !this.aborted) {
       const parallelResults = await Promise.all(
         asyncParallel.map(h => this.executeHandler(h, context))
       );
@@ -443,32 +466,43 @@ class HandlerRegistry {
     context: HandlerContext
   ): Promise<HandlerResult> {
     const startTime = Date.now();
-    
+    resetFieldCounts();
+
     try {
-      await registered.handler(context);
-      
+      await withTimeout(
+        Promise.resolve(registered.handler(context)),
+        HANDLER_TIMEOUT_MS,
+        registered.name
+      );
+
       const duration = Date.now() - startTime;
-      
+      const fields = getFieldCounts();
+
       // Обновляем агрегированную статистику
       updateHandlerStats(registered.name, duration);
-      
+
       return {
         handlerName: registered.name,
         success: true,
-        duration
+        duration,
+        fieldsSet: fields.set,
+        fieldsFailed: fields.failed
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+      const fields = getFieldCounts();
+
       // Обновляем статистику даже при ошибке
       updateHandlerStats(registered.name, duration);
-      
+
       Logger.error(`[${registered.name}] Error:`, error);
-      
+
       return {
         handlerName: registered.name,
         success: false,
         duration,
+        fieldsSet: fields.set,
+        fieldsFailed: fields.failed,
         error: error instanceof Error ? error.message : String(error)
       };
     }

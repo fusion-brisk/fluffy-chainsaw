@@ -77,7 +77,7 @@ function isLikelyBnplItemInstance(inst: InstanceNode): boolean {
       if (base === 'type') return true;
     }
   } catch (e) {
-    // ignore
+    Logger.debug('[BNPL] isLikelyBnplItemInstance check failed');
   }
   return false;
 }
@@ -103,7 +103,7 @@ function detectBnplTypeFromNode(item: SceneNode): string | null {
       if (tl.indexOf('plati') !== -1) return 'Plati Chastyami';
     }
   } catch (e) {
-    // ignore
+    Logger.debug('[BNPL] detectBnplTypeFromNode graphics lookup failed');
   }
 
   const text = findFirstTextValue(item);
@@ -219,7 +219,7 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
           (ln as InstanceNode).setProperties({ value: finalValue });
           valueSet++;
           Logger.debug(`      ✅ Line[${i}].value set: "${finalValue}"`);
-        } catch (_e) { /* fallback below */ }
+        } catch (_e) { Logger.debug('[EDeliveryGroup] Line[' + i + '].value set failed'); }
       }
     }
     if (valueSet > 0) return;

@@ -3,9 +3,10 @@
  */
 
 import { Logger, LogLevel } from '../logger';
-import { PLUGIN_VERSION } from '../config';
+import { PLUGIN_VERSION, updateImageConfig } from '../config';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { resetAllSnippets } from './global-handlers';
+import type { UserSettings } from '../types';
 
 // Ключ для хранения последней просмотренной версии
 const WHATS_NEW_STORAGE_KEY = 'contentify_whats_new_seen_version';
@@ -58,11 +59,29 @@ export async function handleSimpleMessage(
   // === Settings handlers ===
   if (type === 'get-settings') {
     try {
-      const scope = await figma.clientStorage.getAsync('contentify_scope');
-      figma.ui.postMessage({
-        type: 'settings-loaded',
-        settings: { scope: (scope === 'page' || scope === 'selection') ? scope : 'selection' }
+      const [scope, imageTimeoutMs, maxConcurrentImages, logLevel] = await Promise.all([
+        figma.clientStorage.getAsync('contentify_scope'),
+        figma.clientStorage.getAsync('contentify_image_timeout'),
+        figma.clientStorage.getAsync('contentify_max_concurrent'),
+        figma.clientStorage.getAsync('contentify_log_level'),
+      ]);
+      const settings: UserSettings = {
+        scope: (scope === 'page' || scope === 'selection') ? scope : 'selection',
+      };
+      if (typeof imageTimeoutMs === 'number') settings.imageTimeoutMs = imageTimeoutMs;
+      if (typeof maxConcurrentImages === 'number') settings.maxConcurrentImages = maxConcurrentImages;
+      if (typeof logLevel === 'number') settings.logLevel = logLevel;
+
+      // Apply persisted overrides so they take effect immediately on plugin start
+      updateImageConfig({
+        timeoutMs: settings.imageTimeoutMs,
+        maxConcurrent: settings.maxConcurrentImages,
       });
+      if (typeof logLevel === 'number') {
+        Logger.setLevel(logLevel as LogLevel);
+      }
+
+      figma.ui.postMessage({ type: 'settings-loaded', settings });
     } catch (e) {
       Logger.error('Failed to load settings:', e);
       figma.ui.postMessage({ type: 'settings-loaded', settings: { scope: 'selection' } });
@@ -71,9 +90,32 @@ export async function handleSimpleMessage(
   }
   
   if (type === 'save-settings') {
-    const settings = msg.settings as { scope?: string } | undefined;
-    if (settings && settings.scope) {
-      await figma.clientStorage.setAsync('contentify_scope', settings.scope);
+    const settings = msg.settings as UserSettings | undefined;
+    if (settings) {
+      const writes: Promise<void>[] = [];
+
+      if (settings.scope) {
+        writes.push(figma.clientStorage.setAsync('contentify_scope', settings.scope));
+      }
+      if (typeof settings.imageTimeoutMs === 'number') {
+        writes.push(figma.clientStorage.setAsync('contentify_image_timeout', settings.imageTimeoutMs));
+      }
+      if (typeof settings.maxConcurrentImages === 'number') {
+        writes.push(figma.clientStorage.setAsync('contentify_max_concurrent', settings.maxConcurrentImages));
+      }
+      if (typeof settings.logLevel === 'number') {
+        writes.push(figma.clientStorage.setAsync('contentify_log_level', settings.logLevel));
+        Logger.setLevel(settings.logLevel as LogLevel);
+      }
+
+      await Promise.all(writes);
+
+      // Apply image config overrides immediately
+      updateImageConfig({
+        timeoutMs: settings.imageTimeoutMs,
+        maxConcurrent: settings.maxConcurrentImages,
+      });
+
       Logger.debug('Settings saved:', settings);
     }
     return true;

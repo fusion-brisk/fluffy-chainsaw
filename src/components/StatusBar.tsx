@@ -12,6 +12,7 @@ interface StatusBarProps {
   extensionInstalled: boolean;
   onRelayClick?: () => void;
   onExtensionClick?: () => void;
+  onLogsClick?: () => void;
 }
 
 type StatusType = 'connected' | 'offline' | 'active' | 'setup';
@@ -72,12 +73,24 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
   relayConnected,
   extensionInstalled,
   onRelayClick,
-  onExtensionClick
+  onExtensionClick,
+  onLogsClick
 }) => {
   const allGood = relayConnected && extensionInstalled;
-  
+
   return (
     <div className={`status-bar ${allGood ? 'status-bar--dim' : ''}`}>
+      {onLogsClick && (
+        <button
+          type="button"
+          className="status-pill status-pill--log status-pill--clickable"
+          onClick={onLogsClick}
+          aria-label="Open log viewer"
+        >
+          <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9776;</span>
+          <span className="status-pill-label">Logs</span>
+        </button>
+      )}
       <StatusPill
         label="Relay"
         status={relayConnected ? 'connected' : 'offline'}

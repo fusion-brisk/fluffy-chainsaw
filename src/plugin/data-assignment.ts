@@ -583,7 +583,7 @@ export function createLayerData(
           }
         }
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) { Logger.debug('[DataAssignment] Field name collection failed'); }
     
     const processedFieldNames = new Set<string>();
     

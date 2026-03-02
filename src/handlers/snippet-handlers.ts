@@ -359,7 +359,7 @@ export async function handleESnippetOrganicTextFallback(context: HandlerContext)
   try {
     textNode.visible = true;
   } catch (e) {
-    // ignore
+    Logger.debug('[ESnippet] OrganicText visibility toggle failed');
   }
   Logger.debug(`   📝 [ESnippet] OrganicText fallback applied (len=${desired.length})`);
 }
@@ -388,7 +388,7 @@ export async function handleESnippetOrganicHostFromFavicon(context: HandlerConte
         try {
           hostname = new URL(hostname).hostname;
         } catch (e) {
-          // ignore
+          Logger.debug('[ESnippet] hostFromFaviconUrl URL parse failed');
         }
       } else {
         hostname = hostname.split('/')[0];
@@ -483,14 +483,14 @@ export async function handleShopInfoUgcAndEReviewsShopText(context: HandlerConte
           lineInstances[0].setProperties({ value: ratingDisplay });
           linesSet++;
           Logger.debug(`   ⭐ [EReviewsLabel] Line[0].value set: ${ratingDisplay}`);
-        } catch (_e) { /* fallback below */ }
+        } catch (_e) { Logger.debug('[EReviewsLabel] Line[0].value rating set failed'); }
       }
       if (reviewsTextRaw && lineInstances.length >= 2) {
         try {
           lineInstances[1].setProperties({ value: reviewsTextRaw });
           linesSet++;
           Logger.debug(`   📝 [EReviewsLabel] Line[1].value set: ${reviewsTextRaw}`);
-        } catch (_e) { /* fallback below */ }
+        } catch (_e) { Logger.debug('[EReviewsLabel] Line[1].value reviews set failed'); }
       }
       if (linesSet > 0) return; // Lines set, skip text fallbacks
     }
@@ -613,7 +613,7 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
           innerLine.setProperties({ value: quoteText });
           textApplied = true;
           Logger.debug(`   💬 [QuoteText] Line.value set: "${quoteText.substring(0, 40)}..."`);
-        } catch (_e) { /* fallback below */ }
+        } catch (_e) { Logger.debug('[QuoteText] Line.value set failed'); }
       }
     }
 
@@ -1260,7 +1260,7 @@ export function handleEmptyGroups(context: HandlerContext): void {
         shownCount++;
       }
     } catch (_e) {
-      // Игнорируем ошибки (группа может быть защищена)
+      Logger.debug('[EmptyGroups] Group visibility toggle failed: ' + group.name);
     }
   }
 

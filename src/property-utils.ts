@@ -29,6 +29,21 @@ const setPropertyErrors: Map<string, PropertyWarning> = new Map();
 // Кэш логирования доступных свойств (чтобы логировать только один раз на тип)
 const loggedAvailableProperties: Set<string> = new Set();
 
+// Per-handler field counters (reset before each handler, read after)
+let fieldsSetCount = 0;
+let fieldsFailedCount = 0;
+
+/** Reset field counters before handler execution */
+export function resetFieldCounts(): void {
+  fieldsSetCount = 0;
+  fieldsFailedCount = 0;
+}
+
+/** Get field counters after handler execution */
+export function getFieldCounts(): { set: number; failed: number } {
+  return { set: fieldsSetCount, failed: fieldsFailedCount };
+}
+
 /**
  * Сбрасывает счётчики предупреждений (вызывать перед обработкой batch)
  */
@@ -448,18 +463,21 @@ export function trySetProperty(
     // Свойство не существует — не тратим время на setProperties
     // Логируем только первое имя из списка для агрегации
     trackMissingProperty(instance.name, propertyNames[0], instance);
+    fieldsFailedCount++;
     return false;
   }
-  
+
   // Свойство найдено — устанавливаем значение
   const simpleKey = foundKey.split('#')[0];
-  
+
   const success = setPropertyWithFallback(instance, simpleKey, foundKey, value);
   if (success) {
     Logger.debug(`   ✅ [trySetProperty] ${simpleKey}=${value} (${fieldName})`);
+    fieldsSetCount++;
     return true;
   } else {
     trackSetPropertyError(instance.name, simpleKey, String(value), instance);
+    fieldsFailedCount++;
     return false;
   }
 }

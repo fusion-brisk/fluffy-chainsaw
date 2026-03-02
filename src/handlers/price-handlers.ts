@@ -215,7 +215,7 @@ function setPriceToInstance(ePriceInstance: InstanceNode, priceValue: string, la
             ePriceInstance.setProperties({ [key]: numericPrice });
             Logger.debug(`✅ [${label}] EPrice.${key}="${numericPrice}" (full key)`);
             return true;
-          } catch (_e2) { /* give up */ }
+          } catch (_e2) { Logger.debug('[EPrice] Full key fallback failed for value'); }
         }
       }
     }

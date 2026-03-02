@@ -221,27 +221,28 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
   },
   
   'Organic': {
-    key: '', // TODO: Найти Organic компонент и получить key
-    name: 'Organic',
+    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Maps to ESnippet (Desktop)
+    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
+    name: 'ESnippet',
     defaultVariant: {
       'Platform': 'Desktop',
     },
   },
-  
+
   'Organic_withOfferInfo': {
-    key: '', // TODO: Тот же Organic, но с другим вариантом
-    name: 'Organic',
+    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Maps to ESnippet (Desktop)
+    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
+    name: 'ESnippet',
     defaultVariant: {
       'Platform': 'Desktop',
-      'withOfferInfo': true,
     },
   },
-  
+
   'ProductTile-Item': {
-    key: '', // TODO: Найти ProductTile-Item и получить key
-    name: 'ProductTile-Item',
+    key: 'f921fc66ed6f56cccf558f7bcacbebcaa97495b7', // Maps to EProductSnippet2
+    name: 'EProductSnippet',
     defaultVariant: {
-      'Platform': 'Desktop',
+      'View': 'Default',
     },
   },
 };
@@ -354,19 +355,19 @@ export const FILTER_COMPONENTS = {
  */
 export const GROUP_COMPONENT_MAP: Record<GroupType, ComponentConfig> = {
   'EShopGroup': {
-    key: '', // TODO: Получить из библиотеки
+    key: '', // AutoLayout container — created programmatically
     name: 'EShopGroup',
     isGroup: true,
     maxItems: 6,
-    itemCountProperty: 'itemsCount', // Свойство для управления количеством
+    itemCountProperty: 'itemsCount',
     defaultVariant: {
       'Platform': 'desktop',
-      'itemsCount': '3', // По умолчанию показываем 3
+      'itemsCount': '3',
     },
   },
-  
+
   'EOfferGroup': {
-    key: '', // TODO: Получить из библиотеки
+    key: '', // AutoLayout container — created programmatically
     name: 'EOfferGroup',
     isGroup: true,
     maxItems: 10,
@@ -375,9 +376,9 @@ export const GROUP_COMPONENT_MAP: Record<GroupType, ComponentConfig> = {
       'Platform': 'desktop',
     },
   },
-  
+
   'ProductTileRow': {
-    key: '', // TODO: Получить из библиотеки
+    key: '', // AutoLayout container — created programmatically
     name: 'ProductTileRow',
     isGroup: true,
     maxItems: 4,
@@ -387,9 +388,9 @@ export const GROUP_COMPONENT_MAP: Record<GroupType, ComponentConfig> = {
       'columns': '4',
     },
   },
-  
+
   'OrganicBlock': {
-    key: '', // TODO: Получить из библиотеки
+    key: '', // AutoLayout container — created programmatically
     name: 'OrganicBlock',
     isGroup: true,
     maxItems: 5,

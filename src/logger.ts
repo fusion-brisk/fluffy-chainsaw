@@ -34,6 +34,10 @@ let batchTimer: ReturnType<typeof setTimeout> | null = null;
 const BATCH_INTERVAL_MS = 100;
 const BATCH_SIZE_LIMIT = 50;
 
+// History for log viewer (cap at 500)
+const LOG_HISTORY_LIMIT = 500;
+const logHistory: LogEntry[] = [];
+
 // Статистика для агрегации
 interface LogStats {
   totalMessages: number;
@@ -157,6 +161,12 @@ function log(level: LogLevel, message: string, source?: string, ...args: unknown
     source
   };
   queueForUI(entry);
+
+  // Store in history for log viewer
+  if (logHistory.length >= LOG_HISTORY_LIMIT) {
+    logHistory.shift();
+  }
+  logHistory.push(entry);
 }
 
 /**
@@ -286,6 +296,29 @@ export const Logger = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   debugFrom(source: string, message: string, ...args: any[]): void {
     log(LogLevel.DEBUG, message, source, ...args);
+  },
+
+  // === HISTORY (for log viewer) ===
+
+  /**
+   * Возвращает массив записей истории логов
+   */
+  getLogHistory(): LogEntry[] {
+    return logHistory;
+  },
+
+  /**
+   * Экспортирует историю логов как JSON-строку
+   */
+  exportLogs(): string {
+    return JSON.stringify(logHistory, null, 2);
+  },
+
+  /**
+   * Очищает историю логов
+   */
+  clearHistory(): void {
+    logHistory.length = 0;
   },
 
   // === АГРЕГАЦИЯ ===

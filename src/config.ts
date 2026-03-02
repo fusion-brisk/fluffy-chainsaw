@@ -136,6 +136,14 @@ export const IMAGE_CONFIG = {
   RETRY_DELAY_MS: 500                    // Задержка между попытками (мс)
 };
 
+/**
+ * Override IMAGE_CONFIG values at runtime (e.g. from user settings)
+ */
+export function updateImageConfig(overrides: { timeoutMs?: number; maxConcurrent?: number }): void {
+  if (overrides.timeoutMs) IMAGE_CONFIG.TIMEOUT_MS = overrides.timeoutMs;
+  if (overrides.maxConcurrent) IMAGE_CONFIG.MAX_CONCURRENT = overrides.maxConcurrent;
+}
+
 // ============================================
 // EXTERNAL URLS
 // ============================================

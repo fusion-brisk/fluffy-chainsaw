@@ -40,6 +40,9 @@ export interface ProcessingStats {
   skippedImages: number;
   failedImages: number;
   errors?: DetailedError[];
+  fieldsSet?: number;
+  fieldsFailed?: number;
+  handlerErrors?: number;
 }
 
 export interface ProgressData {
@@ -77,6 +80,9 @@ export interface UserSettings {
   mode?: PluginMode;
   remoteConfigUrl?: string;
   resetBeforeImport?: boolean;
+  imageTimeoutMs?: number;      // default 10000
+  maxConcurrentImages?: number;  // default 6
+  logLevel?: number;             // default 2 (SUMMARY)
 }
 
 export interface PluginSettings {
@@ -270,7 +276,9 @@ export const UI_SIZES = {
   processing: { width: 340, height: 300 },
   success: { width: 340, height: 320 },
   fileDrop: { width: 320, height: 280 },
-  extensionGuide: { width: 380, height: 520 }
+  extensionGuide: { width: 380, height: 520 },
+  whatsNew: { width: 380, height: 520 },
+  logsViewer: { width: 380, height: 520 }
 } as const;
 
 /**
