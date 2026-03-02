@@ -11,7 +11,9 @@
  * - GET  /result  — Отдаёт экспортированное изображение результата
  * - POST /reimport — Повторная очередь последнего импорта
  * - GET  /comparison — Статус screenshot vs result для сравнения
- * - GET  /health  — проверка
+ * - GET  /health  — проверка (включая version)
+ * - GET  /version — детальная информация о версии + доступном обновлении
+ * - POST /update  — принудительная проверка обновления
  * - WS  /         — WebSocket для instant push notifications
  * 
  * Без авторизации, один пользователь.
@@ -25,6 +27,8 @@ const fsPromises = require('fs').promises;
 const path = require('path');
 const http = require('http');
 const { WebSocketServer } = require('ws');
+
+const pkg = require('./package.json');
 
 const app = express();
 const PORT = process.env.PORT || 3847;
@@ -178,6 +182,7 @@ async function saveQueueAsync() {
     await fsPromises.rename(tmpFile, DATA_FILE);
   } catch (e) {
     console.error('⚠️ Ошибка сохранения очереди:', e.message);
+    broadcast({ type: 'queue-save-error', error: e.message });
   } finally {
     isSaving = false;
   }
@@ -277,6 +282,11 @@ app.post('/push', (req, res) => {
   });
   
   // Ограничиваем очередь
+  const overflowCount = dataQueue.length - MAX_QUEUE;
+  if (overflowCount > 0) {
+    broadcast({ type: 'queue-overflow', dropped: overflowCount });
+    console.log(`⚠️ Queue overflow: dropping ${overflowCount} oldest entries`);
+  }
   while (dataQueue.length > MAX_QUEUE) {
     dataQueue.shift();
   }
@@ -286,8 +296,9 @@ app.post('/push', (req, res) => {
   
   const snippetCount = payload.rawRows?.length || 0;
   const wizardCount = payload.wizards?.length || 0;
+  const hasProductCard = !!payload.productCard;
   const itemCount = snippetCount + wizardCount;
-  console.log(`📥 Push: ${snippetCount} snippets + ${wizardCount} wizards (schema v${payload.schemaVersion || 1}), queue: ${dataQueue.length}, id: ${entryId}`);
+  console.log(`📥 Push: ${snippetCount} snippets + ${wizardCount} wizards${hasProductCard ? ' + productCard' : ''} (schema v${payload.schemaVersion || 1}), queue: ${dataQueue.length}, id: ${entryId}`);
   
   // Store deep copy for reimport (before broadcast, after screenshot extraction)
   try {
@@ -303,6 +314,7 @@ app.post('/push', (req, res) => {
     snippetCount,
     wizardCount,
     query,
+    relayVersion: pkg.version,
     timestamp: Date.now()
   });
   
@@ -485,8 +497,9 @@ app.delete('/clear', (req, res) => {
  * GET /health
  */
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
+    version: pkg.version,
     queueSize: dataQueue.length,
     pendingCount: dataQueue.filter(e => !e.acknowledged).length,
     lastPushAt: lastPushTimestamp
@@ -719,6 +732,7 @@ app.post('/reimport', (req, res) => {
     snippetCount,
     wizardCount,
     query,
+    relayVersion: pkg.version,
     timestamp: Date.now()
   });
 
@@ -777,8 +791,151 @@ app.get('/source-data', (req, res) => {
     totalRows: rows.length,
     query: rows[0]?.['#query'] || '',
     capturedAt: payload.capturedAt || null,
-    rows
+    rows,
+    productCard: payload.productCard || null
   });
+});
+
+// === Auto-Update ===
+const GITHUB_REPO = 'fusion-brisk/fluffy-chainsaw';
+const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+let latestVersionCache = null;
+
+/**
+ * Compare semver strings: returns 1 if a > b, -1 if a < b, 0 if equal
+ */
+function compareSemver(a, b) {
+  const pa = a.replace(/^v/, '').split('.').map(Number);
+  const pb = b.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+/**
+ * Check GitHub Releases for a newer relay version
+ */
+async function checkForUpdate() {
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+      { headers: { 'User-Agent': 'contentify-relay' }, signal: AbortSignal.timeout(10000) }
+    );
+    if (!res.ok) return null;
+    const release = await res.json();
+    const latestTag = release.tag_name; // e.g. "v2.5.0"
+    const latestVersion = latestTag.replace(/^v/, '');
+    latestVersionCache = latestVersion;
+
+    if (compareSemver(latestVersion, pkg.version) > 0) {
+      // Find relay binary asset for current architecture
+      const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+      const assetName = `contentify-relay-host-${arch}`;
+      const asset = release.assets.find(a => a.name === assetName);
+      if (!asset) {
+        console.log(`[update] New version ${latestVersion} found, but no ${assetName} asset`);
+        return null;
+      }
+      return { version: latestVersion, downloadUrl: asset.browser_download_url, size: asset.size };
+    }
+    return null;
+  } catch (err) {
+    console.log(`[update] Check failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Download new binary, replace current, and restart via launchctl
+ */
+async function downloadAndReplace(update) {
+  const installDir = path.dirname(process.execPath);
+  const binaryPath = process.execPath;
+  const backupPath = binaryPath + '.backup';
+  const tempPath = binaryPath + '.new';
+
+  console.log(`[update] Downloading v${update.version}...`);
+
+  try {
+    // Download to temp file
+    const res = await fetch(update.downloadUrl, {
+      headers: { 'User-Agent': 'contentify-relay' },
+      signal: AbortSignal.timeout(60000)
+    });
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+
+    const buffer = Buffer.from(await res.arrayBuffer());
+
+    // Verify download size matches expected
+    if (update.size && Math.abs(buffer.length - update.size) > 1024) {
+      throw new Error(`Size mismatch: got ${buffer.length}, expected ${update.size}`);
+    }
+
+    // Write temp file
+    await fsPromises.writeFile(tempPath, buffer);
+    await fsPromises.chmod(tempPath, 0o755);
+
+    // Atomic swap: current → backup, temp → current
+    try { await fsPromises.unlink(backupPath); } catch (_) { /* no backup yet */ }
+    await fsPromises.rename(binaryPath, backupPath);
+    await fsPromises.rename(tempPath, binaryPath);
+
+    console.log(`[update] Binary replaced. Restarting...`);
+
+    // Notify WebSocket clients
+    broadcast({ type: 'relay-updating', newVersion: update.version });
+
+    // Restart via launchctl after short delay
+    setTimeout(() => {
+      const { execSync } = require('child_process');
+      try {
+        execSync(`launchctl kickstart -k gui/$(id -u)/com.contentify.relay`, { stdio: 'ignore' });
+      } catch (_) {
+        // Fallback: exit and let KeepAlive restart us
+        console.log('[update] launchctl failed, exiting for KeepAlive restart');
+        process.exit(0);
+      }
+    }, 2000);
+
+  } catch (err) {
+    console.error(`[update] Failed: ${err.message}`);
+    // Clean up temp file if exists
+    try { await fsPromises.unlink(tempPath); } catch (_) {}
+  }
+}
+
+/**
+ * Run update check and apply if available
+ */
+async function runUpdateCheck() {
+  const update = await checkForUpdate();
+  if (update) {
+    console.log(`[update] New version available: ${update.version} (current: ${pkg.version})`);
+    await downloadAndReplace(update);
+  }
+}
+
+// GET /version — detailed version info
+app.get('/version', (req, res) => {
+  res.json({
+    version: pkg.version,
+    latest: latestVersionCache,
+    updateAvailable: latestVersionCache ? compareSemver(latestVersionCache, pkg.version) > 0 : null
+  });
+});
+
+// POST /update — trigger update check manually
+app.post('/update', async (req, res) => {
+  const update = await checkForUpdate();
+  if (update) {
+    res.json({ updateAvailable: true, version: update.version });
+    // Start download in background
+    downloadAndReplace(update);
+  } else {
+    res.json({ updateAvailable: false, version: pkg.version, latest: latestVersionCache });
+  }
 });
 
 // === Start ===
@@ -798,4 +955,10 @@ server.listen(PORT, () => {
   if (dataQueue.length > 0) {
     console.log(`   📦 В очереди ${dataQueue.length} записей, ожидающих обработки\n`);
   }
+
+  // Check for updates 30s after start, then every 6 hours
+  setTimeout(() => {
+    runUpdateCheck();
+    setInterval(runUpdateCheck, UPDATE_CHECK_INTERVAL);
+  }, 30000);
 });

@@ -154,17 +154,19 @@ async function handleClick() {
     
     const rows = parseResult.rows;
     const wizards = parseResult.wizards || [];
-    
+    const productCard = parseResult.productCard || null;
+
     // Build payload
     const totalItems = rows.length + wizards.length;
     setState('loading', `${totalItems} элементов...`, '');
-    
+
     const payload = {
       schemaVersion: 3,
       source: { url: tab.url, title: tab.title },
       capturedAt: new Date().toISOString(),
       rawRows: rows,
-      wizards: wizards
+      wizards: wizards,
+      productCard: productCard
     };
     
     const meta = { 
@@ -214,10 +216,11 @@ async function handleClick() {
     
     // Success!
     const wizardSuffix = wizards.length > 0 ? ` + ${wizards.length} wizard` : '';
+    const pcSuffix = productCard ? ' + sidebar' : '';
     if (relaySuccess) {
-      setState('success', `${rows.length}${wizardSuffix} → Figma`, 'Автоматически!');
+      setState('success', `${rows.length}${wizardSuffix}${pcSuffix} → Figma`, 'Автоматически!');
     } else {
-      setState('copied', `${rows.length}${wizardSuffix} скопировано`, 'Вставьте в Figma (⌘V)');
+      setState('copied', `${rows.length}${wizardSuffix}${pcSuffix} скопировано`, 'Вставьте в Figma (⌘V)');
     }
     
     // Close popup after short delay

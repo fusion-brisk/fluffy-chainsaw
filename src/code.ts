@@ -13,8 +13,8 @@ import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from './parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
 import { createSerpPage, detectPlatformFromHtml } from './page-builder';
-import { schemaDebugLog } from './schema/engine';
 import type { WizardPayload } from './types/wizard-types';
+import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
 
 const RELAY_URL = 'http://localhost:3847';
 
@@ -49,42 +49,6 @@ function bytesToBase64(bytes: Uint8Array): string {
   }
 
   return result;
-}
-
-/** Dump component properties of first ESnippet instances for debugging */
-async function dumpInstanceStructure(frame: FrameNode): Promise<void> {
-  try {
-    // Find first 2 ESnippet/Snippet instances recursively
-    const found = frame.findAll(
-      (n: SceneNode) => n.type === 'INSTANCE' && (n.name === 'ESnippet' || n.name === 'Snippet')
-    ).slice(0, 2) as InstanceNode[];
-
-    const instances = found.map(inst => {
-      const props: Record<string, string> = {};
-      try {
-        const cpDefs = inst.componentProperties;
-        for (const key in cpDefs) {
-          props[key] = `${cpDefs[key].type}=${String(cpDefs[key].value)}`;
-        }
-      } catch (_e) { /* ignore */ }
-      return { name: inst.name, props };
-    });
-
-    await fetch(RELAY_URL + '/debug', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'instance-props-dump',
-        success: true,
-        errors: [],
-        instances,
-        schemaDebug: schemaDebugLog.slice(0, 50),
-        timestamp: new Date().toISOString()
-      })
-    });
-  } catch (e) {
-    console.error('dumpInstanceStructure error:', e);
-  }
 }
 
 /** Export the created SERP frame to the relay for visual comparison */
@@ -276,13 +240,15 @@ figma.ui.onmessage = async (msg) => {
         items?: Array<{ title?: string; priceText?: string; imageUrl?: string; href?: string; _rawCSVRow?: CSVRow }>;
         rawRows?: CSVRow[];
         wizards?: WizardPayload[];
+        productCard?: import('./types/wizard-types').ProductCardPayload;
         _isMockData?: boolean;
       };
-      
+
       const wizardCount = payload.wizards?.length || 0;
+      const hasProductCard = !!payload.productCard;
       Logger.info(`📦 Получен payload от браузерного расширения (schema v${payload.schemaVersion || 1})`);
       Logger.info(`   Источник: ${payload.source?.url || 'unknown'}`);
-      Logger.info(`   Сниппетов: ${payload.rawRows?.length || payload.items?.length || 0}, Wizard-блоков: ${wizardCount}`);
+      Logger.info(`   Сниппетов: ${payload.rawRows?.length || payload.items?.length || 0}, Wizard-блоков: ${wizardCount}${hasProductCard ? ', ProductCard: да' : ''}`);
       
       if (payload._isMockData) {
         Logger.info('   ⚠️ Это тестовые данные (mock)');
@@ -383,10 +349,20 @@ figma.ui.onmessage = async (msg) => {
             Logger.error('Result export failed:', err)
           );
 
-          // Dump instance structure for debugging prop/layer names
-          dumpInstanceStructure(result.frame).catch(err =>
-            Logger.error('Structure dump failed:', err)
-          );
+          // Render ProductCard sidebar if present
+          if (payload.productCard) {
+            try {
+              const sidebarFrame = await renderProductCardSidebar(payload.productCard, platform);
+              if (sidebarFrame) {
+                sidebarFrame.x = result.frame.x + result.frame.width + 40;
+                sidebarFrame.y = result.frame.y;
+                Logger.info(`🛒 ProductCard sidebar created next to SERP frame`);
+              }
+            } catch (pcErr) {
+              Logger.error('ProductCard render failed:', pcErr);
+            }
+          }
+
         } else {
           const errorMsg = result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
           throw new Error(errorMsg);
@@ -506,7 +482,10 @@ figma.ui.onmessage = async (msg) => {
           successfulImages: result.imageStats.successfulImages,
           skippedImages: result.imageStats.skippedImages,
           failedImages: result.imageStats.failedImages,
-          errors: result.imageStats.errors
+          errors: result.imageStats.errors,
+          fieldsSet: result.fieldsSet || 0,
+          fieldsFailed: result.fieldsFailed || 0,
+          handlerErrors: result.handlerErrors || 0
         }
       });
       
@@ -529,103 +508,3 @@ figma.ui.onmessage = async (msg) => {
   }
 };
 
-// === TEMP DEBUG: удалить после использования ===
-figma.on('selectionchange', () => {
-  console.log('[DEBUG] selectionchange fired, selection count:', figma.currentPage.selection.length);
-  const sel = figma.currentPage.selection[0];
-  if (!sel) { console.log('[DEBUG] no selection'); return; }
-  console.log('[DEBUG] selected:', sel.type, sel.name);
-
-  async function dump(node: SceneNode, depth: number): Promise<string> {
-    const pad = '  '.repeat(depth);
-    const vis = node.visible ? '' : ' [HIDDEN]';
-    let out = pad + node.type + ' "' + node.name + '"' + vis + '\n';
-
-    if (node.type === 'INSTANCE') {
-      const inst = node as InstanceNode;
-      try {
-        const comp = await inst.getMainComponentAsync();
-        if (comp) out += pad + '  → Component: "' + comp.name + '" (' + (comp.parent?.name || '?') + ')\n';
-      } catch (_e) { /* ignore */ }
-      const props = inst.componentProperties;
-      const keys = Object.keys(props).sort();
-      if (keys.length) {
-        out += pad + '  Props:\n';
-        for (const k of keys) {
-          const p = props[k];
-          let val = JSON.stringify(p.value);
-          if (p.type === 'INSTANCE_SWAP' && typeof p.value === 'string') {
-            try {
-              const swapped = await figma.getNodeByIdAsync(p.value);
-              val = swapped ? '"' + swapped.name + '"' : val;
-            } catch (_e) { /* ignore */ }
-          }
-          out += pad + '    ' + k + ': ' + p.type + ' = ' + val + '\n';
-        }
-      }
-    }
-
-    if (node.type === 'COMPONENT_SET') {
-      try {
-        const defs = (node as ComponentSetNode).componentPropertyDefinitions;
-        if (defs) {
-          const keys = Object.keys(defs).sort();
-          out += pad + '  PropertyDefinitions:\n';
-          for (const k of keys) {
-            const d = defs[k];
-            let extra = '';
-            if (d.type === 'VARIANT') extra = ' options=' + JSON.stringify((d as any).variantOptions);
-            else if (d.type === 'BOOLEAN') extra = ' default=' + d.defaultValue;
-            else if (d.type === 'TEXT') extra = ' default="' + d.defaultValue + '"';
-            out += pad + '    ' + k + ': ' + d.type + extra + '\n';
-          }
-        }
-      } catch (_e) { /* variant inside set — skip */ }
-    } else if (node.type === 'COMPONENT') {
-      // Only non-variant components (not inside a COMPONENT_SET) have propertyDefinitions
-      const comp = node as ComponentNode;
-      if (!comp.parent || comp.parent.type !== 'COMPONENT_SET') {
-        try {
-          const defs = comp.componentPropertyDefinitions;
-          if (defs) {
-            const keys = Object.keys(defs).sort();
-            out += pad + '  PropertyDefinitions:\n';
-            for (const k of keys) {
-              const d = defs[k];
-              let extra = '';
-              if (d.type === 'VARIANT') extra = ' options=' + JSON.stringify((d as any).variantOptions);
-              else if (d.type === 'BOOLEAN') extra = ' default=' + d.defaultValue;
-              else if (d.type === 'TEXT') extra = ' default="' + d.defaultValue + '"';
-              out += pad + '    ' + k + ': ' + d.type + extra + '\n';
-            }
-          }
-        } catch (_e) { /* ignore */ }
-      }
-    }
-
-    if ('children' in node) {
-      for (const child of (node as FrameNode).children) {
-        out += await dump(child, depth + 1);
-      }
-    }
-    return out;
-  }
-
-  dump(sel, 0).then(result => {
-    console.log('\n=== COMPONENT DUMP ===');
-    console.log(result);
-    console.log('=== END DUMP ===\n');
-    // Send to relay for remote reading
-    fetch(RELAY_URL + '/debug', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        operation: 'component-dump',
-        selection: sel.name,
-        dump: result,
-        timestamp: new Date().toISOString()
-      })
-    }).catch(() => {});
-  }).catch(err => console.error('Dump error:', err));
-});
-// === END TEMP DEBUG ===
