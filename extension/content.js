@@ -772,18 +772,26 @@
         '.OrganicTitleContentSpan',
         'h2.OrganicTitle-LinkText',
         '.OrganicTitle-LinkText span',
+        '.OrganicTitle-LinkText',
         '.EProductSnippet2-Title',
         '.EProductSnippet2-Title a',
         '.EShopItem-Title',
-        '[class*="EShopItem-Title"]',
-        '.OrganicTitle',
-        '.Organic-Title'
+        '[class*="EShopItem-Title"]'
       ];
       for (const selector of titleSelectors) {
         const titleEl = container.querySelector(selector);
         if (titleEl) {
           row['#OrganicTitle'] = getTextContent(titleEl);
           break;
+        }
+      }
+      // Fallback: .OrganicTitle is a container that includes greenurl —
+      // extract only the link text, not the entire block
+      if (!row['#OrganicTitle']) {
+        const orgTitle = container.querySelector('.OrganicTitle, .Organic-Title');
+        if (orgTitle) {
+          const linkText = orgTitle.querySelector('a');
+          row['#OrganicTitle'] = linkText ? getTextContent(linkText) : getTextContent(orgTitle);
         }
       }
     }
@@ -2759,15 +2767,195 @@
       var components = collectWizardComponents(wrapper);
       
       if (components.length > 0) {
+        var serpItemId = getSerpItemId(wrapper);
+        var rect = wrapper.getBoundingClientRect();
         wizards.push({
           type: 'FuturisSearch',
-          components: components
+          components: components,
+          serpItemId: serpItemId || '',
+          height: Math.round(rect.height)
         });
-        console.log('[Wizard] FuturisSearch #' + (i + 1) + ': ' + components.length + ' компонентов');
+        console.log('[Wizard] FuturisSearch #' + (i + 1) + ': ' + components.length + ' компонентов, serpItemId=' + serpItemId + ', height=' + Math.round(rect.height));
       }
     }
     
     return wizards;
+  }
+
+  // ============================================================================
+  // PRODUCT CARD SIDEBAR PARSING
+  // ============================================================================
+
+  /**
+   * Извлекает данные из открытого сайдбара EProductCard (если есть).
+   * Переиспользует extractEOfferItem для предложений.
+   * @returns {Object|null} ProductCardPayload или null если сайдбар не открыт
+   */
+  function extractProductCard() {
+    var viewer = document.querySelector('.EProductCardViewer');
+    if (!viewer) return null;
+
+    var card = viewer.querySelector('.EProductCard');
+    if (!card) return null;
+
+    console.log('[ProductCard] Обнаружен открытый сайдбар');
+    var result = {};
+
+    // 1. Gallery images
+    var images = [];
+    var thumbs = card.querySelectorAll('.EProductCard-Item_type_ditto .EThumb-Image');
+    for (var i = 0; i < thumbs.length; i++) {
+      var src = thumbs[i].getAttribute('src');
+      if (src) images.push(src.startsWith('//') ? 'https:' + src : src);
+    }
+    result.images = images;
+    console.log('[ProductCard] Галерея: ' + images.length + ' изображений');
+
+    // 2. Header: title + rating
+    var titleEl = card.querySelector('.EProductCard-Item_type_ecom-header .EPageTitleCut');
+    result.title = titleEl ? titleEl.textContent.trim() : '';
+
+    var ratingEl = card.querySelector('.EProductCard-RatingLabel .Label-Content');
+    result.rating = ratingEl ? ratingEl.textContent.trim() : '';
+
+    // 3. Default offer (reuse extractEOfferItem)
+    var defaultOfferEl = card.querySelector('.EProductCard-Item_type_ecom-default-offer .EOfferItem');
+    result.defaultOffer = defaultOfferEl ? extractEOfferItem(defaultOfferEl) : null;
+    if (result.defaultOffer) {
+      enrichOfferFromDOM(defaultOfferEl, result.defaultOffer);
+    }
+
+    // 4. Other offers
+    var offerEls = card.querySelectorAll('.EProductCard-Item_type_ecom-offers .EOfferItem');
+    result.offers = [];
+    for (var j = 0; j < offerEls.length; j++) {
+      var offer = extractEOfferItem(offerEls[j]);
+      if (offer) {
+        enrichOfferFromDOM(offerEls[j], offer);
+        result.offers.push(offer);
+      }
+    }
+    console.log('[ProductCard] Предложения: 1 default + ' + result.offers.length + ' others');
+
+    // 5. Specs
+    var specEls = card.querySelectorAll('.EProductSpecs-Property');
+    result.specs = [];
+    for (var k = 0; k < specEls.length; k++) {
+      var nameEl = specEls[k].querySelector('.EProductSpecs-PropertyNameText');
+      var valEl = specEls[k].querySelector('.EProductSpecs-PropertyValue .HtmlView');
+      if (nameEl && valEl) {
+        result.specs.push({ name: nameEl.textContent.trim(), value: valEl.textContent.trim() });
+      }
+    }
+
+    // 6. Reviews summary
+    // ReviewHeader has structure: "Отзывы" · "586"
+    var reviewTitleItems = card.querySelectorAll('.ReviewHeader-TitleItem');
+    for (var ri = 0; ri < reviewTitleItems.length; ri++) {
+      var text = reviewTitleItems[ri].textContent.trim();
+      if (/^\d/.test(text)) {
+        result.reviewCount = text;
+        break;
+      }
+    }
+
+    // Aspects (pros/cons)
+    result.aspects = { pros: [], cons: [] };
+    var aspectEls = card.querySelectorAll('.ReviewSummarizationAspect');
+    for (var m = 0; m < aspectEls.length; m++) {
+      var isPro = !!aspectEls[m].querySelector('.ReviewSummarizationAspect-Icon_pro');
+      var aspectTextEl = aspectEls[m].querySelector('.ReviewSummarizationAspect-Text');
+      var countEl = aspectEls[m].querySelector('.ReviewSummarizationAspectLabel');
+      var aspectItem = {
+        text: aspectTextEl ? aspectTextEl.childNodes[0].textContent.trim() : '',
+        count: countEl ? countEl.textContent.trim().replace(/\D/g, '') : ''
+      };
+      if (isPro) result.aspects.pros.push(aspectItem);
+      else result.aspects.cons.push(aspectItem);
+    }
+
+    console.log('[ProductCard] Итого: title="' + result.title.substring(0, 40) + '", rating=' + result.rating + ', specs=' + result.specs.length + ', reviews=' + (result.reviewCount || '0'));
+    return result;
+  }
+
+  /**
+   * Обогащает EOfferItem row дополнительными полями из DOM сайдбара
+   * (OldPrice, Discount, Fintech, Title — не извлекаются в базовом extractEOfferItem)
+   */
+  function enrichOfferFromDOM(el, row) {
+    // Old price
+    var oldPriceEl = el.querySelector('.EPriceGroup-PriceOld .EPrice-Value');
+    if (oldPriceEl) {
+      var oldDigits = oldPriceEl.textContent.replace(PRICE_DIGITS_REGEX, '');
+      if (oldDigits) {
+        row['#OldPrice'] = formatPriceWithThinSpace(oldDigits);
+        row['#EPriceGroup_OldPrice'] = 'true';
+      }
+    }
+
+    // Discount
+    var discountEl = el.querySelector('.EPriceGroup-LabelDiscount .Label-Content');
+    if (discountEl) {
+      row['#discount'] = discountEl.textContent.trim();
+      row['#EPriceGroup_Discount'] = 'true';
+      var pct = discountEl.textContent.replace(/[^\d]/g, '');
+      if (pct) row['#DiscountPercent'] = pct;
+    }
+
+    // Fintech
+    var fintechEl = el.querySelector('.EPriceGroup-Fintech');
+    if (fintechEl) {
+      row['#EPriceGroup_Fintech'] = 'true';
+      var cls = fintechEl.className || '';
+      if (cls.includes('yandexPay')) row['#Fintech_Type'] = 'yandexPay';
+      else if (cls.includes('split')) row['#Fintech_Type'] = 'split';
+      else if (cls.includes('dolyami')) row['#Fintech_Type'] = 'dolyami';
+    }
+
+    // Title (offer-specific title, different from product title)
+    var titleEl = el.querySelector('.EOfferItem-Title');
+    if (titleEl) {
+      row['#OrganicTitle'] = titleEl.textContent.trim();
+    }
+
+    // Crossborder
+    if (el.querySelector('.EOfferItem-Crossborder, .ECrossborderInfo')) {
+      row['#isCrossborder'] = 'true';
+    }
+
+    // Delivery enrichment
+    var deliveryItems = el.querySelectorAll('.EDeliveryGroup-Item');
+    if (deliveryItems.length > 0) {
+      row['#EDeliveryGroup'] = 'true';
+      row['#EDeliveryGroup-Count'] = String(deliveryItems.length);
+      for (var di = 0; di < Math.min(deliveryItems.length, 3); di++) {
+        row['#EDeliveryGroup-Item-' + (di + 1)] = deliveryItems[di].textContent.trim();
+      }
+    }
+
+    // Reviews enrichment (rating + count from EReviewsLabel)
+    var reviewsLabel = el.querySelector('.EReviewsLabel');
+    if (reviewsLabel) {
+      var ratingContentEl = reviewsLabel.querySelector('.RatingOneStar .Line-AddonContent');
+      if (ratingContentEl) {
+        row['#ShopInfo-Ugc'] = ratingContentEl.textContent.trim();
+        row['#ShopRating'] = ratingContentEl.textContent.trim();
+      }
+      var reviewsTextEl = reviewsLabel.querySelector('.EReviewsLabel-Text');
+      if (reviewsTextEl) {
+        row['#EReviews_shopText'] = reviewsTextEl.textContent.trim();
+      }
+    }
+
+    // Favicon
+    var faviconEl = el.querySelector('.Favicon');
+    if (faviconEl) {
+      var bgImage = faviconEl.style.backgroundImage || '';
+      var urlMatch = bgImage.match(/url\("?([^"]+)"?\)/);
+      if (urlMatch && urlMatch[1]) {
+        row['#FaviconImage'] = urlMatch[1];
+      }
+    }
   }
 
   // ============================================================================
@@ -2874,8 +3062,14 @@
     if (wizards.length > 0) {
       console.log(`🧙 [Content] Извлечено wizard-блоков: ${wizards.length}`);
     }
-    
-    return { rows: finalResults, wizards: wizards };
+
+    // Извлекаем данные из открытого сайдбара товара (если есть)
+    const productCard = extractProductCard();
+    if (productCard) {
+      console.log(`🛒 [Content] Извлечён сайдбар товара: "${productCard.title}"`);
+    }
+
+    return { rows: finalResults, wizards: wizards, productCard: productCard };
   }
 
   // Выполняем парсинг и возвращаем результат

@@ -826,6 +826,13 @@ export async function renderWizardPayload(
   answerFrame.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
   answerFrame.cornerRadius = 16;
 
+  // Fixed height from original page (captured via getBoundingClientRect in extension)
+  if (wizard.height && wizard.height > 0) {
+    answerFrame.primaryAxisSizingMode = 'FIXED';
+    answerFrame.resize(answerFrame.width, wizard.height);
+    answerFrame.clipsContent = true;
+  }
+
   // Рендерим каждый компонент
   for (const comp of wizard.components) {
     try {

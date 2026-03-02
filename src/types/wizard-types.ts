@@ -82,6 +82,26 @@ export type WizardType = 'FuturisSearch';
 export interface WizardPayload {
   type: WizardType;
   components: WizardComponent[];
+  serpItemId?: string;
+  height?: number;
+}
+
+// ============================================================================
+// PRODUCT CARD SIDEBAR
+// ============================================================================
+
+export interface ProductCardPayload {
+  title: string;
+  rating?: string;
+  images: string[];
+  defaultOffer: Record<string, string> | null;
+  offers: Array<Record<string, string>>;
+  specs: Array<{ name: string; value: string }>;
+  reviewCount?: string;
+  aspects?: {
+    pros: Array<{ text: string; count: string }>;
+    cons: Array<{ text: string; count: string }>;
+  };
 }
 
 // ============================================================================

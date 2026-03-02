@@ -56,6 +56,33 @@ const DEFAULT_OPTIONS: Required<PageCreationOptions> = {
   platform: 'desktop',
 };
 
+/** Creates a placeholder frame when a library component is missing */
+async function createPlaceholder(name: string, width: number, height: number): Promise<FrameNode> {
+  const frame = figma.createFrame();
+  frame.name = '\u26A0 ' + name + ' (component not found)';
+  frame.resize(width, height);
+  frame.fills = [{ type: 'SOLID', color: { r: 1, g: 0.95, b: 0.9 } }];
+
+  const text = figma.createText();
+  try {
+    await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+  } catch {
+    try {
+      await figma.loadFontAsync({ family: 'Roboto', style: 'Regular' });
+    } catch {
+      // Last resort: use whatever default font Figma provides
+    }
+  }
+  text.characters = name;
+  text.fontSize = 12;
+  text.fills = [{ type: 'SOLID', color: { r: 0.8, g: 0.2, b: 0.2 } }];
+  text.x = 8;
+  text.y = 8;
+  frame.appendChild(text);
+
+  return frame;
+}
+
 /**
  * Кэш импортированных компонентов
  * Ключ — component key, значение — ComponentNode
@@ -202,7 +229,7 @@ async function applyFill(
 async function createInstanceForElement(
   element: PageElement,
   platform: 'desktop' | 'touch'
-): Promise<InstanceNode | null> {
+): Promise<InstanceNode | FrameNode | null> {
   const config = getComponentConfig(element.type);
   
   if (!config) {
@@ -223,9 +250,10 @@ async function createInstanceForElement(
   // Импортируем компонент
   const component = await importComponent(componentKey);
   if (!component) {
-    return null;
+    Logger.warn('[PageCreator] Component not found, using placeholder: ' + element.type);
+    return createPlaceholder(element.type, 360, 120);
   }
-  
+
   // Создаём инстанс
   const instance = component.createInstance();
   
@@ -291,7 +319,7 @@ async function applyDataToInstance(
 async function createGroupWithChildren(
   element: PageElement,
   platform: 'desktop' | 'touch'
-): Promise<InstanceNode | null> {
+): Promise<InstanceNode | FrameNode | null> {
   const config = getComponentConfig(element.type);
   
   if (!config || !config.isGroup) {
@@ -331,7 +359,7 @@ async function createGroupWithChildren(
     
     // Пока применяем данные первого ребёнка к самой группе
     // (как fallback, пока не знаем структуру групповых компонентов)
-    if (element.children.length > 0) {
+    if (element.children.length > 0 && groupInstance.type === 'INSTANCE') {
       await applyDataToInstance(groupInstance, element.children[0]);
     }
   }
@@ -373,17 +401,17 @@ export async function createPageFromStructure(
   // 2. Создаём элементы
   for (const element of structure.elements) {
     try {
-      let instance: InstanceNode | null = null;
-      
+      let instance: InstanceNode | FrameNode | null = null;
+
       if (isGroupType(element.type)) {
         // Создаём группу
         instance = await createGroupWithChildren(element, opts.platform);
       } else {
         // Создаём одиночный сниппет
         instance = await createInstanceForElement(element, opts.platform);
-        
-        if (instance) {
-          // Применяем данные
+
+        if (instance && instance.type === 'INSTANCE') {
+          // Применяем данные (only for real instances, not placeholders)
           await applyDataToInstance(instance, element);
         }
       }
@@ -933,7 +961,7 @@ async function createSnippetInstance(
   node: StructureNode,
   platform: 'desktop' | 'touch',
   parentContainerType?: ContainerType
-): Promise<InstanceNode | null> {
+): Promise<InstanceNode | FrameNode | null> {
   let config = getComponentConfig(node.type as SnippetType);
   let actualType = node.type;
 
@@ -944,14 +972,14 @@ async function createSnippetInstance(
       actualType = 'ESnippet';
       Logger.debug(`[PageCreator] Fallback: ${node.type} → ESnippet`);
     } else {
-      Logger.warn(`[PageCreator] Нет ключа для типа: ${node.type}`);
-      return null;
+      Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type);
+      return createPlaceholder(node.type, 360, 120);
     }
   }
 
   if (!config || !config.key) {
-    Logger.warn(`[PageCreator] Нет ключа для типа: ${node.type} (и fallback не сработал)`);
-    return null;
+    Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type + ' (fallback failed)');
+    return createPlaceholder(node.type, 360, 120);
   }
 
   // Для touch-платформы используем keyTouch если он существует
@@ -963,7 +991,8 @@ async function createSnippetInstance(
 
   const component = await importComponent(componentKey);
   if (!component) {
-    return null;
+    Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type);
+    return createPlaceholder(node.type, 360, 120);
   }
 
   const instance = component.createInstance();
@@ -1285,7 +1314,7 @@ async function createImagesGridPanel(
         try {
           await figma.loadFontAsync(textNode.fontName as FontName);
           textNode.characters = title;
-        } catch (e) { /* ignore */ }
+        } catch (e) { Logger.debug('[ImagesGrid] Title text set failed'); }
       }
     }
   }
@@ -1971,11 +2000,12 @@ export async function createSerpPage(
   }
   
   // === 7. Рендерим структуру ===
-  let wizardsRendered = false;
-  
+  // Track serpItemId per child index in snippetsContainer for wizard insertion
+  const childSerpItemIds: string[] = [];
+
   for (const node of sortedNodes) {
     const result = await renderStructureNode(node, platform, errors, undefined, String(query));
-    
+
     if (result.element) {
       // Touch: EQuickFilters добавляем в headerWrapper вместо snippetsContainer
       if (isTouch && node.type === 'EQuickFilters' && headerWrapper) {
@@ -1986,58 +2016,74 @@ export async function createSerpPage(
       } else {
         // Остальные элементы — в snippetsContainer
         snippetsContainer.appendChild(result.element);
-        
+
+        // Track serpItemId for this child (from node data or first child's data)
+        const nodeData = node.data || (node.children && node.children[0]?.data);
+        childSerpItemIds.push(nodeData?.['#serpItemId'] || '');
+
         // Потом устанавливаем fill width (только после appendChild)
         if (result.element.type === 'FRAME' || result.element.type === 'INSTANCE') {
           (result.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
         }
       }
-      
+
       createdCount += result.count;
     }
-    
-    // Вставляем wizard-блоки ПОСЛЕ EQuickFilters (перед первым контейнером сниппетов)
-    if (!wizardsRendered && node.type === 'EQuickFilters' && wizards.length > 0) {
-      wizardsRendered = true;
-      try {
-        const wizardResult = await renderWizards(wizards);
-        for (const wizFrame of wizardResult.frames) {
-          snippetsContainer.appendChild(wizFrame);
-          wizFrame.layoutSizingHorizontal = 'FILL';
-          createdCount++;
-        }
-        if (wizardResult.errors.length > 0) {
-          for (const err of wizardResult.errors) {
-            errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: err });
-          }
-        }
-        Logger.info(`[PageCreator] Wizard: ${wizardResult.wizardCount} блоков, ${wizardResult.componentCount} компонентов`);
-      } catch (e) {
-        errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: String(e) });
-        Logger.error(`[PageCreator] Ошибка рендеринга wizard: ${e}`);
-      }
-    }
   }
-  
-  // Если нет EQuickFilters, рендерим wizard-блоки в начале snippetsContainer
-  if (!wizardsRendered && wizards.length > 0) {
+
+  // === 7b. Вставляем wizard-блоки на правильную позицию по serpItemId ===
+  if (wizards.length > 0) {
     try {
       const wizardResult = await renderWizards(wizards);
-      // Вставляем в начало
-      const firstChild = snippetsContainer.children[0] || null;
-      for (const wizFrame of wizardResult.frames) {
-        if (firstChild) {
-          // insertBefore не поддерживается в Figma API, используем порядок
-          snippetsContainer.insertChild(0, wizFrame);
-        } else {
-          snippetsContainer.appendChild(wizFrame);
+
+      for (let wi = 0; wi < wizardResult.frames.length; wi++) {
+        const wizFrame = wizardResult.frames[wi];
+        const wizard = wizards[wi];
+        const wizSerpId = wizard?.serpItemId || '';
+
+        // Find insertion index: after the last child whose serpItemId < wizard's serpItemId
+        let insertIndex = -1;
+        if (wizSerpId) {
+          const wizIdNum = parseInt(wizSerpId, 10);
+          if (!isNaN(wizIdNum)) {
+            for (let ci = 0; ci < childSerpItemIds.length; ci++) {
+              const childIdNum = parseInt(childSerpItemIds[ci], 10);
+              if (!isNaN(childIdNum) && childIdNum < wizIdNum) {
+                insertIndex = ci + 1; // insert AFTER this child
+              }
+            }
+          }
         }
+
+        if (insertIndex >= 0 && insertIndex < snippetsContainer.children.length) {
+          snippetsContainer.insertChild(insertIndex, wizFrame);
+          // Shift serpItemId tracking to match
+          childSerpItemIds.splice(insertIndex, 0, wizSerpId);
+        } else {
+          // Fallback: after EQuickFilters (index 0) or at start
+          const fallbackIdx = childSerpItemIds.length > 0 ? 1 : 0;
+          if (fallbackIdx < snippetsContainer.children.length) {
+            snippetsContainer.insertChild(fallbackIdx, wizFrame);
+            childSerpItemIds.splice(fallbackIdx, 0, wizSerpId);
+          } else {
+            snippetsContainer.appendChild(wizFrame);
+            childSerpItemIds.push(wizSerpId);
+          }
+        }
+
         wizFrame.layoutSizingHorizontal = 'FILL';
         createdCount++;
       }
-      Logger.info(`[PageCreator] Wizard (fallback position): ${wizardResult.wizardCount} блоков`);
+
+      if (wizardResult.errors.length > 0) {
+        for (const err of wizardResult.errors) {
+          errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: err });
+        }
+      }
+      Logger.info(`[PageCreator] Wizard: ${wizardResult.wizardCount} блоков, ${wizardResult.componentCount} компонентов`);
     } catch (e) {
       errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: String(e) });
+      Logger.error(`[PageCreator] Ошибка рендеринга wizard: ${e}`);
     }
   }
   
@@ -2124,7 +2170,7 @@ export async function createSerpPage(
       debugFrame.appendChild(lineFrame);
     }
   } catch (debugErr) {
-    // Debug frame creation should never block main flow
+    Logger.debug('[PageCreator] Debug frame creation failed');
   }
 
   // === Debug Report (sent to UI → relay) ===
@@ -2151,7 +2197,7 @@ export async function createSerpPage(
   try {
     figma.ui.postMessage({ type: 'debug-report', report: debugReport });
   } catch (e) {
-    // ignore
+    Logger.debug('[PageCreator] Debug report postMessage failed');
   }
 
   return {
