@@ -8,7 +8,7 @@
  */
 
 import type { ComponentSchema } from './types';
-import { computeProductWithButton } from './transforms';
+import { computeProductWithButton, computeWithReviews } from './transforms';
 
 export var EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
   containerNames: ['EProductSnippet', 'EProductSnippet2'],
@@ -51,6 +51,23 @@ export var EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
           fieldName: '#ShopName',
           stringValue: '#ShopName',
           skipIfEmpty: true
+        },
+        // isOfficial (boolean) — официальный магазин
+        {
+          propertyNames: ['isOfficial'],
+          fieldName: '#OfficialShop',
+          equals: { field: '#OfficialShop', value: 'true' }
+        }
+      ]
+    },
+    {
+      instanceName: 'ELabelGroup',
+      properties: [
+        // withRating (boolean) — рейтинг товара на картинке
+        {
+          propertyNames: ['withRating'],
+          fieldName: '#withRating',
+          compute: function(row) { return computeWithReviews(row); }
         }
       ]
     }

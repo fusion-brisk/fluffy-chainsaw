@@ -15,7 +15,8 @@ import {
   computeOfferWithFintech,
   computeOfferWithMeta,
   computeOfferWithData,
-  computeWithTitle
+  computeWithTitle,
+  computeWithQuotes
 } from './transforms';
 
 export var EOFFER_ITEM_SCHEMA: ComponentSchema = {
@@ -81,10 +82,35 @@ export var EOFFER_ITEM_SCHEMA: ComponentSchema = {
       propertyNames: ['brand', 'Brand'],
       fieldName: '#Brand',
       hasValue: '#Brand'
+    },
+    // withQuotes (boolean) — цитата из отзыва
+    {
+      propertyNames: ['withQuotes'],
+      fieldName: '#withQuotes',
+      compute: function(row) { return computeWithQuotes(row); }
     }
   ],
 
-  nestedInstances: [],
+  nestedInstances: [
+    {
+      instanceName: 'EShopName',
+      properties: [
+        // name (string) — название магазина
+        {
+          propertyNames: ['name'],
+          fieldName: '#ShopName',
+          stringValue: '#ShopName',
+          skipIfEmpty: true
+        },
+        // isOfficial (boolean) — официальный магазин
+        {
+          propertyNames: ['isOfficial'],
+          fieldName: '#OfficialShop',
+          equals: { field: '#OfficialShop', value: 'true' }
+        }
+      ]
+    }
+  ],
 
   replacesHandlers: [
     'BrandLogic',
