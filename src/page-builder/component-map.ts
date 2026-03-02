@@ -210,13 +210,10 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
   },
   
   'EProductSnippet2': {
-    key: 'f921fc66ed6f56cccf558f7bcacbebcaa97495b7', // View=Default
+    key: 'f921fc66ed6f56cccf558f7bcacbebcaa97495b7', // type=organic (default)
     name: 'EProductSnippet',
-    // ПРИМЕЧАНИЕ: withDelivery убран из defaultVariant — это exposed property,
-    // которое не доступно через setProperties на верхнем уровне.
-    // Устанавливается в handleEProductSnippet через trySetProperty с поиском свойства.
     defaultVariant: {
-      'View': 'Default',
+      'type': 'organic',
     },
   },
   
@@ -242,7 +239,7 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
     key: 'f921fc66ed6f56cccf558f7bcacbebcaa97495b7', // Maps to EProductSnippet2
     name: 'EProductSnippet',
     defaultVariant: {
-      'View': 'Default',
+      'type': 'organic',
     },
   },
 };

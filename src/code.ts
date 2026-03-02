@@ -199,10 +199,37 @@ async function checkRulesUpdates(): Promise<void> {
   }
 })();
 
-// Обработка изменений выделения
+// Обработка изменений выделения + дамп свойств компонента
 figma.on('selectionchange', () => {
-  const hasSelection = figma.currentPage.selection.length > 0;
-  figma.ui.postMessage({ type: 'selection-status', hasSelection: hasSelection });
+  const selection = figma.currentPage.selection;
+  const hasSelection = selection.length > 0;
+  figma.ui.postMessage({ type: 'selection-status', hasSelection });
+
+  // Dump component properties + child tree to console for debugging
+  for (const node of selection) {
+    if (node.type === 'INSTANCE') {
+      const inst = node as InstanceNode;
+      const props = inst.componentProperties;
+      const lines: string[] = [`[Selection] INSTANCE "${inst.name}" (id=${inst.id})`];
+      lines.push('  --- Properties ---');
+      for (const key in props) {
+        const p = props[key];
+        lines.push(`  ${key}: ${p.type} = ${JSON.stringify(p.value)}`);
+      }
+      lines.push('  --- Children (2 levels) ---');
+      function dumpChildren(parent: SceneNode, depth: number): void {
+        if (depth > 2 || !('children' in parent)) return;
+        for (const child of (parent as FrameNode).children) {
+          const hidden = child.visible === false ? ' [HIDDEN]' : '';
+          const fills = 'fills' in child ? ` (fills=${Array.isArray(child.fills) ? child.fills.length : '?'})` : '';
+          lines.push(`${'  '.repeat(depth + 1)}${child.type} "${child.name}"${hidden}${fills}`);
+          dumpChildren(child, depth + 1);
+        }
+      }
+      dumpChildren(inst, 0);
+      console.log(lines.join('\n'));
+    }
+  }
 });
 
 // Главный обработчик сообщений

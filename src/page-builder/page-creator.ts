@@ -655,17 +655,34 @@ function findLayerRecursive(node: SceneNode, name: string): SceneNode | null {
  */
 async function loadAndApplyImage(layer: SceneNode, url: string, logPrefix: string): Promise<boolean> {
   try {
+    // Handle data: URIs (base64-encoded images)
+    if (url.startsWith('data:')) {
+      const match = url.match(/^data:[^;]+;base64,(.+)$/);
+      if (match && match[1] && 'fills' in layer) {
+        const binaryStr = atob(match[1]);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let bi = 0; bi < binaryStr.length; bi++) {
+          bytes[bi] = binaryStr.charCodeAt(bi);
+        }
+        const image = figma.createImage(bytes);
+        (layer as GeometryMixin).fills = [{ type: 'IMAGE', scaleMode: 'FIT', imageHash: image.hash }];
+        Logger.debug(`${logPrefix} Applied data: URI image`);
+        return true;
+      }
+      Logger.debug(`${logPrefix} Invalid data: URI`);
+      return false;
+    }
+
     let normalizedUrl = url;
     if (url.startsWith('//')) {
       normalizedUrl = `https:${url}`;
     }
 
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      console.log(`${logPrefix} ❌ URL без http(s): ${normalizedUrl.substring(0, 60)}`);
+      Logger.debug(`${logPrefix} URL without http(s): ${normalizedUrl.substring(0, 60)}`);
       return false;
     }
 
-    console.log(`${logPrefix} Загрузка: ${normalizedUrl.substring(0, 60)}...`);
     const response = await fetch(normalizedUrl);
     console.log(`${logPrefix} Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
 
@@ -1009,24 +1026,24 @@ async function createSnippetInstance(
       // Копируем defaultVariant но без Platform (уже в компоненте правильный)
       const { Platform: _platform, ...restProps } = config.defaultVariant as Record<string, unknown>;
       
-      // Для EProductSnippet2 внутри AdvProductGallery — применяем View=AdvGallery
+      // Для EProductSnippet2 внутри AdvProductGallery — применяем type=advGallery
       if (node.type === 'EProductSnippet2' && parentContainerType === 'AdvProductGallery') {
-        restProps['View'] = 'AdvGallery';
-        console.log(`[PageCreator] 🎯 ${node.type}: View=AdvGallery (родитель AdvProductGallery)`);
+        restProps['type'] = 'advGallery';
+        Logger.debug(`[PageCreator] ${node.type}: type=advGallery (родитель AdvProductGallery)`);
       }
       
       instance.setProperties(restProps as Record<string, string | boolean | number>);
-      console.log(`[PageCreator] ✅ ${node.type}: Platform=${platformValue} (из компонента)`);
+      Logger.debug(`[PageCreator] ${node.type}: Platform=${platformValue} (из компонента)`);
     } catch (e) {
-      console.log(`[PageCreator] ❌ ${node.type} setProperties error: ${e}`);
+      Logger.debug(`[PageCreator] ${node.type} setProperties error: ${e}`);
     }
   } else if (node.type === 'EProductSnippet2' && parentContainerType === 'AdvProductGallery') {
-    // Даже если нет defaultVariant — устанавливаем View=AdvGallery
+    // Даже если нет defaultVariant — устанавливаем type=advGallery
     try {
-      instance.setProperties({ 'View': 'AdvGallery' });
-      console.log(`[PageCreator] 🎯 ${node.type}: View=AdvGallery (родитель AdvProductGallery, no defaultVariant)`);
+      instance.setProperties({ 'type': 'advGallery' });
+      Logger.debug(`[PageCreator] ${node.type}: type=advGallery (родитель AdvProductGallery, no defaultVariant)`);
     } catch (e) {
-      console.log(`[PageCreator] ❌ ${node.type} View=AdvGallery error: ${e}`);
+      Logger.debug(`[PageCreator] ${node.type} type=advGallery error: ${e}`);
     }
   }
   

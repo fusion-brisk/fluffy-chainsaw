@@ -75,12 +75,11 @@ interface SerpItemGroup {
  */
 function groupBySerpItemId(rows: CSVRow[]): SerpItemGroup[] {
   const groups: SerpItemGroup[] = [];
-  const groupMap = new Map<string, SerpItemGroup>();
-  
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const serpItemId = row['#serpItemId'] || '';
-    
+
     // Если serpItemId пустой — каждый элемент в своей группе
     if (!serpItemId) {
       groups.push({
@@ -90,23 +89,23 @@ function groupBySerpItemId(rows: CSVRow[]): SerpItemGroup[] {
       });
       continue;
     }
-    
-    // Ищем существующую группу с таким ID
-    if (groupMap.has(serpItemId)) {
-      groupMap.get(serpItemId)!.rows.push(row);
+
+    // Group only with the LAST group if it has the same serpItemId (consecutive grouping).
+    // Non-consecutive rows with the same serpItemId (e.g. from pagination) stay separate.
+    const lastGroup = groups.length > 0 ? groups[groups.length - 1] : null;
+    if (lastGroup && lastGroup.serpItemId === serpItemId) {
+      lastGroup.rows.push(row);
     } else {
-      const group: SerpItemGroup = {
+      groups.push({
         serpItemId,
         rows: [row],
         startIndex: i,
-      };
-      groupMap.set(serpItemId, group);
-      groups.push(group);
+      });
     }
   }
-  
+
   Logger.debug(`[StructureBuilder] Группировка по serpItemId: ${groups.length} групп из ${rows.length} rows`);
-  
+
   return groups;
 }
 

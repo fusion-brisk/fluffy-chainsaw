@@ -101,6 +101,21 @@
   }
 
   /**
+   * Извлекает текст заголовка, исключая вложенные Path/greenurl элементы.
+   * На touch SERP заголовок и greenurl могут быть внутри одного элемента.
+   */
+  function getTitleTextClean(el) {
+    if (!el) return '';
+    // Remove path/greenurl children from a cloned element to get clean title text
+    var clone = el.cloneNode(true);
+    var pathEls = clone.querySelectorAll('.Path, .OrganicTitle-Path, .Organic-Path, .OrganicUrl, .Favicon, [class*="GreenUrl"], [class*="greenurl"]');
+    for (var i = 0; i < pathEls.length; i++) {
+      pathEls[i].remove();
+    }
+    return (clone.textContent || '').trim().replace(/\s+/g, ' ');
+  }
+
+  /**
    * Форматирует цену с математическим пробелом (U+2009)
    * SOURCE OF TRUTH: src/utils/price-extractor.ts → formatPriceWithThinSpace
    */
@@ -246,7 +261,7 @@
       if (el) {
         const href = el.getAttribute('data-href');
         if (href) {
-          return href.startsWith('http') ? href : `https:${href}`;
+          return (href.startsWith('http') || href.startsWith('data:')) ? href : `https:${href}`;
         }
       }
     }
@@ -271,7 +286,7 @@
       if (link) {
         const href = link.getAttribute('href');
         if (href) {
-          return href.startsWith('http') ? href : `https:${href}`;
+          return (href.startsWith('http') || href.startsWith('data:')) ? href : `https:${href}`;
         }
       }
     }
@@ -296,7 +311,7 @@
         }
         
         if (src && !src.startsWith('data:')) {
-          return src.startsWith('http') ? src : `https:${src}`;
+          return (src.startsWith('http') || src.startsWith('data:')) ? src : `https:${src}`;
         }
       }
     }
@@ -468,7 +483,7 @@
       if (img) {
         const src = img.getAttribute('src') || img.getAttribute('data-src');
         if (src && !src.startsWith('data:')) {
-          return src.startsWith('http') ? src : `https:${src}`;
+          return (src.startsWith('http') || src.startsWith('data:')) ? src : `https:${src}`;
         }
       }
     }
@@ -481,7 +496,7 @@
    */
   function processFaviconUrl(url, el, styleAttr) {
     let cleanUrl = url.trim();
-    if (!cleanUrl.startsWith('http')) {
+    if (!cleanUrl.startsWith('http') && !cleanUrl.startsWith('data:')) {
       cleanUrl = cleanUrl.startsWith('//') ? `https:${cleanUrl}` : `https://${cleanUrl}`;
     }
     
@@ -763,11 +778,10 @@
       } catch (e) {}
     }
     
-    // #OrganicTitle — try shared parsing rules first, then hardcoded selectors
-    const rulesTitle = queryByRules(container, '#OrganicTitle', parsingRules);
-    if (rulesTitle) {
-      row['#OrganicTitle'] = rulesTitle;
-    } else {
+    // #OrganicTitle — hardcoded selectors with getTitleTextClean
+    // NOTE: queryByRules skipped for title — shared rules use getTextContent which
+    // captures greenurl/path text from container elements on touch SERP
+    {
       const titleSelectors = [
         '.OrganicTitleContentSpan',
         'h2.OrganicTitle-LinkText',
@@ -776,26 +790,19 @@
         '.EProductSnippet2-Title',
         '.EProductSnippet2-Title a',
         '.EShopItem-Title',
-        '[class*="EShopItem-Title"]'
+        '[class*="EShopItem-Title"]',
+        '.OrganicTitle',
+        '.Organic-Title'
       ];
       for (const selector of titleSelectors) {
         const titleEl = container.querySelector(selector);
         if (titleEl) {
-          row['#OrganicTitle'] = getTextContent(titleEl);
+          row['#OrganicTitle'] = getTitleTextClean(titleEl);
           break;
         }
       }
-      // Fallback: .OrganicTitle is a container that includes greenurl —
-      // extract only the link text, not the entire block
-      if (!row['#OrganicTitle']) {
-        const orgTitle = container.querySelector('.OrganicTitle, .Organic-Title');
-        if (orgTitle) {
-          const linkText = orgTitle.querySelector('a');
-          row['#OrganicTitle'] = linkText ? getTextContent(linkText) : getTextContent(orgTitle);
-        }
-      }
     }
-    
+
     // #ShopName
     if (snippetType === 'EProductSnippet2' || snippetType === 'EShopItem') {
       const shopSelectors = snippetType === 'EShopItem'
@@ -919,7 +926,7 @@
           if (i >= 3) return; // Максимум 3 картинки
           const src = img.getAttribute('src') || img.getAttribute('data-src');
           if (src) {
-            const fullUrl = src.startsWith('http') ? src : `https:${src}`;
+            const fullUrl = (src.startsWith('http') || src.startsWith('data:')) ? src : `https:${src}`;
             images.push(fullUrl);
           }
         });
@@ -1558,7 +1565,7 @@
         if (imgEl) {
           const src = imgEl.getAttribute('src') || imgEl.getAttribute('data-src');
           if (src && src.length > 10) {
-            row['#OrganicImage'] = src.startsWith('http') ? src : `https:${src}`;
+            row['#OrganicImage'] = (src.startsWith('http') || src.startsWith('data:')) ? src : `https:${src}`;
             row['#ThumbImage'] = row['#OrganicImage'];
             imgFound = true;
             console.log(`[AdvProductGallery] Изображение найдено через "${selector}": ${src.substring(0, 50)}...`);
