@@ -21,6 +21,7 @@ import {
   CSVRow,
   AppState,
   ImportInfo,
+  ProcessingStats,
   UI_SIZES,
 } from './types';
 import {
@@ -48,6 +49,10 @@ import { ExtensionGuide } from './components/ExtensionGuide';
 import { RelayGuide } from './components/RelayGuide';
 import { StatusBar } from './components/StatusBar';
 import { SetupWizard } from './components/SetupWizard';
+import { WhatsNewDialog } from './components/WhatsNewDialog';
+import { LogViewer } from './components/logs/LogViewer';
+import type { LogMessage } from './components/logs/LogViewer';
+import { LogLevel } from './logger';
 
 // Default relay URL
 const DEFAULT_RELAY_URL = 'http://localhost:3847';
@@ -94,6 +99,11 @@ const App: React.FC = () => {
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [showExtensionGuide, setShowExtensionGuide] = useState(false);
   const [showRelayGuide, setShowRelayGuide] = useState(false);
+  const [showLogViewer, setShowLogViewer] = useState(false);
+  const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState('');
+  const [lastStats, setLastStats] = useState<ProcessingStats | null>(null);
   const [relayConnected, setRelayConnected] = useState(false);
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const previousStateRef = useRef<AppState | null>(null);
@@ -287,6 +297,23 @@ const App: React.FC = () => {
       onSetupSkippedLoaded: (skipped) => {
         if (skipped) setExtensionInstalled(true);
       },
+      onLog: (message) => {
+        // Determine level from message content heuristic
+        let level = LogLevel.SUMMARY;
+        if (message.startsWith('[') && message.includes(']')) {
+          // Source-tagged messages are typically debug
+          level = LogLevel.DEBUG;
+        }
+        const entry: LogMessage = {
+          level,
+          message,
+          timestamp: Date.now(),
+        };
+        setLogMessages(prev => {
+          const next = [...prev, entry];
+          return next.length > 500 ? next.slice(-500) : next;
+        });
+      },
       onSelectionStatus: (sel) => {
         setHasSelection(sel);
       },
@@ -294,6 +321,9 @@ const App: React.FC = () => {
         if (appState === 'processing' && progress.operationType) {
           setImportInfo(prev => ({ ...prev, stage: progress.operationType }));
         }
+      },
+      onStats: (stats) => {
+        setLastStats(stats);
       },
       onDone: () => {
         // Acknowledge relay data after successful import
@@ -328,6 +358,14 @@ const App: React.FC = () => {
         pendingEntryIdRef.current = null;
         finishProcessing('cancel');
       },
+      onWhatsNewStatus: (data) => {
+        if (data.shouldShow) {
+          setCurrentVersion(data.currentVersion);
+          previousStateRef.current = appState;
+          setShowWhatsNew(true);
+          resizeUI('whatsNew');
+        }
+      },
       onDebugReport: (report) => {
         try {
           const debugRelayUrl = localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
@@ -349,6 +387,7 @@ const App: React.FC = () => {
     applyFigmaTheme();
     sendMessageToPlugin({ type: 'get-settings' });
     sendMessageToPlugin({ type: 'get-setup-skipped' });
+    sendMessageToPlugin({ type: 'check-whats-new' });
 
     return () => { isMountedRef.current = false; };
   }, []);
@@ -417,7 +456,7 @@ const App: React.FC = () => {
     resizeUI('processing');
     processingStartTimeRef.current = Date.now();
 
-    if (relayPayloadRef.current) {
+    if (relayPayloadRef.current && mode === 'artboard') {
       sendMessageToPlugin({
         type: 'apply-relay-payload',
         payload: relayPayloadRef.current,
@@ -439,6 +478,7 @@ const App: React.FC = () => {
         scope,
         resetBeforeImport: false
       });
+      relayPayloadRef.current = null;
     }
 
     fileHtmlRef.current = '';
@@ -459,6 +499,15 @@ const App: React.FC = () => {
     setAppState('ready');
     resizeUI('ready');
   }, [resizeUI, relay, pendingImport]);
+
+  const handleClearQueue = useCallback(() => {
+    relay.clearQueue();
+    setPendingImport(null);
+    relayPayloadRef.current = null;
+    pendingEntryIdRef.current = null;
+    setAppState('ready');
+    resizeUI('ready');
+  }, [resizeUI, relay]);
 
   // === GUIDE HANDLERS ===
   const handleShowExtensionGuide = useCallback(() => {
@@ -487,6 +536,24 @@ const App: React.FC = () => {
     previousStateRef.current = null;
   }, [appState, resizeUI]);
 
+  // === LOG VIEWER HANDLERS ===
+  const handleShowLogViewer = useCallback(() => {
+    previousStateRef.current = appState;
+    setShowLogViewer(true);
+    resizeUI('logsViewer');
+  }, [appState, resizeUI]);
+
+  const handleCloseLogViewer = useCallback(() => {
+    setShowLogViewer(false);
+    const prevState = previousStateRef.current || appState;
+    resizeUI(prevState);
+    previousStateRef.current = null;
+  }, [appState, resizeUI]);
+
+  const handleClearLogs = useCallback(() => {
+    setLogMessages([]);
+  }, []);
+
   const handleCancel = useCallback(() => {
     sendMessageToPlugin({ type: 'cancel-import' });
   }, []);
@@ -511,13 +578,14 @@ const App: React.FC = () => {
       className="glass-app"
       {...fileImport.dragHandlers}
     >
-      {/* StatusBar — always visible except during checking or guides */}
-      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && (
+      {/* StatusBar — always visible except during checking, guides, or log viewer */}
+      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && (
         <StatusBar
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onRelayClick={handleShowRelayGuide}
           onExtensionClick={handleShowExtensionGuide}
+          onLogsClick={handleShowLogViewer}
         />
       )}
 
@@ -555,6 +623,7 @@ const App: React.FC = () => {
           hasSelection={hasSelection}
           onConfirm={handleConfirmImport}
           onCancel={handleCancelImport}
+          onClearQueue={handleClearQueue}
         />
       )}
 
@@ -570,6 +639,7 @@ const App: React.FC = () => {
       {appState === 'success' && !showExtensionGuide && !showRelayGuide && (
         <SuccessView
           query={importInfo.query}
+          stats={lastStats}
           onComplete={handleSuccessComplete}
           autoCloseDelay={3500}
         />
@@ -607,6 +677,29 @@ const App: React.FC = () => {
       {/* Relay installation guide */}
       {showRelayGuide && (
         <RelayGuide onBack={handleCloseRelayGuide} />
+      )}
+
+      {/* Log viewer */}
+      {showLogViewer && (
+        <LogViewer
+          messages={logMessages}
+          onClose={handleCloseLogViewer}
+          onClear={handleClearLogs}
+        />
+      )}
+
+      {/* What's New dialog */}
+      {showWhatsNew && (
+        <WhatsNewDialog
+          currentVersion={currentVersion}
+          onClose={() => {
+            setShowWhatsNew(false);
+            sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
+            const prevState = previousStateRef.current || appState;
+            resizeUI(prevState);
+            previousStateRef.current = null;
+          }}
+        />
       )}
     </div>
   );

@@ -18,6 +18,7 @@ interface Props {
   hasSelection: boolean;
   onConfirm: (mode: ImportMode) => void;
   onCancel: () => void;
+  onClearQueue?: () => void;
 }
 
 export const ImportConfirmDialog: React.FC<Props> = memo(({
@@ -25,7 +26,8 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
   itemCount,
   hasSelection,
   onConfirm,
-  onCancel
+  onCancel,
+  onClearQueue
 }) => {
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -89,13 +91,23 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
           </div>
         )}
         
-        <button 
+        <button
           type="button"
           className="btn-text"
           onClick={onCancel}
         >
           Отмена
         </button>
+
+        {onClearQueue && (
+          <button
+            type="button"
+            className="btn-text btn-danger-text"
+            onClick={onClearQueue}
+          >
+            Очистить очередь
+          </button>
+        )}
       </div>
       
       {/* Keyboard shortcut hint */}

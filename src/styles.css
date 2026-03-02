@@ -1567,6 +1567,35 @@ button:disabled {
   font-size: var(--font-size-base);
 }
 
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-range {
+  width: 100%;
+  accent-color: var(--figma-color-bg-brand);
+  height: 4px;
+  cursor: pointer;
+}
+
+.settings-select {
+  width: 100%;
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-small);
+  color: var(--figma-color-text);
+  font-size: var(--font-size-sm);
+  padding: 6px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.settings-select:focus {
+  border-color: var(--figma-color-border-brand);
+}
+
    UPDATE DIALOG
    ============================================ */
 .update-dialog-overlay {
@@ -1686,6 +1715,7 @@ button:disabled {
   background: var(--figma-color-text-tertiary);
 }
 
+/* ============================================
    WHAT'S NEW DIALOG
    ============================================ */
 .whats-new-overlay {
@@ -2153,6 +2183,15 @@ button:disabled {
   color: var(--figma-color-text);
 }
 
+.btn-danger-text {
+  color: var(--figma-color-text-tertiary);
+  font-size: 12px;
+}
+
+.btn-danger-text:hover {
+  color: var(--figma-color-text-danger, #e53935);
+}
+
 /* Back Button (Pill style) */
 .btn-back-pill {
   display: inline-flex;
@@ -2289,6 +2328,30 @@ button:disabled {
   line-height: 1.5;
   max-width: 240px;
   margin: 0;
+}
+
+.success-view-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.success-stat {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.success-stat--ok {
+  color: var(--figma-color-text-secondary);
+  background: var(--figma-color-bg-secondary);
+}
+
+.success-stat--warn {
+  color: var(--figma-color-text-danger, #e53935);
+  background: rgba(229, 57, 53, 0.08);
 }
 
 .success-view--figma .success-view-close {
@@ -2997,4 +3060,143 @@ button:disabled {
   font-size: 11px;
   font-weight: 600;
   color: var(--figma-color-text-secondary);
+}
+
+/* ============================================
+   LOG VIEWER
+   ============================================ */
+.log-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--figma-color-bg);
+  animation: viewAppear 0.25s ease-out;
+}
+
+.log-viewer-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-lg) var(--space-md);
+}
+
+.log-viewer-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--figma-color-text);
+  flex: 1;
+}
+
+.log-viewer-count {
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--figma-color-text-tertiary);
+  background: var(--figma-color-bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0 var(--space-lg) var(--space-md);
+}
+
+.log-viewer-filter {
+  flex-shrink: 0;
+}
+
+.log-viewer-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+.log-viewer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-lg) var(--space-lg);
+  min-height: 0;
+}
+
+.log-viewer-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-tertiary);
+}
+
+.log-viewer-entry {
+  display: flex;
+  gap: var(--space-sm);
+  padding: 2px 0;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--figma-color-text);
+  border-bottom: 1px solid var(--figma-color-border);
+}
+
+.log-viewer-entry:last-child {
+  border-bottom: none;
+}
+
+.log-viewer-entry-time {
+  color: var(--figma-color-text-tertiary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-viewer-entry-level {
+  flex-shrink: 0;
+  width: 52px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.log-viewer-entry-msg {
+  flex: 1;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Level color-coding */
+.log-viewer-entry--error .log-viewer-entry-level,
+.log-viewer-entry--error .log-viewer-entry-msg {
+  color: var(--figma-color-text-danger);
+}
+
+.log-viewer-entry--summary .log-viewer-entry-level {
+  color: var(--figma-color-text);
+}
+
+.log-viewer-entry--verbose .log-viewer-entry-level {
+  color: var(--figma-color-text-secondary);
+}
+
+.log-viewer-entry--verbose .log-viewer-entry-msg {
+  color: var(--figma-color-text-secondary);
+}
+
+.log-viewer-entry--debug .log-viewer-entry-level {
+  color: var(--figma-color-text-tertiary);
+}
+
+.log-viewer-entry--debug .log-viewer-entry-msg {
+  color: var(--figma-color-text-tertiary);
+}
+
+/* Log button in StatusBar */
+.status-pill--log {
+  cursor: pointer;
+}
+
+.status-pill--log:hover {
+  background: var(--figma-color-bg-hover);
+  border-color: var(--figma-color-border-strong);
 }
