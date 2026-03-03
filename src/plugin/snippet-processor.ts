@@ -241,6 +241,16 @@ export async function processImportCSV(
       return { processedCount: processingIndex, totalContainers: totalToProcess, imageStats: { successfulImages: 0, failedImages: 0, skippedImages: 0, errors: [] } };
     }
     
+    // Bulk preload all fonts in container before handler execution
+    if (data.container.type === 'INSTANCE') {
+      const textNodes = data.container.findAll(n => n.type === 'TEXT') as TextNode[];
+      for (const tn of textNodes) {
+        if (!tn.hasMissingFont && tn.fontName !== figma.mixed) {
+          try { await figma.loadFontAsync(tn.fontName as FontName); } catch { /* skip */ }
+        }
+      }
+    }
+
     // ОПТИМИЗАЦИЯ: Строим DeepCache ОДИН РАЗ на контейнер
     // Кэшируем INSTANCE, TEXT, GROUP ноды — избавляет от ~10000+ рекурсивных поисков
     const cacheStart = Date.now();

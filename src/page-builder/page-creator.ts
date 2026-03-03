@@ -600,6 +600,28 @@ function createContainerFrame(config: ContainerConfig): FrameNode {
 }
 
 /**
+ * Bulk preload all fonts used by TEXT nodes in an instance.
+ * Avoids per-handler font loading failures and speeds up text operations.
+ */
+async function preloadInstanceFonts(instance: InstanceNode): Promise<void> {
+  const textNodes = instance.findAll(n => n.type === 'TEXT') as TextNode[];
+  const loaded = new Set<string>();
+  for (const textNode of textNodes) {
+    if (textNode.hasMissingFont) continue;
+    const fontName = textNode.fontName;
+    if (fontName === figma.mixed) continue;
+    const key = `${fontName.family}::${fontName.style}`;
+    if (loaded.has(key)) continue;
+    try {
+      await figma.loadFontAsync(fontName);
+      loaded.add(key);
+    } catch {
+      // font unavailable — handlers will handle individually
+    }
+  }
+}
+
+/**
  * Найти слой изображения внутри контейнера
  */
 function findImageLayer(container: SceneNode, names: string[]): SceneNode | null {
@@ -655,15 +677,11 @@ function findLayerRecursive(node: SceneNode, name: string): SceneNode | null {
  */
 async function loadAndApplyImage(layer: SceneNode, url: string, logPrefix: string): Promise<boolean> {
   try {
-    // Handle data: URIs (base64-encoded images)
+    // Handle data: URIs (base64-encoded images) using native figma.base64Decode
     if (url.startsWith('data:')) {
       const match = url.match(/^data:[^;]+;base64,(.+)$/);
       if (match && match[1] && 'fills' in layer) {
-        const binaryStr = atob(match[1]);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let bi = 0; bi < binaryStr.length; bi++) {
-          bytes[bi] = binaryStr.charCodeAt(bi);
-        }
+        const bytes = figma.base64Decode(match[1]);
         const image = figma.createImage(bytes);
         (layer as GeometryMixin).fills = [{ type: 'IMAGE', scaleMode: 'FIT', imageHash: image.hash }];
         Logger.debug(`${logPrefix} Applied data: URI image`);
@@ -1059,6 +1077,9 @@ async function createSnippetInstance(
   // Применяем данные через handlers
   if (node.data && Object.keys(node.data).length > 0) {
     try {
+      // Bulk preload all fonts in instance before handler execution
+      await preloadInstanceFonts(instance);
+
       const instanceCache = buildInstanceCache(instance);
       const context: HandlerContext = {
         container: instance,
