@@ -610,6 +610,7 @@ const App: React.FC = () => {
             lastQuery={lastQuery}
             relayConnected={relayConnected}
             onShowExtensionGuide={handleShowExtensionGuide}
+            onReimport={relayConnected ? () => relay.reimport() : undefined}
           />
         )
       )}

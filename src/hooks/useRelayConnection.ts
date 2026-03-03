@@ -43,6 +43,8 @@ export interface UseRelayConnectionReturn {
   ackData: (entryId: string) => Promise<void>;
   clearQueue: () => Promise<void>;
   checkNow: () => Promise<void>;
+  /** Re-queue last import payload to trigger confirmation dialog again */
+  reimport: () => Promise<boolean>;
   /** Temporarily block an entryId from being shown (e.g. after cancel) */
   blockEntry: (entryId: string, durationMs?: number) => void;
 }
@@ -188,6 +190,16 @@ export function useRelayConnection({
     }
     pendingEntryIdRef.current = null;
     lastProcessedEntryIdRef.current = null;
+  }, [relayUrl]);
+
+  // reimport — re-queue last import payload
+  const reimport = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch(`${relayUrl}/reimport`, { method: 'POST' });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }, [relayUrl]);
 
   // blockEntry — temporarily prevent an entryId from being shown
@@ -384,6 +396,7 @@ export function useRelayConnection({
     ackData,
     clearQueue,
     checkNow,
+    reimport,
     blockEntry,
   };
 }

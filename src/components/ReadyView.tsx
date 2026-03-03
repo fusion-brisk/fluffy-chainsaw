@@ -15,12 +15,14 @@ interface ReadyViewProps {
   lastQuery?: string;
   relayConnected?: boolean;
   onShowExtensionGuide?: () => void;
+  onReimport?: () => void;
 }
 
-export const ReadyView: React.FC<ReadyViewProps> = memo(({ 
+export const ReadyView: React.FC<ReadyViewProps> = memo(({
   lastQuery,
   relayConnected = false,
-  onShowExtensionGuide
+  onShowExtensionGuide,
+  onReimport
 }) => {
   return (
     <div className="ready-view--figma view-animate-in">
@@ -34,10 +36,19 @@ export const ReadyView: React.FC<ReadyViewProps> = memo(({
         Готов к работе
       </h2>
       
-      {/* Last query if available */}
+      {/* Last query + reimport button */}
       {lastQuery && (
         <div className="ready-view-last">
           Последний: «{lastQuery}»
+          {onReimport && (
+            <button
+              type="button"
+              className="btn-text-sm ready-view-reimport"
+              onClick={onReimport}
+            >
+              Повторить
+            </button>
+          )}
         </div>
       )}
       

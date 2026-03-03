@@ -471,19 +471,22 @@ async function fallbackImage(comp: WizardImage): Promise<FrameNode> {
   frame.paddingBottom = 8;
   frame.fills = [];
 
+  // Image sized to fit within wizard container (~350px wide, aspect ratio ~1:1)
   const imgFrame = figma.createFrame();
   imgFrame.name = comp.alt || 'image';
-  imgFrame.resize(690, 460);
+  imgFrame.resize(350, 350);
   imgFrame.cornerRadius = 12;
   imgFrame.fills = [{ type: 'SOLID', color: { r: 0.93, g: 0.93, b: 0.93 } }];
 
   if (comp.src) {
     try {
-      const response = await fetch(comp.src);
+      var normalizedSrc = comp.src;
+      if (normalizedSrc.startsWith('//')) normalizedSrc = 'https:' + normalizedSrc;
+      const response = await fetch(normalizedSrc);
       if (response.ok) {
         const buffer = await response.arrayBuffer();
         const image = figma.createImage(new Uint8Array(buffer));
-        imgFrame.fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' }];
+        imgFrame.fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FIT' }];
       }
     } catch {
       Logger.debug(`[Wizard] Не удалось загрузить изображение: ${comp.src.substring(0, 80)}`);
@@ -559,7 +562,13 @@ async function renderHeading(comp: WizardHeading): Promise<SceneNode> {
  * Если есть footnotes — Type=p+source + Show Source=true.
  * Если нет — Type=p.
  */
-async function renderParagraph(comp: WizardParagraph): Promise<SceneNode> {
+async function renderParagraph(comp: WizardParagraph): Promise<SceneNode | null> {
+  // Skip empty paragraphs
+  var text = comp.spans ? comp.spans.map(function(s) { return s.text; }).join('').trim() : '';
+  if (!text && (!comp.footnotes || comp.footnotes.length === 0)) {
+    return null;
+  }
+
   if (!cachedMarkdown) {
     return fallbackParagraph(comp);
   }
@@ -709,49 +718,10 @@ async function renderList(comp: WizardList): Promise<SceneNode[]> {
  * Рендерит изображение через библиотечный img-компонент.
  */
 async function renderImage(comp: WizardImage): Promise<SceneNode> {
-  if (!cachedImg) {
-    return fallbackImage(comp);
-  }
-
-  try {
-    const instance = cachedImg.createInstance();
-    instance.name = `img: ${(comp.alt || '').substring(0, 80)}`;
-
-    // Заполняем Image-слой
-    if (comp.src) {
-      const imageLayer = findImageLayer(instance);
-      if (imageLayer && 'fills' in imageLayer) {
-        try {
-          const response = await fetch(comp.src);
-          if (response.ok) {
-            const buffer = await response.arrayBuffer();
-            const image = figma.createImage(new Uint8Array(buffer));
-            (imageLayer as GeometryMixin).fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' }];
-          }
-        } catch {
-          Logger.debug(`[Wizard] Не удалось загрузить изображение: ${comp.src.substring(0, 80)}`);
-        }
-      }
-    }
-
-    // Заполняем Title (alt текст) — ищем первый текстовый нод
-    if (comp.alt) {
-      const titleNode = findTextNode(instance);
-      if (titleNode) {
-        try {
-          await figma.loadFontAsync(titleNode.fontName as FontName);
-          titleNode.characters = comp.alt;
-        } catch {
-          Logger.debug('[Wizard] Не удалось заполнить Title в img-компоненте');
-        }
-      }
-    }
-
-    return instance;
-  } catch (e) {
-    Logger.warn(`[Wizard] Image fallback: ${e instanceof Error ? e.message : String(e)}`);
-    return fallbackImage(comp);
-  }
+  // Always use fallback — library img component key currently points to
+  // a video/media component, not a simple image component.
+  // TODO: update WIZARD_COMPONENT_KEYS.img with correct image component key
+  return fallbackImage(comp);
 }
 
 /**
@@ -827,10 +797,12 @@ export async function renderWizardPayload(
   answerFrame.cornerRadius = 16;
 
   // Fixed height from original page (captured via getBoundingClientRect in extension)
+  // Always enable clipsContent — wizard may have overflow (collapsed state with chevron)
+  answerFrame.clipsContent = true;
   if (wizard.height && wizard.height > 0) {
     answerFrame.primaryAxisSizingMode = 'FIXED';
-    answerFrame.resize(answerFrame.width, wizard.height);
-    answerFrame.clipsContent = true;
+    // Width will be set to FILL by parent; use 400 as reasonable default for resize
+    answerFrame.resize(400, wizard.height);
   }
 
   // Рендерим каждый компонент
@@ -844,8 +816,8 @@ export async function renderWizardPayload(
       for (const node of nodes) {
         answerFrame.appendChild(node);
         // img-компоненты не растягиваем — они имеют фиксированную ширину
-        const isImgInstance = node.type === 'INSTANCE' && node.name.startsWith('img:');
-        if (!isImgInstance && 'layoutSizingHorizontal' in node) {
+        const isImg = node.name === 'img' || node.name.startsWith('img:');
+        if (!isImg && 'layoutSizingHorizontal' in node) {
           (node as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
         }
         componentCount++;
