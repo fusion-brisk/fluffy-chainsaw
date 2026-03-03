@@ -38,6 +38,24 @@ import {
 } from './dom-cache';
 
 /**
+ * Извлекает текст заголовка, исключая вложенные Path/greenurl элементы.
+ * На touch SERP заголовок и greenurl могут быть внутри одного элемента.
+ * Sync: extension/content.js → getTitleTextClean
+ */
+function getTitleTextClean(el: Element): string {
+  if (!el) return '';
+  const clone = el.cloneNode(true) as Element;
+  const pathEls = clone.querySelectorAll(
+    '.Path, .OrganicTitle-Path, .Organic-Path, .OrganicUrl, .Favicon, [class*="GreenUrl"], [class*="greenurl"]'
+  );
+  for (let i = 0; i < pathEls.length; i++) {
+    pathEls[i].remove();
+  }
+  const text = (clone.textContent || '').trim().replace(/\s+/g, ' ');
+  return text;
+}
+
+/**
  * Определяет платформу по HTML контенту (local copy to avoid circular imports)
  * @returns 'touch' | 'desktop'
  */
@@ -498,9 +516,11 @@ export function extractRowData(
     }
   }
   if (titleEl) {
-    row['#OrganicTitle'] = getTextContent(titleEl);
+    // Use getTitleTextClean to strip Path/greenurl children that appear
+    // inside the title element on touch SERP (sync with extension/content.js)
+    row['#OrganicTitle'] = getTitleTextClean(titleEl);
   }
-  
+
   // #ShopName — ОПТИМИЗИРОВАНО (Phase 5)
   // Сначала пробуем получить чистое имя из Line-AddonContent (без текста OfficialShop)
   if (snippetType === 'EProductSnippet2' || snippetType === 'EShopItem') {
@@ -669,7 +689,7 @@ export function extractRowData(
     if (src && src.includes(' ')) {
       src = src.split(',')[0].trim().split(' ')[0];
     }
-    if (src) row['#OrganicImage'] = src.startsWith('http') ? src : `https:${src}`;
+    if (src) row['#OrganicImage'] = (src.startsWith('http') || src.startsWith('data:')) ? src : `https:${src}`;
   }
   
   // #ThumbImage
@@ -688,7 +708,7 @@ export function extractRowData(
     thumbImages.forEach((img) => {
       let src = img.getAttribute('src') || img.getAttribute('data-src');
       if (src) {
-        src = src.startsWith('http') ? src : `https:${src}`;
+        src = (src.startsWith('http') || src.startsWith('data:')) ? src : `https:${src}`;
         images.push(src);
       }
     });
@@ -1593,7 +1613,7 @@ export function extractRowData(
       }
       
       if (avatarUrl) {
-        row['#EQuote-AuthorAvatar'] = avatarUrl.startsWith('http') ? avatarUrl : `https:${avatarUrl}`;
+        row['#EQuote-AuthorAvatar'] = (avatarUrl.startsWith('http') || avatarUrl.startsWith('data:')) ? avatarUrl : `https:${avatarUrl}`;
         // Legacy поле для совместимости
         row['#QuoteImage'] = row['#EQuote-AuthorAvatar'];
         Logger.debug(`✅ [EQuote-AuthorAvatar] Аватар: "${row['#EQuote-AuthorAvatar'].substring(0, 80)}..."`);

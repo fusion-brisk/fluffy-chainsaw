@@ -107,7 +107,7 @@ export function extractProductURL(container: Element): string {
   if (productLink) {
     const hrefAttr = productLink.getAttribute('href') || productLink.getAttribute('data-href');
     if (hrefAttr) {
-      return hrefAttr.startsWith('http') ? hrefAttr : `https:${hrefAttr}`;
+      return (hrefAttr.startsWith('http') || hrefAttr.startsWith('data:')) ? hrefAttr : `https:${hrefAttr}`;
     }
   }
   
