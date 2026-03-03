@@ -38,22 +38,22 @@ export function detectPlatformFromHtml(htmlContent: string): 'touch' | 'desktop'
   const hasHeaderPhone = htmlContent.includes('class="HeaderPhone"');
   const hasHeaderDesktop = htmlContent.includes('class="HeaderDesktop');
   
-  console.log(`[detectPlatform] HeaderPhone: ${hasHeaderPhone}, HeaderDesktop: ${hasHeaderDesktop}`);
-  
+  Logger.debug(`[detectPlatform] HeaderPhone: ${hasHeaderPhone}, HeaderDesktop: ${hasHeaderDesktop}`);
+
   // Touch проверяем первым — если есть HeaderPhone, это точно touch
   if (hasHeaderPhone) {
-    console.log('[detectPlatform] → touch (HeaderPhone найден)');
+    Logger.debug('[detectPlatform] → touch (HeaderPhone найден)');
     return 'touch';
   }
-  
+
   // Desktop — если есть HeaderDesktop
   if (hasHeaderDesktop) {
-    console.log('[detectPlatform] → desktop (HeaderDesktop найден)');
+    Logger.debug('[detectPlatform] → desktop (HeaderDesktop найден)');
     return 'desktop';
   }
-  
+
   // По умолчанию — desktop
-  console.log('[detectPlatform] → desktop (по умолчанию)');
+  Logger.debug('[detectPlatform] → desktop (по умолчанию)');
   return 'desktop';
 }
 

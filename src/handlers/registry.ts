@@ -400,8 +400,8 @@ class HandlerRegistry {
     // DEBUG: Логируем список handlers при первом вызове
     if (!this.loggedHandlers) {
       this.loggedHandlers = true;
-      console.log(`[HandlerRegistry] Всего handlers: ${this.handlers.length}`);
-      console.log(`[HandlerRegistry] Handlers: ${this.handlers.map(h => h.name).join(', ')}`);
+      Logger.debug(`[HandlerRegistry] Всего handlers: ${this.handlers.length}`);
+      Logger.debug(`[HandlerRegistry] Handlers: ${this.handlers.map(h => h.name).join(', ')}`);
     }
 
     // Группируем обработчики по режиму выполнения

@@ -264,7 +264,7 @@ async function createInstanceForElement(
       // Копируем defaultVariant но без Platform
       const { Platform: _platform, ...restProps } = config.defaultVariant as Record<string, unknown>;
       instance.setProperties(restProps as Record<string, string | boolean | number>);
-      console.log(`[PageCreator] ✅ ${element.type}: Platform=${platformValue} (из компонента)`);
+      Logger.info(`[PageCreator] ${element.type}: Platform=${platformValue} (из компонента)`);
     } catch (e) {
       Logger.debug(`[PageCreator] Не удалось установить properties: ${e}`);
     }
@@ -614,7 +614,7 @@ function findImageLayer(container: SceneNode, names: string[]): SceneNode | null
   // Fallback: ищем слой с "Image" или "Thumb" в имени (частичное совпадение)
   const partialFound = findLayerByPartialName(container, ['Image', 'Thumb', 'image', 'thumb']);
   if (partialFound) {
-    console.log(`[findImageLayer] Найден по частичному совпадению: "${partialFound.name}"`);
+    Logger.debug(`[findImageLayer] Найден по частичному совпадению: "${partialFound.name}"`);
     return partialFound;
   }
   
@@ -684,19 +684,19 @@ async function loadAndApplyImage(layer: SceneNode, url: string, logPrefix: strin
     }
 
     const response = await fetch(normalizedUrl);
-    console.log(`${logPrefix} Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
+    Logger.debug(`${logPrefix} Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
 
     if (!response.ok) {
-      console.log(`${logPrefix} ❌ Ошибка загрузки: ${response.status}`);
+      Logger.warn(`${logPrefix} Ошибка загрузки: ${response.status}`);
       return false;
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    console.log(`${logPrefix} Получено ${arrayBuffer.byteLength} bytes`);
+    Logger.debug(`${logPrefix} Получено ${arrayBuffer.byteLength} bytes`);
 
     const uint8Array = new Uint8Array(arrayBuffer);
     const image = figma.createImage(uint8Array);
-    console.log(`${logPrefix} Image hash: ${image.hash}`);
+    Logger.debug(`${logPrefix} Image hash: ${image.hash}`);
 
     if ('fills' in layer) {
       const imagePaint: ImagePaint = {
@@ -705,15 +705,15 @@ async function loadAndApplyImage(layer: SceneNode, url: string, logPrefix: strin
         imageHash: image.hash
       };
       (layer as GeometryMixin).fills = [imagePaint];
-      console.log(`${logPrefix} ✅ Изображение применено!`);
+      Logger.info(`${logPrefix} Изображение применено`);
       return true;
     } else {
-      console.log(`${logPrefix} ❌ Слой не поддерживает fills`);
+      Logger.warn(`${logPrefix} Слой не поддерживает fills`);
       return false;
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.log(`${logPrefix} ❌ ОШИБКА: ${msg}`);
+    Logger.error(`${logPrefix} ОШИБКА: ${msg}`);
     return false;
   }
 }
@@ -730,7 +730,7 @@ async function applySnippetImages(instance: InstanceNode, row: Record<string, st
   
   // Если есть EThumbGroup с несколькими картинками
   if (imageType === 'EThumbGroup' && image2) {
-    console.log(`[applySnippetImages] EThumbGroup: применяем ${image1 ? '1' : '0'}+${image2 ? '1' : '0'}+${image3 ? '1' : '0'} картинок`);
+    Logger.debug(`[applySnippetImages] EThumbGroup: применяем ${image1 ? '1' : '0'}+${image2 ? '1' : '0'}+${image3 ? '1' : '0'} картинок`);
     
     const imageSlots = [
       { names: ['#Image1', 'Image1', 'EThumbGroup-Main'], url: image1 },
@@ -749,11 +749,11 @@ async function applySnippetImages(instance: InstanceNode, row: Record<string, st
       }
       
       if (!layer) {
-        console.log(`[applySnippetImages] ⚠️ Image${idx + 1}: слой не найден (пробовал: ${slot.names.join(', ')})`);
+        Logger.warn(`[applySnippetImages] Image${idx + 1}: слой не найден (пробовал: ${slot.names.join(', ')})`);
         return;
       }
       
-      console.log(`[applySnippetImages] Image${idx + 1}: найден слой "${layer.name}"`);
+      Logger.debug(`[applySnippetImages] Image${idx + 1}: найден слой "${layer.name}"`);
       await loadAndApplyImage(layer, slot.url, `[applySnippetImages] Image${idx + 1}:`);
     });
     
@@ -765,11 +765,11 @@ async function applySnippetImages(instance: InstanceNode, row: Record<string, st
   const imageUrl = row['#OrganicImage'] || row['#ThumbImage'] || row['#Image1'] || '';
 
   if (!imageUrl || imageUrl.trim() === '') {
-    console.log(`[applySnippetImages] Нет URL изображения`);
+    Logger.debug(`[applySnippetImages] Нет URL изображения`);
     return;
   }
 
-  console.log(`[applySnippetImages] URL: "${imageUrl.substring(0, 60)}..."`);
+  Logger.debug(`[applySnippetImages] URL: "${imageUrl.substring(0, 60)}..."`);
 
   // Ищем слой изображения
   // Добавлены имена для AdvGallery и других вариантов компонентов
@@ -786,16 +786,16 @@ async function applySnippetImages(instance: InstanceNode, row: Record<string, st
   const layer = findImageLayer(instance, layerNames);
 
   if (!layer) {
-    console.log(`[applySnippetImages] ❌ Слой НЕ найден (пробовал: ${layerNames.join(', ')})`);
+    Logger.warn(`[applySnippetImages] Слой НЕ найден (пробовал: ${layerNames.join(', ')})`);
     // Логируем все дочерние элементы для отладки
     if ('children' in instance) {
       const childNames = (instance.children as readonly SceneNode[]).slice(0, 10).map(c => c.name);
-      console.log(`[applySnippetImages] Дочерние: ${childNames.join(', ')}`);
+      Logger.debug(`[applySnippetImages] Дочерние: ${childNames.join(', ')}`);
     }
     return;
   }
 
-  console.log(`[applySnippetImages] ✅ Найден слой: "${layer.name}"`);
+  Logger.debug(`[applySnippetImages] Найден слой: "${layer.name}"`);
   await loadAndApplyImage(layer, imageUrl, '[applySnippetImages]');
 }
 
@@ -806,32 +806,32 @@ async function applyFavicon(instance: InstanceNode, row: Record<string, string |
   const faviconUrl = row['#FaviconImage'] || '';
 
   if (!faviconUrl || faviconUrl.trim() === '') {
-    console.log(`[applyFavicon] Нет URL фавиконки`);
+    Logger.debug(`[applyFavicon] Нет URL фавиконки`);
     return;
   }
 
-  console.log(`[applyFavicon] URL: "${faviconUrl.substring(0, 60)}..."`);
+  Logger.debug(`[applyFavicon] URL: "${faviconUrl.substring(0, 60)}..."`);
 
   // Ищем слой фавиконки
   const layerNames = ['#FaviconImage', '#Favicon', 'Favicon', 'favicon', 'EFavicon', 'EShopName/#Favicon'];
   const layer = findImageLayer(instance, layerNames);
 
   if (!layer) {
-    console.log(`[applyFavicon] ❌ Слой НЕ найден (пробовал: ${layerNames.join(', ')})`);
+    Logger.warn(`[applyFavicon] Слой НЕ найден (пробовал: ${layerNames.join(', ')})`);
     return;
   }
 
-  console.log(`[applyFavicon] ✅ Найден слой: "${layer.name}"`);
+  Logger.debug(`[applyFavicon] Найден слой: "${layer.name}"`);
 
   try {
     // Обработка data: URL (base64 изображение)
     if (faviconUrl.startsWith('data:')) {
-      console.log(`[applyFavicon] Обработка data: URL`);
+      Logger.debug(`[applyFavicon] Обработка data: URL`);
       
       // Извлекаем base64 часть
       const matches = faviconUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
       if (!matches || !matches[1]) {
-        console.log(`[applyFavicon] ❌ Некорректный data: URL`);
+        Logger.warn(`[applyFavicon] Некорректный data: URL`);
         return;
       }
       
@@ -843,10 +843,10 @@ async function applyFavicon(instance: InstanceNode, row: Record<string, string |
         bytes[i] = binaryString.charCodeAt(i);
       }
       
-      console.log(`[applyFavicon] Decoded ${bytes.length} bytes from base64`);
-      
+      Logger.debug(`[applyFavicon] Decoded ${bytes.length} bytes from base64`);
+
       const image = figma.createImage(bytes);
-      console.log(`[applyFavicon] Image hash: ${image.hash}`);
+      Logger.debug(`[applyFavicon] Image hash: ${image.hash}`);
 
       if ('fills' in layer) {
         const imagePaint: ImagePaint = {
@@ -855,7 +855,7 @@ async function applyFavicon(instance: InstanceNode, row: Record<string, string |
           imageHash: image.hash
         };
         (layer as GeometryMixin).fills = [imagePaint];
-        console.log(`[applyFavicon] ✅ Фавиконка (data:) применена!`);
+        Logger.info(`[applyFavicon] Фавиконка (data:) применена`);
       }
       return;
     }
@@ -867,25 +867,25 @@ async function applyFavicon(instance: InstanceNode, row: Record<string, string |
     }
 
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      console.log(`[applyFavicon] ❌ URL без http(s): ${normalizedUrl.substring(0, 60)}`);
+      Logger.debug(`[applyFavicon] URL без http(s): ${normalizedUrl.substring(0, 60)}`);
       return;
     }
 
-    console.log(`[applyFavicon] Загрузка: ${normalizedUrl.substring(0, 60)}...`);
+    Logger.debug(`[applyFavicon] Загрузка: ${normalizedUrl.substring(0, 60)}...`);
     const response = await fetch(normalizedUrl);
-    console.log(`[applyFavicon] Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
+    Logger.debug(`[applyFavicon] Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
 
     if (!response.ok) {
-      console.log(`[applyFavicon] ❌ Ошибка загрузки: ${response.status}`);
+      Logger.warn(`[applyFavicon] Ошибка загрузки: ${response.status}`);
       return;
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    console.log(`[applyFavicon] Получено ${arrayBuffer.byteLength} bytes`);
+    Logger.debug(`[applyFavicon] Получено ${arrayBuffer.byteLength} bytes`);
 
     const uint8Array = new Uint8Array(arrayBuffer);
     const image = figma.createImage(uint8Array);
-    console.log(`[applyFavicon] Image hash: ${image.hash}`);
+    Logger.debug(`[applyFavicon] Image hash: ${image.hash}`);
 
     if ('fills' in layer) {
       const imagePaint: ImagePaint = {
@@ -894,13 +894,13 @@ async function applyFavicon(instance: InstanceNode, row: Record<string, string |
         imageHash: image.hash
       };
       (layer as GeometryMixin).fills = [imagePaint];
-      console.log(`[applyFavicon] ✅ Фавиконка применена!`);
+      Logger.info(`[applyFavicon] Фавиконка применена`);
     } else {
-      console.log(`[applyFavicon] ❌ Слой не поддерживает fills`);
+      Logger.warn(`[applyFavicon] Слой не поддерживает fills`);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.log(`[applyFavicon] ❌ ОШИБКА: ${msg}`);
+    Logger.error(`[applyFavicon] ОШИБКА: ${msg}`);
   }
 }
 
@@ -914,18 +914,18 @@ async function applyQuoteAvatar(instance: InstanceNode, row: Record<string, stri
     return; // Нет аватара — ничего не делаем (это нормально)
   }
 
-  console.log(`[applyQuoteAvatar] URL: "${avatarUrl.substring(0, 60)}..."`);
+  Logger.debug(`[applyQuoteAvatar] URL: "${avatarUrl.substring(0, 60)}..."`);
 
   // Ищем слой аватара
   const layerNames = ['#EQuote-AuthorAvatar', 'EQuote-AuthorAvatar', '#QuoteImage', 'EQuote-AvatarWrapper'];
   const layer = findImageLayer(instance, layerNames);
 
   if (!layer) {
-    console.log(`[applyQuoteAvatar] ⚠️ Слой не найден (пробовал: ${layerNames.join(', ')})`);
+    Logger.warn(`[applyQuoteAvatar] Слой не найден (пробовал: ${layerNames.join(', ')})`);
     return;
   }
 
-  console.log(`[applyQuoteAvatar] ✅ Найден слой: "${layer.name}"`);
+  Logger.debug(`[applyQuoteAvatar] Найден слой: "${layer.name}"`);
 
   try {
     let normalizedUrl = avatarUrl;
@@ -934,25 +934,25 @@ async function applyQuoteAvatar(instance: InstanceNode, row: Record<string, stri
     }
 
     if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      console.log(`[applyQuoteAvatar] ❌ URL без http(s)`);
+      Logger.debug(`[applyQuoteAvatar] URL без http(s)`);
       return;
     }
 
-    console.log(`[applyQuoteAvatar] Загрузка: ${normalizedUrl.substring(0, 60)}...`);
+    Logger.debug(`[applyQuoteAvatar] Загрузка: ${normalizedUrl.substring(0, 60)}...`);
     const response = await fetch(normalizedUrl);
-    console.log(`[applyQuoteAvatar] Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
+    Logger.debug(`[applyQuoteAvatar] Response: ${response.status} ${response.ok ? 'OK' : 'FAIL'}`);
 
     if (!response.ok) {
-      console.log(`[applyQuoteAvatar] ❌ Ошибка загрузки: ${response.status}`);
+      Logger.warn(`[applyQuoteAvatar] Ошибка загрузки: ${response.status}`);
       return;
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    console.log(`[applyQuoteAvatar] Получено ${arrayBuffer.byteLength} bytes`);
+    Logger.debug(`[applyQuoteAvatar] Получено ${arrayBuffer.byteLength} bytes`);
 
     const uint8Array = new Uint8Array(arrayBuffer);
     const image = figma.createImage(uint8Array);
-    console.log(`[applyQuoteAvatar] Image hash: ${image.hash}`);
+    Logger.debug(`[applyQuoteAvatar] Image hash: ${image.hash}`);
 
     if ('fills' in layer) {
       const imagePaint: ImagePaint = {
@@ -961,13 +961,13 @@ async function applyQuoteAvatar(instance: InstanceNode, row: Record<string, stri
         imageHash: image.hash
       };
       (layer as GeometryMixin).fills = [imagePaint];
-      console.log(`[applyQuoteAvatar] ✅ Аватар применён!`);
+      Logger.info(`[applyQuoteAvatar] Аватар применён`);
     } else {
-      console.log(`[applyQuoteAvatar] ❌ Слой не поддерживает fills`);
+      Logger.warn(`[applyQuoteAvatar] Слой не поддерживает fills`);
     }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.log(`[applyQuoteAvatar] ❌ ОШИБКА: ${msg}`);
+    Logger.error(`[applyQuoteAvatar] ОШИБКА: ${msg}`);
   }
 }
 
@@ -1004,7 +1004,7 @@ async function createSnippetInstance(
     ? (config as any).keyTouch
     : config.key;
 
-  console.log(`[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`);
+  Logger.debug(`[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`);
 
   const component = await importComponent(componentKey);
   if (!component) {
@@ -1050,10 +1050,10 @@ async function createSnippetInstance(
   // Логируем данные для отладки
   if (node.data) {
     const dataKeys = Object.keys(node.data).filter(k => node.data && node.data[k]);
-    console.log(`[PageCreator] ${node.type} данные: ${dataKeys.join(', ')}`);
+    Logger.debug(`[PageCreator] ${node.type} данные: ${dataKeys.join(', ')}`);
     // Логируем URL изображения отдельно
     const imgUrl = node.data['#OrganicImage'] || node.data['#ThumbImage'] || node.data['#Image1'] || '';
-    console.log(`[PageCreator] ${node.type} изображение: "${imgUrl ? imgUrl.substring(0, 60) + '...' : '(пусто)'}"`);
+    Logger.debug(`[PageCreator] ${node.type} изображение: "${imgUrl ? imgUrl.substring(0, 60) + '...' : '(пусто)'}"`);
   }
   
   // Применяем данные через handlers
@@ -1175,9 +1175,9 @@ async function createEQuickFiltersPanel(
               'Text': 'True',
             };
             btnInstance.setProperties(variantProps);
-            console.log(`[EQuickFilters] "${text}" variant: View=${viewValue}`);
+            Logger.debug(`[EQuickFilters] "${text}" variant: View=${viewValue}`);
           } catch (e) {
-            console.error(`[EQuickFilters] Ошибка установки variant свойств:`, e);
+            Logger.error(`[EQuickFilters] Ошибка установки variant свойств:`, e);
           }
 
           // Шаг 2: Устанавливаем BOOLEAN свойства (Right, Left) отдельно
@@ -1202,10 +1202,10 @@ async function createEQuickFiltersPanel(
             
             if (Object.keys(booleanProps).length > 0) {
               btnInstance.setProperties(booleanProps);
-              console.log(`[EQuickFilters] "${text}" boolean: Right=${rightValue}`);
+              Logger.debug(`[EQuickFilters] "${text}" boolean: Right=${rightValue}`);
             }
           } catch (e) {
-            console.error(`[EQuickFilters] Ошибка установки boolean свойств:`, e);
+            Logger.error(`[EQuickFilters] Ошибка установки boolean свойств:`, e);
           }
 
           // Ищем текстовый слой внутри и меняем текст
@@ -1854,7 +1854,7 @@ export async function createSerpPage(
       if (headerComponent) {
         const headerInstance = headerComponent.createInstance();
         
-        console.log(`[PageCreator] Header: isTouch=${isTouch}, platform=${platform}`);
+        Logger.debug(`[PageCreator] Header: isTouch=${isTouch}, platform=${platform}`);
         
         if (isTouch) {
           // Touch: создаём headerWrapper для группировки Header + EQuickFilters
@@ -1884,16 +1884,16 @@ export async function createSerpPage(
             headerInstance.setProperties({
               Desktop: 'False',
             });
-            console.log('[PageCreator] ✅ Header: Desktop="False" установлено');
+            Logger.debug('[PageCreator] Header: Desktop="False" установлено');
           } catch (e1) {
-            console.log(`[PageCreator] ❌ Header Desktop="False" failed: ${e1}`);
+            Logger.warn(`[PageCreator] Header Desktop="False" failed: ${e1}`);
           }
           
           headerWrapper.appendChild(headerInstance);
           headerInstance.layoutSizingHorizontal = 'FILL';
         } else {
           // Desktop: Header напрямую в pageFrame
-          console.log('[PageCreator] Header: Desktop="True" (по умолчанию)');
+          Logger.debug('[PageCreator] Header: Desktop="True" (по умолчанию)');
           pageFrame.appendChild(headerInstance);
           headerInstance.layoutSizingHorizontal = 'FILL';
         }
@@ -1917,7 +1917,7 @@ export async function createSerpPage(
             targetNode.characters = query;
             Logger.debug(`[PageCreator] Header query set: "${query}" (layer: ${targetNode.name})`);
           } else {
-            console.log(`[PageCreator] ⚠️ Could not find query text node in Header`);
+            Logger.warn(`[PageCreator] Could not find query text node in Header`);
           }
         }
 

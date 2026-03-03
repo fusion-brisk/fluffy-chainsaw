@@ -81,7 +81,7 @@ async function exportResultToRelay(frame: FrameNode, query: string): Promise<voi
   Logger.info(`🖼️ Result exported to relay: ${Math.round(base64.length / 1024)}KB, scale=${scale}`);
 }
 
-console.log('🚀 Плагин Contentify загружен');
+Logger.info('Плагин Contentify загружен');
 
 // Глобальные экземпляры
 const imageProcessor = new ImageProcessor();
@@ -227,7 +227,7 @@ figma.on('selectionchange', () => {
         }
       }
       dumpChildren(inst, 0);
-      console.log(lines.join('\n'));
+      Logger.debug(lines.join('\n'));
     }
   }
 });
@@ -328,7 +328,7 @@ figma.ui.onmessage = async (msg) => {
         // Определяем платформу из данных (первая строка с #platform)
         const firstRowPlatform = rows.find(r => r['#platform'])?.['#platform'];
         const platform: 'desktop' | 'touch' = firstRowPlatform === 'touch' ? 'touch' : 'desktop';
-        console.log(`📱 [Relay] Определена платформа: ${platform} (из данных: ${firstRowPlatform || 'не указана'})`);
+        Logger.verbose(`[Relay] Определена платформа: ${platform} (из данных: ${firstRowPlatform || 'не указана'})`);
         
         // Создаём SERP страницу из библиотечных компонентов
         const result = await createSerpPage(rows, {
