@@ -1,6 +1,7 @@
 // Snippet parsing utilities for Yandex search results
 
 import { CSVRow } from '../types';
+import type { SnippetType } from '../types/csv-fields';
 import type { WizardPayload, WizardComponent, WizardSpan, WizardFootnote, WizardListItem } from '../types/wizard-types';
 import { Logger } from '../logger';
 import { ParsingSchema, DEFAULT_PARSING_RULES } from '../parsing-rules';
@@ -299,17 +300,20 @@ export function extractRowData(
     const gridTitle = titleEl ? (titleEl.textContent || '').trim() : 'Картинки';
     Logger.debug(`📷 [ImagesGrid] ${gridImages.length} картинок в ${gridRows.length} рядах`);
     return {
-      '#SnippetType': 'ImagesGrid',
-      '#containerType': 'ImagesGrid',
-      '#serpItemId': serpItemId,
-      '#ImagesGrid_title': gridTitle,
-      '#ImagesGrid_data': JSON.stringify(gridImages),
-      '#ImagesGrid_count': String(gridImages.length)
-    } as CSVRow;
+      row: {
+        '#SnippetType': 'ImagesGrid' as const,
+        '#containerType': 'ImagesGrid',
+        '#serpItemId': serpItemId,
+        '#ImagesGrid_title': gridTitle,
+        '#ImagesGrid_data': JSON.stringify(gridImages),
+        '#ImagesGrid_count': String(gridImages.length)
+      },
+      spriteState
+    };
   }
 
   // Organic_Adv → ESnippet with isPromo=true (matching content.js behavior)
-  const effectiveSnippetType = snippetTypeValue === 'Organic_Adv' ? 'ESnippet' : snippetTypeValue;
+  const effectiveSnippetType = (snippetTypeValue === 'Organic_Adv' ? 'ESnippet' : snippetTypeValue) as SnippetType;
   const isOrgAdvPromo = snippetTypeValue === 'Organic_Adv' || isPromoSnippet;
 
   const row: CSVRow = {
@@ -325,7 +329,6 @@ export function extractRowData(
     '#ShopName': '',
     '#OrganicHost': '',
     '#OrganicPath': '',
-    '#SnippetFavicon': '',
     '#FaviconImage': '',
     '#OrganicText': '',
     '#OrganicImage': '',
@@ -1215,7 +1218,7 @@ export function extractRowData(
       let p: Element | null = item;
       let hidden = false;
       while (p) {
-        const cls = (p as any).className || '';
+        const cls = (p as Element & { className?: string }).className || '';
         if (typeof cls === 'string' && cls.indexOf('A11yHidden') !== -1) {
           hidden = true;
           break;
@@ -1232,7 +1235,7 @@ export function extractRowData(
     
     // Сохраняем каждый item в отдельное поле (#EDeliveryGroup-Item-1, #EDeliveryGroup-Item-2, ...)
     for (let i = 0; i < deliveryItems.length; i++) {
-      row[`#EDeliveryGroup-Item-${i + 1}`] = deliveryItems[i];
+      (row as Record<string, string | undefined>)[`#EDeliveryGroup-Item-${i + 1}`] = deliveryItems[i];
     }
     
     // Также сохраняем количество items
@@ -1278,7 +1281,7 @@ export function extractRowData(
       if (normalized && !bnplTypes.includes(normalized)) bnplTypes.push(normalized);
     }
     for (let i = 0; i < bnplTypes.length; i++) {
-      row[`#ShopInfo-Bnpl-Item-${i + 1}`] = bnplTypes[i];
+      (row as Record<string, string | undefined>)[`#ShopInfo-Bnpl-Item-${i + 1}`] = bnplTypes[i];
     }
     row['#ShopInfo-Bnpl-Count'] = String(bnplTypes.length);
     row['#ShopInfo-Bnpl'] = bnplTypes.length > 0 ? 'true' : 'false';
@@ -1502,7 +1505,7 @@ export function extractRowData(
     
     // Сохраняем каждую опцию в отдельное поле
     for (let i = 0; i < bnplOptions.length; i++) {
-      row[`#EBnpl-Item-${i + 1}`] = bnplOptions[i];
+      (row as Record<string, string | undefined>)[`#EBnpl-Item-${i + 1}`] = bnplOptions[i];
     }
     row['#EBnpl-Count'] = String(bnplOptions.length);
     row['#EBnpl'] = bnplOptions.length > 0 ? 'true' : 'false';
@@ -1647,7 +1650,7 @@ export function extractRowData(
     }
     
     for (let i = 0; i < sitelinks.length; i++) {
-      row[`#Sitelink_${i + 1}`] = sitelinks[i];
+      (row as Record<string, string | undefined>)[`#Sitelink_${i + 1}`] = sitelinks[i];
     }
     row['#SitelinksCount'] = String(sitelinks.length);
     
@@ -2187,6 +2190,77 @@ function extractFuturisSearchWizards(doc: Document): WizardPayload[] {
   return wizards;
 }
 
+/**
+ * Извлекает боковые фильтры EAsideFilters из parsed Document (fallback для file drop/paste)
+ */
+function extractAsideFiltersFromDoc(doc: Document, platform: string, query: string): CSVRow | null {
+  const aside = doc.querySelector('.ProductsModeAside .EAsideFilters');
+  if (!aside) return null;
+
+  interface AsideFilter {
+    title: string;
+    type: string;
+    items?: string[];
+    placeholderFrom?: string;
+    placeholderTo?: string;
+    hasMore?: boolean;
+  }
+
+  const filters: AsideFilter[] = [];
+  const items = aside.querySelectorAll('.EAsideFilters-Item');
+
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    const titleEl = item.querySelector('.EAsideFilters-Title') || item.querySelector('.EAsideFilters-Text');
+    const title = titleEl ? (titleEl.textContent || '').trim() : '';
+    if (!title) continue;
+
+    const filterData: AsideFilter = { title, type: '' };
+
+    if (item.classList.contains('EAsideFilters-FilterItem_type_boolean')) {
+      filterData.type = 'boolean';
+    } else if (item.querySelector('.EAsideFilters-Categories')) {
+      filterData.type = 'categories';
+      filterData.items = [];
+      const catItems = item.querySelectorAll('.ECategories-Text');
+      for (let ci = 0; ci < catItems.length; ci++) {
+        const text = (catItems[ci].textContent || '').trim();
+        if (text) filterData.items.push(text);
+      }
+    } else if (item.classList.contains('EAsideFilters-FilterItem_type_number')) {
+      filterData.type = 'number';
+      const inputs = item.querySelectorAll('.ENumberInputGroup-Input input');
+      if (inputs.length >= 2) {
+        filterData.placeholderFrom = (inputs[0] as HTMLInputElement).placeholder || '';
+        filterData.placeholderTo = (inputs[1] as HTMLInputElement).placeholder || '';
+      }
+    } else if (item.classList.contains('EAsideFilters-FilterItem_type_enum')) {
+      filterData.type = 'enum';
+      filterData.items = [];
+      const enumItems = item.querySelectorAll('.EEnumFilterItem-Text');
+      for (let ei = 0; ei < enumItems.length; ei++) {
+        const eText = (enumItems[ei].textContent || '').trim();
+        if (eText) filterData.items.push(eText);
+      }
+      filterData.hasMore = !!item.querySelector('.EAsideFilters-Expand');
+    } else {
+      continue;
+    }
+
+    filters.push(filterData);
+  }
+
+  if (filters.length === 0) return null;
+
+  const row: CSVRow = {
+    '#SnippetType': 'EAsideFilters',
+    '#AsideFilters_data': JSON.stringify({ filters }),
+  };
+  if (query) row['#query'] = query;
+  row['#platform'] = platform as CSVRow['#platform'];
+  return row;
+}
+
 export function parseYandexSearchResults(html: string, fullMhtml?: string, parsingRules?: ParsingSchema): { rows: CSVRow[], wizards?: WizardPayload[], error?: string } {
   Logger.debug('🔍 HTML разбор начат');
   try {
@@ -2298,6 +2372,13 @@ export function parseYandexSearchResults(html: string, fullMhtml?: string, parsi
   const domCacheTime = performance.now() - domCacheStartTime;
   Logger.debug(`✅ [DOM CACHE] Обработано ${containers.length} контейнеров за ${domCacheTime.toFixed(2)}ms`);
   
+  // Извлекаем EAsideFilters (боковые фильтры)
+  const asideFiltersRow = extractAsideFiltersFromDoc(doc, platform, globalQuery);
+  if (asideFiltersRow) {
+    results.push(asideFiltersRow);
+    Logger.debug('[PARSE] Извлечены боковые фильтры EAsideFilters');
+  }
+
   // ДИАГНОСТИКА ДО дедупликации: подробная статистика EShopItem
   const eShopItemBefore = results.filter(r => r['#SnippetType'] === 'EShopItem');
   const eOfferItemBefore = results.filter(r => r['#SnippetType'] === 'EOfferItem');

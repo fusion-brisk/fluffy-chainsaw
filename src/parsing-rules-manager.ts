@@ -1,5 +1,5 @@
 // Parsing Rules Manager - управление загрузкой и кэшированием правил парсинга
-import { ParsingRulesData, ParsingRulesMetadata } from './types';
+import { ParsingRulesMetadata } from './types';
 import { DEFAULT_PARSING_RULES, ParsingSchema } from './parsing-rules';
 import { Logger } from './logger';
 
@@ -10,18 +10,14 @@ const STORAGE_KEYS = {
   PENDING_RULES: 'contentify_pending_rules' // Для правил, ожидающих подтверждения
 };
 
-// Дефолтный URL для удалённого конфига
-// Пользователь может изменить его через Settings в UI
-const DEFAULT_REMOTE_URL = 'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json';
-
 /**
  * Вычисляет простой hash строки (для сравнения версий)
  */
 function simpleHash(str: string): string {
-  var hash = 0;
+  let hash = 0;
   if (str.length === 0) return String(hash);
-  for (var i = 0; i < str.length; i++) {
-    var char = str.charCodeAt(i);
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
     hash = hash & hash; // Convert to 32bit integer
   }
@@ -32,13 +28,13 @@ function simpleHash(str: string): string {
  * Мягкое слияние правил (remote overrides default, но сохраняет отсутствующие поля)
  */
 function mergeRules(baseRules: ParsingSchema, remoteRules: Partial<ParsingSchema>): ParsingSchema {
-  var merged: ParsingSchema = {
+  const merged: ParsingSchema = {
     version: remoteRules.version || baseRules.version,
     rules: {}
   };
   
   // Копируем все базовые правила
-  for (var key in baseRules.rules) {
+  for (const key in baseRules.rules) {
     if (Object.prototype.hasOwnProperty.call(baseRules.rules, key)) {
       merged.rules[key] = baseRules.rules[key];
     }
@@ -46,10 +42,10 @@ function mergeRules(baseRules: ParsingSchema, remoteRules: Partial<ParsingSchema
   
   // Накладываем удалённые правила (override + новые поля)
   if (remoteRules.rules) {
-    for (var remoteKey in remoteRules.rules) {
+    for (const remoteKey in remoteRules.rules) {
       if (Object.prototype.hasOwnProperty.call(remoteRules.rules, remoteKey)) {
-        var remoteRule = remoteRules.rules[remoteKey];
-        var baseRule = merged.rules[remoteKey];
+        const remoteRule = remoteRules.rules[remoteKey];
+        const baseRule = merged.rules[remoteKey];
         
         if (baseRule) {
           // Merge существующего правила
@@ -81,13 +77,13 @@ export class ParsingRulesManager {
   async loadRules(): Promise<ParsingRulesMetadata> {
     try {
       // Пробуем загрузить из кэша
-      var cachedRulesStr = await figma.clientStorage.getAsync(STORAGE_KEYS.RULES_CACHE);
-      var cachedMetadataStr = await figma.clientStorage.getAsync(STORAGE_KEYS.RULES_METADATA);
+      const cachedRulesStr = await figma.clientStorage.getAsync(STORAGE_KEYS.RULES_CACHE);
+      const cachedMetadataStr = await figma.clientStorage.getAsync(STORAGE_KEYS.RULES_METADATA);
       
       if (cachedRulesStr && cachedMetadataStr) {
         try {
-          var cachedRules = JSON.parse(cachedRulesStr) as ParsingSchema;
-          var cachedMetadata = JSON.parse(cachedMetadataStr);
+          const cachedRules = JSON.parse(cachedRulesStr) as ParsingSchema;
+          const cachedMetadata = JSON.parse(cachedMetadataStr);
           
           Logger.info('📦 Загружены кэшированные правила парсинга');
           
@@ -126,7 +122,7 @@ export class ParsingRulesManager {
    */
   async checkForUpdates(): Promise<{ hasUpdate: boolean; newRules?: ParsingSchema; hash?: string } | null> {
     try {
-      var remoteUrl = await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
+      const remoteUrl = await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
       
       if (!remoteUrl) {
         Logger.debug('Remote config URL не настроен');
@@ -135,19 +131,19 @@ export class ParsingRulesManager {
       
       Logger.info('🔍 Проверка обновлений правил с ' + remoteUrl);
       
-      var response = await fetch(remoteUrl);
+      const response = await fetch(remoteUrl);
       
       if (!response.ok) {
         Logger.error('Не удалось загрузить удалённые правила: HTTP ' + response.status);
         return null;
       }
       
-      var remoteRulesText = await response.text();
-      var remoteRules = JSON.parse(remoteRulesText) as ParsingSchema;
+      const remoteRulesText = await response.text();
+      const remoteRules = JSON.parse(remoteRulesText) as ParsingSchema;
       
       // Вычисляем hash удалённых правил
-      var remoteHash = simpleHash(remoteRulesText);
-      var currentHash = this.currentMetadata?.hash;
+      const remoteHash = simpleHash(remoteRulesText);
+      const currentHash = this.currentMetadata?.hash;
       
       if (remoteHash !== currentHash) {
         Logger.info('✨ Найдены обновлённые правила парсинга');
@@ -178,15 +174,15 @@ export class ParsingRulesManager {
   async applyRemoteRules(hash: string): Promise<boolean> {
     try {
       // Загружаем pending правила
-      var pendingRulesStr = await figma.clientStorage.getAsync(STORAGE_KEYS.PENDING_RULES);
+      const pendingRulesStr = await figma.clientStorage.getAsync(STORAGE_KEYS.PENDING_RULES);
       
       if (!pendingRulesStr) {
         Logger.error('Нет ожидающих правил для применения');
         return false;
       }
       
-      var pendingRules = JSON.parse(pendingRulesStr) as ParsingSchema;
-      var pendingHash = simpleHash(pendingRulesStr);
+      const pendingRules = JSON.parse(pendingRulesStr) as ParsingSchema;
+      const pendingHash = simpleHash(pendingRulesStr);
       
       // Проверяем hash для безопасности
       if (pendingHash !== hash) {
@@ -195,10 +191,10 @@ export class ParsingRulesManager {
       }
       
       // Мягкое слияние с базовыми правилами
-      var mergedRules = mergeRules(DEFAULT_PARSING_RULES, pendingRules);
+      const mergedRules = mergeRules(DEFAULT_PARSING_RULES, pendingRules);
       
       // Сохраняем в кэш
-      var remoteUrl = await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
+      const remoteUrl = await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
       
       await figma.clientStorage.setAsync(STORAGE_KEYS.RULES_CACHE, JSON.stringify(mergedRules));
       await figma.clientStorage.setAsync(STORAGE_KEYS.RULES_METADATA, JSON.stringify({

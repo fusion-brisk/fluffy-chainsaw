@@ -2043,6 +2043,80 @@
   }
 
   /**
+   * Извлекает боковые фильтры EAsideFilters (ProductsModeAside)
+   * @returns {Object|null} Объект с JSON-данными фильтров или null
+   */
+  function extractAsideFilters() {
+    const aside = document.querySelector('.ProductsModeAside .EAsideFilters');
+    if (!aside) {
+      return null;
+    }
+
+    console.log('[EAsideFilters] Найдена панель боковых фильтров');
+
+    var filters = [];
+    var items = aside.querySelectorAll('.EAsideFilters-Item');
+
+    for (var idx = 0; idx < items.length; idx++) {
+      var item = items[idx];
+      var titleEl = item.querySelector('.EAsideFilters-Title') || item.querySelector('.EAsideFilters-Text');
+      var title = titleEl ? titleEl.textContent.trim() : '';
+      if (!title) continue;
+
+      var filterData = { title: title };
+
+      if (item.classList.contains('EAsideFilters-FilterItem_type_boolean')) {
+        // Boolean toggle filter (e.g. "Сушка" with Tumbler)
+        filterData.type = 'boolean';
+      } else if (item.querySelector('.EAsideFilters-Categories')) {
+        // Categories filter
+        filterData.type = 'categories';
+        filterData.items = [];
+        var catItems = item.querySelectorAll('.ECategories-Text');
+        for (var ci = 0; ci < catItems.length; ci++) {
+          var text = catItems[ci].textContent.trim();
+          if (text) filterData.items.push(text);
+        }
+      } else if (item.classList.contains('EAsideFilters-FilterItem_type_number')) {
+        // Number range filter (price, volume, etc.)
+        filterData.type = 'number';
+        var inputs = item.querySelectorAll('.ENumberInputGroup-Input input');
+        if (inputs.length >= 2) {
+          filterData.placeholderFrom = inputs[0].placeholder || '';
+          filterData.placeholderTo = inputs[1].placeholder || '';
+        }
+      } else if (item.classList.contains('EAsideFilters-FilterItem_type_enum')) {
+        // Enum filter (brand, type, features, etc.)
+        filterData.type = 'enum';
+        filterData.items = [];
+        var enumItems = item.querySelectorAll('.EEnumFilterItem-Text');
+        for (var ei = 0; ei < enumItems.length; ei++) {
+          var eText = enumItems[ei].textContent.trim();
+          if (eText) filterData.items.push(eText);
+        }
+        filterData.hasMore = !!item.querySelector('.EAsideFilters-Expand');
+      } else {
+        continue;
+      }
+
+      filters.push(filterData);
+      console.log('[EAsideFilters] Фильтр: "' + title + '" (' + filterData.type + ', ' + ((filterData.items || []).length) + ' items)');
+    }
+
+    if (filters.length === 0) {
+      console.log('[EAsideFilters] Нет фильтров');
+      return null;
+    }
+
+    console.log('[EAsideFilters] Найдено ' + filters.length + ' фильтров');
+
+    return {
+      '#SnippetType': 'EAsideFilters',
+      '#AsideFilters_data': JSON.stringify({ filters: filters })
+    };
+  }
+
+  /**
    * Извлекает данные из одного контейнера
    * Возвращает объект, массив объектов или null
    */
@@ -2468,8 +2542,8 @@
       
       const snippetType = row['#SnippetType'] || '';
 
-      // === ImagesGrid, EQuickFilters — всегда уникальны ===
-      if (snippetType === 'ImagesGrid' || snippetType === 'EQuickFilters') {
+      // === ImagesGrid, EQuickFilters, EAsideFilters — всегда уникальны ===
+      if (snippetType === 'ImagesGrid' || snippetType === 'EQuickFilters' || snippetType === 'EAsideFilters') {
         unique.set(`${snippetType}:${row['#serpItemId'] || Math.random()}`, row);
         continue;
       }
@@ -2775,14 +2849,30 @@
       
       if (components.length > 0) {
         var serpItemId = getSerpItemId(wrapper);
-        var rect = wrapper.getBoundingClientRect();
+
+        // Get visible (collapsed) height — find parent with overflow clipping
+        var visibleHeight = 0;
+        var el = wrapper;
+        while (el && el !== document.body) {
+          var style = window.getComputedStyle(el);
+          var overflow = style.overflow || style.overflowY;
+          if (overflow === 'hidden' || overflow === 'clip' || style.maxHeight !== 'none') {
+            visibleHeight = Math.round(el.getBoundingClientRect().height);
+            break;
+          }
+          el = el.parentElement;
+        }
+        if (!visibleHeight) {
+          visibleHeight = Math.round(wrapper.getBoundingClientRect().height);
+        }
+
         wizards.push({
           type: 'FuturisSearch',
           components: components,
           serpItemId: serpItemId || '',
-          height: Math.round(rect.height)
+          height: visibleHeight
         });
-        console.log('[Wizard] FuturisSearch #' + (i + 1) + ': ' + components.length + ' компонентов, serpItemId=' + serpItemId + ', height=' + Math.round(rect.height));
+        console.log('[Wizard] FuturisSearch #' + (i + 1) + ': ' + components.length + ' компонентов, serpItemId=' + serpItemId + ', height=' + visibleHeight);
       }
     }
     
@@ -3030,6 +3120,14 @@
       quickFilters['#platform'] = platform;
       results.push(quickFilters);
     }
+
+    // Извлекаем EAsideFilters (боковые фильтры)
+    const asideFilters = extractAsideFilters();
+    if (asideFilters) {
+      if (query) asideFilters['#query'] = query;
+      asideFilters['#platform'] = platform;
+      results.push(asideFilters);
+    }
     
     // Затем извлекаем сниппеты
     for (const container of containers) {
@@ -3052,6 +3150,38 @@
       }
     }
     
+    // === Страница Избранного — нет li.serp-item, карточки в FavoritesProducts-CardsList ===
+    if (results.length === 0) {
+      const favoritesCards = document.querySelectorAll('.FavoritesProducts-CardsList .EProductSnippet2');
+      if (favoritesCards.length > 0) {
+        console.log(`⭐ [Favorites] Обнаружена страница Избранного: ${favoritesCards.length} карточек`);
+        const favSerpItemId = 'favorites_0';
+
+        for (var i = 0; i < favoritesCards.length; i++) {
+          var card = favoritesCards[i];
+          var row = extractStandardSnippet(card, 'EProductSnippet2', platform, parsingRules);
+          if (row) {
+            row['#serpItemId'] = favSerpItemId;
+            row['#containerType'] = 'ProductsTiles';
+            row['#ProductsTilesTitle'] = 'Избранное';
+            if (query) row['#query'] = query;
+            row['#platform'] = platform;
+
+            // Карточки без цены: FavoritesProductCard-Priceless
+            if (!row['#OrganicPrice'] || row['#OrganicPrice'].trim() === '') {
+              var pricelessEl = card.querySelector('.FavoritesProductCard-Priceless');
+              if (pricelessEl) {
+                row['#hidePriceBlock'] = 'true';
+              }
+            }
+
+            results.push(row);
+            console.log('  [' + (i + 1) + '] "' + (row['#OrganicTitle'] || '').substring(0, 50) + '..." — ' + (row['#ShopName'] || 'N/A'));
+          }
+        }
+      }
+    }
+
     // Дедуплицируем
     const finalResults = deduplicateRows(results);
     console.log(`✅ [Content] Извлечено сниппетов: ${finalResults.length}`);

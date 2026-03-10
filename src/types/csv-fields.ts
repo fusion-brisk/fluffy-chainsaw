@@ -8,7 +8,7 @@
 /**
  * Тип сниппета в HTML
  */
-export type SnippetType = 
+export type SnippetType =
   | 'EShopItem'
   | 'EOfferItem'
   | 'EProductSnippet2'
@@ -18,7 +18,10 @@ export type SnippetType =
   | 'Organic'
   | 'Organic_Adv'
   | 'ESnippet'
-  | 'Snippet';
+  | 'Snippet'
+  | 'ImagesGrid'
+  | 'EQuickFilters'
+  | 'EAsideFilters';
 
 /**
  * Все известные поля данных
@@ -77,6 +80,8 @@ export interface CSVFields {
   '#DiscountPercent'?: string;
   /** Текст скидки (форматированный) */
   '#discount'?: string;
+  /** Флаг наличия скидки (legacy) */
+  '#Discount'?: 'true' | 'false';
   /** Префикс скидки */
   '#DiscountPrefix'?: string;
   
@@ -115,6 +120,8 @@ export interface CSVFields {
   '#LabelDiscount_View'?: string;
   
   // === ELabelGroup ===
+  /** Группа лейблов (рейтинг и т.д.) */
+  '#ELabelGroup'?: 'true' | 'false';
   /** Есть ли барометр */
   '#ELabelGroup_Barometer'?: 'true' | 'false';
   /** View барометра */
@@ -137,7 +144,11 @@ export interface CSVFields {
   '#EButton_visible'?: 'true' | 'false';
   /** Лейбл checkout */
   '#EMarketCheckoutLabel'?: 'true' | 'false';
-  
+  /** Флаг checkout */
+  '#isCheckout'?: 'true' | 'false';
+  /** Кнопка Market Checkout */
+  '#MarketCheckoutButton'?: 'true' | 'false';
+
   // === Доставка ===
   /** Есть ли группа доставки */
   '#EDeliveryGroup'?: 'true' | 'false';
@@ -193,6 +204,8 @@ export interface CSVFields {
   '#EntityOffersTitle'?: string;
   /** Заголовок EShopList блока */
   '#EShopListTitle'?: string;
+  /** Заголовок ProductsTiles блока (напр. «Избранное») */
+  '#ProductsTilesTitle'?: string;
   /** Наличие картинки в сниппете */
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */
@@ -272,17 +285,69 @@ export interface CSVFields {
   /** ShopInfo-Bnpl опция 3 */
   '#ShopInfo-Bnpl-Item-3'?: string;
   
-  // === Адрес ===
+  // === Адрес и контакты ===
   /** Есть ли офлайн адрес магазина */
   '#hasShopOfflineRegion'?: 'true' | 'false';
   /** Текст адреса (город, метро) */
   '#addressText'?: string;
+  /** Адрес (legacy, snippet-parser) */
+  '#Address'?: string;
   /** Ссылка адреса (текст) */
   '#addressLink'?: string;
+  /** Телефон магазина */
+  '#Phone'?: string;
+  /** Контакты (альтернативное поле) */
+  '#Contacts'?: string;
   
   // === InfoIcon ===
   /** Наличие иконки "Инфо" в Fintech */
   '#InfoIcon'?: 'true' | 'false';
+
+  // === EQuickFilters (панель быстрых фильтров) ===
+  /** Количество кнопок фильтров */
+  '#FilterButtonsCount'?: string;
+  /** Кнопка фильтра 1 */
+  '#FilterButton_1'?: string;
+  /** Кнопка фильтра 2 */
+  '#FilterButton_2'?: string;
+  /** Кнопка фильтра 3 */
+  '#FilterButton_3'?: string;
+  /** Кнопка фильтра 4 */
+  '#FilterButton_4'?: string;
+  /** Кнопка фильтра 5 */
+  '#FilterButton_5'?: string;
+  /** Кнопка фильтра 6 */
+  '#FilterButton_6'?: string;
+  /** Кнопка фильтра 7 */
+  '#FilterButton_7'?: string;
+  /** Кнопка фильтра 8 */
+  '#FilterButton_8'?: string;
+  /** Кнопка фильтра 9 */
+  '#FilterButton_9'?: string;
+  /** Кнопка фильтра 10 */
+  '#FilterButton_10'?: string;
+  /** Показывать кнопку "Все фильтры" */
+  '#AllFiltersButton'?: 'true' | 'false';
+  /** Тип кнопки фильтра 1 (dropdown/sort/suggest) */
+  '#FilterButtonType_1'?: string;
+  /** Тип кнопки фильтра 2 */
+  '#FilterButtonType_2'?: string;
+  /** Тип кнопки фильтра 3 */
+  '#FilterButtonType_3'?: string;
+  /** Тип кнопки фильтра 4 */
+  '#FilterButtonType_4'?: string;
+  /** Тип кнопки фильтра 5 */
+  '#FilterButtonType_5'?: string;
+  /** Тип кнопки фильтра 6 */
+  '#FilterButtonType_6'?: string;
+  /** Тип кнопки фильтра 7 */
+  '#FilterButtonType_7'?: string;
+  /** Тип кнопки фильтра 8 */
+  '#FilterButtonType_8'?: string;
+  /** Тип кнопки фильтра 9 */
+  '#FilterButtonType_9'?: string;
+  /** Тип кнопки фильтра 10 */
+  '#FilterButtonType_10'?: string;
 
   // === ImagesGrid (блок «Картинки» в выдаче) ===
   /** Заголовок блока картинок */
@@ -291,6 +356,32 @@ export interface CSVFields {
   '#ImagesGrid_data'?: string;
   /** Количество картинок в блоке */
   '#ImagesGrid_count'?: string;
+
+  // === EAsideFilters (боковые фильтры) ===
+  /** JSON-данные боковых фильтров: {filters: [{title, type, items, ...}]} */
+  '#AsideFilters_data'?: string;
+
+  // === EOfferItem дополнительные ===
+  /** EOfferItem Fintech flag */
+  '#EOfferItem_Fintech'?: 'true' | 'false';
+  /** Заголовок оффера (alias для #OrganicTitle) */
+  '#OfferTitle'?: string;
+  /** Заголовок (generic alias) */
+  '#Title'?: string;
+  /** Информация о цене (legacy) */
+  '#PriceInfo'?: string;
+
+  // === Legacy / Parser-specific fields ===
+  /** Список лейблов (legacy) */
+  '#LabelsList'?: string;
+  /** Список финтех-опций (legacy) */
+  '#FintechList'?: string;
+  /** Наличие товара (legacy) */
+  '#Availability'?: string;
+  /** Варианты самовывоза (legacy) */
+  '#PickupOptions'?: string;
+  /** Срок доставки (legacy) */
+  '#DeliveryETA'?: string;
 
   // === Internal (runtime-only, не приходят из парсера) ===
   /** ID контейнера Figma (записывается в data-assignment, используется в image-handlers) */
@@ -316,7 +407,10 @@ export const REQUIRED_FIELDS: Record<SnippetType, (keyof CSVFields)[]> = {
   'Organic': ['#SnippetType', '#OrganicTitle'],
   'Organic_Adv': ['#SnippetType', '#OrganicTitle'],
   'ESnippet': ['#SnippetType'],
-  'Snippet': ['#SnippetType']
+  'Snippet': ['#SnippetType'],
+  'ImagesGrid': ['#SnippetType'],
+  'EQuickFilters': ['#SnippetType'],
+  'EAsideFilters': ['#SnippetType']
 };
 
 /**

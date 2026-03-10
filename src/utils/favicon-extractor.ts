@@ -6,8 +6,6 @@ import {
   BG_IMAGE_URL_REGEX,
   BG_POSITION_REGEX,
   BG_SIZE_REGEX,
-  BG_SIZE_GLOBAL_REGEX,
-  PX_VALUE_REGEX,
   PX_VALUES_REGEX,
   PX_NEGATIVE_REGEX,
   FAVICON_PAGE_CLASS_REGEX,
@@ -41,9 +39,7 @@ import {
 } from './css-cache';
 // Phase 5: DOM cache integration
 import {
-  ContainerCache,
-  queryFromCache,
-  queryFirstMatch
+  ContainerCache
 } from './dom-cache';
 
 // ============================================================================
@@ -118,30 +114,6 @@ function normalizeUrl(url: string): string {
     result = 'https:' + result;
   }
   return result;
-}
-
-/** Извлекает домен по индексу из спрайт-URL */
-function extractDomainFromSprite(
-  spriteUrl: string,
-  index: number,
-  bgSizeValue: number | null
-): { url: string; domains: string[] } | null {
-  const v2Match = spriteUrl.match(FAVICON_SPRITE_URL_REGEX);
-  if (!v2Match || !v2Match[1]) return null;
-
-  const domainsPart = v2Match[1];
-  const domains = domainsPart.split(';').filter(d => d.trim().length > 0);
-  
-  if (domains.length === 0) return null;
-  
-  const targetIndex = Math.min(Math.max(0, index), domains.length - 1);
-  const domain = domains[targetIndex];
-  const cleanDomain = domain.replace(/^https?:\/\//i, '').split('?')[0].split('/')[0];
-  
-  return {
-    url: `https://favicon.yandex.net/favicon/v2/${encodeURIComponent(cleanDomain)}?size=32&stub=1`,
-    domains
-  };
 }
 
 /** Вычисляет индекс иконки по background-position */
@@ -937,7 +909,7 @@ export function extractFavicon(
   spriteState: SpriteState | null,
   cssCache: CSSCache,
   rawHtml?: string,
-  containerCache?: ContainerCache
+  _containerCache?: ContainerCache
 ): SpriteState | null {
   try {
     const snippetTitle = row['#OrganicTitle']?.substring(0, 30) || 'unknown';

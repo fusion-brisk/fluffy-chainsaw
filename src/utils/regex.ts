@@ -27,7 +27,7 @@ export const FAVICON_ENTRY_CLASS_REGEX = /Favicon-Entry(\d+)|favicon_entry_(\d+)
 // Favicon sprite URL patterns
 export const FAVICON_SPRITE_URL_REGEX = /favicon\.yandex\.net\/favicon\/v2\/(.+?)(\?|$)/;
 export const FAVICON_V2_URL_REGEX = /favicon\.yandex\.net\/favicon\/v2\/(.+)/i;
-export const FAVICON_HOST_REGEX = /\/favicon\/v2\/([^\?\/;]+)/;
+export const FAVICON_HOST_REGEX = /\/favicon\/v2\/([^?/;]+)/;
 
 // CSS sprite rules (for matchAll)
 export const SPRITE_BG_IMAGE_REGEX = /background-image[^}]*url\s*\(\s*["']?([^"')]*favicon\.yandex\.net\/favicon\/v2\/[^"')]+)["']?\s*\)/gi;
