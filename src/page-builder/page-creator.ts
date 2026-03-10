@@ -9,36 +9,32 @@ import { Logger } from '../logger';
 import { handlerRegistry } from '../handlers/registry';
 import type { HandlerContext } from '../handlers/types';
 import { buildInstanceCache } from '../utils/instance-cache';
-import { findTextNode } from '../utils/node-search';
-import { 
-  PageElement, 
-  PageStructure, 
-  PageCreationOptions, 
+import { findTextNode, findFirstNodeByName } from '../utils/node-search';
+import {
+  PageElement,
+  PageStructure,
+  PageCreationOptions,
   PageCreationResult,
   PageCreationError,
-  SnippetType,
-  GroupType
+  SnippetType
 } from './types';
-import { 
-  getComponentConfig, 
+import {
+  getComponentConfig,
   getContainerConfig,
   isGroupType,
-  isLayoutType,
   isContainerType,
   SNIPPET_COMPONENT_MAP,
   GROUP_COMPONENT_MAP,
   LAYOUT_COMPONENT_MAP,
-  CONTAINER_CONFIG_MAP,
   FILTER_COMPONENTS,
+  ASIDE_FILTER_COMPONENTS,
   PAINT_STYLE_KEYS,
   VARIABLE_KEYS,
   ETHUMB_CONFIG
 } from './component-map';
-import { parsePageStructure } from './structure-parser';
 import { buildPageStructure, sortContentNodes } from './structure-builder';
-import { StructureNode, ContainerType, SerpPageStructure, ContainerConfig } from './types';
+import { StructureNode, ContainerType, ContainerConfig } from './types';
 import { renderWizards } from '../plugin/wizard-processor';
-import type { WizardPayload } from '../types/wizard-types';
 
 /**
  * Дефолтные настройки создания страницы
@@ -182,7 +178,7 @@ async function applyFillStyle(
   try {
     const style = await figma.importStyleByKeyAsync(styleKey);
     if (style && style.type === 'PAINT') {
-      (node as FrameNode).fillStyleId = style.id;
+      await (node as FrameNode).setFillStyleIdAsync(style.id);
       Logger.debug(`[PageCreator] Применён стиль заливки: ${style.name}`);
       return true;
     }
@@ -214,7 +210,7 @@ async function applyFill(
   }
   
   // 2. Fallback на стиль
-  const styleKey = PAINT_STYLE_KEYS[colorName];
+  const styleKey = (PAINT_STYLE_KEYS as Record<string, string>)[colorName];
   if (styleKey) {
     return applyFillStyle(node, styleKey);
   }
@@ -242,9 +238,8 @@ async function createInstanceForElement(
     return null;
   }
   
-  // Для touch-платформы используем keyTouch если он существует
-  const componentKey = (platform === 'touch' && (config as any).keyTouch) 
-    ? (config as any).keyTouch 
+  const componentKey = (platform === 'touch' && config.keyTouch) 
+    ? config.keyTouch 
     : config.key;
   
   // Импортируем компонент
@@ -263,13 +258,13 @@ async function createInstanceForElement(
       const platformValue = platform === 'desktop' ? 'Desktop' : 'Touch';
       // Копируем defaultVariant но без Platform
       const { Platform: _platform, ...restProps } = config.defaultVariant as Record<string, unknown>;
-      instance.setProperties(restProps as Record<string, string | boolean | number>);
+      instance.setProperties(restProps as Record<string, string | boolean>);
       Logger.info(`[PageCreator] ${element.type}: Platform=${platformValue} (из компонента)`);
     } catch (e) {
       Logger.debug(`[PageCreator] Не удалось установить properties: ${e}`);
     }
   }
-  
+
   return instance;
 }
 
@@ -339,9 +334,11 @@ async function createGroupWithChildren(
   
   if (config.itemCountProperty) {
     try {
-      groupInstance.setProperties({
-        [config.itemCountProperty]: String(visibleCount),
-      });
+      if ('setProperties' in groupInstance) {
+        groupInstance.setProperties({
+          [config.itemCountProperty]: String(visibleCount),
+        });
+      }
     } catch (e) {
       Logger.debug(`[PageCreator] Не удалось установить ${config.itemCountProperty}: ${e}`);
     }
@@ -492,8 +489,6 @@ export async function createPageFromRows(
   rows: import('../types').CSVRow[],
   options: PageCreationOptions = {}
 ): Promise<PageCreationResult> {
-  const startTime = Date.now();
-  
   Logger.info(`[PageCreator] Создание страницы из ${rows.length} rows`);
   
   // Строим структуру из rows
@@ -506,7 +501,7 @@ export async function createPageFromRows(
   }));
   
   // Определяем query из первого row (если есть)
-  const query = rows[0]?.query || rows[0]?.title || '';
+  const query = rows[0]?.['#query'] || rows[0]?.['#OrganicTitle'] || '';
   
   const structure: PageStructure = {
     elements,
@@ -998,13 +993,11 @@ async function createSnippetInstance(
   parentContainerType?: ContainerType
 ): Promise<InstanceNode | FrameNode | null> {
   let config = getComponentConfig(node.type as SnippetType);
-  let actualType = node.type;
 
   // Fallback: если нет ключа — используем ESnippet для органических сниппетов
   if (!config || !config.key) {
     if (node.type === 'Organic' || node.type === 'Organic_withOfferInfo') {
       config = getComponentConfig('ESnippet');
-      actualType = 'ESnippet';
       Logger.debug(`[PageCreator] Fallback: ${node.type} → ESnippet`);
     } else {
       Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type);
@@ -1017,9 +1010,8 @@ async function createSnippetInstance(
     return createPlaceholder(node.type, 360, 120);
   }
 
-  // Для touch-платформы используем keyTouch если он существует
-  const componentKey = (platform === 'touch' && (config as any).keyTouch)
-    ? (config as any).keyTouch
+  const componentKey = (platform === 'touch' && config.keyTouch)
+    ? config.keyTouch
     : config.key;
 
   Logger.debug(`[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`);
@@ -1050,7 +1042,7 @@ async function createSnippetInstance(
         Logger.debug(`[PageCreator] ${node.type}: type=advGallery (родитель AdvProductGallery)`);
       }
       
-      instance.setProperties(restProps as Record<string, string | boolean | number>);
+      instance.setProperties(restProps as Record<string, string | boolean>);
       Logger.debug(`[PageCreator] ${node.type}: Platform=${platformValue} (из компонента)`);
     } catch (e) {
       Logger.debug(`[PageCreator] ${node.type} setProperties error: ${e}`);
@@ -1067,7 +1059,7 @@ async function createSnippetInstance(
   
   // Логируем данные для отладки
   if (node.data) {
-    const dataKeys = Object.keys(node.data).filter(k => node.data && node.data[k]);
+    const dataKeys = Object.keys(node.data).filter(k => node.data && (node.data as Record<string, string | undefined>)[k]);
     Logger.debug(`[PageCreator] ${node.type} данные: ${dataKeys.join(', ')}`);
     // Логируем URL изображения отдельно
     const imgUrl = node.data['#OrganicImage'] || node.data['#ThumbImage'] || node.data['#Image1'] || '';
@@ -1090,13 +1082,13 @@ async function createSnippetInstance(
       await handlerRegistry.executeAll(context);
       
       // Применяем изображения
-      await applySnippetImages(instance, node.data);
-      
+      await applySnippetImages(instance, node.data as Record<string, string | undefined>);
+
       // Применяем фавиконку
-      await applyFavicon(instance, node.data);
-      
+      await applyFavicon(instance, node.data as Record<string, string | undefined>);
+
       // Применяем аватар автора цитаты
-      await applyQuoteAvatar(instance, node.data);
+      await applyQuoteAvatar(instance, node.data as Record<string, string | undefined>);
     } catch (e) {
       Logger.debug(`[PageCreator] Ошибка применения данных: ${e}`);
     }
@@ -1110,11 +1102,11 @@ async function createSnippetInstance(
  */
 async function createEQuickFiltersPanel(
   node: StructureNode,
-  platform: 'desktop' | 'touch'
+  _platform: 'desktop' | 'touch'
 ): Promise<FrameNode | null> {
-  const data = node.data || {};
+  const data = (node.data || {}) as Record<string, string | undefined>;
   const filterButtons: string[] = [];
-  
+
   // Собираем кнопки фильтров
   const count = parseInt(data['#FilterButtonsCount'] || '0', 10);
   for (let i = 1; i <= count; i++) {
@@ -1250,6 +1242,398 @@ async function createEQuickFiltersPanel(
 }
 
 /**
+ * Применить defaultBooleans из конфига к инстансу.
+ * Ключи в config — без хэш-суффикса (например 'Show Sufix'),
+ * в componentProperties они идут как 'Show Sufix#4118:2'.
+ */
+function applyDefaultBooleans(
+  instance: InstanceNode,
+  booleans: Record<string, boolean>
+): void {
+  try {
+    var props = instance.componentProperties;
+    var toSet: Record<string, boolean> = {};
+    for (var propKey in props) {
+      if (props[propKey].type !== 'BOOLEAN') continue;
+      var baseName = propKey.split('#')[0];
+      if (baseName in booleans) {
+        toSet[propKey] = booleans[baseName];
+      }
+    }
+    if (Object.keys(toSet).length > 0) {
+      instance.setProperties(toSet);
+    }
+  } catch (e) {
+    Logger.debug('[EAsideFilters] Ошибка установки boolean свойств: ' + e);
+  }
+}
+
+/**
+ * Создаёт панель боковых фильтров EAsideFilters
+ */
+async function createAsideFiltersPanel(
+  node: StructureNode,
+  _platform: 'desktop' | 'touch'
+): Promise<FrameNode | null> {
+  const data = (node.data || {}) as Record<string, string | undefined>;
+  const jsonStr = data['#AsideFilters_data'];
+  if (!jsonStr) {
+    Logger.debug('[EAsideFilters] Нет данных #AsideFilters_data');
+    return null;
+  }
+
+  let parsed: { filters: Array<{
+    title: string;
+    type: string;
+    items?: string[];
+    placeholderFrom?: string;
+    placeholderTo?: string;
+    hasMore?: boolean;
+  }> };
+
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (e) {
+    Logger.warn('[EAsideFilters] Ошибка парсинга JSON: ' + e);
+    return null;
+  }
+
+  if (!parsed.filters || parsed.filters.length === 0) {
+    Logger.debug('[EAsideFilters] Нет фильтров');
+    return null;
+  }
+
+  Logger.info('[EAsideFilters] Создаём панель с ' + parsed.filters.length + ' фильтрами');
+
+  // Pre-import all needed components via ComponentSet + variant matching
+  var titleComponent: ComponentNode | null = null;
+  var checkboxComponent: ComponentNode | null = null;
+  var categoryComponent: ComponentNode | null = null;
+  var numberInputComponent: ComponentNode | null = null;
+
+  var asideEntries: Array<{
+    name: string;
+    config: { setKey: string; variantProps: Record<string, string> };
+  }> = [
+    { name: 'SectionTitle', config: ASIDE_FILTER_COMPONENTS.SectionTitle },
+    { name: 'EnumFilterItem', config: ASIDE_FILTER_COMPONENTS.EnumFilterItem },
+    { name: 'CategoryItem', config: ASIDE_FILTER_COMPONENTS.CategoryItem },
+    { name: 'NumberInput', config: ASIDE_FILTER_COMPONENTS.NumberInput },
+  ];
+  var componentResults: (ComponentNode | null)[] = [null, null, null, null];
+
+  for (var ci2 = 0; ci2 < asideEntries.length; ci2++) {
+    var entry = asideEntries[ci2];
+    var importedComponent: ComponentNode | null = null;
+
+    // Strategy 1: import as ComponentSet and find variant
+    try {
+      var compSet = await figma.importComponentSetByKeyAsync(entry.config.setKey);
+      if (compSet) {
+        // TEMP: diagnostic — log all variants in set
+        var variantNames: string[] = [];
+        for (var di = 0; di < compSet.children.length; di++) {
+          if (compSet.children[di].type === 'COMPONENT') {
+            variantNames.push(compSet.children[di].name);
+          }
+        }
+        Logger.info('[EAsideFilters] ComponentSet "' + compSet.name + '" has ' + variantNames.length + ' variants: ' + variantNames.join(' | '));
+        figma.notify('[EAsideFilters] ' + entry.name + ': set "' + compSet.name + '" (' + variantNames.length + ' variants)', { timeout: 5000 });
+
+        var variant: ComponentNode | null = null;
+        for (var vi = 0; vi < compSet.children.length; vi++) {
+          var child = compSet.children[vi];
+          if (child.type !== 'COMPONENT') continue;
+          var variantValues = (child as ComponentNode).variantProperties;
+          if (!variantValues) continue;
+          var match = true;
+          for (var vpKey in entry.config.variantProps) {
+            if (variantValues[vpKey] !== (entry.config.variantProps as Record<string, string>)[vpKey]) {
+              match = false;
+              break;
+            }
+          }
+          if (match) {
+            variant = child as ComponentNode;
+            break;
+          }
+        }
+        if (variant) {
+          importedComponent = variant;
+          Logger.debug('[EAsideFilters] Импортирован ' + entry.name + ' (variant=' + variant.name + ')');
+        } else if (compSet.children.length > 0 && compSet.children[0].type === 'COMPONENT') {
+          importedComponent = compSet.children[0] as ComponentNode;
+          Logger.warn('[EAsideFilters] Variant не найден для ' + entry.name + ', используем default: ' + compSet.children[0].name);
+          figma.notify('[EAsideFilters] ' + entry.name + ': variant NOT matched, using default "' + compSet.children[0].name + '"', { timeout: 5000 });
+        }
+      }
+    } catch (_e1) {
+      var errMsg1 = _e1 instanceof Error ? _e1.message : String(_e1);
+      Logger.warn('[EAsideFilters] importComponentSetByKeyAsync failed for ' + entry.name + ': ' + errMsg1);
+      figma.notify('[EAsideFilters] ' + entry.name + ' SET import failed: ' + errMsg1, { timeout: 8000, error: true });
+    }
+
+    // Strategy 2: key might be a component key directly (not a set)
+    if (!importedComponent) {
+      try {
+        importedComponent = await figma.importComponentByKeyAsync(entry.config.setKey);
+        if (importedComponent) {
+          Logger.debug('[EAsideFilters] Импортирован ' + entry.name + ' напрямую (key=' + entry.config.setKey + ')');
+          figma.notify('[EAsideFilters] ' + entry.name + ': imported as single component "' + importedComponent.name + '"', { timeout: 5000 });
+        }
+      } catch (_e2) {
+        var errMsg2 = _e2 instanceof Error ? _e2.message : String(_e2);
+        Logger.error('[EAsideFilters] Не удалось импортировать ' + entry.name + ' (key=' + entry.config.setKey + '): ' + errMsg2);
+        figma.notify('[EAsideFilters] ' + entry.name + ' BOTH imports failed: ' + errMsg2, { timeout: 8000, error: true });
+      }
+    }
+
+    componentResults[ci2] = importedComponent;
+  }
+
+  titleComponent = componentResults[0];
+  checkboxComponent = componentResults[1];
+  categoryComponent = componentResults[2];
+  numberInputComponent = componentResults[3];
+
+  const panel = figma.createFrame();
+  panel.name = 'EAsideFilters';
+  panel.layoutMode = 'VERTICAL';
+  panel.primaryAxisSizingMode = 'AUTO';
+  panel.counterAxisSizingMode = 'FIXED';
+  panel.resize(230, 100);
+  panel.itemSpacing = 0;
+  panel.paddingTop = 0;
+  panel.paddingRight = 0;
+  panel.paddingBottom = 0;
+  panel.paddingLeft = 0;
+  panel.fills = [];
+
+  for (var fi = 0; fi < parsed.filters.length; fi++) {
+    var filter = parsed.filters[fi];
+    var section = figma.createFrame();
+    section.name = 'EAsideFilters-Item_' + filter.type;
+    section.layoutMode = 'VERTICAL';
+    section.primaryAxisSizingMode = 'AUTO';
+    section.counterAxisSizingMode = 'AUTO';
+    section.itemSpacing = 8;
+    section.paddingTop = 16;
+    section.paddingRight = 0;
+    section.paddingBottom = 16;
+    section.paddingLeft = 0;
+    section.fills = [];
+
+    // Title — library component or fallback text
+    if (titleComponent) {
+      var titleInst = titleComponent.createInstance();
+      titleInst.name = 'EAsideFilters-Title';
+      if (ASIDE_FILTER_COMPONENTS.SectionTitle.defaultBooleans) {
+        applyDefaultBooleans(titleInst, ASIDE_FILTER_COMPONENTS.SectionTitle.defaultBooleans);
+      }
+      // Boolean toggle filters get ACTION ICON = true
+      if (filter.type === 'boolean') {
+        try {
+          var actionIconProps: Record<string, boolean> = {};
+          var allTitleProps = titleInst.componentProperties;
+          for (var aik in allTitleProps) {
+            if (allTitleProps[aik].type !== 'BOOLEAN') continue;
+            if (aik.split('#')[0] === 'ACTION ICON') {
+              actionIconProps[aik] = true;
+              break;
+            }
+          }
+          if (Object.keys(actionIconProps).length > 0) {
+            titleInst.setProperties(actionIconProps);
+          }
+        } catch (_eAction) {
+          Logger.debug('[EAsideFilters] Ошибка установки ACTION ICON: ' + _eAction);
+        }
+      }
+      // Set title via exposed TEXT property 'titleText', fallback to findTextNode
+      var titleProps = titleInst.componentProperties;
+      var titleTextPropKey: string | null = null;
+      for (var tpk in titleProps) {
+        if (titleProps[tpk].type === 'TEXT' && tpk.split('#')[0] === 'titleText') {
+          titleTextPropKey = tpk;
+          break;
+        }
+      }
+      if (titleTextPropKey) {
+        titleInst.setProperties({ [titleTextPropKey]: filter.title });
+      } else {
+        var titleTextNode = findTextNode(titleInst);
+        if (titleTextNode) {
+          await figma.loadFontAsync(titleTextNode.fontName as FontName);
+          titleTextNode.characters = filter.title;
+        }
+      }
+      section.appendChild(titleInst);
+      titleInst.layoutSizingHorizontal = 'FILL';
+    } else {
+      var titleFallback = figma.createText();
+      await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
+      titleFallback.fontName = { family: 'Inter', style: 'Bold' };
+      titleFallback.fontSize = 14;
+      titleFallback.characters = filter.title;
+      titleFallback.name = 'EAsideFilters-Title';
+      section.appendChild(titleFallback);
+    }
+
+    if (filter.type === 'categories' && filter.items) {
+      // Category items — library component or fallback text
+      for (var ci = 0; ci < filter.items.length; ci++) {
+        if (categoryComponent) {
+          var catInst = categoryComponent.createInstance();
+          catInst.name = 'ECategories-Item';
+          var catTextNode = findTextNode(catInst);
+          if (catTextNode) {
+            await figma.loadFontAsync(catTextNode.fontName as FontName);
+            catTextNode.characters = filter.items[ci];
+          }
+          section.appendChild(catInst);
+          catInst.layoutSizingHorizontal = 'FILL';
+        } else {
+          var catFallback = figma.createText();
+          await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+          catFallback.fontName = { family: 'Inter', style: 'Regular' };
+          catFallback.fontSize = 13;
+          catFallback.characters = filter.items[ci];
+          catFallback.name = 'ECategories-Text';
+          section.appendChild(catFallback);
+        }
+      }
+    } else if (filter.type === 'number') {
+      // Number range — vertical group, inputs fill width
+      var inputGroup = figma.createFrame();
+      inputGroup.name = 'ENumberInputGroup';
+      inputGroup.layoutMode = 'VERTICAL';
+      inputGroup.primaryAxisSizingMode = 'AUTO';
+      inputGroup.counterAxisSizingMode = 'AUTO';
+      inputGroup.itemSpacing = 8;
+      inputGroup.fills = [];
+
+      var placeholders = [
+        { label: 'от', value: filter.placeholderFrom || '' },
+        { label: 'до', value: filter.placeholderTo || '' },
+      ];
+
+      for (var ni = 0; ni < placeholders.length; ni++) {
+        if (numberInputComponent) {
+          var inputInst = numberInputComponent.createInstance();
+          inputInst.name = 'ENumberInput-' + placeholders[ni].label;
+          if (ASIDE_FILTER_COMPONENTS.NumberInput.defaultBooleans) {
+            applyDefaultBooleans(inputInst, ASIDE_FILTER_COMPONENTS.NumberInput.defaultBooleans);
+          }
+          // Find text inside "label" sublayer for placeholder
+          var labelNode = findFirstNodeByName(inputInst, 'label');
+          var labelTextNode = labelNode ? findTextNode(labelNode) : findTextNode(inputInst);
+          if (labelTextNode) {
+            await figma.loadFontAsync(labelTextNode.fontName as FontName);
+            labelTextNode.characters = placeholders[ni].value;
+          }
+          inputGroup.appendChild(inputInst);
+          inputInst.layoutSizingHorizontal = 'FILL';
+        } else {
+          var inputFallback = figma.createText();
+          await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+          inputFallback.fontName = { family: 'Inter', style: 'Regular' };
+          inputFallback.fontSize = 13;
+          inputFallback.characters = placeholders[ni].label + ' ' + placeholders[ni].value;
+          inputFallback.name = 'ENumberInput-' + placeholders[ni].label;
+          inputGroup.appendChild(inputFallback);
+        }
+      }
+
+      section.appendChild(inputGroup);
+      inputGroup.layoutSizingHorizontal = 'FILL';
+    } else if (filter.type === 'enum' && filter.items) {
+      // Enum items — checkbox components or fallback text
+      for (var ei = 0; ei < filter.items.length; ei++) {
+        if (checkboxComponent) {
+          var checkInst = checkboxComponent.createInstance();
+          checkInst.name = 'EEnumFilterItem';
+          if (ASIDE_FILTER_COMPONENTS.EnumFilterItem.defaultBooleans) {
+            applyDefaultBooleans(checkInst, ASIDE_FILTER_COMPONENTS.EnumFilterItem.defaultBooleans);
+          }
+          var checkTextNode = findTextNode(checkInst);
+          if (checkTextNode) {
+            await figma.loadFontAsync(checkTextNode.fontName as FontName);
+            checkTextNode.characters = filter.items[ei];
+          }
+          section.appendChild(checkInst);
+          checkInst.layoutSizingHorizontal = 'FILL';
+        } else {
+          var enumFallback = figma.createText();
+          await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+          enumFallback.fontName = { family: 'Inter', style: 'Regular' };
+          enumFallback.fontSize = 13;
+          enumFallback.characters = filter.items[ei];
+          enumFallback.name = 'EEnumFilterItem';
+          section.appendChild(enumFallback);
+        }
+      }
+
+      // «Ещё» button — text with tertiary color (no library component)
+      if (filter.hasMore) {
+        var moreNode = figma.createText();
+        try {
+          await figma.loadFontAsync({ family: 'YS Text Web', style: 'Regular' });
+          moreNode.fontName = { family: 'YS Text Web', style: 'Regular' };
+        } catch (_e) {
+          await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
+          moreNode.fontName = { family: 'Inter', style: 'Regular' };
+        }
+        moreNode.fontSize = 14;
+        moreNode.lineHeight = { value: 18, unit: 'PIXELS' };
+        moreNode.characters = 'Ещё';
+        moreNode.name = 'EAsideFilters-Expand';
+        try {
+          var tertiaryVar = await figma.variables.importVariableByKeyAsync(
+            VARIABLE_KEYS['Text and Icon/Tertiary']
+          );
+          if (tertiaryVar) {
+            var basePaint: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+            var boundPaint = figma.variables.setBoundVariableForPaint(basePaint, 'color', tertiaryVar);
+            moreNode.fills = [boundPaint];
+          }
+        } catch (_e2) {
+          Logger.debug('[EAsideFilters] Не удалось применить цвет Tertiary: ' + _e2);
+        }
+        section.appendChild(moreNode);
+      }
+    }
+
+    // border-bottom on all sections except the last
+    if (fi < parsed.filters.length - 1) {
+      try {
+        var strokeVar = await figma.variables.importVariableByKeyAsync(
+          VARIABLE_KEYS['Applied/Stroke']
+        );
+        if (strokeVar) {
+          var strokePaint: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+          var boundStroke = figma.variables.setBoundVariableForPaint(strokePaint, 'color', strokeVar);
+          section.strokes = [boundStroke];
+        } else {
+          section.strokes = [{ type: 'SOLID', color: { r: 0.88, g: 0.88, b: 0.88 } }];
+        }
+      } catch (_eStroke) {
+        section.strokes = [{ type: 'SOLID', color: { r: 0.88, g: 0.88, b: 0.88 } }];
+      }
+      section.strokeBottomWeight = 1;
+      section.strokeTopWeight = 0;
+      section.strokeLeftWeight = 0;
+      section.strokeRightWeight = 0;
+    }
+
+    panel.appendChild(section);
+    section.layoutSizingHorizontal = 'FILL';
+  }
+
+  Logger.info('[EAsideFilters] Создано ' + parsed.filters.length + ' секций фильтров');
+  return panel;
+}
+
+/**
  * Рендерить узел структуры в Figma
  * Возвращает созданный элемент (инстанс или фрейм)
  * @param node - узел структуры
@@ -1264,22 +1648,32 @@ async function createEQuickFiltersPanel(
 // ============================================================================
 
 /**
- * Находит первый вложенный слой с поддержкой fills (для заливки изображением).
- * Пропускает TEXT и слишком маленькие элементы.
+ * Находит слой для заливки изображением.
+ * Приоритет: #OrganicImage > первый fillable слой (не White BG).
  */
 function findFillableLayer(node: SceneNode): SceneNode | null {
-  if ('children' in node) {
-    for (var ci = 0; ci < (node as FrameNode).children.length; ci++) {
-      var child = (node as FrameNode).children[ci];
-      if (child.removed || child.type === 'TEXT') continue;
-      if ('fills' in child && 'width' in child) {
-        var w = (child as SceneNode & { width: number }).width;
-        var h = (child as SceneNode & { height: number }).height;
-        if (w > 20 && h > 20) return child;
-      }
-      var deep = findFillableLayer(child);
-      if (deep) return deep;
+  if (!('children' in node)) return null;
+  const children = (node as FrameNode).children;
+
+  // Приоритет: слой с именем #OrganicImage
+  for (let ci = 0; ci < children.length; ci++) {
+    if (children[ci].name === '#OrganicImage' && 'fills' in children[ci]) {
+      return children[ci];
     }
+  }
+
+  // Fallback: первый fillable слой (пропускаем служебные вроде White BG)
+  for (let ci = 0; ci < children.length; ci++) {
+    const child = children[ci];
+    if (child.removed || child.type === 'TEXT') continue;
+    if (child.name === 'White BG') continue;
+    if ('fills' in child && 'width' in child) {
+      const w = (child as SceneNode & { width: number }).width;
+      const h = (child as SceneNode & { height: number }).height;
+      if (w > 20 && h > 20) return child;
+    }
+    const deep = findFillableLayer(child);
+    if (deep) return deep;
   }
   return null;
 }
@@ -1296,16 +1690,16 @@ interface ImageGridItem {
  */
 async function createImagesGridPanel(
   node: StructureNode,
-  platform: 'desktop' | 'touch'
+  _platform: 'desktop' | 'touch'
 ): Promise<{ element: FrameNode; count: number } | null> {
-  var data = node.data || (node.children && node.children[0] && node.children[0].data) || {};
-  var imagesJson = data['#ImagesGrid_data'];
+  const data = node.data || (node.children && node.children[0] && node.children[0].data) || {};
+  const imagesJson = data['#ImagesGrid_data'];
   if (!imagesJson) {
     Logger.warn('[ImagesGrid] Нет данных #ImagesGrid_data');
     return null;
   }
 
-  var images: ImageGridItem[];
+  let images: ImageGridItem[];
   try {
     images = JSON.parse(imagesJson);
   } catch (e) {
@@ -1318,17 +1712,14 @@ async function createImagesGridPanel(
     return null;
   }
 
-  var title = data['#ImagesGrid_title'] || 'Картинки';
+  const title = data['#ImagesGrid_title'] || 'Картинки';
 
   // Импортируем EThumb (variant: Type=New; feb-26, Ratio=Manual)
-  var eThumbComponent = await importComponent(ETHUMB_CONFIG.manualVariantKey);
-  if (!eThumbComponent) {
-    Logger.error('[ImagesGrid] Не удалось импортировать EThumb');
-    return null;
-  }
+  const eThumbComponent = await importComponent(ETHUMB_CONFIG.manualVariantKey);
+  // EThumb не обязателен — если недоступен, рендерим простые прямоугольники с изображениями
 
   // === Wrapper frame (VERTICAL) ===
-  var wrapper = figma.createFrame();
+  const wrapper = figma.createFrame();
   wrapper.name = 'ImagesGrid';
   wrapper.layoutMode = 'VERTICAL';
   wrapper.primaryAxisSizingMode = 'AUTO';
@@ -1339,15 +1730,15 @@ async function createImagesGridPanel(
   // (layoutSizingHorizontal = 'FILL' требует наличия parent)
 
   // === Заголовок «Картинки» ===
-  var titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+  const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
   if (titleConfig && titleConfig.key) {
-    var titleComponent = await importComponent(titleConfig.key);
+    const titleComponent = await importComponent(titleConfig.key);
     if (titleComponent) {
-      var titleInstance = titleComponent.createInstance();
+      const titleInstance = titleComponent.createInstance();
       wrapper.appendChild(titleInstance);
       titleInstance.layoutSizingHorizontal = 'FILL';
 
-      var textNode = findTextNode(titleInstance);
+      const textNode = findTextNode(titleInstance);
       if (textNode) {
         try {
           await figma.loadFontAsync(textNode.fontName as FontName);
@@ -1358,7 +1749,7 @@ async function createImagesGridPanel(
   }
 
   // === Grid content (VERTICAL, gap=6 между рядами) ===
-  var gridFrame = figma.createFrame();
+  const gridFrame = figma.createFrame();
   gridFrame.name = 'ImagesGridContent';
   gridFrame.layoutMode = 'VERTICAL';
   gridFrame.primaryAxisSizingMode = 'AUTO';
@@ -1368,10 +1759,10 @@ async function createImagesGridPanel(
   wrapper.appendChild(gridFrame);
 
   // Группируем по рядам
-  var rowMap = new Map<number, ImageGridItem[]>();
-  for (var i = 0; i < images.length; i++) {
-    var img = images[i];
-    var rowItems = rowMap.get(img.row);
+  const rowMap = new Map<number, ImageGridItem[]>();
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    let rowItems = rowMap.get(img.row);
     if (!rowItems) {
       rowItems = [];
       rowMap.set(img.row, rowItems);
@@ -1379,16 +1770,16 @@ async function createImagesGridPanel(
     rowItems.push(img);
   }
 
-  var count = 0;
+  let count = 0;
 
   // Создаём ряды
-  var rowIndices = Array.from(rowMap.keys()).sort();
-  for (var ri = 0; ri < rowIndices.length; ri++) {
-    var rowIndex = rowIndices[ri];
-    var rowImages = rowMap.get(rowIndex)!;
+  const rowIndices = Array.from(rowMap.keys()).sort();
+  for (let ri = 0; ri < rowIndices.length; ri++) {
+    const rowIndex = rowIndices[ri];
+    const rowImages = rowMap.get(rowIndex)!;
 
     // Row frame (HORIZONTAL, gap=6)
-    var rowFrame = figma.createFrame();
+    const rowFrame = figma.createFrame();
     rowFrame.name = 'ImagesGridRow-' + rowIndex;
     rowFrame.layoutMode = 'HORIZONTAL';
     rowFrame.primaryAxisSizingMode = 'AUTO';
@@ -1397,38 +1788,38 @@ async function createImagesGridPanel(
     rowFrame.fills = [];
     gridFrame.appendChild(rowFrame);
 
-    // Создаём EThumb инстансы
-    for (var j = 0; j < rowImages.length; j++) {
-      var imageItem = rowImages[j];
+    // Создаём изображения (EThumb instances или canvas rectangles)
+    for (let j = 0; j < rowImages.length; j++) {
+      const imageItem = rowImages[j];
+      const imgW = Math.round(imageItem.width) || 120;
+      const imgH = Math.round(imageItem.height) || 120;
 
-      var instance = eThumbComponent.createInstance();
-      rowFrame.appendChild(instance);
+      if (eThumbComponent) {
+        // Level 1: Library EThumb
+        const instance = eThumbComponent.createInstance();
+        rowFrame.appendChild(instance);
+        try { instance.setProperties(ETHUMB_CONFIG.gridDefaults); } catch (_e) { /* skip */ }
+        try { instance.resize(imgW, imgH); } catch (_e) { /* skip */ }
 
-      // Устанавливаем properties
-      try {
-        instance.setProperties(ETHUMB_CONFIG.gridDefaults);
-      } catch (e) {
-        Logger.debug('[ImagesGrid] Ошибка setProperties: ' + e);
-      }
+        if (imageItem.url) {
+          const imageLayer = findFillableLayer(instance);
+          if (imageLayer) {
+            await loadAndApplyImage(imageLayer, imageItem.url, '[ImagesGrid]');
+          } else {
+            await loadAndApplyImage(instance, imageItem.url, '[ImagesGrid]');
+          }
+        }
+      } else {
+        // Level 3: Canvas fallback — simple rectangle with image fill
+        const rect = figma.createRectangle();
+        rect.name = 'Image';
+        rect.resize(imgW, imgH);
+        rect.cornerRadius = 8;
+        rect.fills = [{ type: 'SOLID', color: { r: 0.93, g: 0.93, b: 0.93 } }];
+        rowFrame.appendChild(rect);
 
-      // Resize to match original dimensions
-      try {
-        instance.resize(
-          Math.round(imageItem.width),
-          Math.round(imageItem.height)
-        );
-      } catch (e) {
-        Logger.debug('[ImagesGrid] Ошибка resize: ' + e);
-      }
-
-      // Загружаем и применяем изображение к вложенному fillable слою
-      if (imageItem.url) {
-        var imageLayer = findFillableLayer(instance);
-        if (imageLayer) {
-          await loadAndApplyImage(imageLayer, imageItem.url, '[ImagesGrid]');
-        } else {
-          // Fallback: применяем к самому инстансу
-          await loadAndApplyImage(instance, imageItem.url, '[ImagesGrid]');
+        if (imageItem.url) {
+          await loadAndApplyImage(rect, imageItem.url, '[ImagesGrid]');
         }
       }
 
@@ -1458,8 +1849,18 @@ async function renderStructureNode(
     return { element: null, count: 0 };
   }
 
+  // Обработка EAsideFilters (боковые фильтры)
+  if (node.type === 'EAsideFilters') {
+    const panel = await createAsideFiltersPanel(node, platform);
+    if (panel) {
+      return { element: panel, count: 1 };
+    }
+    return { element: null, count: 0 };
+  }
+
   // Если это контейнер — создаём фрейм и рендерим детей
   if (isContainerType(node.type)) {
+    Logger.debug(`[PageCreator] Container: type=${node.type}, children=${node.children?.length || 0}`);
     const containerConfig = getContainerConfig(node.type as ContainerType);
     if (!containerConfig) {
       Logger.warn(`[PageCreator] Нет конфигурации контейнера: ${node.type}`);
@@ -1505,9 +1906,9 @@ async function renderStructureNode(
             titleInstance.layoutSizingHorizontal = 'FILL';
             
             // Устанавливаем текст заголовка
-            const titleText = query 
-              ? `Популярные товары по запросу «${query}»`
-              : 'Популярные товары';
+            const customTitle = node.children?.[0]?.data?.['#ProductsTilesTitle'];
+            const titleText = customTitle
+              || (query ? `Популярные товары по запросу «${query}»` : 'Популярные товары');
             const textNode = findTextNode(titleInstance);
             if (textNode) {
               await figma.loadFontAsync(textNode.fontName as FontName);
@@ -1738,8 +2139,8 @@ async function renderStructureNode(
 
           // Потом устанавливаем ширину (FILL можно только после appendChild)
           // Touch: для ProductsTiles используем FILL вместо фиксированной ширины
-          const isProductsTilesOnTouch = platform === 'touch' && thisContainerType === 'ProductsTiles';
-          
+          const isProductsTilesOnTouch = platform === 'touch' && (thisContainerType as ContainerType) === 'ProductsTiles';
+
           if (containerConfig.childWidth === 'FILL' || isProductsTilesOnTouch) {
             (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
           } else if (typeof containerConfig.childWidth === 'number') {
@@ -1796,6 +2197,7 @@ async function renderStructureNode(
  *   ├── Header (Desktop=true)
  *   ├── main__center (vertical, fill, hug)
  *   │   └── main__content (horizontal, fill, hug, gap=0, paddingLeft=100)
+ *   │       ├── content__aside (vertical, 230px, hug) — боковые фильтры (опционально)
  *   │       ├── content__left (vertical, 792px, hug) — сниппеты
  *   │       └── content__right (vertical, fill, hug)
  *   └── Footer
@@ -1824,7 +2226,7 @@ export async function createSerpPage(
   
   const platform = options.platform || 'desktop';
   const isTouch = platform === 'touch';
-  const query = options.query || rows[0]?.['#query'] || rows[0]?.query || 'query';
+  const query = options.query || rows[0]?.['#query'] || rows[0]?.['#OrganicTitle'] || 'query';
   const contentLeftWidth = options.contentLeftWidth || 792;
   const contentGap = options.contentGap ?? 0;
   const leftPadding = isTouch ? 0 : (options.leftPadding || 100);
@@ -2002,8 +2404,39 @@ export async function createSerpPage(
     // Touch: элементы складываем прямо в main__content
     snippetsContainer = mainContent;
   } else {
-    // Desktop: создаём content__left и content__right
-    
+    // Desktop: создаём content__aside (если есть) + content__left + content__right
+
+    // === 4b. content__aside (боковые фильтры, слева от content__left) ===
+    if (structure.contentAside.length > 0) {
+      const contentAsideFrame = figma.createFrame();
+      contentAsideFrame.name = 'content__aside';
+      contentAsideFrame.layoutMode = 'VERTICAL';
+      contentAsideFrame.primaryAxisSizingMode = 'AUTO';
+      contentAsideFrame.counterAxisSizingMode = 'FIXED';
+      contentAsideFrame.resize(230, 100);
+      contentAsideFrame.itemSpacing = 0;
+      contentAsideFrame.paddingTop = 0;
+      contentAsideFrame.paddingRight = 0;
+      contentAsideFrame.paddingBottom = 0;
+      contentAsideFrame.paddingLeft = 0;
+      contentAsideFrame.fills = [];
+      mainContent.appendChild(contentAsideFrame);
+
+      for (var ai = 0; ai < structure.contentAside.length; ai++) {
+        var asideNode = structure.contentAside[ai];
+        var asideResult = await renderStructureNode(asideNode, platform, errors);
+        if (asideResult.element) {
+          contentAsideFrame.appendChild(asideResult.element);
+          if (asideResult.element.type === 'FRAME' || asideResult.element.type === 'INSTANCE') {
+            (asideResult.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
+          }
+          createdCount += asideResult.count;
+        }
+      }
+
+      Logger.debug('[PageCreator] content__aside добавлен с ' + structure.contentAside.length + ' элементами');
+    }
+
     // === 5. content__left ===
     const contentLeftFrame = figma.createFrame();
     contentLeftFrame.name = 'content__left';
@@ -2017,6 +2450,7 @@ export async function createSerpPage(
     contentLeftFrame.paddingBottom = 0;
     contentLeftFrame.paddingLeft = 0;
     contentLeftFrame.fills = [];
+    contentLeftFrame.clipsContent = false;
     mainContent.appendChild(contentLeftFrame);
     
     // === 6. content__right ===
@@ -2155,44 +2589,44 @@ export async function createSerpPage(
     Logger.warn(`[PageCreator] Ошибок: ${errors.length}`);
   }
 
+  // Ошибки по типам (declared before try so it's available in debugReport below)
+  const errorsByType: Record<string, string[]> = {};
+
   // === Debug Frame ===
   try {
-    var debugFrame = figma.createFrame();
+    const debugFrame = figma.createFrame();
     debugFrame.name = '__contentify_debug__';
     debugFrame.visible = false;
     debugFrame.resize(1, 1);
     debugFrame.fills = [];
     pageFrame.appendChild(debugFrame);
 
-    var debugLines = [
+    const debugLines = [
       'operation: build-page',
       'query: ' + (options.query || '?'),
       'platform: ' + platform,
       'nodes: ' + structure.stats.totalSnippets + ' snippets, ' + structure.stats.containers + ' containers',
       'created: ' + createdCount + ' elements in ' + creationTime + 'ms'
     ];
-
-    // Ошибки по типам
-    var errorsByType: Record<string, string[]> = {};
-    for (var ei = 0; ei < errors.length; ei++) {
-      var err = errors[ei];
+    for (let ei = 0; ei < errors.length; ei++) {
+      const err = errors[ei];
       if (!errorsByType[err.elementType]) errorsByType[err.elementType] = [];
       errorsByType[err.elementType].push(err.message);
     }
-    for (var etype in errorsByType) {
+    for (const etype in errorsByType) {
       if (Object.prototype.hasOwnProperty.call(errorsByType, etype)) {
-        var msgs = errorsByType[etype];
-        var uniqueMsgs = Array.from(new Set(msgs));
+        const msgs = errorsByType[etype];
+        const uniqueMsgs = Array.from(new Set(msgs));
         debugLines.push('[' + etype + '] errors(' + msgs.length + '): ' + uniqueMsgs.join('; '));
       }
     }
 
     // Типы созданных нод
-    var nodeTypes: Record<string, number> = {};
+    let nodeTypes: Record<string, number> = {};
     if (structure.stats.byType) {
       nodeTypes = structure.stats.byType;
     }
-    for (var nt in nodeTypes) {
+    for (const nt in nodeTypes) {
       if (Object.prototype.hasOwnProperty.call(nodeTypes, nt)) {
         debugLines.push('[' + nt + '] x ' + nodeTypes[nt]);
       }
@@ -2200,8 +2634,8 @@ export async function createSerpPage(
 
     debugLines.push('errors_total: ' + errors.length);
 
-    for (var di = 0; di < debugLines.length; di++) {
-      var lineFrame = figma.createFrame();
+    for (let di = 0; di < debugLines.length; di++) {
+      const lineFrame = figma.createFrame();
       lineFrame.name = debugLines[di];
       lineFrame.resize(1, 1);
       lineFrame.fills = [];
@@ -2212,7 +2646,7 @@ export async function createSerpPage(
   }
 
   // === Debug Report (sent to UI → relay) ===
-  var debugReport = {
+  const debugReport = {
     timestamp: new Date().toISOString(),
     operation: 'build-page',
     success: errors.length === 0 || createdCount > 0,

@@ -11,6 +11,7 @@
  */
 
 import { Logger } from '../logger';
+import { ETHUMB_CONFIG } from '../page-builder/component-map';
 import { findTextNode } from '../utils/node-search';
 import type {
   WizardPayload,
@@ -41,6 +42,7 @@ const WIZARD_COMPONENT_KEYS: WizardComponentKeys = {
 
 let cachedMarkdown: ComponentNode | null = null;
 let cachedImg: ComponentNode | null = null;
+let cachedEThumb: ComponentNode | null = null;
 let libraryAvailable = true;
 
 /**
@@ -58,6 +60,15 @@ async function ensureComponents(): Promise<void> {
     if (!cachedImg) {
       cachedImg = await figma.importComponentByKeyAsync(WIZARD_COMPONENT_KEYS.img);
       Logger.debug(`[Wizard] img component imported: ${cachedImg.name}`);
+    }
+    if (!cachedEThumb) {
+      try {
+        cachedEThumb = await figma.importComponentByKeyAsync(ETHUMB_CONFIG.manualVariantKey);
+        Logger.debug(`[Wizard] EThumb component imported: ${cachedEThumb.name}`);
+      } catch (eThumbErr) {
+        Logger.debug(`[Wizard] EThumb недоступен, wizard-картинки через fallback: ${eThumbErr instanceof Error ? eThumbErr.message : String(eThumbErr)}`);
+        cachedEThumb = null;
+      }
     }
   } catch (e) {
     Logger.warn(`[Wizard] Библиотечные компоненты недоступны, используем fallback: ${e instanceof Error ? e.message : String(e)}`);
@@ -262,34 +273,6 @@ function findSourceInstances(instance: InstanceNode): InstanceNode[] {
   return sources;
 }
 
-/**
- * Находит первый нод с IMAGE fill или RECTANGLE внутри instance (для img-компонента).
- */
-function findImageLayer(node: BaseNode): SceneNode | null {
-  if ('fills' in node && Array.isArray((node as GeometryMixin).fills)) {
-    const fills = (node as GeometryMixin).fills as readonly Paint[];
-    if (fills.length > 0) {
-      for (const fill of fills) {
-        if (fill.type === 'IMAGE') return node as SceneNode;
-      }
-    }
-  }
-
-  // Также проверяем по имени — в img-компоненте есть слой «Image»
-  if ('name' in node && (node as SceneNode).name === 'Image' && node.type !== 'TEXT') {
-    return node as SceneNode;
-  }
-
-  if ('children' in node && (node as ChildrenMixin).children) {
-    for (const child of (node as ChildrenMixin).children) {
-      const found = findImageLayer(child);
-      if (found) return found;
-    }
-  }
-
-  return null;
-}
-
 // ============================================================================
 // FONTS (for fallback rendering)
 // ============================================================================
@@ -461,6 +444,30 @@ async function fallbackListItem(comp: WizardList, index: number): Promise<FrameN
   return frame;
 }
 
+/**
+ * Нормализует URL и применяет изображение к слою с fills (IMAGE fill).
+ * scaleMode по умолчанию FIT.
+ */
+async function applyImageToFillableLayer(
+  layer: SceneNode,
+  url: string,
+  scaleMode: 'FIT' | 'FILL' = 'FIT'
+): Promise<boolean> {
+  if (!url || !('fills' in layer)) return false;
+  let normalizedSrc = url;
+  if (normalizedSrc.startsWith('//')) normalizedSrc = 'https:' + normalizedSrc;
+  try {
+    const response = await fetch(normalizedSrc);
+    if (!response.ok) return false;
+    const buffer = await response.arrayBuffer();
+    const image = figma.createImage(new Uint8Array(buffer));
+    (layer as GeometryMixin).fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: scaleMode }];
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function fallbackImage(comp: WizardImage): Promise<FrameNode> {
   const frame = figma.createFrame();
   frame.name = 'img';
@@ -479,16 +486,8 @@ async function fallbackImage(comp: WizardImage): Promise<FrameNode> {
   imgFrame.fills = [{ type: 'SOLID', color: { r: 0.93, g: 0.93, b: 0.93 } }];
 
   if (comp.src) {
-    try {
-      var normalizedSrc = comp.src;
-      if (normalizedSrc.startsWith('//')) normalizedSrc = 'https:' + normalizedSrc;
-      const response = await fetch(normalizedSrc);
-      if (response.ok) {
-        const buffer = await response.arrayBuffer();
-        const image = figma.createImage(new Uint8Array(buffer));
-        imgFrame.fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FIT' }];
-      }
-    } catch {
+    const applied = await applyImageToFillableLayer(imgFrame, comp.src, 'FIT');
+    if (!applied) {
       Logger.debug(`[Wizard] Не удалось загрузить изображение: ${comp.src.substring(0, 80)}`);
     }
   }
@@ -564,7 +563,7 @@ async function renderHeading(comp: WizardHeading): Promise<SceneNode> {
  */
 async function renderParagraph(comp: WizardParagraph): Promise<SceneNode | null> {
   // Skip empty paragraphs
-  var text = comp.spans ? comp.spans.map(function(s) { return s.text; }).join('').trim() : '';
+  const text = comp.spans ? comp.spans.map(function(s) { return s.text; }).join('').trim() : '';
   if (!text && (!comp.footnotes || comp.footnotes.length === 0)) {
     return null;
   }
@@ -714,13 +713,79 @@ async function renderList(comp: WizardList): Promise<SceneNode[]> {
   return nodes;
 }
 
+/** EThumb property names with Figma hash suffixes */
+const ETHUMB_PROPS = {
+  'Label': 'Label#6083:9',
+  'Dot indicator': 'Dot indicator#6083:11',
+  'Favorite': 'Favorite#9399:7',
+  'White BG': 'White BG#6076:2',
+  'Image Fill': 'Image Fill#6076:0',
+};
+
 /**
- * Рендерит изображение через библиотечный img-компонент.
+ * Рендерит изображение: EThumb (Label, Dot indicator, Favorite выключены),
+ * картинка применяется к слою #OrganicImage. При недоступности EThumb — fallback Frame.
  */
 async function renderImage(comp: WizardImage): Promise<SceneNode> {
-  // Always use fallback — library img component key currently points to
-  // a video/media component, not a simple image component.
-  // TODO: update WIZARD_COMPONENT_KEYS.img with correct image component key
+  if (cachedEThumb && comp.src) {
+    try {
+      const instance = cachedEThumb.createInstance();
+
+      try {
+        instance.setProperties({
+          'Type': 'New; feb-26',
+          'Ratio': 'Manual',
+          [ETHUMB_PROPS['Label']]: false,
+          [ETHUMB_PROPS['Dot indicator']]: false,
+          [ETHUMB_PROPS['Favorite']]: false,
+          [ETHUMB_PROPS['White BG']]: false,
+          [ETHUMB_PROPS['Image Fill']]: true,
+        });
+      } catch (e) {
+        Logger.debug(`[Wizard] EThumb setProperties: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      let imageLayer: SceneNode | null = null;
+      for (const child of instance.children) {
+        if (child.name === '#OrganicImage' && 'fills' in child) {
+          imageLayer = child;
+          break;
+        }
+      }
+      if (!imageLayer) {
+        imageLayer = findChildByName(instance, '#OrganicImage');
+      }
+      if (!imageLayer || !('fills' in imageLayer)) {
+        Logger.debug(`[Wizard] #OrganicImage не найден в EThumb`);
+      }
+      if (imageLayer) {
+        const applied = await applyImageToFillableLayer(imageLayer, comp.src, 'FIT');
+        if (!applied) {
+          Logger.debug(`[Wizard] Не удалось загрузить изображение для EThumb: ${comp.src.substring(0, 80)}`);
+        }
+      }
+      try {
+        instance.resize(350, 350);
+      } catch (_e) {
+        /* skip */
+      }
+      const frame = figma.createFrame();
+      frame.name = 'img';
+      frame.layoutMode = 'VERTICAL';
+      frame.primaryAxisSizingMode = 'AUTO';
+      frame.counterAxisSizingMode = 'AUTO';
+      frame.paddingTop = 8;
+      frame.paddingBottom = 8;
+      frame.fills = [];
+      frame.appendChild(instance);
+      if ('layoutSizingHorizontal' in instance) {
+        (instance as SceneNode & { layoutSizingHorizontal: string }).layoutSizingHorizontal = 'FILL';
+      }
+      return frame;
+    } catch (e) {
+      Logger.warn(`[Wizard] EThumb render failed, fallback: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
   return fallbackImage(comp);
 }
 

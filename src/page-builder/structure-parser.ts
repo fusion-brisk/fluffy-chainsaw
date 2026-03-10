@@ -19,12 +19,10 @@ import {
   SerpPageStructure,
   ContainerType
 } from './types';
-import { 
-  CSS_CLASS_TO_SNIPPET_TYPE, 
+import {
   CSS_CLASS_TO_GROUP_TYPE,
   isGroupType,
-  isContainerType,
-  getContainerConfig
+  isContainerType
 } from './component-map';
 
 /**
@@ -56,27 +54,6 @@ export function detectPlatformFromHtml(htmlContent: string): 'touch' | 'desktop'
   Logger.debug('[detectPlatform] → desktop (по умолчанию)');
   return 'desktop';
 }
-
-/**
- * Селекторы для поиска элементов страницы
- * Порядок важен — более специфичные селекторы первыми
- */
-const ELEMENT_SELECTORS = [
-  // Группы (контейнеры)
-  { selector: '.serp-list', type: 'OrganicBlock' as GroupType },
-  { selector: '[class*="EShopGroup"]', type: 'EShopGroup' as GroupType },
-  { selector: '[class*="EOfferGroup"]', type: 'EOfferGroup' as GroupType },
-  { selector: '.ProductTileRow', type: 'ProductTileRow' as GroupType },
-  
-  // Сниппеты (в порядке приоритета)
-  { selector: '.EOfferItem', type: 'EOfferItem' as SnippetType },
-  { selector: '[class*="EProductSnippet2"]', type: 'EProductSnippet2' as SnippetType },
-  { selector: '.EShopItem', type: 'EShopItem' as SnippetType },
-  { selector: '.ProductTile-Item', type: 'ProductTile-Item' as SnippetType },
-  { selector: '[class*="Organic_withOfferInfo"]', type: 'Organic_withOfferInfo' as SnippetType },
-  { selector: '[class*="Organic"]', type: 'Organic' as SnippetType },
-  { selector: '.ESnippet', type: 'ESnippet' as SnippetType },
-];
 
 /**
  * Определить тип элемента по CSS классам
@@ -576,7 +553,8 @@ export function buildSerpStructure(rows: CSVRow[], platform: 'desktop' | 'touch'
       source: 'yandex-serp',
     },
     contentLeft,
-    contentRight: [], // Пока не используется
+    contentAside: [],
+    contentRight: [],
     stats: {
       totalSnippets,
       byType,

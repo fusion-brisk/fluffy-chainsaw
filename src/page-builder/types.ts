@@ -87,6 +87,7 @@ export type LayoutElementType =
   | 'Pager'            // Пагинация
   | 'Related'          // Похожие запросы / Вместе с этим ищут
   | 'EQuickFilters'    // Панель быстрых фильтров
+  | 'EAsideFilters'    // Боковые фильтры (категории, цена, бренд и т.д.)
   | 'Title'            // Заголовок секции (для ProductsTiles и т.д.)
   | 'FuturisSearch';   // Ответ Алисы (wizard-блок)
 
@@ -143,6 +144,8 @@ export interface SerpPageStructure {
   meta: PageMeta;
   /** Содержимое content__left */
   contentLeft: StructureNode[];
+  /** Содержимое content__aside (боковые фильтры, слева от content__left) */
+  contentAside: StructureNode[];
   /** Содержимое content__right (пока не используется) */
   contentRight: StructureNode[];
   /** Статистика */

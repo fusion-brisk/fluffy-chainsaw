@@ -10,13 +10,13 @@ import { Logger } from '../logger';
 import { 
   SnippetType, 
   ContainerType, 
+  LayoutElementType,
   StructureNode, 
   SerpPageStructure,
   PageMeta 
 } from './types';
-import { 
-  getContainerTypeForSnippet,
-  isSnippetType 
+import {
+  getContainerTypeForSnippet
 } from './component-map';
 
 /**
@@ -158,20 +158,23 @@ export function buildPageStructure(
   
   Logger.info(`[StructureBuilder] Построение структуры из ${rows.length} rows`);
   
-  // Отделяем специальные элементы (EQuickFilters и т.д.) от сниппетов
+  // Отделяем специальные элементы (EQuickFilters, EAsideFilters и т.д.) от сниппетов
   const specialElements: CSVRow[] = [];
+  const asideElements: CSVRow[] = [];
   const snippetRows: CSVRow[] = [];
   
   for (const row of rows) {
     const type = row['#SnippetType'] || '';
     if (type === 'EQuickFilters') {
       specialElements.push(row);
+    } else if (type === 'EAsideFilters') {
+      asideElements.push(row);
     } else {
       snippetRows.push(row);
     }
   }
   
-  Logger.debug(`[StructureBuilder] Специальные элементы: ${specialElements.length}, сниппеты: ${snippetRows.length}`);
+  Logger.debug(`[StructureBuilder] Специальные элементы: ${specialElements.length}, aside: ${asideElements.length}, сниппеты: ${snippetRows.length}`);
   
   // Группируем элементы по serpItemId (соответствует HTML <li>)
   const serpItemGroups = groupBySerpItemId(snippetRows);
@@ -187,7 +190,7 @@ export function buildPageStructure(
     const type = row['#SnippetType'] as string;
     contentLeft.push({
       id: generateNodeId(),
-      type: type as any, // EQuickFilters is LayoutElementType
+      type: type as LayoutElementType,
       data: row,
       order: order++,
     });
@@ -258,6 +261,18 @@ export function buildPageStructure(
     }
   }
   
+  // Строим узлы для content__aside (боковые фильтры)
+  const contentAside: StructureNode[] = [];
+  for (const row of asideElements) {
+    contentAside.push({
+      id: generateNodeId(),
+      type: 'EAsideFilters' as LayoutElementType,
+      data: row,
+      order: 0,
+    });
+    Logger.debug('[StructureBuilder] Добавлен EAsideFilters');
+  }
+
   // Собираем статистику
   const byType: Record<string, number> = {};
   let totalSnippets = 0;
@@ -266,12 +281,10 @@ export function buildPageStructure(
   function countNodes(nodes: StructureNode[]): void {
     for (const node of nodes) {
       if (node.children) {
-        // Это контейнер
         containers++;
         byType[node.type] = (byType[node.type] || 0) + 1;
         countNodes(node.children);
       } else {
-        // Это сниппет
         totalSnippets++;
         byType[node.type] = (byType[node.type] || 0) + 1;
       }
@@ -281,7 +294,7 @@ export function buildPageStructure(
   
   // Метаданные
   const meta: PageMeta = {
-    query: options.query || rows[0]?.['#query'] || rows[0]?.query,
+    query: options.query || rows[0]?.['#query'],
     platform: options.platform || 'desktop',
     totalResults: rows.length,
     source: 'rows',
@@ -297,7 +310,8 @@ export function buildPageStructure(
   return {
     meta,
     contentLeft,
-    contentRight: [], // Пока пусто
+    contentAside,
+    contentRight: [],
     stats: {
       totalSnippets,
       byType,

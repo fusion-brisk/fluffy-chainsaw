@@ -285,6 +285,12 @@ export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = 
     name: 'EQuickFilters',
     defaultVariant: {},
   },
+
+  'EAsideFilters': {
+    key: '', // Auto Layout фрейм, создаётся вручную из ASIDE_FILTER_COMPONENTS
+    name: 'EAsideFilters',
+    defaultVariant: {},
+  },
   
   'Title': {
     key: 'b49cc069e0de9428bfa913fd9a504011fafca336', // Size=M variant
@@ -343,6 +349,69 @@ export const FILTER_COMPONENTS = {
     },
   },
 } as const;
+
+/**
+ * Компоненты для боковых фильтров EAsideFilters.
+ * Используем setKey + variantProps для поиска нужного варианта через
+ * importComponentSetByKeyAsync → findVariant.
+ */
+export const ASIDE_FILTER_COMPONENTS = {
+  // Заголовок секции фильтра (Title, Size=XS)
+  'SectionTitle': {
+    setKey: 'cd47767eeadd916860f6c7c0222a63a8f4b3c5b9',
+    name: 'Title',
+    variantProps: { 'Size': 'XS' },
+    defaultBooleans: {
+      'Grid | List Control': false,
+      'ADV Text Label': false,
+      'Favicon': false,
+      '2-Action': false,
+      'Subtitle': false,
+      '1-Action': false,
+      '3-Action': false,
+      'Chevron': false,
+      'ACTION ICON': false,
+    },
+  },
+  // Чекбокс-элемент (Control / Input, Toggle=False)
+  'EnumFilterItem': {
+    setKey: '9a6666cffa6a4bd51a72be430526e517e33ef8fa',
+    name: 'Control / Input',
+    variantProps: {
+      'Type': 'Check',
+      'Size': 'Text 14px',
+      'Toggle': 'False',
+      'Hover': 'False',
+      'Disabled': 'False',
+      'Focused': 'False',
+    },
+    defaultBooleans: { 'Show Sufix': false },
+  },
+  // Кнопка категории (Level)
+  'CategoryItem': {
+    setKey: '5da09ab6d1f513d699940e507379e254dbaf1ea7',
+    name: 'Level',
+    variantProps: { 'Property 1': 'Level 2' },
+  },
+  // Инпут от/до (Input / Text Input [Beta], Size=M)
+  'NumberInput': {
+    setKey: 'c3a1d52c5f471c2b55307225ae4350953826c781',
+    name: 'Input / Text Input [Beta]',
+    variantProps: {
+      'Size': 'M',
+      'Type': 'Empty',
+      'Active': 'False',
+      'Disabled': 'False',
+      'Error': 'False',
+    },
+    defaultBooleans: {
+      'Show Slider': false,
+      'Show Lead': false,
+      'Show Tail': false,
+      'Show Helper Text': false,
+    },
+  },
+};
 
 /**
  * Маппинг типов групп на конфигурацию компонентов
@@ -571,15 +640,15 @@ export const ETHUMB_CONFIG = {
   /** Variant key: Type=New; feb-26, Ratio=Manual */
   manualVariantKey: '931437402c9c36ddf674a5680541f1d6eaf9363c',
   name: 'EThumb',
-  /** Properties для чистого отображения в grid */
+  /** Properties для чистого отображения в grid (имена с Figma hash suffixes) */
   gridDefaults: {
     'Type': 'New; feb-26',
     'Ratio': 'Manual',
-    'Label': false,
-    'Favorite': false,
-    'Dot indicator': false,
-    'White BG': false,
-    'Image Fill': true
+    'Label#6083:9': false,
+    'Favorite#9399:7': false,
+    'Dot indicator#6083:11': false,
+    'White BG#6076:2': false,
+    'Image Fill#6076:0': true
   } as Record<string, string | boolean>
 };
 
