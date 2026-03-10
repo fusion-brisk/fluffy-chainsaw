@@ -24,6 +24,7 @@ import {
   ProcessingStats,
   UI_SIZES,
 } from './types';
+import type { RelayPayload } from './types';
 import {
   applyFigmaTheme,
   sendMessageToPlugin,
@@ -34,6 +35,7 @@ import { useRelayConnection } from './hooks/useRelayConnection';
 import { useClipboardPaste } from './hooks/useClipboardPaste';
 import { useFileImport } from './hooks/useFileImport';
 import { usePluginMessages } from './hooks/usePluginMessages';
+import { useVersionCheck } from './hooks/useVersionCheck';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
 import type { ClipboardPasteEvent } from './hooks/useClipboardPaste';
 import type { FileImportResult } from './hooks/useFileImport';
@@ -48,10 +50,12 @@ import { SuccessView } from './components/SuccessView';
 import { ExtensionGuide } from './components/ExtensionGuide';
 import { RelayGuide } from './components/RelayGuide';
 import { StatusBar } from './components/StatusBar';
+import { UpdateBanner } from './components/UpdateBanner';
 import { SetupWizard } from './components/SetupWizard';
 import { WhatsNewDialog } from './components/WhatsNewDialog';
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
+import { ComponentInspector } from './components/ComponentInspector';
 import { LogLevel } from './logger';
 
 // Default relay URL
@@ -101,6 +105,8 @@ const App: React.FC = () => {
   const [showRelayGuide, setShowRelayGuide] = useState(false);
   const [showLogViewer, setShowLogViewer] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
+  const [showInspector, setShowInspector] = useState(false);
+  const [inspectorData, setInspectorData] = useState<import('./types').ComponentInspectorData[]>([]);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
   const [lastStats, setLastStats] = useState<ProcessingStats | null>(null);
@@ -110,13 +116,13 @@ const App: React.FC = () => {
 
   // Processing refs
   const processingStartTimeRef = useRef<number | null>(null);
-  const currentSizeRef = useRef({ width: UI_SIZES.checking.width, height: UI_SIZES.checking.height });
+  const currentSizeRef = useRef<{ width: number; height: number }>({ width: UI_SIZES.checking.width, height: UI_SIZES.checking.height });
   const resizeAnimationRef = useRef<number | null>(null);
   const isFirstResizeRef = useRef(true);
   const isMountedRef = useRef(true);
 
   // Relay payload/file refs for import
-  const relayPayloadRef = useRef<unknown>(null);
+  const relayPayloadRef = useRef<RelayPayload | null>(null);
   const pendingEntryIdRef = useRef<string | null>(null);
   const fileHtmlRef = useRef<string>('');
   const fileWizardsRef = useRef<unknown[]>([]);
@@ -239,7 +245,7 @@ const App: React.FC = () => {
       if (!extensionInstalled) {
         markExtensionInstalled();
       }
-      relayPayloadRef.current = data.payload;
+      relayPayloadRef.current = data.payload as RelayPayload | null;
 
       const totalCount = data.rows.length + data.wizardCount;
       showConfirmation({
@@ -255,6 +261,9 @@ const App: React.FC = () => {
     }, []),
   });
 
+  // === VERSION CHECK HOOK ===
+  const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
+
   // === CLIPBOARD PASTE HOOK ===
   useClipboardPaste({
     enabled: appState === 'ready' || appState === 'confirming',
@@ -262,7 +271,7 @@ const App: React.FC = () => {
       if (!extensionInstalled) {
         markExtensionInstalled();
       }
-      relayPayloadRef.current = data.payload;
+      relayPayloadRef.current = data.payload as RelayPayload | null;
       showConfirmation({
         rows: data.rows,
         query: data.query || 'Импорт из буфера',
@@ -376,6 +385,9 @@ const App: React.FC = () => {
             signal: AbortSignal.timeout(3000)
           }).catch(() => {});
         } catch { /* ignore */ }
+      },
+      onComponentInfo: (components) => {
+        setInspectorData(components);
       },
     },
     processingStartTime: processingStartTimeRef.current,
@@ -554,6 +566,20 @@ const App: React.FC = () => {
     setLogMessages([]);
   }, []);
 
+  // === INSPECTOR HANDLERS ===
+  const handleShowInspector = useCallback(() => {
+    previousStateRef.current = appState;
+    setShowInspector(true);
+    resizeUI('inspector');
+  }, [appState, resizeUI]);
+
+  const handleCloseInspector = useCallback(() => {
+    setShowInspector(false);
+    const prevState = previousStateRef.current || appState;
+    resizeUI(prevState);
+    previousStateRef.current = null;
+  }, [appState, resizeUI]);
+
   const handleCancel = useCallback(() => {
     sendMessageToPlugin({ type: 'cancel-import' });
   }, []);
@@ -578,14 +604,25 @@ const App: React.FC = () => {
       className="glass-app"
       {...fileImport.dragHandlers}
     >
-      {/* StatusBar — always visible except during checking, guides, or log viewer */}
-      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && (
+      {/* StatusBar — always visible except during checking, guides, log viewer, or inspector */}
+      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && !showInspector && (
         <StatusBar
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onRelayClick={handleShowRelayGuide}
           onExtensionClick={handleShowExtensionGuide}
           onLogsClick={handleShowLogViewer}
+          onInspectorClick={handleShowInspector}
+        />
+      )}
+
+      {/* Update notification banners */}
+      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && !showInspector && (
+        <UpdateBanner
+          relayUpdate={versionCheck.relayUpdate}
+          extensionUpdate={versionCheck.extensionUpdate}
+          onDismissRelay={versionCheck.dismissRelay}
+          onDismissExtension={versionCheck.dismissExtension}
         />
       )}
 
@@ -678,6 +715,14 @@ const App: React.FC = () => {
       {/* Relay installation guide */}
       {showRelayGuide && (
         <RelayGuide onBack={handleCloseRelayGuide} />
+      )}
+
+      {/* Component Inspector */}
+      {showInspector && (
+        <ComponentInspector
+          components={inspectorData}
+          onClose={handleCloseInspector}
+        />
       )}
 
       {/* Log viewer */}

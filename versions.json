@@ -1,0 +1,12 @@
+{
+  "relay": {
+    "latest": "1.1.0",
+    "minimum": "1.1.0",
+    "downloadUrl": "https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/Contentify-Installer.zip"
+  },
+  "extension": {
+    "latest": "1.4.0",
+    "minimum": "1.4.0",
+    "downloadUrl": "https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx"
+  }
+}

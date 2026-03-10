@@ -11,7 +11,8 @@ import {
   ProcessingStats,
   ProgressData,
   ParsingRulesMetadata,
-  UserSettings
+  UserSettings,
+  ComponentInspectorData
 } from '../types';
 
 export interface PluginMessageHandlers {
@@ -56,6 +57,9 @@ export interface PluginMessageHandlers {
 
   // Debug
   onDebugReport?: (report: unknown) => void;
+
+  // Component Inspector
+  onComponentInfo?: (components: ComponentInspectorData[]) => void;
 }
 
 interface UsePluginMessagesOptions {
@@ -222,6 +226,13 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
         case 'debug-report':
           if (h.onDebugReport) {
             h.onDebugReport(msg.report);
+          }
+          break;
+
+        // === COMPONENT INSPECTOR ===
+        case 'component-info':
+          if (h.onComponentInfo) {
+            h.onComponentInfo(msg.components);
           }
           break;
       }

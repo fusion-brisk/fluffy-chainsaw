@@ -40,6 +40,8 @@ export interface UseRelayConnectionOptions {
 
 export interface UseRelayConnectionReturn {
   connected: boolean;
+  relayVersion: string | null;
+  extensionVersion: string | null;
   ackData: (entryId: string) => Promise<void>;
   clearQueue: () => Promise<void>;
   checkNow: () => Promise<void>;
@@ -56,6 +58,8 @@ export function useRelayConnection({
   onConnectionChange,
 }: UseRelayConnectionOptions): UseRelayConnectionReturn {
   const [connected, setConnected] = useState(false);
+  const [relayVersion, setRelayVersion] = useState<string | null>(null);
+  const [extensionVersion, setExtensionVersion] = useState<string | null>(null);
 
   // Stable refs for callbacks (avoid effect re-runs on every render)
   const onDataReceivedRef = useRef(onDataReceived);
@@ -107,6 +111,11 @@ export function useRelayConnection({
 
       const wizardCount = payload.wizards?.length || 0;
 
+      const meta = data.meta as { extensionVersion?: string } | undefined;
+      if (meta?.extensionVersion) {
+        setExtensionVersion(meta.extensionVersion);
+      }
+
       pendingEntryIdRef.current = entryId;
 
       onDataReceivedRef.current({
@@ -134,6 +143,11 @@ export function useRelayConnection({
       if (!response.ok) return 'disconnected';
 
       const data = await response.json();
+
+      if (data.version) {
+        setRelayVersion(data.version);
+      }
+
       const hasPendingData = data.hasData || (data.pendingCount > 0) || (data.queueSize > 0);
 
       if (hasPendingData) {
@@ -393,6 +407,8 @@ export function useRelayConnection({
 
   return {
     connected,
+    relayVersion,
+    extensionVersion,
     ackData,
     clearQueue,
     checkNow,

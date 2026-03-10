@@ -2848,6 +2848,104 @@ button:disabled {
 }
 
 /* ============================================
+   UPDATE BANNER — Version update notifications
+   ============================================ */
+.update-banner-container {
+  position: absolute;
+  top: 40px;
+  left: 12px;
+  right: 12px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  animation: bannerSlideIn 0.25s ease-out;
+}
+
+@keyframes bannerSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.update-banner--warning {
+  background: color-mix(in srgb, var(--color-warning) 12%, var(--figma-color-bg));
+  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
+  color: var(--color-warning);
+}
+
+.update-banner--critical {
+  background: color-mix(in srgb, var(--status-offline) 12%, var(--figma-color-bg));
+  border: 1px solid color-mix(in srgb, var(--status-offline) 30%, transparent);
+  color: var(--status-offline);
+}
+
+.update-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.update-banner-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.update-banner-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-banner-link {
+  flex-shrink: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.update-banner-link:hover {
+  opacity: 0.8;
+}
+
+.update-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.6;
+  font-family: inherit;
+}
+
+.update-banner-close:hover {
+  opacity: 1;
+}
+
+/* ============================================
    WAITING STATE — Pulse animation (UI Refresh)
    ============================================ */
 .waiting-icon {
@@ -3199,4 +3297,141 @@ button:disabled {
 .status-pill--log:hover {
   background: var(--figma-color-bg-hover);
   border-color: var(--figma-color-border-strong);
+}
+
+/* ============================================
+   COMPONENT INSPECTOR
+   ============================================ */
+.comp-inspector {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.comp-inspector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--figma-color-border);
+}
+
+.comp-inspector-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--figma-color-text);
+}
+
+.comp-inspector-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.comp-inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+.comp-inspector-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--figma-color-text-tertiary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--space-lg);
+}
+
+.comp-inspector-card {
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
+  border-radius: 8px;
+  padding: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.comp-inspector-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: 2px 0;
+}
+
+.comp-inspector-row--name {
+  margin-bottom: 4px;
+}
+
+.comp-inspector-label {
+  font-size: 11px;
+  color: var(--figma-color-text-tertiary);
+  flex-shrink: 0;
+  width: 64px;
+  text-align: right;
+}
+
+.comp-inspector-value {
+  font-size: 12px;
+  color: var(--figma-color-text);
+  word-break: break-word;
+}
+
+.comp-inspector-key {
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 10px;
+  color: var(--figma-color-text-brand);
+  background: var(--figma-color-bg);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: all;
+  word-break: break-all;
+}
+
+.comp-inspector-key:hover {
+  background: var(--figma-color-bg-hover);
+}
+
+.comp-inspector-props {
+  margin-top: 6px;
+  border-top: 1px solid var(--figma-color-border);
+  padding-top: 6px;
+}
+
+.comp-inspector-props-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--figma-color-text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.comp-inspector-prop {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 0;
+  font-size: 11px;
+}
+
+.comp-inspector-prop-name {
+  color: var(--figma-color-text);
+  word-break: break-word;
+  flex: 1;
+  min-width: 0;
+}
+
+.comp-inspector-prop-type {
+  color: var(--figma-color-text-tertiary);
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.comp-inspector-prop-value {
+  color: var(--figma-color-text-brand);
+  flex-shrink: 0;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 10px;
 }
