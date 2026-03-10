@@ -229,7 +229,9 @@ export type CodeMessage =
   // === SETUP WIZARD ===
   | { type: 'setup-skipped-loaded'; skipped: boolean }  // Response to get-setup-skipped
   // === DEBUG ===
-  | { type: 'debug-report'; report: unknown };  // Debug report from page-creator
+  | { type: 'debug-report'; report: unknown }  // Debug report from page-creator
+  // === COMPONENT INSPECTOR ===
+  | { type: 'component-info'; components: ComponentInspectorData[] };  // Selected component info
 
 /** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;
@@ -278,8 +280,22 @@ export const UI_SIZES = {
   fileDrop: { width: 320, height: 280 },
   extensionGuide: { width: 380, height: 520 },
   whatsNew: { width: 380, height: 520 },
-  logsViewer: { width: 380, height: 520 }
+  logsViewer: { width: 380, height: 520 },
+  inspector: { width: 420, height: 520 }
 } as const;
+
+/**
+ * Данные компонента для инспектора
+ */
+export interface ComponentInspectorData {
+  name: string;
+  id: string;
+  componentKey: string;
+  componentName: string;
+  componentSetKey?: string;
+  componentSetName?: string;
+  properties: Record<string, { type: string; value: string | boolean }>;
+}
 
 /**
  * Информация о текущем запросе/импорте

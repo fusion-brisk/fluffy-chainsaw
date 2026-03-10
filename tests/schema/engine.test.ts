@@ -28,7 +28,7 @@ vi.mock('../../src/logger', () => ({
 import { applySchema } from '../../src/schema/engine';
 import { trySetProperty } from '../../src/property-utils';
 import { getCachedInstance } from '../../src/utils/instance-cache';
-import type { ComponentSchema, PropertyMapping } from '../../src/schema/types';
+import type { ComponentSchema } from '../../src/schema/types';
 
 const mockTrySetProperty = vi.mocked(trySetProperty);
 const mockGetCachedInstance = vi.mocked(getCachedInstance);
@@ -44,6 +44,7 @@ function mockCache() {
     groups: new Map(),
     allTextNodes: [],
     stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
@@ -306,7 +307,7 @@ describe('applySchema', () => {
       };
 
       const container = mockInstance('Test');
-      applySchema(container, { '#X': 'true' }, schema, mockCache());
+      applySchema(container, { '#X': 'true' } as CSVRow, schema, mockCache());
 
       expect(mockTrySetProperty).toHaveBeenCalledWith(
         container, ['prop'], 'from-compute', '#F'
@@ -378,6 +379,7 @@ describe('applySchema', () => {
   describe('edge cases', () => {
     it('skips removed container', () => {
       const container = mockInstance('Test');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (container as any).removed = true;
 
       const schema: ComponentSchema = {
@@ -391,7 +393,7 @@ describe('applySchema', () => {
         replacesHandlers: []
       };
 
-      applySchema(container, { '#X': 'true' }, schema, mockCache());
+      applySchema(container, { '#X': 'true' } as CSVRow, schema, mockCache());
       expect(mockTrySetProperty).not.toHaveBeenCalled();
     });
 
@@ -428,7 +430,7 @@ describe('applySchema', () => {
       };
 
       const container = mockInstance('Test');
-      applySchema(container, { '#A': 'true', '#B': 'true', '#C': 'true' }, schema, mockCache());
+      applySchema(container, { '#A': 'true', '#B': 'true', '#C': 'true' } as CSVRow, schema, mockCache());
 
       expect(calls).toEqual(['first', 'second', 'third']);
     });

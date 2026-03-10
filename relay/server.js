@@ -315,6 +315,7 @@ app.post('/push', (req, res) => {
     wizardCount,
     query,
     relayVersion: pkg.version,
+    extensionVersion: meta?.extensionVersion || null,
     timestamp: Date.now()
   });
   
@@ -470,6 +471,7 @@ app.get('/status', (req, res) => {
   }
   
   res.json({
+    version: pkg.version,
     queueSize: dataQueue.length,
     pendingCount,
     hasData: pendingCount > 0,
@@ -733,6 +735,7 @@ app.post('/reimport', (req, res) => {
     wizardCount,
     query,
     relayVersion: pkg.version,
+    extensionVersion: meta?.extensionVersion || null,
     timestamp: Date.now()
   });
 

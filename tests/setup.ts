@@ -19,13 +19,6 @@ interface MockSceneNode {
   setProperties?: (props: Record<string, string>) => void;
 }
 
-interface MockInstanceNode extends MockSceneNode {
-  type: 'INSTANCE';
-  componentProperties: Record<string, { value: string; type: string }>;
-  setProperties: (props: Record<string, string>) => void;
-  resetOverrides: () => void;
-}
-
 interface MockTextNode extends MockSceneNode {
   type: 'TEXT';
   characters: string;
@@ -37,7 +30,8 @@ interface MockTextNode extends MockSceneNode {
 export function createMockInstance(
   name: string,
   properties: Record<string, string> = {}
-): MockInstanceNode {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any {
   const componentProperties: Record<string, { value: string; type: string }> = {};
   for (const [key, value] of Object.entries(properties)) {
     componentProperties[key] = { value, type: 'VARIANT' };

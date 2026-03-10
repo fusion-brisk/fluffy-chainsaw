@@ -200,8 +200,7 @@ export function buildCSSCache(doc: Document, rawHtml?: string): CSSCache {
   const allCssText = collectAllCSSText(doc, rawHtml);
   
   // Считаем style теги для статистики
-  const styleTagMatches = allCssText ? allCssText.split(/\n/).length : 0;
-  const totalStyleTags = doc.querySelectorAll('style').length || 
+  const totalStyleTags = doc.querySelectorAll('style').length ||
     (rawHtml ? (rawHtml.match(STYLE_TAG_REGEX) || []).length : 0);
   
   if (!allCssText || allCssText.trim().length === 0) {
@@ -328,8 +327,8 @@ export function getRuleByClassPattern(
   Logger.debug(`🔍 [getRuleByClassPattern] Всего селекторов в кэше: ${cache.bySelector.size}`);
   
   let checkedCount = 0;
-  let matchedWithEntry: string[] = [];
-  let matchedWithoutEntry: string[] = [];
+  const matchedWithEntry: string[] = [];
+  const matchedWithoutEntry: string[] = [];
   
   for (const [selector, entry] of cache.bySelector) {
     const selectorLower = selector.toLowerCase();

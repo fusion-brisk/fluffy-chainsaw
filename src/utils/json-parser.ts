@@ -2,7 +2,7 @@
 
 import { CSVRow } from '../types';
 import { Logger } from '../logger';
-import { ParsingSchema, DEFAULT_PARSING_RULES, FieldRule } from '../parsing-rules';
+import { ParsingSchema, DEFAULT_PARSING_RULES } from '../parsing-rules';
 import {
   NOFRAMES_JSON_REGEX,
   FAVICON_V2_URL_REGEX,
@@ -13,6 +13,7 @@ import {
 } from './regex';
 
 // Парсит JSON из блока noframes и извлекает данные о сниппетах
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parseJsonFromNoframes(html: string): any {
   Logger.debug('🔍 Поиск блока noframes с JSON данными...');
   
@@ -38,9 +39,11 @@ export function parseJsonFromNoframes(html: string): any {
 }
 
 // Извлекает фавиконку из JSON сниппета
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
   try {
     // Ищем фавиконку в различных возможных полях JSON
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let faviconData: any = null;
     let faviconField = '';
     
@@ -138,6 +141,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
       
       // Если URL в массиве напрямую
       if (Array.isArray(faviconData) && faviconData.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const faviconUrls = faviconData.map((url: any) => {
           if (typeof url === 'string') return url.trim();
           if (typeof url === 'object' && url.url) return url.url.trim();
@@ -273,6 +277,7 @@ export function extractFaviconFromJson(snippet: any, row: CSVRow): void {
 }
 
 // Собирает все уникальные поля из массива объектов
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function collectAllFields(obj: any, prefix: string = '', depth: number = 0, maxDepth: number = 5): Set<string> {
   const fields = new Set<string>();
   
@@ -304,6 +309,7 @@ export function collectAllFields(obj: any, prefix: string = '', depth: number = 
 }
 
 // Вспомогательная функция для поиска значения по списку ключей
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getValueByKeyList(obj: any, keys: string[]): any {
   for (const key of keys) {
     if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
@@ -314,6 +320,7 @@ function getValueByKeyList(obj: any, keys: string[]): any {
 }
 
 // Извлекает данные о сниппетах из JSON структуры Яндекс.Поиска
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSchema = DEFAULT_PARSING_RULES): CSVRow[] {
   const results: CSVRow[] = [];
   const rules = parsingRules.rules;
@@ -333,6 +340,7 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
   // Ищем данные о сниппетах в различных возможных местах JSON структуры
   // Обычно данные находятся в структуре типа: results, items, snippets, organic, products и т.д.
   
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let snippets: any[] = [];
   let foundPath = '';
   
@@ -363,6 +371,7 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
     foundPath = 'root array';
   } else {
     // Рекурсивно ищем массивы в структуре
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-inner-declarations
     function findArrays(obj: any, path: string = '', depth: number = 0): { array: any[]; path: string } | null {
       if (depth > 5) return null; // Ограничиваем глубину поиска
       
@@ -462,7 +471,6 @@ export function extractSnippetsFromJson(jsonData: any, parsingRules: ParsingSche
       '#ShopName': getValueByKeyList(snippet, rules['#ShopName'].jsonKeys) || '',
       '#OrganicHost': '',
       '#OrganicPath': getValueByKeyList(snippet, rules['#OrganicPath'].jsonKeys) || '',
-      '#SnippetFavicon': '',
       '#FaviconImage': '',
       '#OrganicText': getValueByKeyList(snippet, rules['#OrganicText'].jsonKeys) || '',
       '#OrganicImage': getValueByKeyList(snippet, rules['#OrganicImage'].jsonKeys) || '',

@@ -1,7 +1,7 @@
 import { Logger } from './logger';
 import { LayerDataItem, DetailedError } from './types';
 import { IMAGE_CONFIG } from './config';
-import { getFirstImageTarget, getContainerIdForNode, hasContainerCache } from './utils/container-cache';
+import { getFirstImageTarget, hasContainerCache } from './utils/container-cache';
 
 export class ImageProcessor {
   // Memory cache for the current session
@@ -643,7 +643,9 @@ export class ImageProcessor {
         if (hostname.startsWith('http')) {
              try {
                  hostname = new URL(hostname).hostname;
-             } catch (e) {}
+             } catch (e) {
+                 Logger.debug('Failed to parse hostname from URL', e);
+             }
         } else {
              hostname = hostname.split('/')[0];
         }

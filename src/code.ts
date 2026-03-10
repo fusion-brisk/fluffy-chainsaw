@@ -8,7 +8,6 @@
  */
 
 import { Logger, LogLevel } from './logger';
-import { PLUGIN_VERSION } from './config';
 import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from './parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
@@ -205,31 +204,95 @@ figma.on('selectionchange', () => {
   const hasSelection = selection.length > 0;
   figma.ui.postMessage({ type: 'selection-status', hasSelection });
 
-  // Dump component properties + child tree to console for debugging
-  for (const node of selection) {
-    if (node.type === 'INSTANCE') {
-      const inst = node as InstanceNode;
-      const props = inst.componentProperties;
-      const lines: string[] = [`[Selection] INSTANCE "${inst.name}" (id=${inst.id})`];
-      lines.push('  --- Properties ---');
-      for (const key in props) {
-        const p = props[key];
-        lines.push(`  ${key}: ${p.type} = ${JSON.stringify(p.value)}`);
-      }
-      lines.push('  --- Children (2 levels) ---');
-      function dumpChildren(parent: SceneNode, depth: number): void {
-        if (depth > 2 || !('children' in parent)) return;
-        for (const child of (parent as FrameNode).children) {
-          const hidden = child.visible === false ? ' [HIDDEN]' : '';
-          const fills = 'fills' in child ? ` (fills=${Array.isArray(child.fills) ? child.fills.length : '?'})` : '';
-          lines.push(`${'  '.repeat(depth + 1)}${child.type} "${child.name}"${hidden}${fills}`);
-          dumpChildren(child, depth + 1);
-        }
-      }
-      dumpChildren(inst, 0);
-      Logger.debug(lines.join('\n'));
-    }
+  // Async: resolve component keys (getMainComponentAsync needed for library components)
+  const instances = selection.filter(function(n) { return n.type === 'INSTANCE'; }) as InstanceNode[];
+  if (instances.length === 0) return;
+
+  var promises: Promise<{
+    name: string;
+    id: string;
+    componentKey: string;
+    componentName: string;
+    componentSetKey?: string;
+    componentSetName?: string;
+    properties: Record<string, { type: string; value: string | boolean }>;
+  }>[] = [];
+
+  for (var i = 0; i < instances.length; i++) {
+    var inst = instances[i];
+    promises.push(
+      (function(instance) {
+        return instance.getMainComponentAsync().then(function(mainComp) {
+          var info: {
+            name: string;
+            id: string;
+            componentKey: string;
+            componentName: string;
+            componentSetKey?: string;
+            componentSetName?: string;
+            properties: Record<string, { type: string; value: string | boolean }>;
+          } = {
+            name: instance.name,
+            id: instance.id,
+            componentKey: '',
+            componentName: '',
+            properties: {},
+          };
+
+          if (mainComp) {
+            info.componentKey = mainComp.key;
+            info.componentName = mainComp.name;
+            try {
+              if (mainComp.parent && mainComp.parent.type === 'COMPONENT_SET') {
+                info.componentSetKey = (mainComp.parent as ComponentSetNode).key;
+                info.componentSetName = mainComp.parent.name;
+              }
+            } catch (e) {
+              Logger.debug('[Selection] Could not read componentSet: ' + e);
+            }
+          }
+
+          var props = instance.componentProperties;
+          for (var key in props) {
+            var p = props[key];
+            info.properties[key] = { type: p.type, value: p.value as string | boolean };
+          }
+
+          // Debug dump
+          var lines = ['[Selection] INSTANCE "' + instance.name + '" (id=' + instance.id + ')'];
+          lines.push('  componentKey: ' + info.componentKey);
+          lines.push('  componentName: ' + info.componentName);
+          if (info.componentSetKey) {
+            lines.push('  componentSetKey: ' + info.componentSetKey);
+            lines.push('  componentSetName: ' + (info.componentSetName || ''));
+          }
+          lines.push('  --- Properties ---');
+          for (var pk in props) {
+            var pp = props[pk];
+            lines.push('  ' + pk + ': ' + pp.type + ' = ' + JSON.stringify(pp.value));
+          }
+          Logger.debug(lines.join('\n'));
+
+          return info;
+        }).catch(function(e) {
+          Logger.debug('[Selection] getMainComponentAsync failed: ' + e);
+          return {
+            name: instance.name,
+            id: instance.id,
+            componentKey: '(error)',
+            componentName: '(error: ' + e + ')',
+            properties: {},
+          };
+        });
+      })(inst)
+    );
   }
+
+  Promise.all(promises).then(function(componentInfoList) {
+    if (componentInfoList.length > 0) {
+      figma.ui.postMessage({ type: 'component-info', components: componentInfoList });
+    }
+  });
 });
 
 // Главный обработчик сообщений
@@ -310,7 +373,9 @@ figma.ui.onmessage = async (msg) => {
           try {
             const urlParams = new URL(payload.source.url).searchParams;
             query = urlParams.get('text') || urlParams.get('q') || '';
-          } catch (e) {}
+          } catch (e) {
+            Logger.debug('Failed to parse query from URL', e);
+          }
         }
         
         const wizards = payload.wizards || [];

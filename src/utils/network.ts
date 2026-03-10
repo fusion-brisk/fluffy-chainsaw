@@ -77,33 +77,36 @@ export async function processCSVRows(rows: CSVRow[]): Promise<CSVRow[]> {
   
   for (const row of rows) {
     const processedRow = { ...row };
-    
+    // Dynamic key access: this function intentionally iterates over arbitrary CSVFields keys
+    const rowRecord = row as Record<string, string | undefined>;
+    const processedRecord = processedRow as Record<string, string | undefined>;
+
     // Find image fields and convert them to base64
     const imageFields = Object.keys(row).filter(key => {
-      const value = row[key];
-      return typeof value === 'string' && 
-             value.trim() !== '' && 
+      const value = rowRecord[key];
+      return typeof value === 'string' &&
+             value.trim() !== '' &&
              (value.startsWith('http://') || value.startsWith('https://')) &&
              (value.includes('.jpg') || value.includes('.jpeg') || value.includes('.png') || value.includes('.gif') || value.includes('.webp'));
     });
-    
+
     Logger.debug(`🖼️ Найдено ${imageFields.length} полей изображений в строке: ${imageFields.join(', ')}`);
-    
+
     // Convert each image field to base64
     for (const imageField of imageFields) {
-      const imageUrl = row[imageField];
+      const imageUrl = rowRecord[imageField];
       Logger.debug(`🖼️ Обрабатываем поле изображения "${imageField}": ${imageUrl}`);
-      
+
       if (!imageUrl) continue;
       const base64Data = await convertImageToBase64(imageUrl);
       if (base64Data) {
-        processedRow[imageField + '_base64'] = base64Data;
+        processedRecord[imageField + '_base64'] = base64Data;
         Logger.debug(`✅ Добавлено поле "${imageField}_base64"`);
       } else {
         Logger.debug(`⚠️ Не удалось конвертировать изображение для поля "${imageField}"`);
       }
     }
-    
+
     processedRows.push(processedRow);
   }
   

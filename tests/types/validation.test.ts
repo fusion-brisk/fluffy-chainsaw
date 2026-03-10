@@ -28,13 +28,13 @@ describe('validation', () => {
     });
 
     it('should normalize boolean fields', () => {
-      const row: CSVRow = {
+      const row = {
         '#SnippetType': 'EShopItem',
         '#ShopName': 'Test Shop',
         '#OrganicPrice': '1 990 ₽',
         '#EPriceGroup_Discount': 'TRUE',
         '#OfficialShop': 'yes'
-      };
+      } as unknown as CSVRow;
 
       const result = validateRow(row);
       

@@ -166,10 +166,10 @@ export function isSnippetContainer(node: BaseNode): boolean {
  * @param containerKey - ID контейнера (используется как fallback через figma.getNodeById)
  * @returns Найденный контейнер или null
  */
-export function findContainerForLayers(
+export async function findContainerForLayers(
   layers: SceneNode[] | null,
   containerKey?: string
-): BaseNode | null {
+): Promise<BaseNode | null> {
   // 1. Пробуем найти через parent traversal от слоёв
   if (layers && layers.length > 0) {
     for (const layer of layers) {
@@ -187,7 +187,7 @@ export function findContainerForLayers(
   // 2. Fallback: получаем контейнер напрямую по ID
   if (containerKey) {
     try {
-      const byId = figma.getNodeById(containerKey);
+      const byId = await figma.getNodeByIdAsync(containerKey);
       if (byId && !byId.removed) {
         return byId as BaseNode;
       }

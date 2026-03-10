@@ -577,7 +577,8 @@ async function handleIconClick(tab) {
       url: tab.url, 
       parsedAt: new Date().toISOString(), 
       snippetCount: rows.length,
-      wizardCount: wizards.length
+      wizardCount: wizards.length,
+      extensionVersion: chrome.runtime.getManifest().version
     };
     
     // ALWAYS copy to clipboard first (clipboard-first architecture)
