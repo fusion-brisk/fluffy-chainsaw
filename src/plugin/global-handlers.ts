@@ -67,7 +67,7 @@ export async function applyGlobalQuery(
     if (!rows || !rows.length) return;
     
     const first = rows[0] || {};
-    const raw = first['#query'] || first['#Query'] || '';
+    const raw = first['#query'] || '';
     const value = raw ? String(raw).trim() : '';
     if (!value) return;
     

@@ -10,13 +10,9 @@
 import { Logger } from '../logger';
 import { trySetProperty } from '../property-utils';
 import {
-  findFirstNodeByName,
   findFirstTextByPredicate,
   findAllNodesByName,
-  findAllNodesByNameContains,
-  findNearestNamedAncestor,
   findAllInstances,
-  findFirstTextValue,
   safeSetTextNode
 } from '../utils/node-search';
 import { getCachedInstance, getCachedInstanceByNames } from '../utils/instance-cache';
@@ -83,36 +79,6 @@ function isLikelyBnplItemInstance(inst: InstanceNode): boolean {
 }
 
 /**
- * Определение типа BNPL из узла
- */
-function detectBnplTypeFromNode(item: SceneNode): string | null {
-  try {
-    const graphics = findAllNodesByNameContains(item, 'Graphic / BNPL /');
-    for (let i = 0; i < graphics.length; i++) {
-      const n = String(graphics[i].name || '');
-      const idx = n.lastIndexOf('Graphic / BNPL /');
-      const tail = idx >= 0 ? n.substring(idx + 'Graphic / BNPL /'.length).trim() : '';
-      const tl = tail.toLowerCase();
-      if (!tl) continue;
-      if (tl.indexOf('split') !== -1) return 'Split';
-      if (tl.indexOf('dolyame') !== -1 || tl.indexOf('dolyami') !== -1) return 'Dolyami';
-      if (tl.indexOf('plait') !== -1) return 'Plait';
-      if (tl.indexOf('mokka') !== -1) return 'Mokka';
-      if (tl.indexOf('mts pay') !== -1 || (tl.indexOf('mts') !== -1 && tl.indexOf('pay') !== -1)) return 'MTS Pay';
-      if (tl.indexOf('podeli') !== -1) return 'Podeli';
-      if (tl.indexOf('plati') !== -1) return 'Plati Chastyami';
-    }
-  } catch (e) {
-    Logger.debug('[BNPL] detectBnplTypeFromNode graphics lookup failed');
-  }
-
-  const text = findFirstTextValue(item);
-  if (text) return mapBnplLabelToType(text);
-
-  return null;
-}
-
-/**
  * Обработка EDeliveryGroup — показать/скрыть через withDelivery на контейнере
  */
 export async function handleEDeliveryGroup(context: HandlerContext): Promise<void> {
@@ -167,7 +133,7 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
   // === Устанавливаем видимость child-слотов через свойства (новые компоненты) ===
   const childSlotNames = ['first-child', 'second-child', 'third-child'];
   for (let i = 0; i < 3; i++) {
-    const itemValue = row[`#EDeliveryGroup-Item-${i + 1}`];
+    const itemValue = (row as Record<string, string | undefined>)[`#EDeliveryGroup-Item-${i + 1}`];
     const hasItem = !!(itemValue && String(itemValue).trim() !== '' && (i + 1) <= itemCount);
     trySetProperty(deliveryGroupInstance, [childSlotNames[i]], hasItem, `#EDeliveryGroup-slot-${i + 1}`);
   }
@@ -186,7 +152,7 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
     for (let i = 0; i < maxSlots; i++) {
       const layer = itemLayers[i];
       const dataIndex = i + 1;
-      const itemValue = row[`#EDeliveryGroup-Item-${dataIndex}`];
+      const itemValue = (row as Record<string, string | undefined>)[`#EDeliveryGroup-Item-${dataIndex}`];
       
       if (itemValue && dataIndex <= itemCount) {
         if (layer.type === 'TEXT') {
@@ -204,7 +170,7 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
   // MODE B: Line instances with value property
   const values: string[] = [];
   for (let i = 1; i <= Math.min(3, itemCount); i++) {
-    const v = row[`#EDeliveryGroup-Item-${i}`];
+    const v = (row as Record<string, string | undefined>)[`#EDeliveryGroup-Item-${i}`];
     if (v && String(v).trim() !== '') values.push(String(v).trim());
   }
 
@@ -289,7 +255,7 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
   // Определяем типы BNPL
   const desiredTypes: string[] = [];
   for (let i = 1; i <= count && i <= 3; i++) {
-    const v = shopHas ? (row[`#ShopInfo-Bnpl-Item-${i}`] || '') : (row[`#EBnpl-Item-${i}`] || '');
+    const v = shopHas ? ((row as Record<string, string | undefined>)[`#ShopInfo-Bnpl-Item-${i}`] || '') : ((row as Record<string, string | undefined>)[`#EBnpl-Item-${i}`] || '');
     const mapped = mapBnplLabelToType(v);
     if (mapped && desiredTypes.indexOf(mapped) === -1) desiredTypes.push(mapped);
   }

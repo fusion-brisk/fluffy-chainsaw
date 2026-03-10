@@ -28,17 +28,17 @@ function resolveValue(
 
   // Priority 2: equals
   if (mapping.equals) {
-    return row[mapping.equals.field] === mapping.equals.value;
+    return (row as Record<string, string | undefined>)[mapping.equals.field] === mapping.equals.value;
   }
 
   // Priority 3: hasValue (truthy presence)
   if (mapping.hasValue) {
-    return !!((row[mapping.hasValue] || '') as string).trim();
+    return !!(((row as Record<string, string | undefined>)[mapping.hasValue] || '') as string).trim();
   }
 
   // Priority 4: stringValue (pass-through)
   if (mapping.stringValue) {
-    var val = ((row[mapping.stringValue] || '') as string).trim();
+    const val = (((row as Record<string, string | undefined>)[mapping.stringValue] || '') as string).trim();
     if (mapping.skipIfEmpty && !val) return null;
     return val;
   }
@@ -57,13 +57,13 @@ function applyProperties(
   cache: DeepCache,
   logPrefix: string
 ): void {
-  for (var i = 0; i < mappings.length; i++) {
-    var mapping = mappings[i];
-    var value = resolveValue(mapping, row, container, cache);
+  for (let i = 0; i < mappings.length; i++) {
+    const mapping = mappings[i];
+    const value = resolveValue(mapping, row, container, cache);
 
     if (value === null) continue;
 
-    var result = trySetProperty(
+    const result = trySetProperty(
       target,
       mapping.propertyNames,
       value,
@@ -92,7 +92,7 @@ export function applySchema(
 ): void {
   if (!container || !row || container.removed) return;
 
-  var containerName = container.name || 'Unknown';
+  const containerName = container.name || 'Unknown';
   Logger.debug('[Schema] Applying ' + schema.containerNames[0] + ' schema to "' + containerName + '"');
 
   // 1. Свойства контейнера
@@ -106,9 +106,9 @@ export function applySchema(
   );
 
   // 2. Свойства вложенных инстансов
-  for (var i = 0; i < schema.nestedInstances.length; i++) {
-    var nested = schema.nestedInstances[i];
-    var nestedInstance = getCachedInstance(cache, nested.instanceName);
+  for (let i = 0; i < schema.nestedInstances.length; i++) {
+    const nested = schema.nestedInstances[i];
+    const nestedInstance = getCachedInstance(cache, nested.instanceName);
 
     if (!nestedInstance) {
       Logger.debug('[Schema] Nested instance "' + nested.instanceName + '" not found');

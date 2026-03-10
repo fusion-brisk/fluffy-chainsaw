@@ -204,7 +204,7 @@ export async function handleEButton(context: HandlerContext): Promise<void> {
   if (containerName !== 'EOfferItem' && container.type === 'INSTANCE' && !container.removed) {
     const instance = container as InstanceNode;
     
-    const withButtonSet = trySetProperty(
+    trySetProperty(
       instance,
       ['withButton', 'BUTTON', 'BUTTONS'],
       hasButton,

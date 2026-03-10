@@ -8,7 +8,7 @@
 
 import { SNIPPET_CONTAINER_NAMES } from '../config';
 import { Logger } from '../logger';
-import { trySetProperty, trySetVariantProperty, trySetVariantPropertyRecursive, boolToFigma } from '../property-utils';
+import { trySetProperty, trySetVariantProperty } from '../property-utils';
 // findTextLayerByName больше не нужен — используем value через component properties
 import { getCachedInstance, getCachedInstanceByNames } from '../utils/instance-cache';
 import { HandlerContext } from './types';

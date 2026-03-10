@@ -83,7 +83,7 @@ async function applySingleImage(container: SceneNode, row: CSVRow): Promise<void
   let layer: SceneNode | null = null;
   
   for (const name of layerNames) {
-    layer = findFirstNodeByName(container, name);
+    layer = findFirstNodeByName(container, name) as SceneNode | null;
     if (layer) {
       Logger.debug(`🖼️ [applySingleImage] Найден слой "${name}"`);
       break;
@@ -231,8 +231,8 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
     
     // Сортируем по размеру (самый большой = главное изображение)
     imageLayers.sort((a, b) => {
-      const areaA = ('width' in a ? (a as any).width : 0) * ('height' in a ? (a as any).height : 0);
-      const areaB = ('width' in b ? (b as any).width : 0) * ('height' in b ? (b as any).height : 0);
+      const areaA = ('width' in a ? (a as SceneNode & { width: number }).width : 0) * ('height' in a ? (a as SceneNode & { height: number }).height : 0);
+      const areaB = ('width' in b ? (b as SceneNode & { width: number }).width : 0) * ('height' in b ? (b as SceneNode & { height: number }).height : 0);
       return areaB - areaA;
     });
     
@@ -670,13 +670,13 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
   let layer: SceneNode | null = null;
   
   for (const name of layerNames) {
-    layer = findFirstNodeByName(sceneContainer, name);
+    layer = findFirstNodeByName(sceneContainer, name) as SceneNode | null;
     if (layer && 'fills' in layer) {
       break;
     }
     layer = null;
   }
-  
+
   if (!layer) {
     // Fallback: ищем внутри EQuote или OrganicUgcReviews-QuoteWrapper
     const quoteWrapper = findFirstNodeByName(sceneContainer, 'EQuote') ||
@@ -685,7 +685,7 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
       // Ищем любой небольшой квадратный/круглый слой (аватар обычно маленький)
       const avatarCandidates = ['Avatar', 'Image', 'Photo'];
       for (const name of avatarCandidates) {
-        layer = findFirstNodeByName(quoteWrapper, name);
+        layer = findFirstNodeByName(quoteWrapper, name) as SceneNode | null;
         if (layer && 'fills' in layer) break;
         layer = null;
       }
@@ -846,7 +846,6 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
 
   const containerName = container && 'name' in container ? container.name : 'unknown';
   const imageType = row['#imageType'];
-  const isCatalogPage = row['#isCatalogPage'];
   Logger.debug(`🖼️ [imageType] container="${containerName}", imageType=${imageType || 'N/A'}`);
   
   // ВАЖНО: Независимо от imageType, пробуем применить изображения к EThumbGroup
@@ -923,7 +922,7 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
       if (keyLower === 'state' || keyLower.startsWith('state#')) {
         const stateProp = eThumbProps[key];
         if (stateProp && typeof stateProp === 'object' && 'type' in stateProp) {
-          Logger.debug(`🖼️ [imageType] Найдено State property: "${key}", type=${stateProp.type}, value="${(stateProp as any).value}"`);
+          Logger.debug(`🖼️ [imageType] Найдено State property: "${key}", type=${stateProp.type}, value="${(stateProp as { value: unknown }).value}"`);
           
           if (stateProp.type === 'VARIANT') {
             try {
@@ -1003,8 +1002,10 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
     if (components.length === 0) {
       // Пробуем найти среди published components — это может быть component set
       // Для instance swap с exposed property можно использовать preferredValues
-      const preferredValues = (prop as any).preferredValues;
-      const currentValue = (prop as any).value;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const preferredValues = (prop as any).preferredValues as Array<{ type: string; key: string } | string> | undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const currentValue = (prop as any).value as string | undefined;
       
       if (preferredValues && Array.isArray(preferredValues)) {
         Logger.debug(`🖼️ [imageType] preferredValues: ${JSON.stringify(preferredValues)}`);
@@ -1019,15 +1020,15 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
         if (isObjectArray) {
           // Формат: [{type: 'COMPONENT', key: '...'}]
           // Ищем альтернативный вариант (не текущий)
-          const alternative = preferredValues.find((v: any) => v.key !== currentValue);
-          if (alternative) {
+          const alternative = preferredValues.find((v) => typeof v === 'object' && v.key !== currentValue);
+          if (alternative && typeof alternative === 'object') {
             targetKey = alternative.key;
             Logger.debug(`🖼️ [imageType] Найден альтернативный вариант (объект): key=${targetKey}`);
           }
         } else {
           // Формат: ['key1', 'key2'] — массив строк-ключей
-          const alternative = preferredValues.find((v: string) => v !== currentValue);
-          if (alternative) {
+          const alternative = preferredValues.find((v) => typeof v === 'string' && v !== currentValue);
+          if (alternative && typeof alternative === 'string') {
             targetKey = alternative;
             Logger.debug(`🖼️ [imageType] Найден альтернативный вариант (строка): key=${targetKey}`);
           }
@@ -1059,7 +1060,7 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
               });
               
               // Ищем вариант с "group" в имени
-              let targetVariant = componentSet.children.find((child) => {
+              const targetVariant = componentSet.children.find((child) => {
                 if (child.type !== 'COMPONENT') return false;
                 const nameLower = child.name.toLowerCase();
                 return nameLower.includes('group') || nameLower.includes('collage') || nameLower.includes('thumbgroup');

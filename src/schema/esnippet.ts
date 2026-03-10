@@ -29,7 +29,7 @@ import {
   computeSnippetWithPromo
 } from './transforms';
 
-export var ESNIPPET_SCHEMA: ComponentSchema = {
+export const ESNIPPET_SCHEMA: ComponentSchema = {
   containerNames: ['ESnippet', 'Snippet'],
 
   containerProperties: [

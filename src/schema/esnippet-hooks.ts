@@ -18,15 +18,15 @@ import type { CSVRow } from '../types/csv-fields';
  * ESnippet structural hook — сайтлинки, промо-текст, EThumb fallback, clipsContent.
  */
 export function handleESnippetStructural(context: HandlerContext): void {
-  var container = context.container;
-  var row = context.row;
+  const container = context.container;
+  const row = context.row;
   if (!container || !row) return;
 
-  var containerName = (container && 'name' in container) ? String(container.name) : '';
+  const containerName = (container && 'name' in container) ? String(container.name) : '';
   if (containerName !== 'ESnippet' && containerName !== 'Snippet') return;
   if (container.type !== 'INSTANCE' || container.removed) return;
 
-  var instance = container as InstanceNode;
+  const instance = container as InstanceNode;
 
   // 1. EThumb visibility fallback
   applyThumbFallback(instance, row);
@@ -60,9 +60,9 @@ export function handleESnippetStructural(context: HandlerContext): void {
 function applyThumbFallback(instance: InstanceNode, row: CSVRow): void {
   if (row['#withThumb'] === 'true') return;
 
-  var names = ['EThumb', 'Organic-OfferThumb', 'Thumb'];
-  for (var i = 0; i < names.length; i++) {
-    var layer = findFirstNodeByName(instance, names[i]);
+  const names = ['EThumb', 'Organic-OfferThumb', 'Thumb'];
+  for (let i = 0; i < names.length; i++) {
+    const layer = findFirstNodeByName(instance, names[i]);
     if (layer && 'visible' in layer) {
       try {
         (layer as SceneNode & { visible: boolean }).visible = false;
@@ -77,7 +77,7 @@ function applyThumbFallback(instance: InstanceNode, row: CSVRow): void {
  * Сайтлинки: visibility + text filling
  */
 function applySitelinks(instance: InstanceNode, row: CSVRow): void {
-  var sitelinksContainer =
+  const sitelinksContainer =
     findFirstNodeByName(instance, 'Sitelinks') ||
     findFirstNodeByName(instance, 'Block / Snippet-staff / Sitelinks');
 
@@ -92,10 +92,10 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
     }
     // Broader search: hide any descendant frame/instance with 'Sitelink' or 'sitelink' in name
     if ('findAll' in instance) {
-      var sitelinkNodes = instance.findAll(function(n) {
+      const sitelinkNodes = instance.findAll(function(n) {
         return n.name.indexOf('itelink') !== -1 && n.type !== 'TEXT';
       });
-      for (var si = 0; si < sitelinkNodes.length; si++) {
+      for (let si = 0; si < sitelinkNodes.length; si++) {
         if ('visible' in sitelinkNodes[si]) {
           try { (sitelinkNodes[si] as SceneNode).visible = false; } catch (_e) { Logger.debug('[ESnippet-hook] Sitelink node visibility toggle failed'); }
         }
@@ -106,16 +106,16 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
 
   if (!sitelinksContainer) return;
 
-  var texts: string[] = [];
-  for (var i = 1; i <= 4; i++) {
-    var text = ((row as any)['#Sitelink_' + i] || '').trim();
+  const texts: string[] = [];
+  for (let i = 1; i <= 4; i++) {
+    const text = ((row as Record<string, string | undefined>)['#Sitelink_' + i] || '').trim();
     if (text) texts.push(text);
   }
   if (texts.length === 0) return;
 
   // Named layers #Sitelink_N (after Figma rename, this is the only strategy needed)
-  for (var j = 0; j < texts.length; j++) {
-    var layer =
+  for (let j = 0; j < texts.length; j++) {
+    const layer =
       findTextLayerByName(sitelinksContainer, '#Sitelink_' + (j + 1)) ||
       findTextLayerByName(sitelinksContainer, 'Sitelink_' + (j + 1));
     if (layer) {
@@ -130,22 +130,41 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
  * Only targets known problematic properties — schema engine handles the rest.
  */
 function forceResetBooleans(instance: InstanceNode, row: CSVRow): void {
-  // Only force-set withPromo — known to silently fail via trySetProperty
-  var hasPromo = !!((row['#Promo'] || '') as string).trim();
+  const hasPromo = !!((row['#Promo'] || '') as string).trim();
   if (hasPromo) return;
 
-  var props = instance.componentProperties;
-  for (var key in props) {
+  // Try setProperties with full key first
+  const props = instance.componentProperties;
+  let applied = false;
+  for (const key in props) {
     if (key.split('#')[0] === 'withPromo' && props[key].type === 'BOOLEAN' && props[key].value !== false) {
       try {
-        var obj: Record<string, boolean> = {};
+        const obj: Record<string, boolean> = {};
         obj[key] = false;
         instance.setProperties(obj);
+        applied = true;
         Logger.debug('   [ESnippet-hook] withPromo force-set to false via ' + key);
       } catch (_e) {
         Logger.debug('   [ESnippet-hook] withPromo force-set FAILED for ' + key);
       }
       break;
+    }
+  }
+
+  // Verify: re-read property. If still true, hide Promo frame directly.
+  // This is a Figma API workaround — setProperties silently fails on some variant combinations.
+  if (!applied) {
+    for (const vkey in props) {
+      if (vkey.split('#')[0] === 'withPromo' && props[vkey].type === 'BOOLEAN' && props[vkey].value !== false) {
+        const promoFrame = findFirstNodeByName(instance, 'Promo');
+        if (promoFrame && 'visible' in promoFrame) {
+          try {
+            (promoFrame as SceneNode).visible = false;
+            Logger.debug('   [ESnippet-hook] Promo frame hidden (setProperties workaround)');
+          } catch (_e2) { Logger.debug('   [ESnippet-hook] Promo frame hide FAILED'); }
+        }
+        break;
+      }
     }
   }
 }
@@ -154,11 +173,11 @@ function forceResetBooleans(instance: InstanceNode, row: CSVRow): void {
  * Промо-секция: visibility + text
  */
 function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
-  var promoText = (row['#Promo'] || '').trim();
-  var isPromo = row['#isPromo'] === 'true';
+  const promoText = (row['#Promo'] || '').trim();
+  const isPromo = row['#isPromo'] === 'true';
 
   // Find promo container for visibility control
-  var promoContainer =
+  const promoContainer =
     findFirstNodeByName(instance, 'Promo') ||
     findFirstNodeByName(instance, 'PromoOffer') ||
     findFirstNodeByName(instance, 'InfoSection');
@@ -173,10 +192,10 @@ function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
     }
     // Broader search: hide any descendant with 'Promo' or 'promo' in name
     if ('findAll' in instance) {
-      var promoNodes = instance.findAll(function(n) {
+      const promoNodes = instance.findAll(function(n) {
         return (n.name.indexOf('romo') !== -1 || n.name.indexOf('InfoSection') !== -1) && n.type !== 'TEXT';
       });
-      for (var pi = 0; pi < promoNodes.length; pi++) {
+      for (let pi = 0; pi < promoNodes.length; pi++) {
         if ('visible' in promoNodes[pi]) {
           try { (promoNodes[pi] as SceneNode).visible = false; } catch (_e) { Logger.debug('[ESnippet-hook] Promo node visibility toggle failed'); }
         }
@@ -187,7 +206,7 @@ function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
 
   // Set promo text if available (after Figma rename: #PromoText is the direct layer name)
   if (promoText) {
-    var layer = findTextLayerByName(instance, '#PromoText');
+    const layer = findTextLayerByName(instance, '#PromoText');
     if (layer) {
       safeSetTextNode(layer, promoText);
       Logger.debug('   [ESnippet-hook] Promo text set');
@@ -199,11 +218,11 @@ function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
  * Address link: set #addressLink text on the address layer
  */
 function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
-  var addressLink = (row['#addressLink'] || '').trim();
+  const addressLink = (row['#addressLink'] || '').trim();
   if (!addressLink) return;
 
   // Direct text layer lookup (after Figma rename)
-  var layer = findTextLayerByName(instance, '#addressLink');
+  const layer = findTextLayerByName(instance, '#addressLink');
   if (layer) {
     safeSetTextNode(layer, addressLink);
     Logger.debug('   [ESnippet-hook] addressLink set: "' + addressLink + '"');
@@ -211,13 +230,13 @@ function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
   }
 
   // Fallback: Line instance inside Address container → set value property
-  var addressContainer = findFirstNodeByName(instance, 'Address');
+  const addressContainer = findFirstNodeByName(instance, 'Address');
   if (addressContainer && 'findAll' in addressContainer) {
-    var lineInstances = (addressContainer as FrameNode).findAll(function(n) {
+    const lineInstances = (addressContainer as FrameNode).findAll(function(n) {
       return n.type === 'INSTANCE' && n.name === 'Line';
     }) as InstanceNode[];
 
-    for (var li = 0; li < lineInstances.length; li++) {
+    for (let li = 0; li < lineInstances.length; li++) {
       try {
         lineInstances[li].setProperties({ value: addressLink });
         Logger.debug('   [ESnippet-hook] addressLink set via Line.value: "' + addressLink + '"');
@@ -231,7 +250,7 @@ function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
  * Ограничение заголовка 3 строками с обрезкой
  */
 function applyTitleMaxLines(instance: InstanceNode): void {
-  var titleNode = findTextLayerByName(instance, '#OrganicTitle');
+  const titleNode = findTextLayerByName(instance, '#OrganicTitle');
   if (!titleNode) return;
   try {
     titleNode.textTruncation = 'ENDING';
@@ -245,7 +264,7 @@ function applyTitleMaxLines(instance: InstanceNode): void {
  * Отключаем clipsContent для content__left
  */
 function applyClipsContentFix(instance: InstanceNode): void {
-  var contentLeft = instance.findOne(function(n) { return n.name === 'content__left'; });
+  const contentLeft = instance.findOne(function(n) { return n.name === 'content__left'; });
   if (contentLeft && contentLeft.type === 'FRAME' && !contentLeft.removed) {
     try {
       (contentLeft as FrameNode).clipsContent = false;

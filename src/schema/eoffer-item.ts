@@ -19,7 +19,7 @@ import {
   computeWithQuotes
 } from './transforms';
 
-export var EOFFER_ITEM_SCHEMA: ComponentSchema = {
+export const EOFFER_ITEM_SCHEMA: ComponentSchema = {
   containerNames: ['EOfferItem'],
 
   containerProperties: [

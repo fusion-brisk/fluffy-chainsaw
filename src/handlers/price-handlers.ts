@@ -146,7 +146,7 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   
   // Настройка Fintech type/view
   if (hasFintech) {
-    await configureFintechType(ePriceGroupInstance, row, instanceCache);
+    await configureFintechType(ePriceGroupInstance, row as Record<string, string | undefined>, instanceCache);
   }
 }
 

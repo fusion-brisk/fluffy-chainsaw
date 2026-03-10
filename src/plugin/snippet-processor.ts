@@ -8,7 +8,7 @@ import type { HandlerContext } from '../handlers/types';
 import { resetHandlerStats, logHandlerStats } from '../handlers/registry';
 import { ImageProcessor } from '../image-handlers';
 import { loadFonts, processTextLayers } from '../text-handlers';
-import { LayerDataItem, DetailedError } from '../types';
+import { DetailedError } from '../types';
 import { findSnippetContainers, sortContainersByPosition } from '../utils/container-search';
 // Container cache отключен — слишком высокое потребление памяти
 // import { buildContainerStructureCache, clearContainerStructureCache } from '../utils/container-cache';
@@ -209,7 +209,7 @@ export async function processImportCSV(
   const filteredLayers = layerData.filter(item => !item.layer.removed && !item.layer.locked && item.layer.visible);
   
   // === Обработка компонентной логики ===
-  const containersToProcess = prepareContainersForProcessing(snippetGroups, containerRowAssignments);
+  const containersToProcess = await prepareContainersForProcessing(snippetGroups, containerRowAssignments);
   Logger.info(`🔄 Обработка компонентной логики для ${containersToProcess.size} контейнеров...`);
   
   let processingIndex = 0;

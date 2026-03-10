@@ -13,10 +13,10 @@ import type { ProductCardPayload } from '../types/wizard-types';
 import type { CSVRow } from '../types/csv-fields';
 
 // EOfferItem component key (desktop, View=Btn Right)
-var EOFFER_ITEM_KEY = 'ad30904f3637a4c14779a366e56b8d6173bbd78b';
+const EOFFER_ITEM_KEY = 'ad30904f3637a4c14779a366e56b8d6173bbd78b';
 
 // Sidebar width matching production (approx 420px)
-var SIDEBAR_WIDTH = 420;
+const SIDEBAR_WIDTH = 420;
 
 /**
  * Рендерит ProductCard сайдбар — основной фрейм с предложениями.
@@ -33,7 +33,7 @@ export async function renderProductCard(
   Logger.info('[ProductCard] Rendering sidebar: "' + data.title.substring(0, 40) + '"');
 
   // Main sidebar frame
-  var sidebarFrame = figma.createFrame();
+  const sidebarFrame = figma.createFrame();
   sidebarFrame.name = 'EProductCard — ' + data.title.substring(0, 30);
   sidebarFrame.layoutMode = 'VERTICAL';
   sidebarFrame.primaryAxisSizingMode = 'AUTO';
@@ -61,7 +61,7 @@ export async function renderProductCard(
   }
 
   // === Title ===
-  var titleNode = figma.createText();
+  const titleNode = figma.createText();
   titleNode.characters = data.title;
   titleNode.fontSize = 18;
   try { titleNode.fontName = { family: 'Inter', style: 'Bold' }; } catch (_e) { /* ignore */ }
@@ -71,7 +71,7 @@ export async function renderProductCard(
 
   // === Rating ===
   if (data.rating) {
-    var ratingNode = figma.createText();
+    const ratingNode = figma.createText();
     ratingNode.characters = '\u2605 ' + data.rating;
     ratingNode.fontSize = 14;
     ratingNode.fills = [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.4 } }];
@@ -81,7 +81,7 @@ export async function renderProductCard(
 
   // === Gallery (horizontal scroll of images) ===
   if (data.images && data.images.length > 0) {
-    var galleryFrame = figma.createFrame();
+    const galleryFrame = figma.createFrame();
     galleryFrame.name = 'Gallery';
     galleryFrame.layoutMode = 'HORIZONTAL';
     galleryFrame.primaryAxisSizingMode = 'AUTO';
@@ -91,14 +91,14 @@ export async function renderProductCard(
     galleryFrame.fills = [];
     galleryFrame.clipsContent = true;
 
-    var maxImages = Math.min(data.images.length, 6);
-    for (var gi = 0; gi < maxImages; gi++) {
+    const maxImages = Math.min(data.images.length, 6);
+    for (let gi = 0; gi < maxImages; gi++) {
       try {
-        var imgRect = figma.createRectangle();
+        const imgRect = figma.createRectangle();
         imgRect.name = 'Image ' + (gi + 1);
         imgRect.resize(80, 80);
         imgRect.cornerRadius = 8;
-        var response = await figma.createImageAsync(data.images[gi]);
+        const response = await figma.createImageAsync(data.images[gi]);
         imgRect.fills = [{ type: 'IMAGE', imageHash: response.hash, scaleMode: 'FILL' }];
         galleryFrame.appendChild(imgRect);
       } catch (_e) {
@@ -115,11 +115,11 @@ export async function renderProductCard(
 
   // === Default Offer ===
   if (data.defaultOffer) {
-    var defLabel = createSectionLabel('Лучшее предложение');
+    const defLabel = createSectionLabel('Лучшее предложение');
     sidebarFrame.appendChild(defLabel);
     defLabel.layoutSizingHorizontal = 'FILL';
 
-    var defInstance = await createAndFillOffer(data.defaultOffer as CSVRow, platform);
+    const defInstance = await createAndFillOffer(data.defaultOffer as CSVRow, platform);
     if (defInstance) {
       sidebarFrame.appendChild(defInstance);
       defInstance.layoutSizingHorizontal = 'FILL';
@@ -129,12 +129,12 @@ export async function renderProductCard(
   // === Other Offers ===
   if (data.offers && data.offers.length > 0) {
     appendSpacer(sidebarFrame, 8);
-    var offersLabel = createSectionLabel('Цены в магазинах (' + data.offers.length + ')');
+    const offersLabel = createSectionLabel('Цены в магазинах (' + data.offers.length + ')');
     sidebarFrame.appendChild(offersLabel);
     offersLabel.layoutSizingHorizontal = 'FILL';
 
-    for (var oi = 0; oi < data.offers.length; oi++) {
-      var offerInstance = await createAndFillOffer(data.offers[oi] as CSVRow, platform);
+    for (let oi = 0; oi < data.offers.length; oi++) {
+      const offerInstance = await createAndFillOffer(data.offers[oi] as CSVRow, platform);
       if (offerInstance) {
         sidebarFrame.appendChild(offerInstance);
         offerInstance.layoutSizingHorizontal = 'FILL';
@@ -145,12 +145,12 @@ export async function renderProductCard(
   // === Specs ===
   if (data.specs && data.specs.length > 0) {
     appendSpacer(sidebarFrame, 16);
-    var specsLabel = createSectionLabel('Характеристики');
+    const specsLabel = createSectionLabel('Характеристики');
     sidebarFrame.appendChild(specsLabel);
     specsLabel.layoutSizingHorizontal = 'FILL';
 
-    for (var si = 0; si < data.specs.length; si++) {
-      var specText = figma.createText();
+    for (let si = 0; si < data.specs.length; si++) {
+      const specText = figma.createText();
       specText.characters = data.specs[si].name + ': ' + data.specs[si].value;
       specText.fontSize = 12;
       specText.fills = [{ type: 'SOLID', color: { r: 0.3, g: 0.3, b: 0.3 } }];
@@ -162,16 +162,16 @@ export async function renderProductCard(
   // === Reviews summary ===
   if (data.reviewCount) {
     appendSpacer(sidebarFrame, 16);
-    var reviewLabel = createSectionLabel('Отзывы: ' + data.reviewCount);
+    const reviewLabel = createSectionLabel('Отзывы: ' + data.reviewCount);
     sidebarFrame.appendChild(reviewLabel);
     reviewLabel.layoutSizingHorizontal = 'FILL';
 
     if (data.aspects) {
-      var prosText = data.aspects.pros.map(function(a) { return '+ ' + a.text + ' (' + a.count + ')'; }).join('\n');
-      var consText = data.aspects.cons.map(function(a) { return '− ' + a.text + ' (' + a.count + ')'; }).join('\n');
-      var aspectsStr = (prosText + '\n' + consText).trim();
+      const prosText = data.aspects.pros.map(function(a) { return '+ ' + a.text + ' (' + a.count + ')'; }).join('\n');
+      const consText = data.aspects.cons.map(function(a) { return '− ' + a.text + ' (' + a.count + ')'; }).join('\n');
+      const aspectsStr = (prosText + '\n' + consText).trim();
       if (aspectsStr) {
-        var aspectsNode = figma.createText();
+        const aspectsNode = figma.createText();
         aspectsNode.characters = aspectsStr;
         aspectsNode.fontSize = 11;
         aspectsNode.fills = [{ type: 'SOLID', color: { r: 0.4, g: 0.4, b: 0.4 } }];
@@ -197,8 +197,8 @@ async function createAndFillOffer(
   platform: 'desktop' | 'touch'
 ): Promise<InstanceNode | null> {
   try {
-    var component = await figma.importComponentByKeyAsync(EOFFER_ITEM_KEY);
-    var instance = component.createInstance();
+    const component = await figma.importComponentByKeyAsync(EOFFER_ITEM_KEY);
+    const instance = component.createInstance();
     instance.name = 'EOfferItem';
 
     // Apply default variant
@@ -214,8 +214,8 @@ async function createAndFillOffer(
     }
 
     // Fill via existing handler pipeline
-    var instanceCache = buildInstanceCache(instance);
-    var context: HandlerContext = {
+    const instanceCache = buildInstanceCache(instance);
+    const context: HandlerContext = {
       container: instance,
       containerKey: instance.id,
       row: row,
@@ -232,7 +232,7 @@ async function createAndFillOffer(
 }
 
 function createSectionLabel(text: string): TextNode {
-  var node = figma.createText();
+  const node = figma.createText();
   node.characters = text;
   node.fontSize = 14;
   try { node.fontName = { family: 'Inter', style: 'Bold' }; } catch (_e) { /* ignore */ }
@@ -241,7 +241,7 @@ function createSectionLabel(text: string): TextNode {
 }
 
 function appendSpacer(parent: FrameNode, height: number): void {
-  var spacer = figma.createFrame();
+  const spacer = figma.createFrame();
   spacer.name = 'Spacer';
   spacer.resize(1, height);
   spacer.fills = [];

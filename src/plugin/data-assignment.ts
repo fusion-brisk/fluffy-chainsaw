@@ -5,7 +5,7 @@
  */
 
 import { Logger } from '../logger';
-import { SNIPPET_CONTAINER_NAMES, TEXT_FIELD_NAMES } from '../config';
+import { TEXT_FIELD_NAMES } from '../config';
 // Container cache отключен для экономии памяти
 // import { getContainerStructure } from '../utils/container-cache';
 import { LayerDataItem, IMAGE_FIELDS } from '../types';
@@ -110,36 +110,6 @@ function isDataLayer(node: SceneNode): boolean {
   return false;
 }
 
-/** 
- * Быстрая фильтрация data-слоёв в JS (после findAll)
- * Использует Set для O(1) lookup по точному имени
- */
-const EXACT_DATA_NAMES = new Set([
-  '#OrganicTitle', '#OrganicText', '#OrganicHost', '#OrganicPath', '#OrganicImage',
-  '#OrganicPrice', '#OldPrice', '#ShopName', '#FaviconImage', '#ThumbImage',
-  '#discount', '#ProductRating', '#ReviewCount', '#ProductURL', '#query',
-  '#LabelDiscount_View', '#DiscountPrefix', '#DiscountPercent', '#Fintech_Type',
-  '#EPriceGroup_Fintech', '#EPriceGroup_Discount', '#EPriceGroup_OldPrice'
-]);
-
-function isDataLayerFast(name: string): boolean {
-  // Быстрая проверка точного имени (O(1))
-  if (EXACT_DATA_NAMES.has(name)) return true;
-  
-  // Проверка # в начале
-  if (name.charCodeAt(0) === 35) return true;
-  
-  // Быстрый выход для не A-Z
-  const firstChar = name.charCodeAt(0);
-  if (firstChar < 65 || firstChar > 90) return false;
-  
-  // Проверяем паттерны
-  for (let i = 0; i < DATA_FIELD_PATTERNS.length; i++) {
-    if (name.indexOf(DATA_FIELD_PATTERNS[i]) !== -1) return true;
-  }
-  return false;
-}
-
 /**
  * Найти ID контейнера-предка для слоя с кэшированием
  * Кэширует промежуточные узлы для ускорения поиска siblings
@@ -206,8 +176,6 @@ export function groupContainersWithDataLayers(
   searchRoot?: BaseNode
 ): Map<string, SceneNode[]> {
   const snippetGroups = new Map<string, SceneNode[]>();
-  const totalContainers = allContainers.length;
-  
   const overallStart = Date.now();
   
   // ОПТИМИЗАЦИЯ: Один проход для создания Set + кэширования имён
@@ -575,9 +543,10 @@ export function createLayerData(
     // Создаём карту нормализованных ключей
     const rowKeyMap: { [key: string]: string } = {};
     try {
-      for (const key in row) {
-        if (Object.prototype.hasOwnProperty.call(row, key)) {
-          const value = row[key];
+      const rowRecord = row as Record<string, string | undefined>;
+      for (const key in rowRecord) {
+        if (Object.prototype.hasOwnProperty.call(rowRecord, key)) {
+          const value = rowRecord[key];
           if (value !== undefined) {
             rowKeyMap[normalizeFieldName(key)] = value;
           }
@@ -597,7 +566,7 @@ export function createLayerData(
       processedFieldNames.add(fieldName);
       
       const normName = normalizeFieldName(fieldName);
-      const direct = row[fieldName];
+      const direct = (row as Record<string, string | undefined>)[fieldName];
       const fallback = rowKeyMap[normName];
       const fieldValue = (direct !== undefined && direct !== null ? direct : fallback);
       
@@ -637,19 +606,19 @@ export function createLayerData(
 /**
  * Подготовка контейнеров для компонентной логики
  */
-export function prepareContainersForProcessing(
+export async function prepareContainersForProcessing(
   snippetGroups: Map<string, SceneNode[]>,
   containerRowAssignments: Map<string, ContainerRowAssignment>
-): Map<string, { row: CSVRow | null; container: BaseNode | null }> {
+): Promise<Map<string, { row: CSVRow | null; container: BaseNode | null }>> {
   const containersToProcess = new Map<string, { row: CSVRow | null; container: BaseNode | null }>();
-  
+
   for (const [containerKey, layers] of snippetGroups) {
-    const container = findContainerForLayers(layers, containerKey);
+    const container = await findContainerForLayers(layers, containerKey);
     if (!container) continue;
-    
+
     const assignment = containerRowAssignments.get(containerKey);
     let assignedRow = assignment ? assignment.row : null;
-    
+
     // Stub-строка для EShopItem/EOfferItem без назначенной строки
     const containerName = getContainerName(container);
     const baseContainerName = getBaseContainerName(containerName);
@@ -661,9 +630,9 @@ export function prepareContainersForProcessing(
         '#ButtonType': 'shop'
       };
     }
-    
+
     containersToProcess.set(containerKey, { row: assignedRow, container });
   }
-  
+
   return containersToProcess;
 }

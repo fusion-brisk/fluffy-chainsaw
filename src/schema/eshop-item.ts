@@ -18,7 +18,7 @@ import {
   computeWithData
 } from './transforms';
 
-export var ESHOP_ITEM_SCHEMA: ComponentSchema = {
+export const ESHOP_ITEM_SCHEMA: ComponentSchema = {
   containerNames: ['EShopItem'],
 
   containerProperties: [

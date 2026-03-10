@@ -12,12 +12,12 @@ import type { CSVRow } from '../types/csv-fields';
  * @returns true если Desktop (или не задано), false если Touch
  */
 export function isDesktopPlatform(instance: InstanceNode): boolean {
-  var props = instance.componentProperties;
-  for (var key in props) {
+  const props = instance.componentProperties;
+  for (const key in props) {
     if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
-    var keyLower = key.toLowerCase();
+    const keyLower = key.toLowerCase();
     if (keyLower === 'platform' || keyLower.indexOf('platform#') === 0) {
-      var prop = props[key];
+      const prop = props[key];
       if (prop && typeof prop === 'object' && 'value' in prop) {
         return String((prop as { value: unknown }).value).toLowerCase() === 'desktop';
       }
@@ -31,8 +31,8 @@ export function isDesktopPlatform(instance: InstanceNode): boolean {
  * Используется в EShopItem и ESnippet.
  */
 export function computeWithButton(row: CSVRow, container: InstanceNode): boolean {
-  var isCheckout = row['#isCheckout'] === 'true' || row['#MarketCheckoutButton'] === 'true';
-  var isDesktop = isDesktopPlatform(container);
+  const isCheckout = row['#isCheckout'] === 'true' || row['#MarketCheckoutButton'] === 'true';
+  const isDesktop = isDesktopPlatform(container);
   return isDesktop || isCheckout;
 }
 
@@ -47,8 +47,8 @@ export function computeWithReviews(row: CSVRow): boolean {
  * withDelivery: есть данные доставки.
  */
 export function computeWithDelivery(row: CSVRow): boolean {
-  var hasDeliveryList = !!((row['#DeliveryList'] || '') as string).trim();
-  var hasDeliveryGroup = row['#EDeliveryGroup'] === 'true';
+  const hasDeliveryList = !!((row['#DeliveryList'] || '') as string).trim();
+  const hasDeliveryGroup = row['#EDeliveryGroup'] === 'true';
   return hasDeliveryList || hasDeliveryGroup;
 }
 
@@ -56,7 +56,7 @@ export function computeWithDelivery(row: CSVRow): boolean {
  * withMeta: есть доставка ИЛИ BNPL.
  */
 export function computeWithMeta(row: CSVRow): boolean {
-  var hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
+  const hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
   return computeWithDelivery(row) || hasBnpl;
 }
 
@@ -64,7 +64,7 @@ export function computeWithMeta(row: CSVRow): boolean {
  * withData: есть отзывы ИЛИ доставка ИЛИ BNPL.
  */
 export function computeWithData(row: CSVRow): boolean {
-  var hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
+  const hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
   return computeWithReviews(row) || computeWithDelivery(row) || hasBnpl;
 }
 
@@ -98,7 +98,7 @@ export function computeOfferWithFintech(row: CSVRow): boolean {
  * EOfferItem withMeta: delivery ИЛИ BNPL (использует Offer-специфичный delivery).
  */
 export function computeOfferWithMeta(row: CSVRow): boolean {
-  var hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
+  const hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
   return computeOfferWithDelivery(row) || hasBnpl;
 }
 
@@ -106,7 +106,7 @@ export function computeOfferWithMeta(row: CSVRow): boolean {
  * EOfferItem withData: reviews ИЛИ delivery ИЛИ BNPL.
  */
 export function computeOfferWithData(row: CSVRow): boolean {
-  var hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
+  const hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
   return computeOfferWithReviews(row) || computeOfferWithDelivery(row) || hasBnpl;
 }
 
@@ -172,23 +172,23 @@ export function computeWithContacts(row: CSVRow): boolean {
 /** ESnippet withButton: (BUTTON AND Desktop) OR checkout; false for Organic. */
 export function computeSnippetWithButton(row: CSVRow, container: InstanceNode): boolean {
   if (isPlainOrganic(row)) return false;
-  var hasButtonData = row['#BUTTON'] === 'true';
-  var isDesktop = isDesktopPlatform(container);
-  var isCheckout = row['#isCheckout'] === 'true' || row['#MarketCheckoutButton'] === 'true';
+  const hasButtonData = row['#BUTTON'] === 'true';
+  const isDesktop = isDesktopPlatform(container);
+  const isCheckout = row['#isCheckout'] === 'true' || row['#MarketCheckoutButton'] === 'true';
   return (hasButtonData && isDesktop) || isCheckout;
 }
 
 /** ESnippet withMeta: delivery ИЛИ BNPL. */
 export function computeSnippetWithMeta(row: CSVRow): boolean {
   if (isPlainOrganic(row)) return false;
-  var hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
+  const hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
   return computeSnippetWithDelivery(row) || hasBnpl;
 }
 
 /** ESnippet withData: reviews ИЛИ delivery ИЛИ BNPL. */
 export function computeSnippetWithData(row: CSVRow): boolean {
   if (isPlainOrganic(row)) return false;
-  var hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
+  const hasBnpl = row['#ShopInfo-Bnpl'] === 'true';
   return computeWithReviews(row) || computeSnippetWithDelivery(row) || hasBnpl;
 }
 
@@ -201,12 +201,12 @@ export function computeSnippetWithPrice(row: CSVRow): boolean {
 /** ESnippet withEcomMeta: есть рейтинг/цена/барометр/лейблы. */
 export function computeSnippetWithEcomMeta(row: CSVRow): boolean {
   if (isPlainOrganic(row)) return false;
-  var fields = [
+  const fields = [
     row['#ProductRating'], row['#ReviewCount'], row['#OrganicPrice'],
     row['#OldPrice'], row['#EPriceBarometer_View'], row['#ELabelGroup']
   ];
-  for (var i = 0; i < fields.length; i++) {
-    var v = fields[i];
+  for (let i = 0; i < fields.length; i++) {
+    const v = fields[i];
     if (v !== undefined && v !== null && v !== '' && v !== 'false') return true;
   }
   return false;

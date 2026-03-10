@@ -10,7 +10,7 @@
 import type { ComponentSchema } from './types';
 import { computeProductWithButton, computeWithReviews } from './transforms';
 
-export var EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
+export const EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
   containerNames: ['EProductSnippet', 'EProductSnippet2'],
 
   containerProperties: [
