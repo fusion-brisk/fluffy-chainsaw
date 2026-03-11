@@ -1337,8 +1337,7 @@ async function createAsideFiltersPanel(
             variantNames.push(compSet.children[di].name);
           }
         }
-        Logger.info('[EAsideFilters] ComponentSet "' + compSet.name + '" has ' + variantNames.length + ' variants: ' + variantNames.join(' | '));
-        figma.notify('[EAsideFilters] ' + entry.name + ': set "' + compSet.name + '" (' + variantNames.length + ' variants)', { timeout: 5000 });
+        Logger.verbose('[EAsideFilters] ComponentSet "' + compSet.name + '": ' + variantNames.length + ' variants');
 
         var variant: ComponentNode | null = null;
         for (var vi = 0; vi < compSet.children.length; vi++) {
@@ -1364,13 +1363,11 @@ async function createAsideFiltersPanel(
         } else if (compSet.children.length > 0 && compSet.children[0].type === 'COMPONENT') {
           importedComponent = compSet.children[0] as ComponentNode;
           Logger.warn('[EAsideFilters] Variant не найден для ' + entry.name + ', используем default: ' + compSet.children[0].name);
-          figma.notify('[EAsideFilters] ' + entry.name + ': variant NOT matched, using default "' + compSet.children[0].name + '"', { timeout: 5000 });
         }
       }
     } catch (_e1) {
       var errMsg1 = _e1 instanceof Error ? _e1.message : String(_e1);
       Logger.warn('[EAsideFilters] importComponentSetByKeyAsync failed for ' + entry.name + ': ' + errMsg1);
-      figma.notify('[EAsideFilters] ' + entry.name + ' SET import failed: ' + errMsg1, { timeout: 8000, error: true });
     }
 
     // Strategy 2: key might be a component key directly (not a set)
@@ -1379,12 +1376,10 @@ async function createAsideFiltersPanel(
         importedComponent = await figma.importComponentByKeyAsync(entry.config.setKey);
         if (importedComponent) {
           Logger.debug('[EAsideFilters] Импортирован ' + entry.name + ' напрямую (key=' + entry.config.setKey + ')');
-          figma.notify('[EAsideFilters] ' + entry.name + ': imported as single component "' + importedComponent.name + '"', { timeout: 5000 });
         }
       } catch (_e2) {
         var errMsg2 = _e2 instanceof Error ? _e2.message : String(_e2);
         Logger.error('[EAsideFilters] Не удалось импортировать ' + entry.name + ' (key=' + entry.config.setKey + '): ' + errMsg2);
-        figma.notify('[EAsideFilters] ' + entry.name + ' BOTH imports failed: ' + errMsg2, { timeout: 8000, error: true });
       }
     }
 
@@ -2386,12 +2381,14 @@ export async function createSerpPage(
     mainContent.paddingBottom = 8;
     mainContent.paddingLeft = 0;
   } else {
-    // Desktop: без padding (кроме left), gap из параметров
+    // Desktop: с боковыми фильтрами — left padding 64, без — стандартный
+    const hasAside = structure.contentAside.length > 0;
+    const effectiveLeftPadding = hasAside ? 64 : leftPadding;
     mainContent.itemSpacing = contentGap;
     mainContent.paddingTop = 0;
     mainContent.paddingRight = 0;
     mainContent.paddingBottom = 0;
-    mainContent.paddingLeft = leftPadding;
+    mainContent.paddingLeft = effectiveLeftPadding;
   }
   
   mainCenter.appendChild(mainContent);
@@ -2413,12 +2410,12 @@ export async function createSerpPage(
       contentAsideFrame.layoutMode = 'VERTICAL';
       contentAsideFrame.primaryAxisSizingMode = 'AUTO';
       contentAsideFrame.counterAxisSizingMode = 'FIXED';
-      contentAsideFrame.resize(230, 100);
+      contentAsideFrame.resize(200, 100);
       contentAsideFrame.itemSpacing = 0;
       contentAsideFrame.paddingTop = 0;
       contentAsideFrame.paddingRight = 0;
       contentAsideFrame.paddingBottom = 0;
-      contentAsideFrame.paddingLeft = 0;
+      contentAsideFrame.paddingLeft = 16;
       contentAsideFrame.fills = [];
       mainContent.appendChild(contentAsideFrame);
 
@@ -2484,6 +2481,20 @@ export async function createSerpPage(
         headerWrapper.appendChild(result.element);
         if (result.element.type === 'FRAME' || result.element.type === 'INSTANCE') {
           (result.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
+        }
+      } else if (!isTouch && node.type === 'EQuickFilters') {
+        // Desktop: EQuickFilters goes into main__center above main__content
+        const mcIndex = mainCenter.children.indexOf(mainContent);
+        if (mcIndex >= 0) {
+          mainCenter.insertChild(mcIndex, result.element);
+        } else {
+          mainCenter.insertChild(0, result.element);
+        }
+        if (result.element.type === 'FRAME' || result.element.type === 'INSTANCE') {
+          (result.element as FrameNode | InstanceNode).layoutSizingHorizontal = 'FILL';
+        }
+        if (structure.contentAside.length > 0 && result.element.type === 'FRAME') {
+          (result.element as FrameNode).paddingLeft = 80;
         }
       } else {
         // Остальные элементы — в snippetsContainer

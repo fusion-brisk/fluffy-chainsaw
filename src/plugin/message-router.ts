@@ -24,7 +24,7 @@ export async function handleSimpleMessage(
   
   // === Test ===
   if (type === 'test') {
-    Logger.info('✅ Получено тестовое сообщение:', msg.message);
+    Logger.debug('✅ Получено тестовое сообщение:', msg.message);
     figma.ui.postMessage({ type: 'log', message: 'Плагин работает!' });
     return true;
   }
@@ -36,14 +36,14 @@ export async function handleSimpleMessage(
   
   // === Close ===
   if (type === 'close') {
-    Logger.info('🚪 Закрытие плагина');
+    Logger.debug('🚪 Закрытие плагина');
     figma.closePlugin();
     return true;
   }
   
   // === Pages list ===
   if (type === 'get-pages') {
-    Logger.info('📄 Запрос списка страниц от UI');
+    Logger.verbose('📄 Запрос списка страниц от UI');
     const pages = figma.root.children.map(page => page.name);
     figma.ui.postMessage({ type: 'pages', pages: pages });
     return true;
@@ -148,7 +148,7 @@ export async function handleSimpleMessage(
   
   // === Parsing rules handlers ===
   if (type === 'get-parsing-rules') {
-    Logger.info('📋 Запрос правил парсинга от UI');
+    Logger.verbose('📋 Запрос правил парсинга от UI');
     const metadata = rulesManager.getCurrentMetadata();
     if (metadata) {
       figma.ui.postMessage({
@@ -160,7 +160,7 @@ export async function handleSimpleMessage(
   }
   
   if (type === 'check-remote-rules-update') {
-    Logger.info('🔄 Ручная проверка обновлений правил');
+    Logger.verbose('🔄 Ручная проверка обновлений правил');
     checkRulesUpdates().catch(function(err) {
       Logger.error('Ошибка проверки обновлений:', err);
       figma.ui.postMessage({ type: 'error', message: 'Не удалось проверить обновления' });
@@ -169,7 +169,7 @@ export async function handleSimpleMessage(
   }
   
   if (type === 'apply-remote-rules') {
-    Logger.info('✅ Применение удалённых правил');
+    Logger.verbose('✅ Применение удалённых правил');
     const success = await rulesManager.applyRemoteRules(msg.hash as string);
     
     if (success) {
@@ -189,12 +189,12 @@ export async function handleSimpleMessage(
   
   if (type === 'dismiss-rules-update') {
     await rulesManager.dismissUpdate();
-    Logger.info('❌ Обновление правил отклонено');
+    Logger.verbose('❌ Обновление правил отклонено');
     return true;
   }
   
   if (type === 'reset-rules-cache') {
-    Logger.info('🔄 Сброс кэша правил');
+    Logger.verbose('🔄 Сброс кэша правил');
     const resetMetadata = await rulesManager.resetToDefaults();
     figma.notify('🔄 Правила сброшены к значениям по умолчанию');
     figma.ui.postMessage({
@@ -217,7 +217,7 @@ export async function handleSimpleMessage(
     const urlValue = msg.url as string;
     await rulesManager.setRemoteUrl(urlValue);
     figma.notify('✅ Remote config URL обновлён');
-    Logger.info('🔗 URL обновлён: ' + urlValue);
+    Logger.verbose('🔗 URL обновлён: ' + urlValue);
     
     if (urlValue && urlValue.trim()) {
       checkRulesUpdates().catch(function(err) {
@@ -281,7 +281,7 @@ export async function handleSimpleMessage(
   // === Reset snippets ===
   if (type === 'reset-snippets') {
     const scope = (msg.scope as string) || 'page';
-    Logger.info(`🔄 Сброс сниппетов (${scope})`);
+    Logger.verbose(`🔄 Сброс сниппетов (${scope})`);
     
     try {
       const onProgress = (current: number, total: number, message: string, operationType: string) => {

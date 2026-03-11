@@ -15,6 +15,7 @@ interface Props {
   query: string;
   itemCount: number;
   source?: string;
+  summary?: string;
   hasSelection: boolean;
   onConfirm: (mode: ImportMode) => void;
   onCancel: () => void;
@@ -24,6 +25,7 @@ interface Props {
 export const ImportConfirmDialog: React.FC<Props> = memo(({
   query,
   itemCount,
+  summary,
   hasSelection,
   onConfirm,
   onCancel,
@@ -61,9 +63,9 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
         <SearchIcon className="confirm-view-query-icon" />
       </div>
       
-      {/* Item count */}
+      {/* Item count / summary */}
       <div className="confirm-view-meta">
-        {itemCount} {formatItemWord(itemCount)}
+        {summary || `${itemCount} ${formatItemWord(itemCount)}`}
       </div>
       
       {/* Action buttons */}

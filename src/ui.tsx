@@ -29,6 +29,7 @@ import {
   applyFigmaTheme,
   sendMessageToPlugin,
 } from './utils/index';
+import { buildImportSummary } from './utils/format';
 
 // Hooks
 import { useRelayConnection } from './hooks/useRelayConnection';
@@ -248,13 +249,18 @@ const App: React.FC = () => {
       relayPayloadRef.current = data.payload as RelayPayload | null;
 
       const totalCount = data.rows.length + data.wizardCount;
+      const summary = buildImportSummary({
+        rows: data.rows,
+        wizardCount: data.wizardCount,
+        payload: data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null,
+      });
       showConfirmation({
         rows: data.rows,
         query: data.query,
         source: 'Яндекс',
         entryId: data.entryId,
       });
-      setImportInfo(prev => ({ ...prev, itemCount: totalCount }));
+      setImportInfo(prev => ({ ...prev, itemCount: totalCount, summary }));
     }, [extensionInstalled, markExtensionInstalled, showConfirmation]),
     onConnectionChange: useCallback((connected: boolean) => {
       setRelayConnected(connected);
@@ -658,6 +664,7 @@ const App: React.FC = () => {
           query={importInfo.query}
           itemCount={importInfo.itemCount}
           source={importInfo.source}
+          summary={importInfo.summary}
           hasSelection={hasSelection}
           onConfirm={handleConfirmImport}
           onCancel={handleCancelImport}

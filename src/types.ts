@@ -305,6 +305,8 @@ export interface ImportInfo {
   itemCount: number;
   source?: string;
   stage?: string;
+  /** Human-readable breakdown: "42 сниппета, фильтры (5), сайдбар (8 офферов)" */
+  summary?: string;
 }
 
 // ============================================================================

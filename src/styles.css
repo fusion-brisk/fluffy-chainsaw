@@ -2286,9 +2286,24 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
-.processing-view--figma .processing-view-meta {
+.processing-view--figma .processing-view-marquee {
+  overflow: hidden;
+  width: 100%;
+  mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 10%, #000 90%, transparent);
+}
+
+.processing-view--figma .processing-view-marquee-text {
+  display: inline-block;
+  white-space: nowrap;
   font-size: 11px;
-  color: var(--figma-color-text-secondary);
+  color: var(--figma-color-text-tertiary);
+  animation: marquee-scroll 12s linear infinite;
+}
+
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
 
 /* ============================================
