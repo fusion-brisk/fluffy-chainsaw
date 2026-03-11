@@ -409,6 +409,7 @@ async function captureFullPage(tabId, platform) {
       style.textContent = [
         '#ulitochka-container { display: none !important; }',
         '.YndxBug { display: none !important; }',
+        '.ProductsModePanel { display: none !important; }',
       ].join('\n');
       document.head.appendChild(style);
     }
@@ -540,6 +541,7 @@ async function handleIconClick(tab) {
     
     const rows = parseResult.rows;
     const wizards = parseResult.wizards || [];
+    const productCard = parseResult.productCard || null;
     
     // Capture full-page screenshot (scroll + capture loop)
     // Determine platform to match Figma layout width
@@ -569,6 +571,7 @@ async function handleIconClick(tab) {
       capturedAt: new Date().toISOString(),
       rawRows: rows,
       wizards: wizards,
+      productCard: productCard,
       screenshots: screenshots.length > 0 ? screenshots : undefined,
       screenshotMeta: screenshotMeta
     };
@@ -615,7 +618,8 @@ async function handleIconClick(tab) {
     }
     
     // Success! Data is copied (and optionally sent to relay)
-    setBadge(`${rows.length}`, '#3FB950');
+    const pcLabel = productCard ? '+PC' : '';
+    setBadge(`${rows.length}${pcLabel}`, '#3FB950');
     clearBadgeAfter(3000);
     
     // Clear any pending fallback data

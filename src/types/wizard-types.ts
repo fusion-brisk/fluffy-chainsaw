@@ -102,6 +102,8 @@ export interface ProductCardPayload {
     pros: Array<{ text: string; count: string }>;
     cons: Array<{ text: string; count: string }>;
   };
+  avgPriceRange?: { from: string; to: string };
+  findCheaper?: boolean;
 }
 
 // ============================================================================

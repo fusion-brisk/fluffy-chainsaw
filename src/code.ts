@@ -77,7 +77,7 @@ async function exportResultToRelay(frame: FrameNode, query: string): Promise<voi
     })
   });
 
-  Logger.info(`🖼️ Result exported to relay: ${Math.round(base64.length / 1024)}KB, scale=${scale}`);
+  Logger.info(`🖼️ Result exported: ${Math.round(base64.length / 1024)}KB`);
 }
 
 Logger.info('Плагин Contentify загружен');
@@ -185,7 +185,6 @@ async function checkRulesUpdates(): Promise<void> {
     
     // Загружаем правила парсинга
     await rulesManager.loadRules();
-    Logger.info('✅ Правила парсинга загружены');
     
     // Проверяем обновления в фоне
     checkRulesUpdates().catch(function(err) {
@@ -205,7 +204,10 @@ figma.on('selectionchange', () => {
   figma.ui.postMessage({ type: 'selection-status', hasSelection });
 
   // Async: resolve component keys (getMainComponentAsync needed for library components)
-  const instances = selection.filter(function(n) { return n.type === 'INSTANCE'; }) as InstanceNode[];
+  // Skip sublayer instances (compound IDs with ";") — they may become stale during processing
+  const instances = selection.filter(function(n) {
+    return n.type === 'INSTANCE' && n.id.indexOf(';') === -1;
+  }) as InstanceNode[];
   if (instances.length === 0) return;
 
   var promises: Promise<{
@@ -298,7 +300,16 @@ figma.on('selectionchange', () => {
 // Главный обработчик сообщений
 figma.ui.onmessage = async (msg) => {
   try {
-    Logger.info('📨 Получено сообщение от UI:', msg.type);
+    // === Resize UI (silent) ===
+    if (msg.type === 'resize-ui') {
+      const { width, height } = msg;
+      if (typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0) {
+        figma.ui.resize(width, height);
+      }
+      return;
+    }
+
+    Logger.verbose('📨 Сообщение от UI:', msg.type);
     
     // Пробуем обработать простые сообщения
     const handled = await handleSimpleMessage(msg, rulesManager, checkRulesUpdates);
@@ -306,18 +317,8 @@ figma.ui.onmessage = async (msg) => {
     
     // === Cancel Import ===
     if (msg.type === 'cancel-import') {
-      Logger.info('⛔ Получена команда отмены импорта');
       isImportCancelled = true;
       figma.ui.postMessage({ type: 'import-cancelled' });
-      return;
-    }
-    
-    // === Resize UI ===
-    if (msg.type === 'resize-ui') {
-      const { width, height } = msg;
-      if (typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0) {
-        figma.ui.resize(width, height);
-      }
       return;
     }
     
@@ -336,12 +337,10 @@ figma.ui.onmessage = async (msg) => {
 
       const wizardCount = payload.wizards?.length || 0;
       const hasProductCard = !!payload.productCard;
-      Logger.info(`📦 Получен payload от браузерного расширения (schema v${payload.schemaVersion || 1})`);
-      Logger.info(`   Источник: ${payload.source?.url || 'unknown'}`);
-      Logger.info(`   Сниппетов: ${payload.rawRows?.length || payload.items?.length || 0}, Wizard-блоков: ${wizardCount}${hasProductCard ? ', ProductCard: да' : ''}`);
+      Logger.info(`📦 Payload: ${payload.rawRows?.length || payload.items?.length || 0} сниппетов, ${wizardCount} wizard${hasProductCard ? ', ProductCard' : ''} (${payload.source?.url || 'unknown'})`);
       
       if (payload._isMockData) {
-        Logger.info('   ⚠️ Это тестовые данные (mock)');
+        Logger.info('   ⚠️ Mock data');
       }
       
       try {
@@ -351,7 +350,6 @@ figma.ui.onmessage = async (msg) => {
         
         if (payload.rawRows && payload.rawRows.length > 0) {
           rows = payload.rawRows;
-          Logger.info(`   Используем rawRows: ${rows.length} CSVRow`);
         } else if ((payload.schemaVersion || 1) < 2 && payload.items && payload.items.length > 0) {
           // Legacy v1 fallback: extract from items._rawCSVRow
           rows = payload.items
@@ -359,7 +357,7 @@ figma.ui.onmessage = async (msg) => {
             .filter((row): row is CSVRow => row !== undefined && row !== null);
           
           if (rows.length > 0) {
-            Logger.info(`   [v1 compat] Извлечено из items._rawCSVRow: ${rows.length} CSVRow`);
+            Logger.verbose(`   [v1 compat] items._rawCSVRow: ${rows.length}`);
           }
         }
         
@@ -379,9 +377,7 @@ figma.ui.onmessage = async (msg) => {
         }
         
         const wizards = payload.wizards || [];
-        Logger.info(`🏗️ Создаём SERP страницу: ${rows.length} сниппетов + ${wizards.length} wizard, query="${query}"`);
-        
-        // Отправляем progress: начало
+        Logger.info(`🏗️ SERP: ${rows.length} сниппетов + ${wizards.length} wizard, query="${query}"`);
         figma.ui.postMessage({ 
           type: 'progress', 
           current: 10, 
@@ -420,8 +416,7 @@ figma.ui.onmessage = async (msg) => {
           figma.viewport.scrollAndZoomIntoView([result.frame]);
           
           const count = result.createdCount || rows.length;
-          figma.notify(`✅ Создано ${count} сниппетов из браузера`);
-          
+
           figma.ui.postMessage({
             type: 'relay-payload-applied',
             success: true,
@@ -429,14 +424,12 @@ figma.ui.onmessage = async (msg) => {
             frameName: result.frame.name
           });
           
-          Logger.info(`✅ Создан SERP фрейм "${result.frame.name}" с ${count} сниппетами`);
+          Logger.info(`✅ SERP "${result.frame.name}": ${count} сниппетов`);
 
-          // Размещаем скриншоты рядом с SERP фреймом (не блокирует основной поток)
           placeScreenshotSegments(result.frame, query).catch(err =>
             Logger.error('Screenshot placement failed:', err)
           );
 
-          // Export result frame to relay for visual comparison (fire-and-forget)
           exportResultToRelay(result.frame, query).catch(err =>
             Logger.error('Result export failed:', err)
           );
@@ -446,12 +439,19 @@ figma.ui.onmessage = async (msg) => {
             try {
               const sidebarFrame = await renderProductCardSidebar(payload.productCard, platform);
               if (sidebarFrame) {
-                sidebarFrame.x = result.frame.x + result.frame.width + 40;
-                sidebarFrame.y = result.frame.y;
-                Logger.info(`🛒 ProductCard sidebar created next to SERP frame`);
+                // Place card inside SERP frame with absolute positioning (top-right)
+                result.frame.appendChild(sidebarFrame);
+                sidebarFrame.layoutPositioning = 'ABSOLUTE';
+                sidebarFrame.x = result.frame.width - sidebarFrame.width;
+                sidebarFrame.y = 0;
+
+                figma.currentPage.selection = [result.frame];
+                figma.viewport.scrollAndZoomIntoView([result.frame]);
+              } else {
+                Logger.error('[ProductCard] render returned null');
               }
             } catch (pcErr) {
-              Logger.error('ProductCard render failed:', pcErr);
+              Logger.error('[ProductCard] render failed:', pcErr);
             }
           }
 
@@ -483,7 +483,7 @@ figma.ui.onmessage = async (msg) => {
       // Автоопределение платформы из HTML
       const platform = detectPlatformFromHtml(htmlContent);
       
-      Logger.info(`🏗️ Начинаем создание SERP страницы из ${rows.length} элементов + ${buildWizards.length} wizard (platform=${platform})`);
+      Logger.info(`🏗️ Build page: ${rows.length} элементов + ${buildWizards.length} wizard (${platform})`);
       
       try {
         const result = await createSerpPage(rows, {
@@ -496,9 +496,6 @@ figma.ui.onmessage = async (msg) => {
         });
         
         if (result.success) {
-          Logger.info(`✅ Создано ${result.createdCount} элементов`);
-          
-          // Отправляем статистику
           figma.ui.postMessage({
             type: 'stats',
             stats: {
@@ -542,8 +539,6 @@ figma.ui.onmessage = async (msg) => {
       const rows = (msg.rows || []) as CSVRow[];
       const scope = (msg.scope || 'page') as 'page' | 'selection';
       const resetBeforeImport = (msg.resetBeforeImport || false) as boolean;
-      
-      Logger.info('🔄 Начинаем оптимизированную обработку данных');
       
       // Callback для прогресса (проверяет отмену)
       const onProgress = (current: number, total: number, message: string, operationType: string) => {

@@ -2890,12 +2890,21 @@
    */
   function extractProductCard() {
     var viewer = document.querySelector('.EProductCardViewer');
-    if (!viewer) return null;
+    if (!viewer) {
+      console.log('[ProductCard] .EProductCardViewer не найден');
+      // Fallback: проверяем альтернативные селекторы
+      viewer = document.querySelector('[class*="ProductCardViewer"]') || document.querySelector('[class*="ProductCard-Viewer"]');
+      if (!viewer) return null;
+      console.log('[ProductCard] Найден через fallback: ' + viewer.className.substring(0, 80));
+    }
 
-    var card = viewer.querySelector('.EProductCard');
-    if (!card) return null;
+    var card = viewer.querySelector('.EProductCard') || viewer.querySelector('[class*="EProductCard"]');
+    if (!card) {
+      console.log('[ProductCard] .EProductCard не найден внутри viewer. Дочерних: ' + viewer.children.length + ', классы первых: ' + Array.from(viewer.children).slice(0, 3).map(function(c) { return c.className ? c.className.substring(0, 40) : c.tagName; }).join(', '));
+      card = viewer;
+    }
 
-    console.log('[ProductCard] Обнаружен открытый сайдбар');
+    console.log('[ProductCard] Обнаружен открытый сайдбар (' + card.className.substring(0, 50) + ')');
     var result = {};
 
     // 1. Gallery images
@@ -2971,7 +2980,20 @@
       else result.aspects.cons.push(aspectItem);
     }
 
-    console.log('[ProductCard] Итого: title="' + result.title.substring(0, 40) + '", rating=' + result.rating + ', specs=' + result.specs.length + ', reviews=' + (result.reviewCount || '0'));
+    // 7. Average price range (EPriceBarometerLegend)
+    var avgPriceEls = card.querySelectorAll('.EPriceBarometerLegend-Range .EPrice-A11yValue');
+    if (avgPriceEls.length >= 2) {
+      result.avgPriceRange = {
+        from: avgPriceEls[0].textContent.trim(),
+        to: avgPriceEls[1].textContent.trim()
+      };
+    }
+
+    // 8. AliceBestPrices ("Найти скидку")
+    var aliceBestPricesEl = card.querySelector('.AliceBestPrices');
+    result.findCheaper = !!aliceBestPricesEl;
+
+    console.log('[ProductCard] Итого: title="' + result.title.substring(0, 40) + '", rating=' + result.rating + ', specs=' + result.specs.length + ', reviews=' + (result.reviewCount || '0') + ', avgPrice=' + (result.avgPriceRange ? result.avgPriceRange.from + '-' + result.avgPriceRange.to : 'нет') + ', findCheaper=' + result.findCheaper);
     return result;
   }
 
@@ -3201,9 +3223,17 @@
     }
 
     // Извлекаем данные из открытого сайдбара товара (если есть)
-    const productCard = extractProductCard();
+    console.log('[Content] Вызываю extractProductCard...');
+    var productCard = null;
+    try {
+      productCard = extractProductCard();
+    } catch (pcErr) {
+      console.error('[Content] extractProductCard() threw:', pcErr);
+    }
     if (productCard) {
-      console.log(`🛒 [Content] Извлечён сайдбар товара: "${productCard.title}"`);
+      console.log('🛒 [Content] Извлечён сайдбар товара: "' + productCard.title + '"');
+    } else {
+      console.log('[Content] Сайдбар товара не найден (productCard = null)');
     }
 
     return { rows: finalResults, wizards: wizards, productCard: productCard };
