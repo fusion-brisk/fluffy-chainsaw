@@ -1,48 +1,17 @@
-# Contentify Chrome Extension
+# @contentify/extension
 
-Chrome Extension для отправки данных страницы в Figma Plugin через Relay сервер.
+Chrome extension for parsing Yandex SERP data and sending to Figma plugin via relay.
 
-## Установка
+## Development
 
-1. Откройте `chrome://extensions/`
-2. Включите **Developer mode** (правый верхний угол)
-3. Нажмите **Load unpacked**
-4. Выберите папку `extension`
+npm run build       # Build with esbuild (IIFE bundles)
+npm run build:watch # Watch mode
+npm run typecheck   # TypeScript check
 
-## Использование
+## Architecture
 
-1. Убедитесь, что Relay сервер запущен (`cd relay && npm start`)
-2. Откройте страницу с товарами (Яндекс Маркет, WB, OZON и др.)
-3. Нажмите на иконку расширения
-4. Настройте Relay URL (по умолчанию `http://localhost:3847`)
-5. Опционально: укажите URL Figma файла для автоматического открытия
-6. Нажмите **Send to Figma**
-7. Token автоматически скопируется в буфер обмена
-8. Откройте Figma и запустите плагин Contentify
-9. Вставьте token в секцию "Connect from Browser" и нажмите **Fetch**
-
-## Иконки
-
-Для production замените placeholder-иконки в папке `icons/` на реальные PNG файлы:
-- `icon16.png` — 16x16
-- `icon48.png` — 48x48
-- `icon128.png` — 128x128
-
-## Поддерживаемые сайты
-
-Extension пытается автоматически распознать товары на странице с помощью различных селекторов:
-- Яндекс Маркет
-- Wildberries
-- OZON
-- Любые сайты с Product schema (itemprop="Product")
-- Общие товарные карточки (.product-card, .goods-card и т.д.)
-
-Если товары не найдены — используются тестовые (mock) данные для проверки транспорта.
-
-## Permissions
-
-- `activeTab` — доступ к текущей вкладке для сбора данных
-- `scripting` — выполнение скрипта на странице
-- `storage` — сохранение настроек
-- `clipboardWrite` — копирование token в буфер
-
+- `src/content.ts` — Content script injected into Yandex pages (3246 LOC)
+- `src/background.ts` — Service worker for relay coordination
+- `src/popup.ts` — Extension popup UI
+- `src/options.ts` — Extension settings
+- `dist/` — Bundled output (single files for Chrome MV3)

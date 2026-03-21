@@ -56,55 +56,79 @@ SNIPPET_CONTAINER_NAMES = [
 - `TEXT (30)` — текстовые поля
 - `FALLBACK (40)` — финальные обработки
 
-## Структура проекта
+## Структура проекта (npm workspaces monorepo)
 
 ```
-src/
-├── code.ts                 # Entry point плагина (Figma sandbox)
-├── ui.tsx                  # Entry point UI (React, iframe)
-├── schema/                 # Декларативный маппинг данных → Figma свойства
-│   ├── types.ts            # ComponentSchema, PropertyMapping типы
-│   ├── engine.ts           # applySchema() — generic движок
-│   ├── transforms.ts       # Вычисляемые трансформы (чистые функции)
-│   ├── eshop-item.ts       # EShopItem schema
-│   ├── eoffer-item.ts      # EOfferItem schema
-│   ├── eproduct-snippet.ts # EProductSnippet/2 schema
-│   ├── esnippet.ts         # ESnippet/Snippet schema
-│   └── esnippet-hooks.ts   # Structural hooks (сайтлинки, промо)
-├── handlers/               # Императивные обработчики (сложная логика)
-│   ├── registry.ts         # Реестр handlers + schema обёртки
-│   ├── price-handlers.ts   # EPriceGroup, цены, скидки, fintech
-│   ├── label-handlers.ts   # Brand, рейтинги, барометр
-│   ├── button-handlers.ts  # EButton, MarketCheckoutButton
-│   ├── snippet-handlers.ts # Fallbacks, ShopInfo, ImageType
-│   └── delivery-handlers.ts # Доставка, BNPL
-├── plugin/                 # Модули обработки данных
-│   ├── snippet-processor.ts # Главный процессор import-csv
-│   ├── data-assignment.ts   # Маппинг данных на контейнеры
-│   └── message-router.ts    # Роутинг postMessage
-├── page-builder/           # Создание страниц из HTML
-│   ├── component-map.ts    # Маппинг типов на ключи компонентов
-│   └── page-creator.ts     # Создание фреймов и инстансов
-├── utils/                  # Утилиты парсинга (UI thread)
-│   ├── snippet-parser.ts   # Парсинг HTML → CSVRow
-│   └── favicon-extractor.ts # Извлечение фавиконок
-└── types/                  # TypeScript типы
-    ├── csv-fields.ts       # Поля CSVRow
-    └── field-mapping.ts    # Маппинг полей на компоненты
+packages/plugin/                    # Figma Plugin (@contentify/plugin)
+├── src/
+│   ├── sandbox/                    # ES5 target (Figma sandbox)
+│   │   ├── code.ts                 # Entry point плагина
+│   │   ├── schema/                 # Декларативный маппинг данных → Figma свойства
+│   │   │   ├── types.ts            # ComponentSchema, PropertyMapping типы
+│   │   │   ├── engine.ts           # applySchema() — generic движок
+│   │   │   ├── transforms.ts       # Вычисляемые трансформы (чистые функции)
+│   │   │   ├── eshop-item.ts       # EShopItem schema
+│   │   │   ├── eoffer-item.ts      # EOfferItem schema
+│   │   │   ├── eproduct-snippet.ts # EProductSnippet/2 schema
+│   │   │   ├── esnippet.ts         # ESnippet/Snippet schema
+│   │   │   └── esnippet-hooks.ts   # Structural hooks (сайтлинки, промо)
+│   │   ├── handlers/               # Императивные обработчики (сложная логика)
+│   │   │   ├── registry.ts         # Реестр handlers + schema обёртки
+│   │   │   ├── price-handlers.ts   # EPriceGroup, цены, скидки, fintech
+│   │   │   ├── label-handlers.ts   # Brand, рейтинги, барометр
+│   │   │   ├── button-handlers.ts  # EButton, MarketCheckoutButton
+│   │   │   ├── snippet-handlers.ts # Fallbacks, ShopInfo, ImageType
+│   │   │   └── delivery-handlers.ts # Доставка, BNPL
+│   │   ├── plugin/                 # Модули обработки данных
+│   │   │   ├── snippet-processor.ts # Главный процессор import-csv
+│   │   │   ├── data-assignment.ts   # Маппинг данных на контейнеры
+│   │   │   └── message-router.ts    # Роутинг postMessage
+│   │   └── page-builder/           # Создание страниц из HTML
+│   │       ├── component-map.ts    # Маппинг типов на ключи компонентов
+│   │       └── page-creator.ts     # Создание фреймов и инстансов
+│   ├── ui/                         # React UI (modern browsers)
+│   │   ├── ui.tsx                  # Entry point UI (iframe)
+│   │   ├── components/             # React компоненты
+│   │   ├── hooks/                  # React хуки
+│   │   └── styles.css              # Стили
+│   ├── utils/                      # Утилиты
+│   │   ├── snippet-parser.ts       # Парсинг HTML → CSVRow
+│   │   └── favicon-extractor.ts    # Извлечение фавиконок
+│   ├── types/                      # TypeScript типы
+│   │   ├── csv-fields.ts           # Поля CSVRow
+│   │   └── field-mapping.ts        # Маппинг полей на компоненты
+│   ├── config.ts                   # Версия, URL, имена контейнеров
+│   ├── logger.ts                   # Logger класс
+│   └── parsing-rules.ts            # Правила парсинга (fallback)
+├── tests/                          # Vitest тесты
+└── dist/                           # Собранный плагин
 
-extension/                  # Chrome Extension
-├── content.js              # Парсинг страницы Яндекса
-├── background.js           # Service Worker
-└── popup.html/js           # UI расширения
+packages/extension/                 # Chrome Extension (@contentify/extension)
+├── src/
+│   ├── content.ts                  # Парсинг страницы Яндекса (3246 LOC)
+│   ├── background.ts               # Service Worker
+│   ├── popup.ts                    # UI расширения
+│   └── options.ts                  # Настройки расширения
+└── dist/                           # Собранные IIFE бандлы
 
-relay/                      # Relay сервер
-└── server.js               # Express, push/pull/health endpoints
+packages/relay/                     # Relay сервер (@contentify/relay)
+├── src/
+│   ├── index.ts                    # Express + WebSocket entry
+│   ├── queue.ts                    # Очередь с file persistence
+│   ├── websocket.ts                # WebSocket сервер
+│   ├── routes/                     # API endpoints
+│   └── types.ts                    # Типы
+└── dist/                           # Скомпилированный CommonJS
+
+shared/                             # Placeholder для общих типов
+tools/                              # Build-скрипты, установщик
 ```
 
 ## Хард-ограничения
 
-### ES5 для code.js
+### ES5 для sandbox кода
 - Figma sandbox требует ES5 (babel → preset-env до IE11)
+- Ограничение действует ТОЛЬКО для `packages/plugin/src/sandbox/`
 - Итоговый код транспилируется через Rollup + Babel
 - Никаких полифиллов в рантайме
 
@@ -123,7 +147,7 @@ relay/                      # Relay сервер
 ### Добавление свойства контейнера (Schema — предпочтительный способ)
 
 ```typescript
-// src/schema/eshop-item.ts — добавить в containerProperties:
+// packages/plugin/src/sandbox/schema/eshop-item.ts — добавить в containerProperties:
 { propertyNames: ['withNewFeature'], fieldName: '#NewFeature', equals: { field: '#NewFeature', value: 'true' } }
 ```
 
@@ -133,7 +157,7 @@ Schema покрывает: EShopItem, EOfferItem, EProductSnippet/2, ESnippet/Sn
 ### Добавление императивного Handler (для сложной логики)
 
 ```typescript
-// handlers/my-handlers.ts
+// packages/plugin/src/sandbox/handlers/my-handlers.ts
 export async function handleMyFeature(context: HandlerContext): Promise<void> {
   const { container, row } = context;
   const value = row['#MyField'] === 'true';
@@ -143,7 +167,7 @@ export async function handleMyFeature(context: HandlerContext): Promise<void> {
   }
 }
 
-// handlers/registry.ts — зарегистрировать
+// packages/plugin/src/sandbox/handlers/registry.ts — зарегистрировать
 this.register('MyFeature', handleMyFeature, {
   priority: HandlerPriority.VARIANTS,
   mode: 'async',
@@ -153,15 +177,15 @@ this.register('MyFeature', handleMyFeature, {
 
 ### Добавление нового поля CSVRow
 
-1. `types/csv-fields.ts` — добавить в CSVFields интерфейс
-2. `extension/content.js` — добавить извлечение в extractRowData()
-3. `parsing-rules.ts` — добавить селекторы (опционально)
+1. `packages/plugin/src/types/csv-fields.ts` — добавить в CSVFields интерфейс
+2. `packages/extension/src/content.ts` — добавить извлечение в extractRowData()
+3. `packages/plugin/src/parsing-rules.ts` — добавить селекторы (опционально)
 
 ### Добавление нового компонента
 
 1. Получить ключ компонента из Figma Dev Console
-2. `page-builder/component-map.ts` — добавить в SNIPPET_COMPONENT_MAP
-3. `page-builder/structure-builder.ts` — добавить обработку типа
+2. `packages/plugin/src/sandbox/page-builder/component-map.ts` — добавить в SNIPPET_COMPONENT_MAP
+3. `packages/plugin/src/sandbox/page-builder/structure-builder.ts` — добавить обработку типа
 4. Создать handler если нужна специальная логика
 
 **Подробные гайды**: см. `docs/EXTENDING.md`
@@ -178,13 +202,16 @@ this.register('MyFeature', handleMyFeature, {
 - `stats` — статистика обработки
 - `done` — завершение `{ count }`
 
-## Сборка
+## Сборка (npm workspaces)
 
 ```bash
-npm run build        # Полная сборка
-npm run build:watch  # Watch mode
-npm run dev          # Build + Relay server
-npm run test         # Vitest тесты
+npm run build                        # Сборка всех workspace
+npm run test                         # Vitest тесты (plugin)
+npm run build -w packages/plugin     # Сборка только плагина
+npm run build -w packages/extension  # Сборка только расширения
+npm run build -w packages/relay      # Сборка только relay
+npm run typecheck -w packages/plugin # Проверка типов плагина
+npm run lint -w packages/plugin      # Линтинг плагина
 ```
 
 ## Стиль кода
@@ -201,8 +228,8 @@ npm run test         # Vitest тесты
 - Проверять импорты перед добавлением
 - Держать ответы краткими и практичными
 - **ВАЖНО: Парсинг данных реализован в ДВУХ местах:**
-  - `extension/content.js` — парсит HTML на странице Яндекса (основной путь данных)
-  - `src/utils/snippet-parser.ts` + `src/parsing-rules.ts` — парсит HTML в плагине (fallback для file drop/paste)
+  - `packages/extension/src/content.ts` — парсит HTML на странице Яндекса (основной путь данных)
+  - `packages/plugin/src/utils/snippet-parser.ts` + `packages/plugin/src/parsing-rules.ts` — парсит HTML в плагине (fallback для file drop/paste)
   - При изменении логики парсинга (селекторы, извлечение полей) — проверять и обновлять ОБА места
 
 ## Документация
