@@ -10,6 +10,7 @@ import React, { memo } from 'react';
 interface StatusBarProps {
   relayConnected: boolean;
   extensionInstalled: boolean;
+  mcpConnected?: boolean;
   onRelayClick?: () => void;
   onExtensionClick?: () => void;
   onLogsClick?: () => void;
@@ -73,6 +74,7 @@ StatusPill.displayName = 'StatusPill';
 export const StatusBar: React.FC<StatusBarProps> = memo(({
   relayConnected,
   extensionInstalled,
+  mcpConnected,
   onRelayClick,
   onExtensionClick,
   onLogsClick,
@@ -103,6 +105,12 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
           <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9776;</span>
           <span className="status-pill-label">Logs</span>
         </button>
+      )}
+      {mcpConnected !== undefined && (
+        <StatusPill
+          label="MCP"
+          status={mcpConnected ? 'connected' : 'offline'}
+        />
       )}
       <StatusPill
         label="Relay"

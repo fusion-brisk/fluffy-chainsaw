@@ -37,6 +37,7 @@ import { useClipboardPaste } from './hooks/useClipboardPaste';
 import { useFileImport } from './hooks/useFileImport';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
+import { useMcpStatus } from './hooks/useMcpStatus';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
 import type { ClipboardPasteEvent } from './hooks/useClipboardPaste';
 import type { FileImportResult } from './hooks/useFileImport';
@@ -269,6 +270,9 @@ const App: React.FC = () => {
 
   // === VERSION CHECK HOOK ===
   const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
+
+  // === MCP STATUS HOOK ===
+  const mcpStatus = useMcpStatus();
 
   // === CLIPBOARD PASTE HOOK ===
   useClipboardPaste({
@@ -615,6 +619,7 @@ const App: React.FC = () => {
         <StatusBar
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
+          mcpConnected={mcpStatus.connected}
           onRelayClick={handleShowRelayGuide}
           onExtensionClick={handleShowExtensionGuide}
           onLogsClick={handleShowLogViewer}

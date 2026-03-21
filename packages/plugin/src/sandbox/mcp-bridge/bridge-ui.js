@@ -364,8 +364,16 @@
 
     function updateCompatState() {
       var live = activeConnections.filter(function(c) { return c.ws.readyState === 1; });
+      var wasConnected = wsConnected;
       wsConnected = live.length > 0;
       window.__mcpBridgeConnected = wsConnected;
+
+      // Notify React UI about MCP connection state change
+      if (wsConnected !== wasConnected) {
+        window.dispatchEvent(new CustomEvent('mcpStatusChange', {
+          detail: { connected: wsConnected, serverCount: live.length }
+        }));
+      }
     }
 
     function initializeConnection(connWs) {
