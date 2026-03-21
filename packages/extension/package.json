@@ -1,0 +1,6 @@
+{
+  "name": "@contentify/extension",
+  "version": "1.4.0",
+  "private": true,
+  "description": "Chrome extension for parsing Yandex SERP data"
+}

@@ -8,11 +8,11 @@ dist
 build
 
 # Relay binaries (built from relay/server.js, distributed via GitHub Releases)
-relay/dist/
+packages/relay/dist/
 native-host/Contentify Relay.app/Contents/Resources/contentify-relay-*
 
 # Installer archives
-scripts/Contentify-Installer.zip
+tools/Contentify-Installer.zip
 
 # Misc
 .DS_Store
@@ -23,13 +23,17 @@ npm-debug.log*
 
 # Extension keys (keep secret!)
 *.pem
-extension/*.crx
-
-# Allow root contentify.crx for distribution
-!contentify.crx
+packages/extension/*.crx
+contentify.crx
 
 # Relay server data
-relay/.relay-queue.json
+packages/relay/.relay-queue.json
+
+# Test data (large HTML snapshots)
+examples/
+
+# Screenshots
+screenshots/
 
 # MCP config (local dev)
 .mcp.json
