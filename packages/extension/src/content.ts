@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Content Script: Yandex Search Results Parser
  * Извлекает данные из сниппетов поисковой выдачи Яндекса

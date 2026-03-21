@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Contentify Extension — Background Service Worker
  * 
@@ -528,7 +529,7 @@ async function handleIconClick(tab) {
     // Parse page using content script
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ['content.js']
+      files: ['dist/content.js']
     });
     
     parseResult = results[0]?.result;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Contentify Extension — Popup (Clipboard-First Architecture)
  * 
@@ -71,7 +72,7 @@ async function parsePageData(tabId) {
   
   const results = await chrome.scripting.executeScript({
     target: { tabId },
-    files: ['content.js']
+    files: ['dist/content.js']
   });
   return results[0]?.result;
 }

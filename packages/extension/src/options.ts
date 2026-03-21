@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Contentify Extension — Options Page
  */

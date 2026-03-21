@@ -2,5 +2,15 @@
   "name": "@contentify/extension",
   "version": "1.4.0",
   "private": true,
-  "description": "Chrome extension for parsing Yandex SERP data"
+  "description": "Chrome extension for parsing Yandex SERP data",
+  "scripts": {
+    "build": "node build.js",
+    "build:watch": "node build.js --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.2"
+  }
 }
