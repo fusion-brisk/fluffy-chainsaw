@@ -16,11 +16,14 @@
     "typecheck": "npm run typecheck -w packages/plugin",
     "lint": "npm run lint -w packages/plugin",
     "lint:fix": "npm run lint:fix -w packages/plugin",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "relay": "npm start -w packages/relay",
     "dev": "concurrently -n build,relay -c blue,green \"npm run build:watch -w packages/plugin\" \"npm start -w packages/relay\"",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^9.2.1",
+    "prettier": "^3.5.3"
   }
 }

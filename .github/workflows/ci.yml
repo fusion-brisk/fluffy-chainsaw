@@ -13,6 +13,10 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run typecheck -w packages/plugin
+      - run: npm run typecheck -w packages/relay
       - run: npm run lint -w packages/plugin
+      - run: npm run format:check
       - run: npm run test -w packages/plugin
       - run: npm run build -w packages/plugin
+      - run: npm run build -w packages/extension
+      - run: npm run build -w packages/relay
