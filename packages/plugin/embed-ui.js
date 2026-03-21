@@ -14,6 +14,7 @@ function buildEmbeddedHtml() {
   
   const template = read('src/ui/ui.html');
   const css = read('src/ui/styles.css');
+  const bridgeJs = read('src/sandbox/mcp-bridge/bridge-ui.js');
   const js = read('dist/ui.js');
   
   const shim = 'window.process=window.process||{env:{}};';
@@ -39,11 +40,17 @@ function buildEmbeddedHtml() {
     () => `<style>\n${css}\n</style>`
   );
   
-  // 2. Вставляем JS. 
-  // КРИТИЧНО: Используем функцию-callback в replace, чтобы спецсимволы ($) в коде JS 
+  // 2. Вставляем MCP Bridge JS (загружается ДО React)
+  html = html.replace(
+    /<script\s+src="bridge-ui\.js"\s*><\/script>/,
+    () => `<script>\n${bridgeJs}\n</script>`
+  );
+
+  // 3. Вставляем React JS.
+  // КРИТИЧНО: Используем функцию-callback в replace, чтобы спецсимволы ($) в коде JS
   // не интерпретировались как подстановки regex.
   html = html.replace(
-    /<script\s+src="ui\.js"\s*><\/script>/, 
+    /<script\s+src="ui\.js"\s*><\/script>/,
     () => `<script>\n${errorHandler}\n(function(){\n${shim}\n${js}\n})();\n</script>`
   );
   

@@ -14,6 +14,8 @@ import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
 import { createSerpPage, detectPlatformFromHtml } from './page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
+import { handleBridgeMessage, fetchAndSendVariablesData } from './mcp-bridge/bridge-handlers';
+import { installConsoleCapture, registerDocumentChangeListener, forwardSelectionChange } from './mcp-bridge/bridge-events';
 
 const RELAY_URL = 'http://localhost:3847';
 
@@ -79,6 +81,9 @@ async function exportResultToRelay(frame: FrameNode, query: string): Promise<voi
 
   Logger.info(`🖼️ Result exported: ${Math.round(base64.length / 1024)}KB`);
 }
+
+// MCP Bridge: install console capture early (before any Logger calls)
+installConsoleCapture();
 
 Logger.info('Плагин Contentify загружен');
 
@@ -190,7 +195,15 @@ async function checkRulesUpdates(): Promise<void> {
     checkRulesUpdates().catch(function(err) {
       Logger.error('Ошибка проверки обновлений правил:', err);
     });
-    
+
+    // MCP Bridge: register document/page change listeners
+    registerDocumentChangeListener();
+
+    // MCP Bridge: pre-fetch and send variables data to UI
+    fetchAndSendVariablesData().catch(function(err) {
+      Logger.debug('MCP Bridge: error fetching variables: ' + err);
+    });
+
   } catch (error) {
     Logger.error('❌ Ошибка при инициализации плагина:', error);
     figma.notify('❌ Ошибка загрузки плагина');
@@ -199,6 +212,9 @@ async function checkRulesUpdates(): Promise<void> {
 
 // Обработка изменений выделения + дамп свойств компонента
 figma.on('selectionchange', () => {
+  // MCP Bridge: forward selection change to UI for WebSocket relay
+  forwardSelectionChange();
+
   const selection = figma.currentPage.selection;
   const hasSelection = selection.length > 0;
   figma.ui.postMessage({ type: 'selection-status', hasSelection });
@@ -300,6 +316,10 @@ figma.on('selectionchange', () => {
 // Главный обработчик сообщений
 figma.ui.onmessage = async (msg) => {
   try {
+    // === MCP Bridge dispatcher (UPPERCASE messages) ===
+    const bridgeHandled = await handleBridgeMessage(msg);
+    if (bridgeHandled) return;
+
     // === Resize UI (silent) ===
     if (msg.type === 'resize-ui') {
       const { width, height } = msg;
