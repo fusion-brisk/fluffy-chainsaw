@@ -137,6 +137,16 @@ export interface UpdateInfo {
   size: number;
 }
 
+// === Debug log ===
+
+export interface DebugLogEntry {
+  timestamp: number;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  source: string;
+  message: string;
+  data?: unknown;
+}
+
 // === Route handler types ===
 
 export type RouteHandler = (req: Request, res: Response) => void;

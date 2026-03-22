@@ -14,7 +14,7 @@ import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
 import { createSerpPage, detectPlatformFromHtml } from './page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
-import { handleBridgeMessage, fetchAndSendVariablesData } from './mcp-bridge/bridge-handlers';
+import { handleBridgeMessage, fetchAndSendVariablesData, debugLog } from './mcp-bridge/bridge-handlers';
 import { installConsoleCapture, registerDocumentChangeListener, forwardSelectionChange } from './mcp-bridge/bridge-events';
 
 const RELAY_URL = 'http://localhost:3847';
@@ -559,7 +559,9 @@ figma.ui.onmessage = async (msg) => {
       const rows = (msg.rows || []) as CSVRow[];
       const scope = (msg.scope || 'page') as 'page' | 'selection';
       const resetBeforeImport = (msg.resetBeforeImport || false) as boolean;
-      
+
+      debugLog('info', 'sandbox', 'Import started', { rowCount: rows.length, scope, resetBeforeImport });
+
       // Callback для прогресса (проверяет отмену)
       const onProgress = (current: number, total: number, message: string, operationType: string) => {
         if (isImportCancelled) return;
@@ -580,6 +582,15 @@ figma.ui.onmessage = async (msg) => {
         return;
       }
       
+      debugLog('info', 'sandbox', 'Import completed', {
+        processedCount: result.processedCount,
+        totalContainers: result.totalContainers,
+        fieldsSet: result.fieldsSet || 0,
+        fieldsFailed: result.fieldsFailed || 0,
+        handlerErrors: result.handlerErrors || 0,
+        images: result.imageStats
+      });
+
       // Отправляем статистику
       figma.ui.postMessage({
         type: 'stats',
@@ -607,6 +618,7 @@ figma.ui.onmessage = async (msg) => {
     
   } catch (err) {
     Logger.error('CRITICAL PLUGIN ERROR:', err);
+    debugLog('error', 'sandbox', 'CRITICAL: ' + (err instanceof Error ? err.message : String(err)));
     figma.notify('❌ Критическая ошибка плагина. Проверьте консоль.');
     figma.ui.postMessage({
       type: 'error',

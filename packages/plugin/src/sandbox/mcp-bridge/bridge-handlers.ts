@@ -86,7 +86,34 @@ function replyError(type: string, requestId: string, error: unknown): void {
   var msg = (error && typeof error === 'object' && 'message' in error)
     ? (error as Error).message
     : String(error);
+  debugLog('error', 'bridge', type + ' failed: ' + msg);
   reply(type, requestId, { success: false, error: msg });
+}
+
+// ---------------------------------------------------------------------------
+// Debug log — fire-and-forget POST to relay /debug-log
+// ---------------------------------------------------------------------------
+
+var DEBUG_RELAY_URL = 'http://localhost:3848';
+
+export function debugLog(level: string, source: string, message: string, data?: unknown): void {
+  try {
+    var body = JSON.stringify({
+      timestamp: Date.now(),
+      level: level,
+      source: source,
+      message: message,
+      data: data
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (fetch as any)(DEBUG_RELAY_URL + '/debug-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body
+    }).catch(function() { /* relay offline — ignore */ });
+  } catch (_e) {
+    // safe to ignore
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +169,9 @@ export async function handleBridgeMessage(msg: any): Promise<boolean> {
 
   var type = msg.type as string;
   var requestId = (msg.requestId || '') as string;
+  var startTime = Date.now();
+
+  debugLog('info', 'bridge', '→ ' + type, { requestId: requestId });
 
   try {
     switch (type) {
@@ -252,9 +282,11 @@ export async function handleBridgeMessage(msg: any): Promise<boolean> {
     }
   } catch (err) {
     Logger.error('[MCP Bridge] Handler error for ' + type + ':', err);
+    debugLog('error', 'bridge', '✗ ' + type + ' threw: ' + ((err && typeof err === 'object' && 'message' in err) ? (err as Error).message : String(err)), { elapsed: Date.now() - startTime });
     replyError(type + '_RESULT', requestId, err);
   }
 
+  debugLog('debug', 'bridge', '← ' + type + ' done', { elapsed: Date.now() - startTime });
   return true;
 }
 

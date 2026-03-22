@@ -18,6 +18,7 @@ import { resetComponentCache } from '../../utils/component-cache';
 import { buildInstanceCache } from '../../utils/instance-cache';
 import { CSVRow, ProgressCallback } from './types';
 import { resetAllSnippets, applyGlobalQuery } from './global-handlers';
+import { debugLog } from '../mcp-bridge/bridge-handlers';
 import {
   groupContainersWithDataLayers,
   assignRowsToContainers,
@@ -284,6 +285,7 @@ export async function processImportCSV(
     for (const res of results) {
       if (!res.success) {
         Logger.error(`[${res.handlerName}] Error: ${res.error}`);
+        debugLog('error', 'sandbox', `Handler ${res.handlerName} failed on ${containerName}: ${res.error}`);
         handlerErrorCount++;
       }
       totalFieldsSet += res.fieldsSet || 0;

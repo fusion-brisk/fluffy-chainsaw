@@ -23,6 +23,23 @@
   window.__mcpBridgeConnected = false;
 
   var requestIdCounter = 0;
+  var DEBUG_RELAY = 'http://localhost:3848';
+
+  function uiDebugLog(level, message, data) {
+    try {
+      fetch(DEBUG_RELAY + '/debug-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timestamp: Date.now(),
+          level: level,
+          source: 'ui',
+          message: message,
+          data: data
+        })
+      }).catch(function() {});
+    } catch(e) {}
+  }
 
   // ============================================================================
   // COMMAND INFRASTRUCTURE
@@ -36,6 +53,7 @@
       var timeoutId = setTimeout(function() {
         if (window.__figmaPendingRequests.has(requestId)) {
           window.__figmaPendingRequests.delete(requestId);
+          uiDebugLog('warn', 'Request timeout: ' + type, { requestId: requestId, timeoutMs: timeoutMs });
           reject(new Error(type + ' request timed out after ' + timeoutMs + 'ms'));
         }
       }, timeoutMs);
@@ -424,12 +442,14 @@
             });
         } catch (e) {
           console.error('[MCP Bridge] Failed to process WS message:', e);
+          uiDebugLog('error', 'WS message processing failed', { error: e.message || String(e) });
         }
       };
 
       activeWs.onclose = function(event) {
         removeConnection(port);
         console.log('[MCP Bridge] WebSocket disconnected from port ' + port + ' (' + activeConnections.length + ' remaining)');
+        uiDebugLog('warn', 'WS disconnected port ' + port, { code: event.code, reason: event.reason, remaining: activeConnections.length });
 
         var wasReplaced = (event.code === 1000 && (
           event.reason === 'Replaced by new connection' ||
@@ -509,6 +529,7 @@
             activeConnections.push({ port: port, ws: testWs });
             updateCompatState();
             console.log('[MCP Bridge] Connected to port ' + port + ' (' + activeConnections.length + ' server(s))');
+            uiDebugLog('info', 'WS connected port ' + port, { serverCount: activeConnections.length });
             attachWsHandlers(testWs, port);
             initializeConnection(testWs);
 

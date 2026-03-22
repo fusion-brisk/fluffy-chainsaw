@@ -31,6 +31,7 @@ import screenshotRoutes from './routes/screenshot';
 import healthRoutes from './routes/health';
 import updateRoutes, { startUpdateSchedule } from './routes/update';
 import debugRoutes from './routes/debug';
+import debugLogRoutes from './routes/debug-log';
 import comparisonRoutes from './routes/comparison';
 import { getQueue } from './queue';
 
@@ -61,6 +62,7 @@ app.use(screenshotRoutes);
 app.use(healthRoutes);
 app.use(updateRoutes);
 app.use(debugRoutes);
+app.use(debugLogRoutes);
 app.use(comparisonRoutes);
 
 // === Graceful shutdown ===
