@@ -58,3 +58,17 @@ The Contentify plugin **already includes** an embedded MCP bridge (same code as 
 | Both plugins running | Not recommended | Two bridges compete for the same WebSocket connection |
 
 If both are running, you'll see `[MCP Bridge] WebSocket disconnected` / `Reconnected` cycling in DevTools console. Fix: close one of the plugins.
+
+## MCP Bridge Features
+
+### Heartbeat
+`bridge-ui.js` sends a `{"type":"ping"}` every 30 seconds on each active WebSocket. This detects zombie connections where the server process died without closing the socket cleanly. If the socket is no longer writable, the heartbeat clears itself and triggers reconnection via `onclose`.
+
+### Soft Reload (RELOAD_UI)
+When `figma-console-mcp` sends `RELOAD_UI`, the bridge no longer calls `figma.showUI()` (which destroys the iframe and all WebSocket connections). Instead, it sends a `SOFT_RELOAD` postMessage to `bridge-ui.js`, which rescans ports and refreshes variables — zero downtime.
+
+### Batch Execute (BATCH_EXECUTE)
+Runs up to 100 commands in a single round-trip. Each command specifies a `type` and `params`. For bulk variable/node operations this is 10-50x faster than individual calls. `figma-console-mcp` can also batch via `EXECUTE_CODE` with a single JS snippet.
+
+### enablePrivatePluginApi
+`manifest.json` includes `enablePrivatePluginApi: true`, which unlocks extended async Figma API methods for variables and components. Required for reliable `figma.variables.getLocalVariablesAsync()` and component import operations.

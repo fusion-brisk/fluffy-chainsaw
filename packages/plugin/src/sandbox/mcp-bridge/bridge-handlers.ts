@@ -156,6 +156,7 @@ var BRIDGE_TYPES: Record<string, boolean> = {
   'GET_FILE_INFO': true,
   'RELOAD_UI': true,
   'ARRANGE_COMPONENT_SET': true,
+  'BATCH_EXECUTE': true,
 };
 
 // ---------------------------------------------------------------------------
@@ -277,6 +278,9 @@ export async function handleBridgeMessage(msg: any): Promise<boolean> {
         break;
       case 'ARRANGE_COMPONENT_SET':
         await handleArrangeComponentSet(msg, requestId);
+        break;
+      case 'BATCH_EXECUTE':
+        await handleBatchExecute(msg, requestId);
         break;
       default:
         return false;
@@ -1232,9 +1236,8 @@ function handleGetFileInfo(requestId: string): void {
 
 function handleReloadUI(requestId: string): void {
   replySuccess('RELOAD_UI_RESULT', requestId, {});
-  setTimeout(function() {
-    figma.showUI(__html__, { width: 320, height: 56, visible: true, themeColors: true });
-  }, 100);
+  // Soft reload: tell bridge-ui.js to rescan without destroying iframe
+  figma.ui.postMessage({ type: 'SOFT_RELOAD' });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1274,6 +1277,74 @@ async function handleArrangeComponentSet(msg: any, requestId: string): Promise<v
     columns: columns,
     gap: gap
   });
+}
+
+// ---------------------------------------------------------------------------
+// Batch execute — run multiple commands in a single round-trip
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleBatchExecute(msg: any, requestId: string): Promise<void> {
+  var commands = msg.commands as Array<{ type: string; params: Record<string, unknown> }>;
+  if (!commands || !Array.isArray(commands) || commands.length === 0) {
+    throw new Error('BATCH_EXECUTE requires non-empty commands array');
+  }
+  if (commands.length > 100) {
+    throw new Error('BATCH_EXECUTE max 100 commands per batch');
+  }
+
+  var results: Array<{ success: boolean; result?: unknown; error?: string }> = [];
+
+  for (var i = 0; i < commands.length; i++) {
+    var cmd = commands[i];
+    try {
+      if (cmd.type === 'EXECUTE_CODE') {
+        // Special case: run code directly and capture result
+        var codeResult = await runCodeInSandbox(cmd.params.code as string, (cmd.params.timeout as number) || 5000);
+        results.push({ success: true, result: codeResult });
+      } else {
+        // Route through normal handler by constructing a message
+        // and capturing the reply via a temporary requestId
+        var tempRequestId = '__batch_' + i;
+        var fakeMsg: Record<string, unknown> = {};
+        for (var key in cmd.params) {
+          if (Object.prototype.hasOwnProperty.call(cmd.params, key)) {
+            fakeMsg[key] = cmd.params[key];
+          }
+        }
+        fakeMsg.type = cmd.type;
+        fakeMsg.requestId = tempRequestId;
+
+        // Execute through the main dispatcher
+        var handled = await handleBridgeMessage(fakeMsg);
+        if (!handled) {
+          results.push({ success: false, error: 'Unknown command type: ' + cmd.type });
+        } else {
+          results.push({ success: true, result: { dispatched: cmd.type } });
+        }
+      }
+    } catch (err) {
+      var errMsg = (err && typeof err === 'object' && 'message' in err)
+        ? (err as Error).message : String(err);
+      results.push({ success: false, error: errMsg });
+    }
+  }
+
+  replySuccess('BATCH_EXECUTE_RESULT', requestId, {
+    results: results,
+    totalCommands: commands.length,
+    successCount: results.filter(function(r) { return r.success; }).length
+  });
+}
+
+// Extracted code runner for batch use (avoids going through full handler)
+async function runCodeInSandbox(code: string, timeoutMs: number): Promise<unknown> {
+  var fn = new Function('figma', 'return (async function() { ' + code + ' })();');
+  var resultPromise = fn(figma);
+  var timeoutPromise = new Promise(function(_, reject) {
+    setTimeout(function() { reject(new Error('Code execution timed out after ' + timeoutMs + 'ms')); }, timeoutMs);
+  });
+  return Promise.race([resultPromise, timeoutPromise]);
 }
 
 // ---------------------------------------------------------------------------

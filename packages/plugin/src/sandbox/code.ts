@@ -167,6 +167,16 @@ async function checkRulesUpdates(): Promise<void> {
   }
 }
 
+// Early message handler — handles MCP bridge messages before showUI loads the iframe.
+// bridge-ui.js sends GET_FILE_INFO immediately on WebSocket connect; if onmessage
+// isn't set yet, the message is lost and figma-console-mcp never identifies this plugin.
+// The full handler (below initPlugin) will override this.
+figma.ui.onmessage = async (msg) => {
+  const bridgeHandled = await handleBridgeMessage(msg);
+  if (bridgeHandled) return;
+  // Queue non-bridge messages? No — they arrive after init completes anyway.
+};
+
 // Инициализация плагина
 (async function initPlugin() {
   try {
@@ -200,10 +210,8 @@ async function checkRulesUpdates(): Promise<void> {
     // MCP Bridge: register document/page change listeners
     registerDocumentChangeListener();
 
-    // MCP Bridge: pre-fetch and send variables data to UI
-    fetchAndSendVariablesData().catch(function(err) {
-      Logger.debug('MCP Bridge: error fetching variables: ' + err);
-    });
+    // MCP Bridge: variables data will be fetched when bridge-ui.js signals ready
+    // (see MCP_BRIDGE_READY handler below)
 
   } catch (error) {
     Logger.error('❌ Ошибка при инициализации плагина:', error);
@@ -320,6 +328,22 @@ figma.ui.onmessage = async (msg) => {
     // === MCP Bridge dispatcher (UPPERCASE messages) ===
     const bridgeHandled = await handleBridgeMessage(msg);
     if (bridgeHandled) return;
+
+    // === MCP Bridge Ready — triggered after first WebSocket connect ===
+    if (msg.type === 'MCP_BRIDGE_READY') {
+      fetchAndSendVariablesData().catch(function(err) {
+        Logger.debug('MCP Bridge: error fetching variables after ready: ' + err);
+      });
+      return;
+    }
+
+    // === Soft Reload request from bridge ===
+    if (msg.type === 'SOFT_RELOAD_REQUEST') {
+      fetchAndSendVariablesData().catch(function(err) {
+        Logger.debug('MCP Bridge: error refreshing variables on soft reload: ' + err);
+      });
+      return;
+    }
 
     // === Resize UI (silent) ===
     if (msg.type === 'resize-ui') {

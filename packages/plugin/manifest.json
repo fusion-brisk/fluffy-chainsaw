@@ -5,6 +5,7 @@
   "main": "dist/code.js",
   "capabilities": [],
   "enableProposedApi": false,
+  "enablePrivatePluginApi": true,
   "documentAccess": "dynamic-page",
   "editorType": [
     "figma"
@@ -13,7 +14,7 @@
   "networkAccess": {
     "allowedDomains": ["*","https://avatars.mds.yandex.net/","https://favicon.yandex.net/"],
     "devAllowedDomains": ["*"],
-    "reasoning": "Required to load images and content from external URLs defined in user CSV files."
+    "reasoning": "Required to load images, content from external URLs, and MCP bridge WebSocket connections."
   }
 }
 

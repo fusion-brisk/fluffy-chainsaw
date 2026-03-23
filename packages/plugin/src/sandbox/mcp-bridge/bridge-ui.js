@@ -21,6 +21,7 @@
   window.__figmaComponentRequests = new Map();
   window.__figmaPendingRequests = new Map();
   window.__mcpBridgeConnected = false;
+  window.__mcpBridgeInitSent = false;
 
   var requestIdCounter = 0;
   var DEBUG_RELAY = 'http://localhost:3847'; // Must match PORTS.RELAY in config.ts
@@ -363,6 +364,9 @@
       },
       'RELOAD_UI': function() {
         return window.sendPluginCommand('RELOAD_UI', {});
+      },
+      'BATCH_EXECUTE': function(params) {
+        return window.sendPluginCommand('BATCH_EXECUTE', { commands: params.commands }, 300000);
       }
     };
 
@@ -399,13 +403,24 @@
         connWs.send(JSON.stringify({ type: 'VARIABLES_DATA', data: window.__figmaVariablesData }));
       }
 
+      uiDebugLog('debug', 'initializeConnection: requesting GET_FILE_INFO');
       window.sendPluginCommand('GET_FILE_INFO', {})
         .then(function(info) {
+          uiDebugLog('debug', 'GET_FILE_INFO resolved', {
+            success: info && info.success,
+            hasFileInfo: !!(info && info.fileInfo),
+            fileKey: info && info.fileInfo && info.fileInfo.fileKey,
+            wsReady: connWs.readyState === 1
+          });
           if (connWs.readyState === 1 && info && info.success !== false) {
-            connWs.send(JSON.stringify({ type: 'FILE_INFO', data: info.fileInfo || info }));
+            var payload = { type: 'FILE_INFO', data: info.fileInfo || info };
+            uiDebugLog('info', 'Sending FILE_INFO to WS', payload);
+            connWs.send(JSON.stringify(payload));
           }
         })
-        .catch(function() { /* non-critical */ });
+        .catch(function(err) {
+          uiDebugLog('error', 'GET_FILE_INFO failed', { error: err.message || String(err) });
+        });
     }
 
     function broadcastToAll(message) {
@@ -418,6 +433,19 @@
     }
 
     function attachWsHandlers(activeWs, port) {
+      // Heartbeat: detect zombie connections
+      var heartbeatInterval = setInterval(function() {
+        if (activeWs.readyState === 1) {
+          try {
+            activeWs.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          } catch(e) {
+            clearInterval(heartbeatInterval);
+          }
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 30000);
+
       activeWs.onmessage = function(event) {
         try {
           var message = JSON.parse(event.data);
@@ -447,6 +475,7 @@
       };
 
       activeWs.onclose = function(event) {
+        clearInterval(heartbeatInterval);
         removeConnection(port);
         console.log('[MCP Bridge] WebSocket disconnected from port ' + port + ' (' + activeConnections.length + ' remaining)');
         uiDebugLog('warn', 'WS disconnected port ' + port, { code: event.code, reason: event.reason, remaining: activeConnections.length });
@@ -525,6 +554,13 @@
 
           testWs.onopen = function() {
             clearTimeout(timeout);
+            // Dedup: port may have been connected by a parallel scan
+            if (isPortConnected(port)) {
+              testWs.close();
+              pending--;
+              if (pending <= 0) isScanning = false;
+              return;
+            }
             foundAny = true;
             activeConnections.push({ port: port, ws: testWs });
             updateCompatState();
@@ -532,6 +568,12 @@
             uiDebugLog('info', 'WS connected port ' + port, { serverCount: activeConnections.length });
             attachWsHandlers(testWs, port);
             initializeConnection(testWs);
+
+            // Signal sandbox that MCP bridge is ready (once per session)
+            if (!window.__mcpBridgeInitSent) {
+              window.__mcpBridgeInitSent = true;
+              parent.postMessage({ pluginMessage: { type: 'MCP_BRIDGE_READY' } }, '*');
+            }
 
             pending--;
             if (pending <= 0) {
@@ -575,6 +617,9 @@
         }
       });
     }
+
+    // Expose rescan for soft reload
+    window.__wsScanAndConnect = wsScanAndConnect;
 
     // Expose broadcast functions for event forwarding
     window.__wsForwardVariables = function(data) {
@@ -694,8 +739,18 @@
       case 'CREATE_CHILD_NODE_RESULT': handleResult('node'); break;
       case 'CAPTURE_SCREENSHOT_RESULT': handleResult('image'); break;
       case 'SET_INSTANCE_PROPERTIES_RESULT': handleResult('instance'); break;
-      case 'GET_FILE_INFO_RESULT': handleResult('fileInfo'); break;
+      case 'GET_FILE_INFO_RESULT':
+        uiDebugLog('debug', 'GET_FILE_INFO_RESULT received', {
+          requestId: msg.requestId,
+          success: msg.success,
+          fileKey: msg.fileInfo && msg.fileInfo.fileKey,
+          hasPending: window.__figmaPendingRequests.has(msg.requestId),
+          pendingKeys: Array.from(window.__figmaPendingRequests.keys())
+        });
+        handleResult('fileInfo');
+        break;
       case 'RELOAD_UI_RESULT': handleResult(null); break;
+      case 'BATCH_EXECUTE_RESULT': handleResult('results'); break;
 
       // Event forwarding to WebSocket
       case 'DOCUMENT_CHANGE':
@@ -709,6 +764,14 @@
         break;
       case 'PAGE_CHANGE':
         if (window.__wsForwardPageChange) window.__wsForwardPageChange(msg.data);
+        break;
+
+      case 'SOFT_RELOAD':
+        // Rescan WebSocket connections without destroying iframe
+        console.log('[MCP Bridge] Soft reload — rescanning connections');
+        if (window.__wsScanAndConnect) window.__wsScanAndConnect();
+        // Re-request variables data
+        window.sendPluginCommand('REFRESH_VARIABLES', {}, 300000).catch(function() {});
         break;
     }
   });
