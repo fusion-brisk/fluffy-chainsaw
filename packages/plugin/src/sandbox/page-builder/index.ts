@@ -1,20 +1,7 @@
 /**
  * Page Builder Module
- * 
- * Модуль для создания страниц Figma из HTML
- * 
- * @example
- * ```typescript
- * import { createPageFromHTML } from './page-builder';
- * 
- * const html = await fetchHTMLFromFile();
- * const result = await createPageFromHTML(html, {
- *   width: 1280,
- *   platform: 'desktop',
- * });
- * 
- * console.log(`Created ${result.createdCount} elements`);
- * ```
+ *
+ * Модуль для создания SERP-страниц Figma из данных relay
  */
 
 // Types
@@ -38,19 +25,11 @@ export {
   CSS_CLASS_TO_CONTAINER_TYPE,
 } from './component-map';
 
-// Structure parsing (old API)
+// Structure parsing (serpItemId grouping)
 export {
-  parsePageStructure,
-  groupSequentialElements,
-  resetElementIdCounter,
   detectPlatformFromHtml,
-} from './structure-parser';
-
-// Structure parsing (new API with serpItemId grouping)
-export {
   groupSnippetsBySerpItem,
   buildSerpStructure,
-  parseSerpPage,
 } from './structure-parser';
 
 // Structure building (new)

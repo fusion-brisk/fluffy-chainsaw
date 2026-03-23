@@ -62,13 +62,6 @@ export {
 } from './price-extractor';
 export type { PriceResult } from './price-extractor';
 
-// MHTML parsing utilities (streaming only — legacy non-streaming parser removed)
-export {
-  parseMhtmlStreaming,
-  parseMhtmlStreamingAsync
-} from './mhtml-streaming';
-export type { MhtmlParseProgress, MhtmlParseResult, MhtmlParseOptions } from './mhtml-streaming';
-
 // JSON parsing utilities
 export { 
   parseJsonFromNoframes,
@@ -94,13 +87,6 @@ export {
   extractFavicon 
 } from './favicon-extractor';
 export type { SpriteState } from './favicon-extractor';
-
-// Snippet parsing utilities
-export { 
-  extractRowData,
-  deduplicateRows,
-  parseYandexSearchResults
-} from './snippet-parser';
 
 // Container structure cache (Figma node search optimization)
 export {
