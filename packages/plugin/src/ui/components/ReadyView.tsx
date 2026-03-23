@@ -17,7 +17,6 @@ interface ReadyViewProps {
 
 export const ReadyView: React.FC<ReadyViewProps> = memo(({
   lastQuery,
-  relayConnected = false,
   onShowExtensionGuide,
   onReimport
 }) => {
