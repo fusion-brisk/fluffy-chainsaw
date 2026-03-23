@@ -1,271 +1,138 @@
-# Contentify — Figma Plugin для автозаполнения макетов
+# Contentify — Project Context
 
-## Глобальная цель
+> This file describes **what** the project is. For **how** to work, see `CLAUDE.md`.
 
-Figma-плагин "Contentify" автоматически заполняет макеты реальными данными из поисковой выдачи Яндекса. Система состоит из трёх частей:
+## Mission
 
-1. **Browser Extension** — парсит страницу Яндекса, извлекает данные сниппетов
-2. **Relay Server** — передаёт данные между браузером и Figma (localhost:3847)
-3. **Figma Plugin** — получает данные и заполняет слои в макете
+Figma-плагин "Contentify" автоматически заполняет макеты реальными данными из поисковой выдачи Яндекса.
 
-## Архитектура системы
+## Architecture
 
 ```
 ┌─────────────────┐     POST /push      ┌─────────────────┐     GET /pull      ┌─────────────────┐
 │   Browser       │ ─────────────────▶  │   Relay Server  │ ◀───────────────── │   Figma Plugin  │
-│   Extension     │                     │   (localhost)   │                     │   (sandbox)     │
-│                 │                     │                 │                     │                 │
-│ content.js      │                     │ server.js       │                     │ code.ts         │
-│ - парсит DOM    │                     │ - очередь       │                     │ - handlers      │
-│ - извлекает     │                     │ - push/pull API │                     │ - images        │
-│   CSVRow[]      │                     │                 │                     │ - UI (React)    │
-└─────────────────┘                     └─────────────────┘                     └─────────────────┘
+│   Extension     │                     │   (localhost)    │                    │   (sandbox)     │
+│                 │                     │                  │                    │                 │
+│ content.ts      │                     │ index.ts         │                    │ code.ts         │
+│ - парсит DOM    │                     │ - очередь        │                    │ - handlers      │
+│ - CSVRow[]      │                     │ - push/pull API  │                    │ - schema engine │
+└─────────────────┘                     └──────────────────┘                    └─────────────────┘
 ```
 
-## Ключевые концепции
+## Key Concepts
 
 ### Snippet (сниппет)
-Карточка товара/результата в поисковой выдаче Яндекса. Типы:
+Карточка товара/результата в поисковой выдаче Яндекса:
 - `EProductSnippet2` — товарный сниппет с ценой
 - `EOfferItem` — оффер магазина
 - `EShopItem` — карточка магазина
-- `ESnippet` — универсальный сниппет
+- `ESnippet` / `Snippet` — универсальный сниппет
 - `Organic` — обычный органический результат
 
 ### Container (контейнер)
-Figma-инстанс компонента, в который заполняются данные. Список контейнеров:
-```
-SNIPPET_CONTAINER_NAMES = [
-  'EShopItem', 'EProductSnippet2', 'ESnippet', 'EProductSnippet',
-  'EOfferItem', 'Snippet', 'Organic_withOfferInfo', 'ProductTile-Item'
-]
-```
+Figma-инстанс компонента, в который заполняются данные.
 
 ### CSVRow
-Структура данных одного сниппета. Ключевые поля (все начинаются с `#`):
+Структура данных одного сниппета. Поля начинаются с `#`:
 - **Текст**: `#OrganicTitle`, `#OrganicPrice`, `#OldPrice`, `#ShopName`, `#ProductRating`
 - **Изображения**: `#OrganicImage`, `#ThumbImage`, `#FaviconImage`
 - **Флаги**: `#EPriceGroup_Discount`, `#BUTTON`, `#EDeliveryGroup`, `#OfficialShop`
 - **Мета**: `#SnippetType`, `#ButtonView`, `#EPrice_View`
 
-### Handler
-Функция обработки специфичной логики компонента. Приоритеты выполнения:
-- `CRITICAL (0)` — EPriceGroup, структурные изменения
-- `VARIANTS (10)` — переключение variant properties
-- `VISIBILITY (20)` — показ/скрытие элементов
-- `TEXT (30)` — текстовые поля
-- `FALLBACK (40)` — финальные обработки
+### Schema Engine
+Декларативный маппинг CSVRow → Figma properties. Покрывает 4 контейнера: EShopItem, EOfferItem, EProductSnippet/2, ESnippet/Snippet.
 
-## Структура проекта (npm workspaces monorepo)
+### Handler
+Императивная функция для сложной логики, не покрываемой Schema (EPriceGroup, EButton, BNPL).
+
+## Project Structure (npm workspaces monorepo)
 
 ```
 packages/plugin/                    # Figma Plugin (@contentify/plugin)
 ├── src/
 │   ├── sandbox/                    # ES5 target (Figma sandbox)
 │   │   ├── code.ts                 # Entry point плагина
-│   │   ├── schema/                 # Декларативный маппинг данных → Figma свойства
-│   │   │   ├── types.ts            # ComponentSchema, PropertyMapping типы
-│   │   │   ├── engine.ts           # applySchema() — generic движок
-│   │   │   ├── transforms.ts       # Вычисляемые трансформы (чистые функции)
-│   │   │   ├── eshop-item.ts       # EShopItem schema
-│   │   │   ├── eoffer-item.ts      # EOfferItem schema
-│   │   │   ├── eproduct-snippet.ts # EProductSnippet/2 schema
-│   │   │   ├── esnippet.ts         # ESnippet/Snippet schema
-│   │   │   └── esnippet-hooks.ts   # Structural hooks (сайтлинки, промо)
-│   │   ├── handlers/               # Императивные обработчики (сложная логика)
+│   │   ├── schema/                 # Декларативный маппинг
+│   │   │   ├── types.ts            # ComponentSchema, PropertyMapping
+│   │   │   ├── engine.ts           # applySchema() движок (~90 LOC)
+│   │   │   ├── transforms.ts       # Чистые вычисляемые функции
+│   │   │   └── *.ts                # Схемы: eshop-item, eoffer-item, esnippet, eproduct-snippet
+│   │   ├── handlers/               # Императивные обработчики
 │   │   │   ├── registry.ts         # Реестр handlers + schema обёртки
-│   │   │   ├── price-handlers.ts   # EPriceGroup, цены, скидки, fintech
-│   │   │   ├── label-handlers.ts   # Brand, рейтинги, барометр
-│   │   │   ├── button-handlers.ts  # EButton, MarketCheckoutButton
-│   │   │   ├── snippet-handlers.ts # Fallbacks, ShopInfo, ImageType
-│   │   │   └── delivery-handlers.ts # Доставка, BNPL
+│   │   │   ├── price-handlers.ts   # EPriceGroup (most complex)
+│   │   │   └── *.ts                # label, button, snippet, delivery handlers
 │   │   ├── plugin/                 # Модули обработки данных
-│   │   │   ├── snippet-processor.ts # Главный процессор import-csv
-│   │   │   ├── data-assignment.ts   # Маппинг данных на контейнеры
-│   │   │   └── message-router.ts    # Роутинг postMessage
 │   │   └── page-builder/           # Создание страниц из HTML
-│   │       ├── component-map.ts    # Маппинг типов на ключи компонентов
-│   │       └── page-creator.ts     # Создание фреймов и инстансов
 │   ├── ui/                         # React UI (modern browsers)
-│   │   ├── ui.tsx                  # Entry point UI (iframe)
-│   │   ├── components/             # React компоненты
-│   │   ├── hooks/                  # React хуки
-│   │   └── styles.css              # Стили
 │   ├── utils/                      # Утилиты
-│   │   └── favicon-extractor.ts    # Извлечение фавиконок
 │   ├── types/                      # TypeScript типы
-│   │   ├── csv-fields.ts           # Поля CSVRow
-│   │   └── field-mapping.ts        # Маппинг полей на компоненты
+│   │   └── csv-fields.ts           # 200+ explicit CSV fields
 │   ├── config.ts                   # Версия, URL, имена контейнеров
-│   ├── logger.ts                   # Logger класс
-│   └── parsing-rules.ts            # Правила парсинга (fallback)
+│   └── logger.ts                   # Logger класс
 ├── tests/                          # Vitest тесты
 └── dist/                           # Собранный плагин
 
 packages/extension/                 # Chrome Extension (@contentify/extension)
 ├── src/
 │   ├── content.ts                  # Парсинг страницы Яндекса (3246 LOC)
-│   ├── background.ts               # Service Worker
-│   ├── popup.ts                    # UI расширения
-│   └── options.ts                  # Настройки расширения
-└── dist/                           # Собранные IIFE бандлы
+│   └── background.ts               # Service Worker
+└── dist/
 
-packages/relay/                     # Relay сервер (@contentify/relay)
+packages/relay/                     # Relay Server (@contentify/relay)
 ├── src/
 │   ├── index.ts                    # Express + WebSocket entry
 │   ├── queue.ts                    # Очередь с file persistence
-│   ├── websocket.ts                # WebSocket сервер
-│   ├── routes/                     # API endpoints
-│   └── types.ts                    # Типы
-└── dist/                           # Скомпилированный CommonJS
-
-shared/                             # Placeholder для общих типов
-tools/                              # Build-скрипты, установщик
+│   └── routes/                     # API endpoints
+└── dist/
 ```
 
-## Хард-ограничения
+## Hard Constraints
 
-### ES5 для sandbox кода
-- Figma sandbox требует ES5 (babel → preset-env до IE11)
-- Ограничение действует ТОЛЬКО для `packages/plugin/src/sandbox/`
-- Итоговый код транспилируется через Rollup + Babel
-- Никаких полифиллов в рантайме
+- **ES5 для sandbox** — Figma sandbox требует Babel transpilation (IE11 target). Только `packages/plugin/src/sandbox/`
+- **No Node.js API** в рантайме плагина — только Figma API + browser API
+- **postMessage** — единственный способ связи UI ↔ Code
+- **Изображения** — загрузка через CORS-proxy (config.ts), кэширование (ImageProcessor)
 
-### Figma Plugin API
-- Никаких Node.js API в рантайме плагина
-- Только браузерное API и Figma API
-- Общение UI ↔ Code только через postMessage
+## Message Protocol
 
-### Изображения
-- Загрузка через CORS-proxy (config.ts)
-- Обязательное кэширование (ImageProcessor)
-- Fallback на placeholder при ошибках
-
-## Паттерны расширения
-
-### Добавление свойства контейнера (Schema — предпочтительный способ)
-
-```typescript
-// packages/plugin/src/sandbox/schema/eshop-item.ts — добавить в containerProperties:
-{ propertyNames: ['withNewFeature'], fieldName: '#NewFeature', equals: { field: '#NewFeature', value: 'true' } }
-```
-
-Schema покрывает: EShopItem, EOfferItem, EProductSnippet/2, ESnippet/Snippet.
-Подробнее: `docs/EXTENDING.md` → секция 0.
-
-### Добавление императивного Handler (для сложной логики)
-
-```typescript
-// packages/plugin/src/sandbox/handlers/my-handlers.ts
-export async function handleMyFeature(context: HandlerContext): Promise<void> {
-  const { container, row } = context;
-  const value = row['#MyField'] === 'true';
-  const instance = getCachedInstance(context.instanceCache!, 'MyComponent');
-  if (instance) {
-    trySetProperty(instance, ['myProperty'], value, '#MyField');
-  }
-}
-
-// packages/plugin/src/sandbox/handlers/registry.ts — зарегистрировать
-this.register('MyFeature', handleMyFeature, {
-  priority: HandlerPriority.VARIANTS,
-  mode: 'async',
-  description: 'Описание'
-});
-```
-
-### Добавление нового поля CSVRow
-
-1. `packages/plugin/src/types/csv-fields.ts` — добавить в CSVFields интерфейс
-2. `packages/extension/src/content.ts` — добавить извлечение в extractRowData()
-3. `packages/plugin/src/parsing-rules.ts` — добавить селекторы (опционально)
-
-### Добавление нового компонента
-
-1. Получить ключ компонента из Figma Dev Console
-2. `packages/plugin/src/sandbox/page-builder/component-map.ts` — добавить в SNIPPET_COMPONENT_MAP
-3. `packages/plugin/src/sandbox/page-builder/structure-builder.ts` — добавить обработку типа
-4. Создать handler если нужна специальная логика
-
-**Подробные гайды**: см. `docs/EXTENDING.md`
-
-## Протокол сообщений
-
-### UI → Code (основные)
+### UI → Code
 - `import-csv` — импорт данных `{ rows, scope }`
 - `apply-relay-payload` — данные от браузера
 - `build-page` — создание страницы из HTML
 
-### Code → UI (основные)
+### Code → UI
 - `progress` — `{ current, total, message, operationType }`
 - `stats` — статистика обработки
 - `done` — завершение `{ count }`
 
-## Сборка (npm workspaces)
+## Build Commands
 
 ```bash
 npm run build                        # Сборка всех workspace
 npm run test                         # Vitest тесты (plugin)
-npm run build -w packages/plugin     # Сборка только плагина
-npm run build -w packages/extension  # Сборка только расширения
-npm run build -w packages/relay      # Сборка только relay
-npm run typecheck -w packages/plugin # Проверка типов плагина
-npm run lint -w packages/plugin      # Линтинг плагина
+npm run typecheck -w packages/plugin # Проверка типов
+npm run lint -w packages/plugin      # Линтинг
 ```
 
-## Стиль кода
+## Release & Artifacts
 
-- ESLint + Prettier + EditorConfig
-- TypeScript строгий режим
-- Логирование через `Logger` класс (levels: SILENT, ERROR, SUMMARY, VERBOSE, DEBUG)
+При релизе (push тега `v*`) GitHub Actions собирает:
 
-## Коммуникация с AI
+| Артефакт | Описание |
+|----------|----------|
+| `contentify.crx` | Chrome-расширение (подписанный CRX) |
+| `Contentify-Installer.zip` | macOS установщик |
+| `contentify-relay-host-arm64` | Relay бинарник для Apple Silicon |
 
-- Всегда соблюдать ES5 для code.js
-- При изменениях ui.html — отдавать полный файл
-- Не дублировать существующие сущности
-- Проверять импорты перед добавлением
-- Держать ответы краткими и практичными
-- **Парсинг данных — единственный путь:** `packages/extension/src/content.ts` парсит HTML на странице Яндекса и отправляет через relay. Плагин получает готовые данные.
+### Release Process
 
-## Документация
+1. Обновить версии: `package.json`, `src/config.ts` → `PLUGIN_VERSION`, `extension/manifest.json`, `extension/updates.xml`
+2. `git commit -m "chore: release vX.Y.Z"` → `git tag vX.Y.Z` → `git push origin main --tags`
+3. GitHub Actions автоматически создаст Release с артефактами
 
-- `docs/ARCHITECTURE.md` — детальная карта проекта
-- `docs/GLOSSARY.md` — термины и концепции
-- `docs/EXTENDING.md` — примеры расширения
-- `docs/STRUCTURE.md` — детали архитектуры модулей
+## Documentation
 
-## Релиз и артефакты
-
-При релизе плагина (push тега `v*`) GitHub Actions автоматически собирает следующие артефакты:
-
-| Артефакт | Описание | Используется в |
-|----------|----------|----------------|
-| `contentify.crx` | Chrome-расширение (подписанный CRX) | `EXTENSION_URLS.EXTENSION_DOWNLOAD` в `src/config.ts` |
-| `Contentify-Installer.zip` | macOS установщик (Installer.app) | `EXTENSION_URLS.INSTALLER_DOWNLOAD` в `src/config.ts` |
-| `contentify-relay-host-arm64` | Relay бинарник для Apple Silicon | Скачивается установщиком |
-
-**ВАЖНО:** URL в `src/config.ts` должны совпадать с именами артефактов в GitHub Release:
-- `extension.crx` — НЕ `Extension.zip`
-- `Contentify-Installer.zip` — НЕ `Contentify-Installer.command`
-
-### Процесс релиза
-
-1. Обновить версии:
-   - `package.json` → `version`
-   - `src/config.ts` → `PLUGIN_VERSION`
-   - `extension/manifest.json` → `version`
-   - `extension/updates.xml` → `version`
-
-2. Закоммитить и создать тег:
-   ```bash
-   git add -A && git commit -m "chore: release v1.5.0"
-   git tag v1.5.0
-   git push origin main --tags
-   ```
-
-3. GitHub Actions автоматически:
-   - Соберёт `extension.crx` (через crx3)
-   - Упакует `Contentify-Installer.zip`
-   - Соберёт Relay бинарники
-   - Создаст GitHub Release с артефактами
+- `CLAUDE.md` — правила разработки для AI-агентов
+- `docs/README.md` — индекс всей документации
+- `docs/EXTENDING.md` — подробные гайды по расширению
+- `docs/ARCHITECTURE.md` — детальная карта системы
