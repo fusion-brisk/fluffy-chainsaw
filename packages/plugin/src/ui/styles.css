@@ -2306,6 +2306,22 @@ button:disabled {
   100% { transform: translateX(-50%); }
 }
 
+.processing-view--figma .processing-view-stage {
+  font-size: 11px;
+  color: var(--figma-color-text-tertiary);
+  margin-top: -4px;
+}
+
+.processing-view--figma .processing-view-stuck {
+  font-size: 11px;
+  color: var(--color-warning);
+  animation: viewAppear 0.3s ease-out;
+}
+
+.processing-view--figma .processing-view-cancel {
+  margin-top: 4px;
+}
+
 /* ============================================
    SUCCESS VIEW
    ============================================ */
