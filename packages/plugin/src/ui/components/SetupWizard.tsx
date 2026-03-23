@@ -20,7 +20,8 @@ export const SetupWizard: React.FC<SetupWizardProps> = memo(({
   onSkip
 }) => {
   const [copied, setCopied] = useState(false);
-  
+  const [copyError, setCopyError] = useState(false);
+
   const handleDownloadInstaller = useCallback(() => {
     window.open(EXTENSION_URLS.INSTALLER_DOWNLOAD, '_blank');
   }, []);
@@ -34,8 +35,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = memo(({
       await navigator.clipboard.writeText(EXTENSION_URLS.EXTENSIONS_PAGE);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
+    } catch {
+      setCopyError(true);
+      setTimeout(() => setCopyError(false), 2000);
     }
   }, []);
 
@@ -49,9 +51,9 @@ export const SetupWizard: React.FC<SetupWizardProps> = memo(({
       {/* Header */}
       <div className="setup-wizard-header">
         <h2 className="setup-wizard-title">Настройка</h2>
-        {onSkip && relayConnected && (
+        {onSkip && (
           <button type="button" className="btn-text" onClick={onSkip}>
-            Пропустить
+            {relayConnected ? 'Пропустить' : 'Настроить позже'}
           </button>
         )}
       </div>
@@ -100,7 +102,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = memo(({
                 className="setup-wizard-link"
                 onClick={handleCopyExtensionsUrl}
               >
-                {copied ? '✓ Скопировано' : 'Скопировать chrome://extensions'}
+                {copyError ? 'Не удалось скопировать' : copied ? '✓ Скопировано' : 'Скопировать chrome://extensions'}
               </button>
             </>
           )}
