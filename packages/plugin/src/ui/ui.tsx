@@ -70,7 +70,6 @@ interface PendingImport {
   rows: CSVRow[];
   query: string;
   source: string;
-  htmlForBuild?: string;
   entryId?: string;
 }
 
@@ -205,12 +204,11 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
-  // === SET CONFIRMING STATE (shared by relay, clipboard, file) ===
+  // === SET CONFIRMING STATE (shared by relay) ===
   const showConfirmation = useCallback((data: {
     rows: CSVRow[];
     query: string;
     source: string;
-    htmlForBuild?: string;
     entryId?: string;
   }) => {
     const totalCount = data.rows.length;
@@ -218,7 +216,6 @@ const App: React.FC = () => {
       rows: data.rows,
       query: data.query || 'Импорт данных',
       source: data.source,
-      htmlForBuild: data.htmlForBuild,
       entryId: data.entryId,
     });
     setImportInfo({
@@ -397,7 +394,7 @@ const App: React.FC = () => {
   const handleConfirmImport = useCallback((mode: ImportMode) => {
     if (!pendingImport) return;
 
-    const { rows, query, htmlForBuild, entryId } = pendingImport;
+    const { rows, query, entryId } = pendingImport;
     const scope = mode === 'selection' ? 'selection' : 'page';
 
     // Store entryId for acknowledgment after successful import
@@ -432,14 +429,6 @@ const App: React.FC = () => {
         scope
       });
       relayPayloadRef.current = null;
-    } else if (htmlForBuild && mode === 'artboard') {
-      sendMessageToPlugin({
-        type: 'build-page',
-        rows,
-        html: htmlForBuild,
-        wizards: fileWizardsRef.current || []
-      });
-      fileWizardsRef.current = [];
     } else {
       sendMessageToPlugin({
         type: 'import-csv',
@@ -450,8 +439,6 @@ const App: React.FC = () => {
       relayPayloadRef.current = null;
     }
 
-    fileHtmlRef.current = '';
-    fileWizardsRef.current = [];
     setPendingImport(null);
   }, [pendingImport, resizeUI, relay]);
 
