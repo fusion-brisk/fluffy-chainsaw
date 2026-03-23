@@ -1,5 +1,5 @@
 /**
- * Contentify Plugin — UI Entry Point (Clipboard-First)
+ * Contentify Plugin — UI Entry Point (Relay-Only)
  *
  * Unified UI with minimal states:
  * - checking: Initial relay connection check
@@ -7,12 +7,9 @@
  * - processing: Importing/processing data
  * - confirming: Data received, awaiting user confirmation
  * - success: Import completed successfully
- * - fileDrop: Hidden fallback for file import
  *
- * CLIPBOARD-FIRST ARCHITECTURE:
- * - Plugin works with or without relay connection
- * - Users can always paste data from Chrome extension (Cmd+V)
- * - Relay is optional for automatic data transfer (no paste needed)
+ * RELAY-ONLY ARCHITECTURE:
+ * - Data flows: Extension → Relay Server → WebSocket/HTTP → Plugin UI → Sandbox
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -33,19 +30,15 @@ import { buildImportSummary } from '../utils/format';
 
 // Hooks
 import { useRelayConnection } from './hooks/useRelayConnection';
-import { useClipboardPaste } from './hooks/useClipboardPaste';
-import { useFileImport } from './hooks/useFileImport';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
 import { useMcpStatus } from './hooks/useMcpStatus';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
-import type { ClipboardPasteEvent } from './hooks/useClipboardPaste';
-import type { FileImportResult } from './hooks/useFileImport';
 
 // Components
 import { ReadyView } from './components/ReadyView';
 import { ProcessingView } from './components/ProcessingView';
-import { FileDropOverlay } from './components/FileDropOverlay';
+
 import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog, ImportMode } from './components/ImportConfirmDialog';
 import { SuccessView } from './components/SuccessView';
@@ -123,11 +116,9 @@ const App: React.FC = () => {
   const isFirstResizeRef = useRef(true);
   const isMountedRef = useRef(true);
 
-  // Relay payload/file refs for import
+  // Relay payload ref for import
   const relayPayloadRef = useRef<RelayPayload | null>(null);
   const pendingEntryIdRef = useRef<string | null>(null);
-  const fileHtmlRef = useRef<string>('');
-  const fileWizardsRef = useRef<unknown[]>([]);
 
   // === ANIMATED RESIZE HELPER ===
   const resizeUI = useCallback((state: AppState | keyof typeof UI_SIZES) => {
@@ -242,7 +233,7 @@ const App: React.FC = () => {
   // === RELAY CONNECTION HOOK ===
   const relay = useRelayConnection({
     relayUrl,
-    enabled: appState !== 'processing' && appState !== 'confirming' && appState !== 'fileDrop',
+    enabled: appState !== 'processing' && appState !== 'confirming',
     onDataReceived: useCallback((data: RelayDataEvent) => {
       if (!extensionInstalled) {
         markExtensionInstalled();
@@ -273,42 +264,6 @@ const App: React.FC = () => {
 
   // === MCP STATUS HOOK ===
   const mcpStatus = useMcpStatus();
-
-  // === CLIPBOARD PASTE HOOK ===
-  useClipboardPaste({
-    enabled: appState === 'ready' || appState === 'confirming',
-    onPaste: useCallback((data: ClipboardPasteEvent) => {
-      if (!extensionInstalled) {
-        markExtensionInstalled();
-      }
-      relayPayloadRef.current = data.payload as RelayPayload | null;
-      showConfirmation({
-        rows: data.rows,
-        query: data.query || 'Импорт из буфера',
-        source: 'Буфер обмена',
-      });
-    }, [extensionInstalled, markExtensionInstalled, showConfirmation]),
-  });
-
-  // === FILE IMPORT HOOK ===
-  const fileImport = useFileImport({
-    enabled: appState !== 'processing',
-    onFileProcessed: useCallback((data: FileImportResult) => {
-      fileHtmlRef.current = data.htmlForBuild;
-      fileWizardsRef.current = data.wizards;
-      showConfirmation({
-        rows: data.rows,
-        query: data.query,
-        source: 'Файл',
-        htmlForBuild: data.htmlForBuild,
-      });
-    }, [showConfirmation]),
-    onError: useCallback(() => {
-      setConfetti({ active: true, type: 'error' });
-      setAppState('ready');
-      resizeUI('ready');
-    }, [resizeUI]),
-  });
 
   // === PLUGIN MESSAGES HOOK ===
   usePluginMessages({
@@ -346,14 +301,6 @@ const App: React.FC = () => {
       },
       onDone: () => {
         // Acknowledge relay data after successful import
-        if (pendingEntryIdRef.current) {
-          const entryIdToAck = pendingEntryIdRef.current;
-          pendingEntryIdRef.current = null;
-          relay.ackData(entryIdToAck);
-        }
-        finishProcessing('success');
-      },
-      onBuildPageDone: () => {
         if (pendingEntryIdRef.current) {
           const entryIdToAck = pendingEntryIdRef.current;
           pendingEntryIdRef.current = null;
@@ -594,14 +541,6 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'cancel-import' });
   }, []);
 
-  const handleCloseFileDrop = useCallback(() => {
-    fileImport.setShowFileDrop(false);
-    if (appState === 'fileDrop') {
-      setAppState('ready');
-      resizeUI('ready');
-    }
-  }, [appState, resizeUI, fileImport]);
-
   const handleConfettiComplete = useCallback(() => {
     setConfetti({ active: false, type: 'success' });
   }, []);
@@ -612,7 +551,6 @@ const App: React.FC = () => {
   return (
     <div
       className="glass-app"
-      {...fileImport.dragHandlers}
     >
       {/* StatusBar — always visible except during checking, guides, log viewer, or inspector */}
       {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && !showInspector && (
@@ -693,23 +631,6 @@ const App: React.FC = () => {
           onComplete={handleSuccessComplete}
           autoCloseDelay={3500}
         />
-      )}
-
-      {/* File drop overlay */}
-      <FileDropOverlay
-        isOpen={fileImport.showFileDrop}
-        onClose={handleCloseFileDrop}
-        onFileSelect={fileImport.handleFileSelect}
-      />
-
-      {/* Drag overlay */}
-      {fileImport.isDragging && (
-        <div className="drag-overlay">
-          <div className="drag-overlay-content">
-            <span className="drag-overlay-icon">📄</span>
-            <span className="drag-overlay-text">Отпустите для импорта</span>
-          </div>
-        </div>
       )}
 
       {/* Confetti celebration */}
