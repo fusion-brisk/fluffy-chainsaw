@@ -1,10 +1,8 @@
 // @ts-nocheck
 /**
- * Contentify Extension — Popup (Clipboard-First Architecture)
- * 
- * Single-click to parse & copy to clipboard.
- * Relay is optional for automatic transfer.
- * Always works without requiring any setup.
+ * Contentify Extension — Popup (Relay-Only Architecture)
+ *
+ * Single-click to parse & send to relay server.
  */
 
 // Elements
@@ -69,22 +67,12 @@ async function parsePageData(tabId) {
       args: [rules]
     });
   }
-  
+
   const results = await chrome.scripting.executeScript({
     target: { tabId },
     files: ['dist/content.js']
   });
   return results[0]?.result;
-}
-
-// Build human-readable summary for clipboard (debug-friendly, no raw data)
-function buildItemsSummary(rows) {
-  return rows.map(row => ({
-    title: row['#OrganicTitle'] || '',
-    priceText: row['#OrganicPrice'] ? `${row['#OrganicPrice']} ${row['#Currency'] || '₽'}` : '',
-    shopName: row['#ShopName'] || '',
-    snippetType: row['#SnippetType'] || 'Organic'
-  }));
 }
 
 // Update UI state
@@ -94,7 +82,7 @@ function setState(state, message, hint = '') {
   statusEl.textContent = message;
   hintEl.textContent = hint;
   mainView.className = `main-view ${state}`;
-  
+
   // Update indicator icon
   switch (state) {
     case 'loading':
@@ -109,50 +97,36 @@ function setState(state, message, hint = '') {
     case 'disabled':
       indicator.textContent = '🌐';
       break;
-    case 'copied':
-      indicator.textContent = '📋';
-      break;
     default:
       indicator.textContent = '📤';
   }
 }
 
-// Copy data to clipboard
-async function copyToClipboard(data) {
-  try {
-    await navigator.clipboard.writeText(data);
-    return true;
-  } catch (err) {
-    console.error('Clipboard copy failed:', err);
-    return false;
-  }
-}
-
-// Main send handler (clipboard-first)
+// Main send handler (relay-only)
 async function handleClick() {
   if (isProcessing) return;
-  
+
   isProcessing = true;
   setState('loading', 'Парсинг...', '');
-  
+
   try {
     const tab = await getCurrentTab();
-    
+
     if (!isYandexPage(tab.url)) {
       setState('disabled', 'Не Яндекс', 'Откройте ya.ru');
       isProcessing = false;
       return;
     }
-    
+
     // Parse page
     const parseResult = await parsePageData(tab.id);
-    
+
     if (!parseResult || parseResult.error || !parseResult.rows?.length) {
       setState('error', 'Нет данных', parseResult?.error || 'Сниппеты не найдены');
       isProcessing = false;
       return;
     }
-    
+
     const rows = parseResult.rows;
     const wizards = parseResult.wizards || [];
     const productCard = parseResult.productCard || null;
@@ -169,37 +143,18 @@ async function handleClick() {
       wizards: wizards,
       productCard: productCard
     };
-    
-    const meta = { 
-      url: tab.url, 
-      parsedAt: new Date().toISOString(), 
+
+    const meta = {
+      url: tab.url,
+      parsedAt: new Date().toISOString(),
       snippetCount: rows.length,
       wizardCount: wizards.length
     };
-    
-    // Always copy to clipboard first (clipboard-first architecture)
-    // Clipboard payload includes human-readable items summary for debug
-    const clipboardData = JSON.stringify({
-      type: 'contentify-paste',
-      payload: {
-        ...payload,
-        items: buildItemsSummary(rows) // Debug-only summary, no _rawCSVRow
-      },
-      meta
-    });
-    
-    const copySuccess = await copyToClipboard(clipboardData);
-    
-    if (!copySuccess) {
-      setState('error', 'Ошибка копирования', 'Попробуйте снова');
-      isProcessing = false;
-      return;
-    }
-    
-    // Try to send to relay (optional, non-blocking)
+
+    // Send to relay
     const relayUrl = await getRelayUrl();
     let relaySuccess = false;
-    
+
     try {
       const relayOk = await checkRelay(relayUrl);
       if (relayOk) {
@@ -212,21 +167,23 @@ async function handleClick() {
         relaySuccess = res.ok;
       }
     } catch {
-      // Relay not available — clipboard fallback is already done
+      // Relay not available
     }
-    
-    // Success!
+
+    // Result
     const wizardSuffix = wizards.length > 0 ? ` + ${wizards.length} wizard` : '';
     const pcSuffix = productCard ? ' + sidebar' : '';
     if (relaySuccess) {
       setState('success', `${rows.length}${wizardSuffix}${pcSuffix} → Figma`, 'Автоматически!');
     } else {
-      setState('copied', `${rows.length}${wizardSuffix}${pcSuffix} скопировано`, 'Вставьте в Figma (⌘V)');
+      setState('error', `Relay недоступен`, 'Запустите relay сервер');
     }
-    
+
     // Close popup after short delay
-    setTimeout(() => window.close(), relaySuccess ? 1000 : 1500);
-    
+    if (relaySuccess) {
+      setTimeout(() => window.close(), 1000);
+    }
+
   } catch (err) {
     console.error('Error:', err);
     setState('error', 'Ошибка', err.message || 'Попробуйте снова');
@@ -238,24 +195,23 @@ async function handleClick() {
 // Initialize
 (async () => {
   const tab = await getCurrentTab();
-  
+
   // Check if on Yandex page
   if (!isYandexPage(tab?.url)) {
     setState('disabled', 'Не Яндекс', 'Откройте ya.ru');
     return;
   }
-  
-  // Ready to parse and copy
-  // Check relay for indicator only
+
+  // Check relay for indicator
   const relayUrl = await getRelayUrl();
   const relayOk = await checkRelay(relayUrl);
-  
+
   if (relayOk) {
     setState('ready', 'Готов', 'Клик → Figma');
   } else {
-    setState('ready', 'Готов', 'Клик → Скопировать');
+    setState('ready', 'Готов (relay offline)', 'Запустите relay сервер');
   }
-  
+
   // Bind click to main view
   mainView.addEventListener('click', handleClick);
 })();

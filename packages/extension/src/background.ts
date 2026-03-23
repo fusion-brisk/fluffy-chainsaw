@@ -138,16 +138,6 @@ async function getRelayUrl() {
   return relayUrl || DEFAULT_RELAY_URL;
 }
 
-// Build human-readable summary for clipboard (debug-friendly, no raw data)
-function buildItemsSummary(rows) {
-  return rows.map(row => ({
-    title: row['#OrganicTitle'] || '',
-    priceText: row['#OrganicPrice'] ? `${row['#OrganicPrice']} ${row['#Currency'] || '₽'}` : '',
-    shopName: row['#ShopName'] || '',
-    snippetType: row['#SnippetType'] || 'Organic'
-  }));
-}
-
 // Set badge text and color
 function setBadge(text, color) {
   chrome.action.setBadgeText({ text });
@@ -178,7 +168,7 @@ function addToRetryQueue(item) {
   updateRetryBadge();
   console.log(`[Retry] Added to queue, size: ${retryQueue.length}`);
   
-  // Also save to storage for clipboard fallback
+  // Save to storage for retry persistence
   savePendingDataToStorage(item);
   
   // Start retry process if not already running
@@ -188,7 +178,7 @@ function addToRetryQueue(item) {
 }
 
 /**
- * Save pending data to chrome.storage.local for clipboard fallback
+ * Save pending data to chrome.storage.local for retry persistence
  */
 async function savePendingDataToStorage(item) {
   try {
@@ -199,7 +189,7 @@ async function savePendingDataToStorage(item) {
         savedAt: Date.now()
       }
     });
-    console.log('[Fallback] Data saved to storage for clipboard fallback');
+    console.log('[Fallback] Data saved to storage for retry');
   } catch (err) {
     console.error('[Fallback] Failed to save to storage:', err);
   }
@@ -323,48 +313,6 @@ async function attemptPush(item) {
     return res.ok;
   } catch (err) {
     console.log(`[Retry] Push failed:`, err.message);
-    return false;
-  }
-}
-
-/**
- * Copy data to clipboard via content script
- * Service workers can't access clipboard directly, so we inject a script
- */
-async function copyToClipboard(tabId, data) {
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      func: (jsonData) => {
-        // Copy to clipboard using modern API with fallback
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(jsonData).catch(() => {
-            // Fallback for older browsers
-            const textarea = document.createElement('textarea');
-            textarea.value = jsonData;
-            textarea.style.cssText = 'position:fixed;left:-9999px;';
-            document.body.appendChild(textarea);
-            textarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(textarea);
-          });
-        } else {
-          // execCommand fallback
-          const textarea = document.createElement('textarea');
-          textarea.value = jsonData;
-          textarea.style.cssText = 'position:fixed;left:-9999px;';
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-        }
-      },
-      args: [data]
-    });
-    console.log('[Clipboard] Data copied to clipboard');
-    return true;
-  } catch (e) {
-    console.error('[Clipboard] Failed to copy:', e);
     return false;
   }
 }
@@ -527,12 +475,20 @@ async function handleIconClick(tab) {
     }
     
     // Parse page using content script
-    const results = await chrome.scripting.executeScript({
+    // Note: esbuild wraps content.js in extra IIFE, swallowing the return value.
+    // Content script stores result in window.__contentifyResult as fallback.
+    await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       files: ['dist/content.js']
     });
-    
-    parseResult = results[0]?.result;
+
+    // Read result from page context (esbuild IIFE prevents direct return)
+    const [{ result: pageResult }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => window.__contentifyResult
+    });
+
+    parseResult = pageResult;
     
     if (!parseResult || parseResult.error || !parseResult.rows?.length) {
       setBadge('0', '#E5534B');
@@ -585,25 +541,11 @@ async function handleIconClick(tab) {
       extensionVersion: chrome.runtime.getManifest().version
     };
     
-    // ALWAYS copy to clipboard first (clipboard-first architecture)
-    // Clipboard payload includes human-readable items summary for debug
-    const clipboardData = JSON.stringify({
-      type: 'contentify-paste',
-      payload: {
-        ...payload,
-        items: buildItemsSummary(rows) // Debug-only summary, no _rawCSVRow
-      },
-      meta
-    });
-    
-    await copyToClipboard(tab.id, clipboardData);
-    
-    // Try to send to relay (optional, non-blocking)
+    // Send to relay
     const relayUrl = await getRelayUrl();
     let relaySuccess = false;
-    
+
     try {
-      // Quick relay check
       const relayOk = await ensureRelayRunning();
       if (relayOk) {
         const res = await fetch(`${relayUrl}/push`, {
@@ -615,15 +557,13 @@ async function handleIconClick(tab) {
         relaySuccess = res.ok;
       }
     } catch (relayErr) {
-      console.log('[Relay] Not available, using clipboard fallback:', relayErr.message);
+      console.log('[Relay] Not available:', relayErr.message);
     }
-    
-    // Success! Data is copied (and optionally sent to relay)
+
     const pcLabel = productCard ? '+PC' : '';
     setBadge(`${rows.length}${pcLabel}`, '#3FB950');
     clearBadgeAfter(3000);
-    
-    // Clear any pending fallback data
+
     if (relaySuccess) {
       clearPendingDataFromStorage();
     } else {
@@ -675,28 +615,18 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // Update icon appearance based on current tab
+// Uses chrome.runtime.getURL to avoid MV3 service worker "Failed to fetch" bug
 function updateIconForTab(tab) {
-  if (isYandexPage(tab.url)) {
-    // On Yandex - ready to parse (green frog)
-    chrome.action.setIcon({
-      path: {
-        16: 'icons/icon16-green.png',
-        48: 'icons/icon48-green.png',
-        128: 'icons/icon128-green.png'
-      }
-    });
-    chrome.action.setTitle({ title: 'Отправить в Figma' });
-  } else {
-    // Not on Yandex (gray frog)
-    chrome.action.setIcon({
-      path: {
-        16: 'icons/icon16-gray.png',
-        48: 'icons/icon48-gray.png',
-        128: 'icons/icon128-gray.png'
-      }
-    });
-    chrome.action.setTitle({ title: 'Откройте страницу Яндекса' });
-  }
+  const variant = isYandexPage(tab.url) ? 'green' : 'gray';
+  const title = isYandexPage(tab.url) ? 'Отправить в Figma' : 'Откройте страницу Яндекса';
+  chrome.action.setIcon({
+    path: {
+      16: chrome.runtime.getURL(`icons/icon16-${variant}.png`),
+      48: chrome.runtime.getURL(`icons/icon48-${variant}.png`),
+      128: chrome.runtime.getURL(`icons/icon128-${variant}.png`)
+    }
+  });
+  chrome.action.setTitle({ title });
 }
 
 // === Parsing Rules (shared with plugin) ===
