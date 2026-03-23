@@ -329,57 +329,6 @@ export function groupContainersWithDataLayers(
 }
 
 /**
- * Старая версия группировки (для сравнения)
- * @deprecated Используйте groupContainersWithDataLayers с searchRoot
- */
-export function groupContainersWithDataLayersLegacy(
-  allContainers: SceneNode[],
-  onProgress?: ProgressCallback
-): Map<string, SceneNode[]> {
-  const snippetGroups = new Map<string, SceneNode[]>();
-  
-  let totalDataLayers = 0;
-  let containerIndex = 0;
-  const totalContainers = allContainers.length;
-  
-  for (const container of allContainers) {
-    containerIndex++;
-    
-    if (container.removed) continue;
-    
-    // Кэшируем имя контейнера
-    containerNamesCache.set(container.id, container.name);
-    
-    // Прямой поиск data-слоёв через findAll
-    const dataLayers: SceneNode[] = [];
-    
-    if ('findAll' in container) {
-      const found = (container as SceneNode & ChildrenMixin).findAll(isDataLayer);
-      dataLayers.push(...found);
-    }
-    
-    totalDataLayers += dataLayers.length;
-    
-    // Сохраняем результат
-    if (dataLayers.length > 0) {
-      snippetGroups.set(container.id, dataLayers);
-    } else if (isAlwaysProcessContainer(container.name)) {
-      snippetGroups.set(container.id, []);
-    }
-    
-    // Прогресс
-    if (onProgress && (containerIndex % 5 === 0 || containerIndex === totalContainers)) {
-      const progress = 20 + Math.floor((containerIndex / totalContainers) * 20);
-      onProgress(Math.min(40, progress), 100, `Группировка: ${containerIndex}/${totalContainers}`, 'grouping');
-    }
-  }
-  
-  Logger.debug(`📊 [Legacy] Найдено ${totalDataLayers} data-слоёв в ${snippetGroups.size} контейнерах`);
-  
-  return snippetGroups;
-}
-
-/**
  * Получить тип контейнера по его ID — использует кэш имён
  * (figma.getNodeById недоступен в режиме documentAccess: dynamic-page)
  */
