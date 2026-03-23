@@ -617,7 +617,7 @@ const App: React.FC = () => {
           query={importInfo.query}
           stats={lastStats}
           onComplete={handleSuccessComplete}
-          autoCloseDelay={3500}
+          onShowLogs={handleShowLogViewer}
         />
       )}
 

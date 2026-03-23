@@ -2385,6 +2385,11 @@ button:disabled {
   background: rgba(229, 57, 53, 0.08);
 }
 
+.success-view-logs-link {
+  font-size: 11px;
+  margin-top: -4px;
+}
+
 .success-view--figma .success-view-close {
   margin-top: var(--space-sm);
 }
