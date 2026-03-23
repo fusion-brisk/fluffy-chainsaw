@@ -95,7 +95,7 @@ export interface PluginSettings {
 
 export interface DebugReport {
   timestamp: string;
-  operation: 'build-page' | 'import-csv' | 'relay-import';
+  operation: 'import-csv' | 'relay-import';
   success: boolean;
   duration: number;
   query?: string;
@@ -151,8 +151,6 @@ export type UIMessage =
   // === IMPORT ===
   | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string; resetBeforeImport?: boolean }
   | { type: 'cancel-import' }  // Cancel current import operation
-  // === BUILD PAGE ===
-  | { type: 'build-page'; rows: CSVRow[]; html: string; wizards?: unknown[] }  // Create new page from HTML structure
   // === BROWSER RELAY ===
   | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string }  // Apply data from browser extension via relay
   // === RESET ===
@@ -210,8 +208,6 @@ export type CodeMessage =
   | { type: 'stats'; stats: ProcessingStats }
   | { type: 'done'; count: number }
   | { type: 'import-cancelled' }  // Response to cancel-import
-  // === BUILD PAGE ===
-  | { type: 'build-page-done'; count: number; frameName: string }  // Response to build-page
   // === BROWSER RELAY ===
   | { type: 'relay-payload-applied'; success: boolean; itemCount?: number; frameName?: string; error?: string }  // Response to apply-relay-payload
   // === RESET ===
@@ -264,9 +260,8 @@ export interface RelayPayload {
  * - 'confirming': показываем диалог подтверждения импорта
  * - 'processing': обработка данных
  * - 'success': импорт успешно завершён
- * - 'fileDrop': показываем fallback для загрузки файлов
  */
-export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success' | 'fileDrop';
+export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success';
 
 /**
  * Размеры окна плагина для разных состояний
@@ -277,7 +272,6 @@ export const UI_SIZES = {
   confirming: { width: 340, height: 340 },
   processing: { width: 340, height: 300 },
   success: { width: 340, height: 320 },
-  fileDrop: { width: 320, height: 280 },
   extensionGuide: { width: 380, height: 520 },
   whatsNew: { width: 380, height: 520 },
   logsViewer: { width: 380, height: 520 },

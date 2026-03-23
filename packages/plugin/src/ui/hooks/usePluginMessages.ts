@@ -40,9 +40,6 @@ export interface PluginMessageHandlers {
   // Reset
   onResetDone?: (count: number) => void;
 
-  // Build Page
-  onBuildPageDone?: (count: number, frameName: string) => void;
-
   // Cancel
   onImportCancelled?: () => void;
 
@@ -176,13 +173,6 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
         case 'reset-done':
           if (h.onResetDone) {
             h.onResetDone(msg.count);
-          }
-          break;
-
-        // === BUILD PAGE ===
-        case 'build-page-done':
-          if (h.onBuildPageDone) {
-            h.onBuildPageDone(msg.count, msg.frameName);
           }
           break;
 

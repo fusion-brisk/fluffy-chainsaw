@@ -11,7 +11,7 @@ import { Logger, LogLevel } from '../logger';
 import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
-import { createSerpPage, detectPlatformFromHtml } from './page-builder';
+import { createSerpPage } from './page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
 import { handleBridgeMessage, fetchAndSendVariablesData, debugLog } from './mcp-bridge/bridge-handlers';
@@ -488,64 +488,6 @@ figma.ui.onmessage = async (msg) => {
           error: error instanceof Error ? error.message : String(error)
         });
         figma.notify('❌ Ошибка импорта из браузера');
-      }
-      
-      return;
-    }
-    
-    // === Build Page (Create SERP from HTML) ===
-    if (msg.type === 'build-page') {
-      const rows = (msg.rows || []) as CSVRow[];
-      const query = msg.query as string | undefined;
-      const htmlContent = (msg.html || '') as string;
-      const buildWizards = (msg.wizards || []) as WizardPayload[];
-      
-      // Автоопределение платформы из HTML
-      const platform = detectPlatformFromHtml(htmlContent);
-      
-      Logger.info(`🏗️ Build page: ${rows.length} элементов + ${buildWizards.length} wizard (${platform})`);
-      
-      try {
-        const result = await createSerpPage(rows, {
-          query,
-          platform,
-          contentLeftWidth: platform === 'desktop' ? 792 : undefined,
-          contentGap: 0,
-          leftPadding: platform === 'desktop' ? 100 : 0,
-          wizards: buildWizards
-        });
-        
-        if (result.success) {
-          figma.ui.postMessage({
-            type: 'stats',
-            stats: {
-              processedInstances: result.createdCount,
-              totalInstances: result.createdCount,
-              successfulImages: 0,
-              skippedImages: 0,
-              failedImages: result.errors.length,
-              errors: result.errors.map((err, i) => ({
-                id: `build-${i}`,
-                type: 'other' as const,
-                message: err
-              }))
-            }
-          });
-          
-          figma.ui.postMessage({
-            type: 'build-page-done',
-            count: result.createdCount,
-            frameName: result.frame?.name || 'SERP Page'
-          });
-        } else {
-          throw new Error(result.errors.join(', '));
-        }
-      } catch (error) {
-        Logger.error('❌ Ошибка создания страницы:', error);
-        figma.ui.postMessage({
-          type: 'error',
-          message: `Ошибка создания страницы: ${error instanceof Error ? error.message : String(error)}`
-        });
       }
       
       return;
