@@ -2722,13 +2722,13 @@ button:disabled {
   border-radius: 6px; /* Smaller radius to minimize corner transparency */
 }
 
-/* Use filter instead of opacity to dim children while keeping background opaque */
-.status-bar--dim .status-pill {
-  opacity: 0.5;
-}
-
-.status-bar--dim:hover {
-  opacity: 1;
+/* Compact "all OK" badge when all services connected */
+.status-bar-ok {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--status-connected);
+  padding: 4px 10px;
+  white-space: nowrap;
 }
 
 .status-pill {
