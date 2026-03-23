@@ -2554,6 +2554,50 @@ button:disabled {
   padding: 8px 0;
 }
 
+/* Destructive "clear queue" — visually separated */
+.confirm-view-clear-section {
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--figma-color-border);
+  text-align: center;
+}
+
+.confirm-view-clear-link {
+  color: var(--figma-color-text-tertiary);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 0;
+  transition: color 0.15s;
+}
+
+.confirm-view-clear-link:hover {
+  color: var(--color-error);
+}
+
+.confirm-view-clear-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  animation: viewAppear 0.2s ease-out;
+}
+
+.confirm-view-clear-warn {
+  font-size: 11px;
+  color: var(--color-error);
+}
+
+.confirm-view-clear-btns {
+  display: flex;
+  gap: 12px;
+}
+
 /* ============================================
    EXTENSION GUIDE - Full-screen installation view
    ============================================ */
