@@ -107,10 +107,15 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
         </button>
       )}
       {mcpConnected !== undefined && (
-        <StatusPill
-          label="MCP"
-          status={mcpConnected ? 'connected' : 'offline'}
-        />
+        <span title={mcpConnected
+          ? 'MCP Bridge: подключён к figma-console-mcp'
+          : 'MCP Bridge: не подключён. Запустите figma-console-mcp в Claude Code или Cursor'
+        }>
+          <StatusPill
+            label="MCP"
+            status={mcpConnected ? 'connected' : 'offline'}
+          />
+        </span>
       )}
       <StatusPill
         label="Relay"

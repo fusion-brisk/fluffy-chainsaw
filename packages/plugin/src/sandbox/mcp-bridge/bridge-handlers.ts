@@ -10,6 +10,7 @@
  */
 
 import { Logger } from '../../logger';
+import { PORTS } from '../../config';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -94,7 +95,7 @@ function replyError(type: string, requestId: string, error: unknown): void {
 // Debug log — fire-and-forget POST to relay /debug-log
 // ---------------------------------------------------------------------------
 
-var DEBUG_RELAY_URL = 'http://localhost:3848';
+var DEBUG_RELAY_URL = 'http://localhost:' + PORTS.RELAY;
 
 export function debugLog(level: string, source: string, message: string, data?: unknown): void {
   try {

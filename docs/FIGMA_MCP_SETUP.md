@@ -360,6 +360,10 @@ Cursor ◄────────────┤
 - Both can be used simultaneously — official for reading, figma-console for writing
 - Component keys from `component-map.ts` work with both REST API and `importComponentByKeyAsync`
 
+> **Contentify users:** The Contentify plugin **already embeds** the MCP bridge (`bridge-ui.js`).
+> You do NOT need to run the standalone Desktop Bridge plugin.
+> Running both causes WebSocket connection flapping — see [PORT_MAP.md](PORT_MAP.md) for details.
+
 ---
 
 ## Links

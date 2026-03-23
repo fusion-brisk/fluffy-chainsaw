@@ -1,5 +1,18 @@
 // Конфигурация плагина EProductSnippet
 
+// ============================================
+// PORT CONSTANTS — single source of truth
+// ============================================
+export const PORTS = {
+  /** Contentify relay server (HTTP + WebSocket) */
+  RELAY: 3847,
+  /** Figma Local Dev Mode MCP (auto-started by Figma Desktop) */
+  FIGMA_DEV_MODE: 3845,
+  /** figma-console-mcp WebSocket range (bridge scans all 10) */
+  MCP_BRIDGE_WS_START: 9223,
+  MCP_BRIDGE_WS_END: 9232,
+};
+
 // Версия плагина для What's New экрана
 // Формат: MAJOR.MINOR.PATCH
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю

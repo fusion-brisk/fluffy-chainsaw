@@ -52,9 +52,10 @@ import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
 import { LogLevel } from '../logger';
+import { PORTS } from '../config';
 
 // Default relay URL
-const DEFAULT_RELAY_URL = 'http://localhost:3847';
+const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
 
 // Minimum processing display time (ms) for smooth UX
 const MIN_PROCESSING_TIME = 800;
