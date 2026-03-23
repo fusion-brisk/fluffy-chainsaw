@@ -92,7 +92,6 @@ packages/plugin/                    # Figma Plugin (@contentify/plugin)
 │   │   ├── hooks/                  # React хуки
 │   │   └── styles.css              # Стили
 │   ├── utils/                      # Утилиты
-│   │   ├── snippet-parser.ts       # Парсинг HTML → CSVRow
 │   │   └── favicon-extractor.ts    # Извлечение фавиконок
 │   ├── types/                      # TypeScript типы
 │   │   ├── csv-fields.ts           # Поля CSVRow
@@ -227,10 +226,7 @@ npm run lint -w packages/plugin      # Линтинг плагина
 - Не дублировать существующие сущности
 - Проверять импорты перед добавлением
 - Держать ответы краткими и практичными
-- **ВАЖНО: Парсинг данных реализован в ДВУХ местах:**
-  - `packages/extension/src/content.ts` — парсит HTML на странице Яндекса (основной путь данных)
-  - `packages/plugin/src/utils/snippet-parser.ts` + `packages/plugin/src/parsing-rules.ts` — парсит HTML в плагине (fallback для file drop/paste)
-  - При изменении логики парсинга (селекторы, извлечение полей) — проверять и обновлять ОБА места
+- **Парсинг данных — единственный путь:** `packages/extension/src/content.ts` парсит HTML на странице Яндекса и отправляет через relay. Плагин получает готовые данные.
 
 ## Документация
 

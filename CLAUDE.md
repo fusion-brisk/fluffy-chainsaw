@@ -15,10 +15,7 @@
 
 1. **ES5 for sandbox code** — `packages/plugin/src/sandbox/` and all its imports compile to ES5 via Babel (IE11 target). Babel handles transpilation (arrow functions, const/let, async/await become ES5), but never use runtime APIs unavailable in ES5 (e.g., `Promise.allSettled`, `Object.fromEntries`, `Array.flat`). This constraint does NOT apply to UI code (`src/ui/`), extension, or relay.
 2. **Cannot modify frontend** — only Figma components and plugin code. The Yandex SERP frontend is read-only.
-3. **Dual parsing** — parsing logic exists in TWO places that must stay in sync:
-   - `packages/extension/src/content.ts` — primary path (parses Yandex DOM in browser)
-   - `packages/plugin/src/utils/snippet-parser.ts` + `packages/plugin/src/parsing-rules.ts` — fallback (file drop/paste)
-   - When changing selectors or field extraction, update BOTH.
+3. **Single parsing path** — parsing happens only in the extension (`packages/extension/src/content.ts`). The plugin receives pre-parsed rows via relay. There is no file drop or clipboard paste path.
 4. **CSVFields has NO index signature** — every field is explicit in `packages/plugin/src/types/csv-fields.ts`. Never add `[key: string]: string`. This prevents silent typo bugs (e.g., `row['#OragnicTitle']` would compile but return `undefined`).
 5. **Build must pass** — run `npm run build` after every TypeScript change.
 6. **Tests must pass** — run `npm run test` after schema, handler, or transform changes.
@@ -89,7 +86,7 @@ npm run build -w packages/relay      # Build relay only
 | Handler registration/execution | `packages/plugin/tests/handlers/registry.test.ts` |
 | CSV row validation | `packages/plugin/tests/types/validation.test.ts` |
 
-Run: `npm run test` (Vitest, 119+ tests). Test setup mocks Figma API in `packages/plugin/tests/setup.ts`.
+Run: `npm run test` (Vitest, 106+ tests). Test setup mocks Figma API in `packages/plugin/tests/setup.ts`.
 
 ## 7. Key Files
 
@@ -119,3 +116,40 @@ packages/relay/
   src/queue.ts                    — Data queue with file persistence
   src/routes/                     — API endpoints
 ```
+
+## 8. Design & Figma Workflow
+
+- Always use Figma MCP to read design context before implementing UI
+- Use `generate_figma_design` (Figma Remote MCP) to push completed UI back to Figma
+- Use `figma-console` MCP for plugin sandbox debugging (console capture, variable batch ops)
+- Use `talk-to-figma` MCP for component instance manipulation (swap overrides, property changes)
+- When reverse-engineering production UI:
+  1. Playwright → get accessibility tree + computed styles
+  2. Extract component structure → map to design system tokens
+  3. Generate Figma components via talk-to-figma or figma-console
+- Use Context7 to fetch current docs before using any library API
+- Follow `/interface-design` system tokens if `.interface-design/system.md` exists
+- Run `/interface-design:audit` before committing UI changes
+- Use `frontend-design` skill for all new UI components to avoid generic aesthetics
+- Run `web-design-guidelines` audit on all user-facing pages
+
+## 9. Component Development
+
+- Extract design tokens from Figma variables before building components
+- Use composition patterns (compound components, explicit variants) over boolean props
+- Check WCAG 2.1 AA compliance for all interactive elements
+- Use Playwright MCP for visual QA after building UI components
+- Follow react-best-practices rules (45 rules) for all React components
+- Follow next-js-best-practices for all Next.js pages and API routes
+
+## 10. Figma MCP Selection Guide
+
+| Task | Use this MCP |
+|------|-------------|
+| Read design context for code gen | figma-remote (`mcp.figma.com`) |
+| Push new designs to Figma | figma-remote → `generate_figma_design` |
+| Debug Contentify plugin sandbox | figma-console → console capture |
+| Batch export/import variables | figma-console → variable tools |
+| Swap component instances | talk-to-figma → WebSocket API |
+| Modify text/properties in bulk | talk-to-figma → text replacement |
+| Get live file structure | Local Dev Mode (`127.0.0.1:3845`) |
