@@ -153,3 +153,7 @@ packages/relay/
 | Swap component instances | talk-to-figma → WebSocket API |
 | Modify text/properties in bulk | talk-to-figma → text replacement |
 | Get live file structure | Local Dev Mode (`127.0.0.1:3845`) |
+
+> **Note:** When developing the Contentify plugin, do NOT run the standalone Desktop Bridge plugin.
+> Contentify's embedded `bridge-ui.js` already handles MCP connections on ports 9223-9232.
+> Running both causes WebSocket connection flapping. See `docs/PORT_MAP.md` for details.

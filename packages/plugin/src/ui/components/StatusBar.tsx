@@ -1,11 +1,12 @@
 /**
  * StatusBar — Compact connection status indicators
- * 
+ *
  * Shows Relay and Extension connection status as pills in top-right corner.
- * Dims to 60% opacity when all connections are OK.
+ * When all connected: compact "Все ОК ✓" that expands on hover.
+ * When any disconnected: always expanded with problem items highlighted.
  */
 
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 
 interface StatusBarProps {
   relayConnected: boolean;
@@ -21,13 +22,14 @@ type StatusType = 'connected' | 'offline' | 'active' | 'setup';
 
 interface StatusPillProps {
   label: string;
+  tooltip?: string;
   status: StatusType;
   onClick?: () => void;
 }
 
-const StatusPill: React.FC<StatusPillProps> = memo(({ label, status, onClick }) => {
+const StatusPill: React.FC<StatusPillProps> = memo(({ label, tooltip, status, onClick }) => {
   const isClickable = !!onClick;
-  
+
   const getStatusIcon = () => {
     switch (status) {
       case 'connected':
@@ -40,7 +42,7 @@ const StatusPill: React.FC<StatusPillProps> = memo(({ label, status, onClick }) 
         return '○';
     }
   };
-  
+
   const getStatusLabel = () => {
     switch (status) {
       case 'connected':
@@ -62,6 +64,7 @@ const StatusPill: React.FC<StatusPillProps> = memo(({ label, status, onClick }) 
       onClick={isClickable ? onClick : undefined}
       disabled={!isClickable}
       aria-label={`${label}: ${getStatusLabel()}`}
+      title={tooltip}
     >
       <span className="status-pill-icon">{getStatusIcon()}</span>
       <span className="status-pill-label">{label}</span>
@@ -81,18 +84,26 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
   onInspectorClick
 }) => {
   const allGood = relayConnected && extensionInstalled;
+  const [expanded, setExpanded] = useState(false);
+
+  // When something is disconnected, always show full pills
+  const showPills = !allGood || expanded;
 
   return (
-    <div className={`status-bar ${allGood ? 'status-bar--dim' : ''}`}>
+    <div
+      className="status-bar"
+      onMouseEnter={() => { if (allGood) setExpanded(true); }}
+      onMouseLeave={() => setExpanded(false)}
+    >
       {onInspectorClick && (
         <button
           type="button"
           className="status-pill status-pill--log status-pill--clickable"
           onClick={onInspectorClick}
-          aria-label="Open component inspector"
+          aria-label="Инспектор компонентов"
         >
           <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9881;</span>
-          <span className="status-pill-label">Inspector</span>
+          <span className="status-pill-label">Инспектор</span>
         </button>
       )}
       {onLogsClick && (
@@ -100,28 +111,44 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
           type="button"
           className="status-pill status-pill--log status-pill--clickable"
           onClick={onLogsClick}
-          aria-label="Open log viewer"
+          aria-label="Просмотр логов"
         >
           <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9776;</span>
-          <span className="status-pill-label">Logs</span>
+          <span className="status-pill-label">Логи</span>
         </button>
       )}
-      {mcpConnected !== undefined && (
-        <StatusPill
-          label="MCP"
-          status={mcpConnected ? 'connected' : 'offline'}
-        />
+
+      {/* Compact "all OK" badge — only when everything connected and not hovered */}
+      {allGood && !showPills && (
+        <span className="status-bar-ok">Все ОК ✓</span>
       )}
-      <StatusPill
-        label="Relay"
-        status={relayConnected ? 'connected' : 'offline'}
-        onClick={onRelayClick}
-      />
-      <StatusPill
-        label="Расширение"
-        status={extensionInstalled ? 'active' : 'setup'}
-        onClick={onExtensionClick}
-      />
+
+      {/* Full pills — always shown when disconnected, on hover when all OK */}
+      {showPills && (
+        <>
+          {mcpConnected !== undefined && (
+            <StatusPill
+              label="MCP"
+              tooltip={mcpConnected
+                ? 'Подключение к Claude Code / Cursor'
+                : 'Не подключён. Запустите figma-console-mcp в Claude Code или Cursor'}
+              status={mcpConnected ? 'connected' : 'offline'}
+            />
+          )}
+          <StatusPill
+            label="Relay"
+            tooltip="Сервер передачи данных"
+            status={relayConnected ? 'connected' : 'offline'}
+            onClick={onRelayClick}
+          />
+          <StatusPill
+            label="Расширение"
+            tooltip="Chrome-расширение для парсинга SERP"
+            status={extensionInstalled ? 'active' : 'setup'}
+            onClick={onExtensionClick}
+          />
+        </>
+      )}
     </div>
   );
 });

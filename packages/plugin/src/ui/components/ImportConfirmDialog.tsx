@@ -5,8 +5,8 @@
  * User can choose to create new artboard or fill selected elements.
  */
 
-import React, { memo, useEffect } from 'react';
-import { SearchIcon, InboxIcon } from './Icons';
+import React, { memo, useEffect, useState } from 'react';
+import { SearchIcon, CheckCircleIcon } from './Icons';
 import { formatItemWord } from '../../utils/format';
 
 export type ImportMode = 'artboard' | 'selection';
@@ -31,30 +31,36 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
   onCancel,
   onClearQueue
 }) => {
+  const [confirmingClear, setConfirmingClear] = useState(false);
+
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onCancel();
-      } else if (e.key === 'Enter') {
+        if (confirmingClear) {
+          setConfirmingClear(false);
+        } else {
+          onCancel();
+        }
+      } else if (e.key === 'Enter' && !confirmingClear) {
         onConfirm('artboard');
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel, onConfirm]);
+  }, [onCancel, onConfirm, confirmingClear]);
 
   return (
     <div className="confirm-view--figma view-animate-in">
-      {/* Icon */}
+      {/* Icon — distinct from ReadyView */}
       <div className="confirm-view-icon">
-        <InboxIcon size={24} />
+        <CheckCircleIcon size={24} />
       </div>
-      
+
       {/* Title */}
       <h2 className="confirm-view-title">Данные получены</h2>
-      
+
       {/* Query card */}
       <div className="confirm-view-query-card figma-card">
         <span className="confirm-view-query-text" title={query}>
@@ -62,15 +68,15 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
         </span>
         <SearchIcon className="confirm-view-query-icon" />
       </div>
-      
+
       {/* Item count / summary */}
       <div className="confirm-view-meta">
         {summary || `${itemCount} ${formatItemWord(itemCount)}`}
       </div>
-      
+
       {/* Action buttons */}
       <div className="confirm-view-actions">
-        <button 
+        <button
           type="button"
           className="btn-primary"
           onClick={() => onConfirm('artboard')}
@@ -78,9 +84,9 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
         >
           Создать артборд
         </button>
-        
+
         {hasSelection ? (
-          <button 
+          <button
             type="button"
             className="btn-secondary"
             onClick={() => onConfirm('selection')}
@@ -92,7 +98,7 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
             Выделите контейнеры для заполнения
           </div>
         )}
-        
+
         <button
           type="button"
           className="btn-text"
@@ -100,23 +106,48 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
         >
           Отмена
         </button>
-
-        {onClearQueue && (
-          <button
-            type="button"
-            className="btn-text btn-danger-text"
-            onClick={onClearQueue}
-          >
-            Очистить очередь
-          </button>
-        )}
       </div>
-      
+
       {/* Keyboard shortcut hint */}
       <div className="confirm-view-hint">
         <kbd>Enter</kbd>
         <span>— создать артборд</span>
       </div>
+
+      {/* Destructive action — visually separated */}
+      {onClearQueue && (
+        <div className="confirm-view-clear-section">
+          {confirmingClear ? (
+            <div className="confirm-view-clear-confirm">
+              <span className="confirm-view-clear-warn">Данные будут потеряны</span>
+              <div className="confirm-view-clear-btns">
+                <button
+                  type="button"
+                  className="btn-text btn-danger-text"
+                  onClick={() => { setConfirmingClear(false); onClearQueue(); }}
+                >
+                  Да, очистить
+                </button>
+                <button
+                  type="button"
+                  className="btn-text"
+                  onClick={() => setConfirmingClear(false)}
+                >
+                  Нет
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="confirm-view-clear-link"
+              onClick={() => setConfirmingClear(true)}
+            >
+              Очистить очередь
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 });

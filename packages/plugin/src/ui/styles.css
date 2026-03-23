@@ -68,6 +68,11 @@
   --transition-normal: 0.2s ease;
   --transition-slow: 0.3s ease-out;
   --transition-spring: 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Duration Tokens (animations, auto-close) */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
   
   /* ========================================
      FIGMA-STYLE UI TOKENS
@@ -2306,6 +2311,22 @@ button:disabled {
   100% { transform: translateX(-50%); }
 }
 
+.processing-view--figma .processing-view-stage {
+  font-size: 11px;
+  color: var(--figma-color-text-tertiary);
+  margin-top: -4px;
+}
+
+.processing-view--figma .processing-view-stuck {
+  font-size: 11px;
+  color: var(--color-warning);
+  animation: viewAppear 0.3s ease-out;
+}
+
+.processing-view--figma .processing-view-cancel {
+  margin-top: 4px;
+}
+
 /* ============================================
    SUCCESS VIEW
    ============================================ */
@@ -2369,6 +2390,11 @@ button:disabled {
   background: rgba(229, 57, 53, 0.08);
 }
 
+.success-view-logs-link {
+  font-size: 11px;
+  margin-top: -4px;
+}
+
 .success-view--figma .success-view-close {
   margin-top: var(--space-sm);
 }
@@ -2396,97 +2422,6 @@ button:disabled {
 }
 
 /* ============================================
-   FILE DROP OVERLAY - Hidden fallback
-   ============================================ */
-.file-drop-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-lg);
-  padding: var(--space-xl);
-  background: var(--overlay-bg-dark);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  animation: fileDropIn 0.2s ease;
-}
-
-@keyframes fileDropIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.file-drop-overlay-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-lg);
-  padding: var(--space-2xl);
-  background: var(--figma-color-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 2px dashed var(--figma-color-border-brand);
-  border-radius: var(--radius-large);
-  box-shadow: var(--shadow-lg);
-  text-align: center;
-  max-width: 280px;
-  transition: all 0.2s ease;
-}
-
-.file-drop-overlay-content.drag-over {
-  border-style: solid;
-  background: var(--figma-color-bg-selected);
-  transform: scale(1.03);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2), 0 0 24px rgba(88, 101, 242, 0.3);
-}
-
-.file-drop-overlay-icon {
-  font-size: 40px;
-  opacity: 0.6;
-}
-
-.file-drop-overlay-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--figma-color-text);
-}
-
-.file-drop-overlay-hint {
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-tertiary);
-}
-
-.file-drop-overlay-close {
-  position: absolute;
-  top: var(--space-lg);
-  right: var(--space-lg);
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--figma-color-bg);
-  border: 1px solid var(--figma-color-border);
-  border-radius: 50%;
-  color: var(--figma-color-text-secondary);
-  font-size: 16px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.file-drop-overlay-close:hover {
-  background: var(--figma-color-bg-hover);
-  color: var(--figma-color-text);
-}
-
-/* Hidden file input */
-.file-drop-input {
-  display: none;
-}
-
    CHECKING VIEW - Initial loading state
    ============================================ */
 .checking-view {
@@ -2629,51 +2564,49 @@ button:disabled {
   padding: 8px 0;
 }
 
-/* ============================================
-   DRAG OVERLAY - Shows when dragging files
-   ============================================ */
-.drag-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(88, 101, 242, 0.1);
-  border: 2px dashed var(--figma-color-border-brand);
-  animation: dragOverlayIn 0.15s ease-out;
+/* Destructive "clear queue" — visually separated */
+.confirm-view-clear-section {
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--figma-color-border);
+  text-align: center;
 }
 
-@keyframes dragOverlayIn {
-  from {
-    opacity: 0;
-    border-color: transparent;
-  }
-  to {
-    opacity: 1;
-    border-color: var(--figma-color-border-brand);
-  }
+.confirm-view-clear-link {
+  color: var(--figma-color-text-tertiary);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px 0;
+  transition: color 0.15s;
 }
 
-.drag-overlay-content {
+.confirm-view-clear-link:hover {
+  color: var(--color-error);
+}
+
+.confirm-view-clear-confirm {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-xs);
-  pointer-events: none;
+  gap: 6px;
+  animation: viewAppear 0.2s ease-out;
 }
 
-.drag-overlay-icon {
-  font-size: 24px;
-  opacity: 0.8;
+.confirm-view-clear-warn {
+  font-size: 11px;
+  color: var(--color-error);
 }
 
-.drag-overlay-text {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--figma-color-bg-brand);
+.confirm-view-clear-btns {
+  display: flex;
+  gap: 12px;
 }
-
 
 /* ============================================
    EXTENSION GUIDE - Full-screen installation view
@@ -2799,13 +2732,13 @@ button:disabled {
   border-radius: 6px; /* Smaller radius to minimize corner transparency */
 }
 
-/* Use filter instead of opacity to dim children while keeping background opaque */
-.status-bar--dim .status-pill {
-  opacity: 0.5;
-}
-
-.status-bar--dim:hover {
-  opacity: 1;
+/* Compact "all OK" badge when all services connected */
+.status-bar-ok {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--status-connected);
+  padding: 4px 10px;
+  white-space: nowrap;
 }
 
 .status-pill {
@@ -3108,6 +3041,15 @@ button:disabled {
   color: var(--figma-color-icon-secondary);
 }
 
+.ready-view--figma .ready-view-icon--pulse {
+  animation: readyPulse 2s ease-in-out infinite;
+}
+
+@keyframes readyPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.96); }
+}
+
 .ready-view--figma .ready-view-title {
   font-size: 14px;
   font-weight: 600;
@@ -3147,33 +3089,6 @@ button:disabled {
   color: var(--color-primary-hover);
 }
 
-.ready-view-hints {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 0;
-}
-
-.ready-view-hint {
-  font-size: 12px;
-  color: var(--figma-color-text-tertiary);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.ready-view-hint kbd {
-  display: inline-block;
-  padding: 3px 8px;
-  background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
-  border-radius: 6px;
-  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--figma-color-text-secondary);
-}
 
 /* ============================================
    LOG VIEWER

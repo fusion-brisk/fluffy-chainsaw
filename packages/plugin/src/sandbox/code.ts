@@ -16,8 +16,9 @@ import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
 import { handleBridgeMessage, fetchAndSendVariablesData, debugLog } from './mcp-bridge/bridge-handlers';
 import { installConsoleCapture, registerDocumentChangeListener, forwardSelectionChange } from './mcp-bridge/bridge-events';
+import { PORTS } from '../config';
 
-const RELAY_URL = 'http://localhost:3847';
+const RELAY_URL = 'http://localhost:' + PORTS.RELAY;
 
 /** Pure JS base64 encoder — no btoa dependency, safe for Figma sandbox */
 function bytesToBase64(bytes: Uint8Array): string {

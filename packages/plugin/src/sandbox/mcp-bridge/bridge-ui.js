@@ -23,7 +23,7 @@
   window.__mcpBridgeConnected = false;
 
   var requestIdCounter = 0;
-  var DEBUG_RELAY = 'http://localhost:3848';
+  var DEBUG_RELAY = 'http://localhost:3847'; // Must match PORTS.RELAY in config.ts
 
   function uiDebugLog(level, message, data) {
     try {
@@ -305,8 +305,8 @@
   // WEBSOCKET BRIDGE CLIENT
   // ============================================================================
   (function() {
-    var WS_PORT_RANGE_START = 9223;
-    var WS_PORT_RANGE_END = 9232;
+    var WS_PORT_RANGE_START = 9223; // Must match PORTS.MCP_BRIDGE_WS_START in config.ts
+    var WS_PORT_RANGE_END = 9232;   // Must match PORTS.MCP_BRIDGE_WS_END in config.ts
 
     var activeConnections = [];
     var wsReconnectDelay = 500;

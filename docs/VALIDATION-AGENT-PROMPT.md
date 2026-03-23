@@ -10,7 +10,7 @@ You are validating Contentify plugin import results. Your job is to find every d
 
 ### Available infrastructure
 
-1. **Debug log server** — `http://localhost:3848/debug-log`
+1. **Debug log server** — `http://localhost:3847/debug-log`
    - `GET /debug-log` — all logs (supports `?level=error&source=bridge&limit=100`)
    - `DELETE /debug-log` — clear before new test run
 
@@ -41,7 +41,7 @@ You are validating Contentify plugin import results. Your job is to find every d
 #### Phase 1: Gather data
 ```bash
 # Clear debug log
-curl -X DELETE http://localhost:3848/debug-log
+curl -X DELETE http://localhost:3847/debug-log
 
 # Check what data is available
 curl http://localhost:3847/comparison
@@ -50,7 +50,7 @@ curl http://localhost:3847/comparison
 curl http://localhost:3847/source-data > /tmp/source-data.json
 
 # Get debug log (after import)
-curl http://localhost:3848/debug-log > /tmp/debug-log.json
+curl http://localhost:3847/debug-log > /tmp/debug-log.json
 
 # Get component dump
 curl http://localhost:3847/debug > /tmp/component-dump.json
