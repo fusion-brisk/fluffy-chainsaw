@@ -16,7 +16,7 @@ import { CSVRow, ContainerRowAssignment, ProgressCallback } from './types';
 /** Список полей данных для поиска в ESnippet-формате */
 const DATA_FIELD_PATTERNS = [
   'OrganicTitle', 'OrganicText', 'OrganicHost', 'OrganicPath', 'OrganicImage',
-  'OrganicPrice', 'OldPrice', 'ShopName', 'FaviconImage', 'ThumbImage',
+  'OrganicPrice', 'OldPrice', 'ShopName', 'FaviconImage', 'Favicon', 'ThumbImage',
   'discount', 'ProductRating', 'ReviewCount', 'ProductURL'
 ];
 
@@ -72,17 +72,33 @@ function isImageField(fieldName: string): boolean {
          normalized.endsWith('image');
 }
 
+/**
+ * Figma layer name → CSV field name aliases.
+ * Covers cases where the Figma component layer is named differently
+ * from the CSV data field (e.g. "#Favicon" layer → "#FaviconImage" data).
+ */
+const FIELD_ALIASES: Record<string, string> = {
+  '#Favicon': '#FaviconImage',
+  '#favicon': '#FaviconImage',
+  'Favicon': '#FaviconImage',
+  'favicon': '#FaviconImage',
+  'EFavicon': '#FaviconImage',
+};
+
 /** Извлечение имени поля данных из имени слоя */
 function extractDataFieldName(layerName: string): string {
+  // Check aliases first (handles Figma layer name mismatches)
+  if (FIELD_ALIASES[layerName]) return FIELD_ALIASES[layerName];
+
   if (layerName.startsWith('#')) return layerName;
-  
+
   const lowerName = layerName.toLowerCase();
   for (const field of DATA_FIELD_NAMES_SET) {
     if (lowerName.includes(field)) {
       return '#' + field.charAt(0).toUpperCase() + field.slice(1);
     }
   }
-  
+
   return layerName;
 }
 

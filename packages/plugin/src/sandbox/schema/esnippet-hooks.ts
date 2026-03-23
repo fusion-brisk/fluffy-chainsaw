@@ -122,6 +122,20 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
       safeSetTextNode(layer, texts[j]);
     }
   }
+
+  // Hide unused sitelink slots beyond the actual count (e.g. slots 5-6 when only 4 exist)
+  var MAX_SITELINK_SLOTS = 6;
+  for (var k = texts.length + 1; k <= MAX_SITELINK_SLOTS; k++) {
+    var unusedLayer =
+      findFirstNodeByName(sitelinksContainer, '#Sitelink_' + k) ||
+      findFirstNodeByName(sitelinksContainer, 'Sitelink_' + k);
+    if (unusedLayer && 'visible' in unusedLayer) {
+      try {
+        (unusedLayer as SceneNode).visible = false;
+        Logger.debug('   [ESnippet-hook] Sitelink_' + k + ' hidden (unused)');
+      } catch (_e) { Logger.debug('[ESnippet-hook] Sitelink_' + k + ' visibility toggle failed'); }
+    }
+  }
 }
 
 /**
@@ -170,47 +184,20 @@ function forceResetBooleans(instance: InstanceNode, row: CSVRow): void {
 }
 
 /**
- * Промо-секция: visibility + text
+ * Промо-секция: text filling only.
+ * Visibility is controlled by the withPromo boolean property —
+ * schema engine computes it, forceResetBooleans enforces it.
+ * This hook only fills promo text content when available.
  */
 function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
   const promoText = (row['#Promo'] || '').trim();
-  const isPromo = row['#isPromo'] === 'true';
+  if (!promoText) return;
 
-  // Find promo container for visibility control
-  const promoContainer =
-    findFirstNodeByName(instance, 'Promo') ||
-    findFirstNodeByName(instance, 'PromoOffer') ||
-    findFirstNodeByName(instance, 'InfoSection');
-
-  // Hide promo section when no promo content
-  if (!promoText && !isPromo) {
-    if (promoContainer && 'visible' in promoContainer) {
-      try {
-        (promoContainer as SceneNode & { visible: boolean }).visible = false;
-        Logger.debug('   [ESnippet-hook] Promo hidden (no promo data)');
-      } catch (_e) { Logger.debug('[ESnippet-hook] Promo container visibility toggle failed'); }
-    }
-    // Broader search: hide any descendant with 'Promo' or 'promo' in name
-    if ('findAll' in instance) {
-      const promoNodes = instance.findAll(function(n) {
-        return (n.name.indexOf('romo') !== -1 || n.name.indexOf('InfoSection') !== -1) && n.type !== 'TEXT';
-      });
-      for (let pi = 0; pi < promoNodes.length; pi++) {
-        if ('visible' in promoNodes[pi]) {
-          try { (promoNodes[pi] as SceneNode).visible = false; } catch (_e) { Logger.debug('[ESnippet-hook] Promo node visibility toggle failed'); }
-        }
-      }
-    }
-    return;
-  }
-
-  // Set promo text if available (after Figma rename: #PromoText is the direct layer name)
-  if (promoText) {
-    const layer = findTextLayerByName(instance, '#PromoText');
-    if (layer) {
-      safeSetTextNode(layer, promoText);
-      Logger.debug('   [ESnippet-hook] Promo text set');
-    }
+  // Set promo text (after Figma rename: #PromoText is the direct layer name)
+  const layer = findTextLayerByName(instance, '#PromoText');
+  if (layer) {
+    safeSetTextNode(layer, promoText);
+    Logger.debug('   [ESnippet-hook] Promo text set');
   }
 }
 
