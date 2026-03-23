@@ -27,7 +27,6 @@ export {
 
 // Structure parsing (serpItemId grouping)
 export {
-  detectPlatformFromHtml,
   groupSnippetsBySerpItem,
   buildSerpStructure,
 } from './structure-parser';

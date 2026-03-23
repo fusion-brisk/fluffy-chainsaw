@@ -25,6 +25,8 @@ import {
   createLayerData,
   prepareContainersForProcessing
 } from './data-assignment';
+import { findFirstNodeByName } from '../../utils/node-search';
+import { base64ToBytes } from '../image-handlers';
 
 
 export interface ImportCSVParams {
@@ -58,6 +60,71 @@ const CANCELLED_RESULT: ImportCSVResult = {
   totalContainers: 0,
   imageStats: { successfulImages: 0, failedImages: 0, skippedImages: 0, errors: [] }
 };
+
+/** Favicon layer name variants in order of priority */
+const FAVICON_LAYER_NAMES = ['#FaviconImage', '#Favicon', 'Favicon', 'favicon', 'EFavicon'];
+
+/**
+ * Apply favicon image to an ESnippet/Snippet instance.
+ * Mirrors page-creator's applyFavicon logic with multi-name search.
+ */
+async function applyFavicon(instance: InstanceNode, row: CSVRow): Promise<void> {
+  var faviconUrl = ((row as Record<string, string | undefined>)['#FaviconImage'] || '').trim();
+  if (!faviconUrl) return;
+
+  // Find the favicon layer using multiple name variants
+  var layer: SceneNode | null = null;
+  for (var i = 0; i < FAVICON_LAYER_NAMES.length; i++) {
+    layer = findFirstNodeByName(instance, FAVICON_LAYER_NAMES[i]);
+    if (layer) break;
+  }
+  if (!layer) {
+    Logger.debug('[applyFavicon] Layer not found');
+    return;
+  }
+
+  // Find fillable target inside INSTANCE/GROUP/FRAME
+  var target: SceneNode | null = null;
+  if ('fills' in layer && (layer.type === 'RECTANGLE' || layer.type === 'ELLIPSE' || layer.type === 'FRAME' || layer.type === 'INSTANCE')) {
+    target = layer;
+  } else if ('children' in layer) {
+    var children = (layer as unknown as FrameNode).children;
+    for (var ci = 0; ci < children.length; ci++) {
+      if ('fills' in children[ci]) { target = children[ci]; break; }
+    }
+  }
+  if (!target || !('fills' in target)) {
+    Logger.debug('[applyFavicon] No fillable target found');
+    return;
+  }
+
+  try {
+    var image: Image;
+    if (faviconUrl.startsWith('data:image/')) {
+      var b64Match = faviconUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (!b64Match || !b64Match[1]) return;
+      var bytes = base64ToBytes(b64Match[1]);
+      image = figma.createImage(bytes);
+    } else {
+      var normalizedUrl = faviconUrl;
+      if (normalizedUrl.startsWith('//')) normalizedUrl = 'https:' + normalizedUrl;
+      if (!normalizedUrl.startsWith('http')) return;
+      var resp = await fetch(normalizedUrl);
+      if (!resp.ok) return;
+      var buf = await resp.arrayBuffer();
+      image = figma.createImage(new Uint8Array(buf));
+    }
+
+    (target as GeometryMixin).fills = [{
+      type: 'IMAGE',
+      scaleMode: 'FIT',
+      imageHash: image.hash
+    } as ImagePaint];
+    Logger.debug('[applyFavicon] Applied to ' + target.name);
+  } catch (e) {
+    Logger.debug('[applyFavicon] Error: ' + (e instanceof Error ? e.message : String(e)));
+  }
+}
 
 /**
  * Основной обработчик import-csv
@@ -280,7 +347,12 @@ export async function processImportCSV(
     
     // Выполнение всех handlers через registry
     const results = await handlerRegistry.executeAll(context);
-    
+
+    // Apply favicon image for ESnippet/Snippet (not covered by data-assignment layer scan)
+    if ((baseName === 'ESnippet' || baseName === 'Snippet') && data.container.type === 'INSTANCE') {
+      await applyFavicon(data.container as InstanceNode, data.row);
+    }
+
     // Логирование ошибок (всегда) и медленных handlers (debug)
     for (const res of results) {
       if (!res.success) {

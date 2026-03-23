@@ -16,36 +16,6 @@ import {
   isContainerType
 } from './component-map';
 
-/**
- * Определить платформу по HTML контенту
- * @returns 'touch' | 'desktop'
- */
-export function detectPlatformFromHtml(htmlContent: string): 'touch' | 'desktop' {
-  // Надёжные эвристики — проверяем touch ПЕРВЫМ (HeaderPhone более специфичен)
-  // НЕ используем i-ua_platform_* — они встречаются в скриптах обоих версий
-
-  const hasHeaderPhone = htmlContent.includes('class="HeaderPhone"');
-  const hasHeaderDesktop = htmlContent.includes('class="HeaderDesktop');
-
-  Logger.debug(`[detectPlatform] HeaderPhone: ${hasHeaderPhone}, HeaderDesktop: ${hasHeaderDesktop}`);
-
-  // Touch — если есть HeaderPhone
-  if (hasHeaderPhone) {
-    Logger.debug('[detectPlatform] → touch (HeaderPhone найден)');
-    return 'touch';
-  }
-
-  // Desktop — если есть HeaderDesktop
-  if (hasHeaderDesktop) {
-    Logger.debug('[detectPlatform] → desktop (HeaderDesktop найден)');
-    return 'desktop';
-  }
-
-  // По умолчанию — desktop
-  Logger.debug('[detectPlatform] → desktop (по умолчанию)');
-  return 'desktop';
-}
-
 // ============================================================================
 // Группировка по serpItemId и containerType
 // ============================================================================

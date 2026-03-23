@@ -16,7 +16,7 @@ import { CSVRow, ContainerRowAssignment, ProgressCallback } from './types';
 /** Список полей данных для поиска в ESnippet-формате */
 const DATA_FIELD_PATTERNS = [
   'OrganicTitle', 'OrganicText', 'OrganicHost', 'OrganicPath', 'OrganicImage',
-  'OrganicPrice', 'OldPrice', 'ShopName', 'FaviconImage', 'ThumbImage',
+  'OrganicPrice', 'OldPrice', 'ShopName', 'FaviconImage', 'Favicon', 'ThumbImage',
   'discount', 'ProductRating', 'ReviewCount', 'ProductURL'
 ];
 
@@ -72,17 +72,33 @@ function isImageField(fieldName: string): boolean {
          normalized.endsWith('image');
 }
 
+/**
+ * Figma layer name → CSV field name aliases.
+ * Covers cases where the Figma component layer is named differently
+ * from the CSV data field (e.g. "#Favicon" layer → "#FaviconImage" data).
+ */
+const FIELD_ALIASES: Record<string, string> = {
+  '#Favicon': '#FaviconImage',
+  '#favicon': '#FaviconImage',
+  'Favicon': '#FaviconImage',
+  'favicon': '#FaviconImage',
+  'EFavicon': '#FaviconImage',
+};
+
 /** Извлечение имени поля данных из имени слоя */
 function extractDataFieldName(layerName: string): string {
+  // Check aliases first (handles Figma layer name mismatches)
+  if (FIELD_ALIASES[layerName]) return FIELD_ALIASES[layerName];
+
   if (layerName.startsWith('#')) return layerName;
-  
+
   const lowerName = layerName.toLowerCase();
   for (const field of DATA_FIELD_NAMES_SET) {
     if (lowerName.includes(field)) {
       return '#' + field.charAt(0).toUpperCase() + field.slice(1);
     }
   }
-  
+
   return layerName;
 }
 
@@ -308,57 +324,6 @@ export function groupContainersWithDataLayers(
   // === ДИАГНОСТИКА: Итог ===
   Logger.info(`📊 [Grouping] ИТОГО: ${totalTime}ms (cache: ${cacheTime}ms, findAll: ${findAllTime}ms, group: ${groupTime}ms)`);
   Logger.info(`📊 [Grouping] Результат: ${snippetGroups.size} групп (${assignedCount} с данными, ${addedEmpty} пустых)`);
-  
-  return snippetGroups;
-}
-
-/**
- * Старая версия группировки (для сравнения)
- * @deprecated Используйте groupContainersWithDataLayers с searchRoot
- */
-export function groupContainersWithDataLayersLegacy(
-  allContainers: SceneNode[],
-  onProgress?: ProgressCallback
-): Map<string, SceneNode[]> {
-  const snippetGroups = new Map<string, SceneNode[]>();
-  
-  let totalDataLayers = 0;
-  let containerIndex = 0;
-  const totalContainers = allContainers.length;
-  
-  for (const container of allContainers) {
-    containerIndex++;
-    
-    if (container.removed) continue;
-    
-    // Кэшируем имя контейнера
-    containerNamesCache.set(container.id, container.name);
-    
-    // Прямой поиск data-слоёв через findAll
-    const dataLayers: SceneNode[] = [];
-    
-    if ('findAll' in container) {
-      const found = (container as SceneNode & ChildrenMixin).findAll(isDataLayer);
-      dataLayers.push(...found);
-    }
-    
-    totalDataLayers += dataLayers.length;
-    
-    // Сохраняем результат
-    if (dataLayers.length > 0) {
-      snippetGroups.set(container.id, dataLayers);
-    } else if (isAlwaysProcessContainer(container.name)) {
-      snippetGroups.set(container.id, []);
-    }
-    
-    // Прогресс
-    if (onProgress && (containerIndex % 5 === 0 || containerIndex === totalContainers)) {
-      const progress = 20 + Math.floor((containerIndex / totalContainers) * 20);
-      onProgress(Math.min(40, progress), 100, `Группировка: ${containerIndex}/${totalContainers}`, 'grouping');
-    }
-  }
-  
-  Logger.debug(`📊 [Legacy] Найдено ${totalDataLayers} data-слоёв в ${snippetGroups.size} контейнерах`);
   
   return snippetGroups;
 }

@@ -1330,15 +1330,6 @@ async function createAsideFiltersPanel(
     try {
       var compSet = await figma.importComponentSetByKeyAsync(entry.config.setKey);
       if (compSet) {
-        // TEMP: diagnostic — log all variants in set
-        var variantNames: string[] = [];
-        for (var di = 0; di < compSet.children.length; di++) {
-          if (compSet.children[di].type === 'COMPONENT') {
-            variantNames.push(compSet.children[di].name);
-          }
-        }
-        Logger.verbose('[EAsideFilters] ComponentSet "' + compSet.name + '": ' + variantNames.length + ' variants');
-
         var variant: ComponentNode | null = null;
         for (var vi = 0; vi < compSet.children.length; vi++) {
           var child = compSet.children[vi];

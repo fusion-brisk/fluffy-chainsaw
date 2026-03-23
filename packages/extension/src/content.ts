@@ -776,9 +776,9 @@
         if (!isMarket) {
           row['#OrganicHost'] = u.hostname.replace(/^www\./, '');
         }
-      } catch (e) {}
+      } catch (_e) { /* URL parsing may fail for malformed hrefs */ }
     }
-    
+
     // #OrganicTitle — hardcoded selectors with getTitleTextClean
     // NOTE: queryByRules skipped for title — shared rules use getTextContent which
     // captures greenurl/path text from container elements on touch SERP
@@ -3114,7 +3114,7 @@
       if (queryEl) {
         query = queryEl.value || queryEl.getAttribute('value') || '';
       }
-    } catch (e) {}
+    } catch (_e) { /* search input may not exist on page */ }
     console.log(`🔎 [Content] Поисковый запрос: "${query}"`);
     
     // Находим контейнеры
