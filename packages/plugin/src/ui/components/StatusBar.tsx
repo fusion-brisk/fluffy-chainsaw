@@ -12,10 +12,12 @@ interface StatusBarProps {
   relayConnected: boolean;
   extensionInstalled: boolean;
   mcpConnected?: boolean;
+  hasPendingData?: boolean;
   onRelayClick?: () => void;
   onExtensionClick?: () => void;
   onLogsClick?: () => void;
   onInspectorClick?: () => void;
+  onClearQueue?: () => void;
 }
 
 type StatusType = 'connected' | 'offline' | 'active' | 'setup';
@@ -78,13 +80,16 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
   relayConnected,
   extensionInstalled,
   mcpConnected,
+  hasPendingData,
   onRelayClick,
   onExtensionClick,
   onLogsClick,
-  onInspectorClick
+  onInspectorClick,
+  onClearQueue
 }) => {
   const allGood = relayConnected && extensionInstalled;
   const [expanded, setExpanded] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   // When something is disconnected, always show full pills
   const showPills = !allGood || expanded;
@@ -93,7 +98,7 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
     <div
       className="status-bar"
       onMouseEnter={() => { if (allGood) setExpanded(true); }}
-      onMouseLeave={() => setExpanded(false)}
+      onMouseLeave={() => { setExpanded(false); setConfirmingClear(false); }}
     >
       {onInspectorClick && (
         <button
@@ -116,6 +121,41 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
           <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9776;</span>
           <span className="status-pill-label">Логи</span>
         </button>
+      )}
+
+      {/* Clear queue action — visible when relay has pending data */}
+      {hasPendingData && onClearQueue && (
+        confirmingClear ? (
+          <span className="status-bar-clear-confirm">
+            <button
+              type="button"
+              className="status-pill status-pill--danger status-pill--clickable"
+              onClick={() => { setConfirmingClear(false); onClearQueue(); }}
+              aria-label="Подтвердить очистку"
+            >
+              <span className="status-pill-label">Да, очистить</span>
+            </button>
+            <button
+              type="button"
+              className="status-pill status-pill--log status-pill--clickable"
+              onClick={() => setConfirmingClear(false)}
+              aria-label="Отменить"
+            >
+              <span className="status-pill-label">Нет</span>
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="status-pill status-pill--danger-subtle status-pill--clickable"
+            onClick={() => setConfirmingClear(true)}
+            aria-label="Очистить очередь"
+            title="Очистить очередь данных"
+          >
+            <span className="status-pill-icon" style={{ fontSize: '10px' }}>✕</span>
+            <span className="status-pill-label">Очередь</span>
+          </button>
+        )
       )}
 
       {/* Compact "all OK" badge — only when everything connected and not hovered */}

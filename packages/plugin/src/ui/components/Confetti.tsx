@@ -2,7 +2,6 @@ import React, { useEffect, useRef, memo } from 'react';
 
 interface ConfettiProps {
   isActive: boolean;
-  type: 'success' | 'error';
   onComplete?: () => void;
 }
 
@@ -32,15 +31,7 @@ const SUCCESS_COLORS = [
   '#60A5FA', // Голубой
 ];
 
-// Цвета для ошибки (более приглушённые)
-const ERROR_COLORS = [
-  '#EF4444', // Красный
-  '#F97316', // Оранжевый
-  '#FBBF24', // Жёлтый
-  '#FB923C', // Персиковый
-];
-
-export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onComplete }) => {
+export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, onComplete }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
   const particlesRef = useRef<Particle[]>([]);
@@ -68,9 +59,8 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onCompl
     };
     updateSize();
 
-    const colors = type === 'success' ? SUCCESS_COLORS : ERROR_COLORS;
-    // Reduced particle count for subtle effect
-    const particleCount = type === 'success' ? 50 : 30;
+    const colors = SUCCESS_COLORS;
+    const particleCount = 50;
 
     // Создаём частицы с 3D-эффектом
     const createParticles = () => {
@@ -102,8 +92,7 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onCompl
 
     particlesRef.current = createParticles();
     const startTime = Date.now();
-    // Shorter duration for quicker fade
-    const duration = type === 'success' ? 1500 : 1000;
+    const duration = 1500;
 
     // Анимация
     const animate = () => {
@@ -185,7 +174,7 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, type, onCompl
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive, type, onComplete]);
+  }, [isActive, onComplete]);
 
   if (!isActive) return null;
 

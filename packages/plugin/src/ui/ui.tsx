@@ -90,10 +90,7 @@ const App: React.FC = () => {
     query: '',
     itemCount: 0
   });
-  const [confetti, setConfetti] = useState<{ active: boolean; type: 'success' | 'error' }>({
-    active: false,
-    type: 'success'
-  });
+  const [confettiActive, setConfettiActive] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [showExtensionGuide, setShowExtensionGuide] = useState(false);
@@ -185,11 +182,10 @@ const App: React.FC = () => {
       processingStartTimeRef.current = null;
 
       if (type === 'success') {
-        setConfetti({ active: true, type: 'success' });
+        setConfettiActive(true);
         setAppState('success');
         resizeUI('success');
       } else if (type === 'error') {
-        setConfetti({ active: true, type: 'error' });
         setAppState('ready');
         resizeUI('ready');
       } else {
@@ -530,7 +526,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleConfettiComplete = useCallback(() => {
-    setConfetti({ active: false, type: 'success' });
+    setConfettiActive(false);
   }, []);
 
   // === RENDER ===
@@ -546,10 +542,12 @@ const App: React.FC = () => {
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           mcpConnected={mcpStatus.connected}
+          hasPendingData={pendingImport !== null}
           onRelayClick={handleShowRelayGuide}
           onExtensionClick={handleShowExtensionGuide}
           onLogsClick={handleShowLogViewer}
           onInspectorClick={handleShowInspector}
+          onClearQueue={handleClearQueue}
         />
       )}
 
@@ -599,7 +597,6 @@ const App: React.FC = () => {
           hasSelection={hasSelection}
           onConfirm={handleConfirmImport}
           onCancel={handleCancelImport}
-          onClearQueue={handleClearQueue}
         />
       )}
 
@@ -621,10 +618,9 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Confetti celebration */}
+      {/* Confetti celebration (success only) */}
       <Confetti
-        isActive={confetti.active}
-        type={confetti.type}
+        isActive={confettiActive}
         onComplete={handleConfettiComplete}
       />
 

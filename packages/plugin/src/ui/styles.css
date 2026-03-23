@@ -22,7 +22,7 @@
   
   --figma-color-text: #1a1a1a;
   --figma-color-text-secondary: #666666;
-  --figma-color-text-tertiary: #999999;
+  --figma-color-text-tertiary: #767676;
   --figma-color-text-onbrand: #FFFFFF;
   --figma-color-text-danger: #CF222E;
   --figma-color-text-success: #1A7F37;
@@ -3227,6 +3227,33 @@ button:disabled {
 .status-pill--log:hover {
   background: var(--figma-color-bg-hover);
   border-color: var(--figma-color-border-strong);
+}
+
+/* Clear queue (danger-subtle) pill in StatusBar */
+.status-pill--danger-subtle {
+  cursor: pointer;
+  color: var(--figma-color-text-danger);
+}
+
+.status-pill--danger-subtle:hover {
+  background: rgba(207, 34, 46, 0.08);
+  border-color: var(--figma-color-text-danger);
+}
+
+.status-pill--danger {
+  cursor: pointer;
+  background: var(--figma-color-text-danger);
+  color: var(--figma-color-text-onbrand);
+  border-color: var(--figma-color-text-danger);
+}
+
+.status-pill--danger:hover {
+  opacity: 0.9;
+}
+
+.status-bar-clear-confirm {
+  display: flex;
+  gap: 2px;
 }
 
 /* ============================================
