@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import type { ComponentInspectorData } from '../../types';
+import { BackButton } from './BackButton';
 
 interface ComponentInspectorProps {
   components: ComponentInspectorData[];
@@ -43,36 +44,36 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
 
   return (
     <div className="comp-inspector">
+      <BackButton onClick={onClose} />
       <div className="comp-inspector-header">
-        <span className="comp-inspector-title">Component Inspector</span>
+        <span className="comp-inspector-title">Инспектор компонентов</span>
         <div className="comp-inspector-actions">
           {components.length > 0 && (
-            <button type="button" className="glass-button glass-button--small" onClick={handleCopyAll}>Copy All</button>
+            <button type="button" className="btn-secondary" onClick={handleCopyAll}>Копировать всё</button>
           )}
-          <button type="button" className="glass-button glass-button--small" onClick={onClose}>Close</button>
         </div>
       </div>
 
       <div className="comp-inspector-body">
         {components.length === 0 ? (
           <div className="comp-inspector-empty">
-            Select a component instance in Figma to inspect its key and properties.
+            Выберите экземпляр компонента в Figma для просмотра ключа и свойств.
           </div>
         ) : (
           components.map((comp, idx) => (
             <div key={idx} className="comp-inspector-card">
               <div className="comp-inspector-row comp-inspector-row--name">
-                <span className="comp-inspector-label">Instance</span>
+                <span className="comp-inspector-label">Экземпляр</span>
                 <span className="comp-inspector-value">{comp.name}</span>
               </div>
 
               <div className="comp-inspector-row">
-                <span className="comp-inspector-label">Component</span>
+                <span className="comp-inspector-label">Компонент</span>
                 <span className="comp-inspector-value">{comp.componentName}</span>
               </div>
 
               <div className="comp-inspector-row comp-inspector-row--key">
-                <span className="comp-inspector-label">Key</span>
+                <span className="comp-inspector-label">Ключ</span>
                 <code className="comp-inspector-key" onClick={() => handleCopyKey(comp.componentKey)} title="Click to copy">
                   {comp.componentKey || '(no key)'}
                 </code>
@@ -81,11 +82,11 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
               {comp.componentSetKey && (
                 <>
                   <div className="comp-inspector-row">
-                    <span className="comp-inspector-label">Set</span>
+                    <span className="comp-inspector-label">Набор</span>
                     <span className="comp-inspector-value">{comp.componentSetName}</span>
                   </div>
                   <div className="comp-inspector-row comp-inspector-row--key">
-                    <span className="comp-inspector-label">Set Key</span>
+                    <span className="comp-inspector-label">Ключ набора</span>
                     <code className="comp-inspector-key" onClick={() => handleCopyKey(comp.componentSetKey!)} title="Click to copy">
                       {comp.componentSetKey}
                     </code>
@@ -95,7 +96,7 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
 
               {Object.keys(comp.properties).length > 0 && (
                 <div className="comp-inspector-props">
-                  <span className="comp-inspector-props-title">Properties ({Object.keys(comp.properties).length})</span>
+                  <span className="comp-inspector-props-title">Свойства ({Object.keys(comp.properties).length})</span>
                   {Object.entries(comp.properties).map(([propName, propData]) => (
                     <div key={propName} className="comp-inspector-prop">
                       <span className="comp-inspector-prop-name">{propName}</span>

@@ -36,11 +36,19 @@
   --figma-color-icon: #333333;
   --figma-color-icon-secondary: #666666;
   
-  /* Typography Scale (4 sizes) */
+  /* Typography Scale (7 sizes) */
   --font-size-xs: 10px;
   --font-size-sm: 11px;
   --font-size-base: 12px;
   --font-size-lg: 13px;
+  --font-size-xl: 14px;
+  --font-size-2xl: 16px;
+  --font-size-3xl: 18px;
+
+  /* Font Weight Scale */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
   
   /* Spacing Scale */
   --space-xs: 4px;
@@ -124,7 +132,7 @@
   
   --figma-color-text: #FFFFFF;
   --figma-color-text-secondary: #999999;
-  --figma-color-text-tertiary: #666666;
+  --figma-color-text-tertiary: #767676;
   --figma-color-text-onbrand: #FFFFFF;
   --figma-color-text-danger: #F85149;
   --figma-color-text-success: #3FB950;
@@ -185,7 +193,7 @@ body {
 }
 
 /* Typography */
-h1, h2, h3 { margin: 0; font-weight: 600; color: var(--figma-color-text); }
+h1, h2, h3 { margin: 0; font-weight: var(--font-weight-semibold); color: var(--figma-color-text); }
 p { margin: 0; line-height: 1.5; }
 
    UNIVERSAL UI COMPONENTS (UI Consistency)
@@ -207,8 +215,8 @@ p { margin: 0; line-height: 1.5; }
 .view-header-badge {
   padding: 2px 8px;
   border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -224,8 +232,8 @@ p { margin: 0; line-height: 1.5; }
 }
 
 .view-header-title {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0;
 }
@@ -276,7 +284,7 @@ p { margin: 0; line-height: 1.5; }
   background: var(--figma-color-bg-brand);
   color: var(--figma-color-text-onbrand);
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
 
@@ -375,7 +383,7 @@ p { margin: 0; line-height: 1.5; }
 
 .scope-label {
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text-secondary);
   white-space: nowrap;
 }
@@ -385,7 +393,7 @@ p { margin: 0; line-height: 1.5; }
   padding-right: 24px;
   font-size: var(--font-size-sm);
   font-family: inherit;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
   background: var(--figma-color-bg);
   border: 1px solid var(--figma-color-border);
@@ -521,14 +529,14 @@ p { margin: 0; line-height: 1.5; }
 .toggle-label {
   font-size: var(--font-size-xs);
   color: var(--figma-color-text-secondary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 /* Small text button - Figma UI3: no border by default, hover shows border */
 .btn-text-sm {
   padding: var(--space-xs) var(--space-md);
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   background: transparent;
   border: 1px solid transparent;
@@ -603,7 +611,7 @@ p { margin: 0; line-height: 1.5; }
   gap: 6px;
   padding: 6px 10px;
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text-secondary);
   background: var(--figma-color-bg-tertiary);
   border-radius: var(--radius-small);
@@ -705,7 +713,7 @@ p { margin: 0; line-height: 1.5; }
 
 .drop-zone.fullscreen .drop-zone-text {
   font-size: var(--font-size-lg);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 /* Drop zone icon */
@@ -745,7 +753,7 @@ p { margin: 0; line-height: 1.5; }
 
 .drop-zone-text {
   font-size: var(--font-size-base);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text-secondary);
   transition: color 0.15s ease;
 }
@@ -755,8 +763,8 @@ p { margin: 0; line-height: 1.5; }
 }
 
 .drop-zone.loading .drop-zone-text {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -782,7 +790,7 @@ p { margin: 0; line-height: 1.5; }
   background: var(--figma-color-bg);
   border: 1px solid var(--figma-color-border-brand);
   border-radius: var(--radius-medium);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   margin-top: 4px;
   animation: fadeIn 0.2s ease;
   max-width: 200px;
@@ -826,7 +834,7 @@ p { margin: 0; line-height: 1.5; }
 
 .import-tip strong {
   color: var(--figma-color-text-secondary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
    COMPLETION STATUS - Success (Figma UI3: subtle border)
@@ -882,13 +890,13 @@ p { margin: 0; line-height: 1.5; }
 }
 
 .status-completion-icon {
-  font-size: 14px;
+  font-size: var(--font-size-xl);
   line-height: 1;
 }
 
 .status-completion-text {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
 }
 
@@ -907,7 +915,7 @@ p { margin: 0; line-height: 1.5; }
   border: none;
   background: transparent;
   color: var(--figma-color-text-tertiary);
-  font-size: 16px;
+  font-size: var(--font-size-2xl);
   line-height: 1;
   cursor: pointer;
   border-radius: var(--radius-small);
@@ -939,8 +947,8 @@ p { margin: 0; line-height: 1.5; }
 }
 
 .status-completion-summary-item strong {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   font-variant-numeric: tabular-nums;
 }
@@ -989,7 +997,7 @@ p { margin: 0; line-height: 1.5; }
 
 .status-completion-error-indicator {
   color: var(--figma-color-text-danger);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   font-size: var(--font-size-base);
   line-height: 1.2;
 }
@@ -1004,7 +1012,7 @@ p { margin: 0; line-height: 1.5; }
   border: none;
   color: var(--figma-color-text-secondary);
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   padding: 4px 0;
 }
@@ -1028,7 +1036,7 @@ p { margin: 0; line-height: 1.5; }
   border: 1px solid var(--figma-color-border);
   color: var(--figma-color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   padding: 5px 10px;
   border-radius: var(--radius-small);
@@ -1049,7 +1057,7 @@ p { margin: 0; line-height: 1.5; }
   border: none;
   color: var(--figma-color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   padding: 0;
   display: flex;
@@ -1097,7 +1105,7 @@ p { margin: 0; line-height: 1.5; }
 
 .status-error-text {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text-danger);
 }
 
@@ -1108,7 +1116,7 @@ p { margin: 0; line-height: 1.5; }
   border: none;
   background: transparent;
   color: var(--figma-color-text-tertiary);
-  font-size: 16px;
+  font-size: var(--font-size-2xl);
   line-height: 1;
   cursor: pointer;
   border-radius: var(--radius-small);
@@ -1125,7 +1133,7 @@ p { margin: 0; line-height: 1.5; }
 
 .status-error-message {
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
   line-height: 1.5;
   margin-bottom: 8px;
@@ -1154,7 +1162,7 @@ p { margin: 0; line-height: 1.5; }
   border: none;
   color: var(--figma-color-text-secondary);
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   padding: 0;
 }
@@ -1171,7 +1179,7 @@ button {
   color: var(--figma-color-text);
   font-family: inherit;
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   border-radius: var(--radius-small);
   cursor: pointer;
   padding: 6px 12px;
@@ -1200,7 +1208,7 @@ button:disabled {
   background: var(--figma-color-bg-brand);
   color: var(--figma-color-text-onbrand);
   border: none;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .button-primary:hover:not(:disabled) { 
@@ -1235,7 +1243,7 @@ button:disabled {
 
 .settings-section-title {
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   display: flex;
   align-items: center;
@@ -1249,7 +1257,7 @@ button:disabled {
   color: var(--figma-color-text-secondary);
   padding: 2px 6px;
   border-radius: 4px;
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .settings-section-actions {
@@ -1333,12 +1341,12 @@ button:disabled {
 
 .settings-rules-meta-label {
   color: var(--figma-color-text-secondary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 .settings-rules-meta-value {
   color: var(--figma-color-text);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   text-align: right;
 }
 
@@ -1388,7 +1396,7 @@ button:disabled {
 .settings-rules-view-btn {
   padding: 4px 10px;
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   border: none;
   background: transparent;
   color: var(--figma-color-text-secondary);
@@ -1428,7 +1436,7 @@ button:disabled {
   padding: 8px 10px;
   background: var(--figma-color-bg-tertiary);
   border-bottom: 1px solid var(--figma-color-border);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text-tertiary);
   text-transform: uppercase;
   font-size: var(--font-size-xs);
@@ -1465,7 +1473,7 @@ button:disabled {
 }
 
 .settings-rules-field {
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
   font-family: 'SF Mono', 'Monaco', monospace;
   font-size: var(--font-size-xs);
@@ -1487,7 +1495,7 @@ button:disabled {
   color: var(--figma-color-text-tertiary);
   border-radius: 3px;
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
 }
 
 /* Rules JSON view */
@@ -1523,7 +1531,7 @@ button:disabled {
 /* Settings label */
 .settings-label {
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text-secondary);
   margin-bottom: 4px;
 }
@@ -1643,7 +1651,7 @@ button:disabled {
 
 .update-dialog-header {
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 8px;
   color: var(--figma-color-text);
 }
@@ -1674,7 +1682,7 @@ button:disabled {
 .update-dialog-btn {
   padding: 8px 14px;
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   border-radius: var(--radius-small);
   cursor: pointer;
   border: 1px solid var(--figma-color-border);
@@ -1774,7 +1782,7 @@ button:disabled {
 }
 
 .whats-new-icon {
-  font-size: 20px;
+  font-size: var(--font-size-3xl);
   line-height: 1;
 }
 
@@ -1786,7 +1794,7 @@ button:disabled {
 
 .whats-new-title {
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0;
   letter-spacing: -0.1px;
@@ -1795,7 +1803,7 @@ button:disabled {
 .whats-new-version {
   font-size: var(--font-size-xs);
   color: var(--figma-color-text-tertiary);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1808,7 +1816,7 @@ button:disabled {
   border: none;
   background: transparent;
   color: var(--figma-color-text-tertiary);
-  font-size: 16px;
+  font-size: var(--font-size-2xl);
   line-height: 1;
   cursor: pointer;
   border-radius: var(--radius-small);
@@ -1836,20 +1844,20 @@ button:disabled {
 }
 
 .whats-new-library-notice-icon {
-  font-size: 18px;
+  font-size: var(--font-size-3xl);
   line-height: 1.2;
   flex-shrink: 0;
 }
 
 .whats-new-library-notice-text {
-  font-size: 13px;
+  font-size: var(--font-size-lg);
   line-height: 1.5;
   color: var(--figma-color-text);
 }
 
 .whats-new-library-notice-text strong {
   color: var(--figma-color-text);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Content */
@@ -1886,13 +1894,13 @@ button:disabled {
 }
 
 .whats-new-entry-icon {
-  font-size: 14px;
+  font-size: var(--font-size-xl);
   line-height: 1;
 }
 
 .whats-new-entry-title {
   font-size: var(--font-size-base);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
   flex: 1;
   letter-spacing: -0.05px;
@@ -1902,7 +1910,7 @@ button:disabled {
   background: var(--figma-color-bg-brand);
   color: var(--figma-color-text-onbrand);
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   padding: 1px 5px;
   border-radius: 3px;
   letter-spacing: 0.2px;
@@ -1916,7 +1924,7 @@ button:disabled {
 
 .whats-new-type-badge {
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   padding: 1px 6px;
   border-radius: 3px;
   background: var(--figma-color-bg-tertiary);
@@ -1980,7 +1988,7 @@ button:disabled {
   border: none;
   border-radius: var(--radius-small);
   font-size: var(--font-size-base);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: all 0.15s ease;
 }
@@ -2022,14 +2030,14 @@ button:disabled {
 }
 
 .confirm-dialog-icon {
-  font-size: 32px;
+  font-size: var(--font-size-3xl);
   margin-bottom: 12px;
   line-height: 1;
 }
 
 .confirm-dialog-header {
   font-size: var(--font-size-lg);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   margin-bottom: 8px;
   color: var(--figma-color-text);
 }
@@ -2055,7 +2063,7 @@ button:disabled {
 .confirm-dialog-btn {
   padding: 8px 16px;
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   border-radius: var(--radius-small);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -2123,8 +2131,8 @@ button:disabled {
   color: var(--figma-color-text-onbrand);
   border: none;
   border-radius: var(--btn-radius);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -2154,13 +2162,13 @@ button:disabled {
   color: var(--figma-color-text);
   border: 1px solid var(--figma-color-border);
   border-radius: var(--btn-radius);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   cursor: pointer;
   transition: background var(--transition-fast);
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-normal);
@@ -2177,8 +2185,8 @@ button:disabled {
   border: none;
   padding: 8px 16px;
   color: var(--figma-color-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   cursor: pointer;
   transition: color var(--transition-fast);
@@ -2190,32 +2198,32 @@ button:disabled {
 
 .btn-danger-text {
   color: var(--figma-color-text-tertiary);
-  font-size: 12px;
+  font-size: var(--font-size-base);
 }
 
 .btn-danger-text:hover {
   color: var(--figma-color-text-danger, #e53935);
 }
 
-/* Back Button (Pill style) */
-.btn-back-pill {
+/* Back Button (Pill style — unified) */
+.btn-back {
   display: inline-flex;
   align-items: center;
-  align-self: flex-start; /* Keep button compact, not full-width */
+  align-self: flex-start;
   gap: 4px;
   padding: 6px 12px;
   background: var(--figma-color-bg-secondary);
   border: 1px solid var(--figma-color-border);
   border-radius: 16px;
   color: var(--figma-color-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   cursor: pointer;
   transition: all var(--transition-normal);
 }
 
-.btn-back-pill:hover {
+.btn-back:hover {
   background: var(--figma-color-bg-hover);
   color: var(--figma-color-text);
 }
@@ -2267,8 +2275,8 @@ button:disabled {
 }
 
 .processing-view--figma .processing-view-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0;
 }
@@ -2283,8 +2291,8 @@ button:disabled {
 }
 
 .processing-view--figma .processing-view-query {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
   white-space: nowrap;
   overflow: hidden;
@@ -2301,7 +2309,7 @@ button:disabled {
 .processing-view--figma .processing-view-marquee-text {
   display: inline-block;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
   animation: marquee-scroll 12s linear infinite;
 }
@@ -2312,13 +2320,13 @@ button:disabled {
 }
 
 .processing-view--figma .processing-view-stage {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
   margin-top: -4px;
 }
 
 .processing-view--figma .processing-view-stuck {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--color-warning);
   animation: viewAppear 0.3s ease-out;
 }
@@ -2352,14 +2360,14 @@ button:disabled {
 }
 
 .success-view--figma .success-view-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0;
 }
 
 .success-view--figma .success-view-desc {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: var(--figma-color-text-secondary);
   line-height: 1.5;
   max-width: 240px;
@@ -2375,7 +2383,7 @@ button:disabled {
 }
 
 .success-stat {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -2391,7 +2399,7 @@ button:disabled {
 }
 
 .success-view-logs-link {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   margin-top: -4px;
 }
 
@@ -2493,14 +2501,14 @@ button:disabled {
 }
 
 .confirm-view--figma .confirm-view-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0;
 }
 
 .confirm-view--figma .confirm-view-meta {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-secondary);
   margin-bottom: 8px;
 }
@@ -2515,8 +2523,8 @@ button:disabled {
 
 .confirm-view--figma .confirm-view-query-text {
   flex: 1;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
   white-space: nowrap;
   overflow: hidden;
@@ -2528,6 +2536,24 @@ button:disabled {
   height: 16px;
   color: var(--figma-color-icon-secondary);
   flex-shrink: 0;
+}
+
+.confirm-view--figma .confirm-view-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-secondary);
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.confirm-view--figma .confirm-view-checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--figma-color-bg-brand);
 }
 
 .confirm-view--figma .confirm-view-actions {
@@ -2543,7 +2569,7 @@ button:disabled {
   align-items: center;
   gap: 6px;
   margin-top: 12px;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
 }
 
@@ -2553,8 +2579,8 @@ button:disabled {
   border: 1px solid var(--figma-color-border);
   border-radius: 4px;
   font-family: inherit;
-  font-size: 10px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
 }
 
 .confirm-view--figma .confirm-view-selection-hint {
@@ -2575,7 +2601,7 @@ button:disabled {
 
 .confirm-view-clear-link {
   color: var(--figma-color-text-tertiary);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   text-decoration: underline;
   text-underline-offset: 2px;
   background: none;
@@ -2599,7 +2625,7 @@ button:disabled {
 }
 
 .confirm-view-clear-warn {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--color-error);
 }
 
@@ -2627,26 +2653,10 @@ button:disabled {
   background: var(--figma-color-bg);
 }
 
-.extension-guide--figma .btn-back {
-  align-self: flex-start;
-  padding: 6px 12px;
-  background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
-  border-radius: var(--btn-radius);
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--figma-color-text-secondary);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.extension-guide--figma .btn-back:hover {
-  background: var(--figma-color-bg-hover);
-}
 
 .extension-guide--figma .extension-guide-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 8px 0 8px;
 }
@@ -2679,15 +2689,15 @@ button:disabled {
   height: var(--step-number-size);
   background: var(--step-number-bg);
   color: var(--figma-color-text-onbrand);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .extension-guide--figma .extension-guide-step-title {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
 }
 
@@ -2700,7 +2710,7 @@ button:disabled {
   background: var(--figma-color-bg-secondary);
   border: 1px solid var(--figma-color-border);
   border-radius: var(--btn-radius);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-family: monospace;
   color: var(--color-primary);
   cursor: pointer;
@@ -2718,6 +2728,116 @@ button:disabled {
 }
 
 /* ============================================
+   SETUP FLOW — Progress bar and navigation
+   ============================================ */
+.setup-flow-progress {
+  margin-bottom: var(--space-sm);
+}
+
+.setup-flow-progress-text {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--figma-color-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.setup-flow-progress-bar {
+  height: 3px;
+  background: var(--figma-color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.setup-flow-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.setup-flow-nav {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: var(--space-md);
+}
+
+/* ============================================
+   ONBOARDING HINT — First-time user guide
+   ============================================ */
+.onboarding-hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.onboarding-hint-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-hint-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--figma-color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.onboarding-hint-text {
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text);
+  line-height: 1.4;
+}
+
+.onboarding-hint-dismiss {
+  align-self: center;
+  margin-top: var(--space-xs);
+}
+
+/* ============================================
+   WHATS NEW BANNER — Inline changelog notice
+   ============================================ */
+.whats-new-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-primary);
+  margin: var(--space-sm) 0;
+}
+
+.whats-new-banner-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.whats-new-banner-text {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--figma-color-text);
+}
+
+.whats-new-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-secondary);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: inherit;
+}
+
+.whats-new-banner-close:hover {
+  color: var(--figma-color-text);
+}
+
+/* ============================================
    STATUS BAR — Connection indicators
    ============================================ */
 .status-bar {
@@ -2725,20 +2845,49 @@ button:disabled {
   top: 12px;
   right: 16px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
   z-index: 50;
   background: var(--figma-color-bg);
-  padding: 4px 8px; /* Increased horizontal padding */
-  border-radius: 6px; /* Smaller radius to minimize corner transparency */
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: calc(100% - 32px);
 }
 
 /* Compact "all OK" badge when all services connected */
 .status-bar-ok {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   color: var(--status-connected);
   padding: 4px 10px;
   white-space: nowrap;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: default;
+}
+
+.status-bar-ok--clickable {
+  cursor: pointer;
+}
+
+.status-bar-ok--clickable:hover {
+  opacity: 0.8;
+}
+
+/* Error state indicator */
+.status-bar-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.status-bar-error-text {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--status-setup);
 }
 
 .status-pill {
@@ -2749,8 +2898,8 @@ button:disabled {
   background: var(--status-pill-bg);
   border: 1px solid var(--status-pill-border);
   border-radius: 12px;
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   font-family: inherit;
   color: var(--figma-color-text-secondary);
   cursor: default;
@@ -2777,7 +2926,7 @@ button:disabled {
 }
 
 .status-pill-label {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-secondary);
 }
 
@@ -2815,8 +2964,8 @@ button:disabled {
   gap: 4px;
   padding: 6px 10px;
   border-radius: 8px;
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
   animation: bannerSlideIn 0.25s ease-out;
 }
 
@@ -2852,7 +3001,7 @@ button:disabled {
 }
 
 .update-banner-icon {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   flex-shrink: 0;
 }
 
@@ -2869,7 +3018,7 @@ button:disabled {
   color: inherit;
   text-decoration: underline;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
 }
 
 .update-banner-link:hover {
@@ -2881,7 +3030,7 @@ button:disabled {
   background: none;
   border: none;
   color: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-xl);
   line-height: 1;
   cursor: pointer;
   padding: 0 2px;
@@ -2938,8 +3087,8 @@ button:disabled {
 }
 
 .setup-wizard--figma .setup-wizard-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0;
   flex: 1;
@@ -2976,8 +3125,8 @@ button:disabled {
   height: var(--step-number-size);
   background: var(--step-number-bg);
   color: var(--figma-color-text-onbrand);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -2987,8 +3136,8 @@ button:disabled {
 }
 
 .setup-wizard--figma .setup-wizard-step-title {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text);
 }
 
@@ -3001,7 +3150,7 @@ button:disabled {
   background: var(--figma-color-bg-secondary);
   border: 1px solid var(--figma-color-border);
   border-radius: var(--btn-radius);
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-family: monospace;
   color: var(--color-primary);
   cursor: pointer;
@@ -3051,21 +3200,21 @@ button:disabled {
 }
 
 .ready-view--figma .ready-view-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   margin: 0 0 8px;
 }
 
 .ready-view--figma .ready-view-last {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
   margin-top: -4px;
   margin-bottom: 4px;
 }
 
 .ready-view-instruction {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: var(--figma-color-text-secondary);
   line-height: 1.5;
   max-width: 240px;
@@ -3109,15 +3258,15 @@ button:disabled {
 }
 
 .log-viewer-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
   flex: 1;
 }
 
 .log-viewer-count {
   font-size: var(--font-size-xs);
-  font-weight: 500;
+  font-weight: var(--font-weight-medium);
   color: var(--figma-color-text-tertiary);
   background: var(--figma-color-bg-tertiary);
   padding: 2px 6px;
@@ -3163,7 +3312,7 @@ button:disabled {
   gap: var(--space-sm);
   padding: 2px 0;
   font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   color: var(--figma-color-text);
   border-bottom: 1px solid var(--figma-color-border);
@@ -3182,9 +3331,9 @@ button:disabled {
 .log-viewer-entry-level {
   flex-shrink: 0;
   width: 52px;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   text-transform: uppercase;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
 
 .log-viewer-entry-msg {
@@ -3275,8 +3424,8 @@ button:disabled {
 }
 
 .comp-inspector-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
 }
 
@@ -3322,7 +3471,7 @@ button:disabled {
 }
 
 .comp-inspector-label {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
   flex-shrink: 0;
   width: 64px;
@@ -3330,14 +3479,14 @@ button:disabled {
 }
 
 .comp-inspector-value {
-  font-size: 12px;
+  font-size: var(--font-size-base);
   color: var(--figma-color-text);
   word-break: break-word;
 }
 
 .comp-inspector-key {
   font-family: 'SF Mono', 'Menlo', monospace;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   color: var(--figma-color-text-brand);
   background: var(--figma-color-bg);
   padding: 2px 6px;
@@ -3358,8 +3507,8 @@ button:disabled {
 }
 
 .comp-inspector-props-title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text-secondary);
   display: block;
   margin-bottom: 4px;
@@ -3370,7 +3519,7 @@ button:disabled {
   align-items: baseline;
   gap: 6px;
   padding: 1px 0;
-  font-size: 11px;
+  font-size: var(--font-size-sm);
 }
 
 .comp-inspector-prop-name {
@@ -3383,12 +3532,12 @@ button:disabled {
 .comp-inspector-prop-type {
   color: var(--figma-color-text-tertiary);
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }
 
 .comp-inspector-prop-value {
   color: var(--figma-color-text-brand);
   flex-shrink: 0;
   font-family: 'SF Mono', 'Menlo', monospace;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
 }

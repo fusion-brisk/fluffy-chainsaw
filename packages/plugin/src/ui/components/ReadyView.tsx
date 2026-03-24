@@ -7,18 +7,30 @@
 
 import React, { memo } from 'react';
 import { InboxIcon } from './Icons';
+import { OnboardingHint } from './OnboardingHint';
+import { WhatsNewBanner } from './WhatsNewBanner';
 
 interface ReadyViewProps {
   lastQuery?: string;
   relayConnected?: boolean;
+  isFirstTime?: boolean;
+  showWhatsNew?: boolean;
+  currentVersion?: string;
   onShowExtensionGuide?: () => void;
   onReimport?: () => void;
+  onDismissOnboarding?: () => void;
+  onDismissWhatsNew?: () => void;
 }
 
 export const ReadyView: React.FC<ReadyViewProps> = memo(({
   lastQuery,
+  isFirstTime,
+  showWhatsNew,
+  currentVersion,
   onShowExtensionGuide,
-  onReimport
+  onReimport,
+  onDismissOnboarding,
+  onDismissWhatsNew,
 }) => {
   return (
     <div className="ready-view--figma view-animate-in">
@@ -32,8 +44,18 @@ export const ReadyView: React.FC<ReadyViewProps> = memo(({
         Ожидание данных
       </h2>
 
+      {/* What's new inline banner */}
+      {!isFirstTime && showWhatsNew && currentVersion && onDismissWhatsNew && (
+        <WhatsNewBanner currentVersion={currentVersion} onDismiss={onDismissWhatsNew} />
+      )}
+
+      {/* First-time onboarding hint */}
+      {isFirstTime && onDismissOnboarding && (
+        <OnboardingHint onDismiss={onDismissOnboarding} />
+      )}
+
       {/* Last query + reimport button */}
-      {lastQuery && (
+      {!isFirstTime && lastQuery && (
         <div className="ready-view-last">
           Последний: «{lastQuery}»
           {onReimport && (
@@ -49,16 +71,18 @@ export const ReadyView: React.FC<ReadyViewProps> = memo(({
       )}
 
       {/* Main instruction */}
-      <p className="ready-view-instruction">
-        Откройте Яндекс в Chrome с{' '}
-        <button
-          type="button"
-          className="ready-view-link"
-          onClick={onShowExtensionGuide}
-        >
-          расширением Contentify
-        </button>
-      </p>
+      {!isFirstTime && (
+        <p className="ready-view-instruction">
+          Откройте Яндекс в Chrome с{' '}
+          <button
+            type="button"
+            className="ready-view-link"
+            onClick={onShowExtensionGuide}
+          >
+            расширением Contentify
+          </button>
+        </p>
+      )}
     </div>
   );
 });

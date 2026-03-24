@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { LogLevel } from '../../../logger';
+import { BackButton } from '../BackButton';
 
 export interface LogMessage {
   level: LogLevel;
@@ -21,10 +22,10 @@ interface LogViewerProps {
 }
 
 const LEVEL_LABELS: Record<number, string> = {
-  [LogLevel.ERROR]: 'ERROR',
-  [LogLevel.SUMMARY]: 'INFO',
-  [LogLevel.VERBOSE]: 'VERBOSE',
-  [LogLevel.DEBUG]: 'DEBUG',
+  [LogLevel.ERROR]: 'ОШИБКА',
+  [LogLevel.SUMMARY]: 'ИНФО',
+  [LogLevel.VERBOSE]: 'ПОДРОБНО',
+  [LogLevel.DEBUG]: 'ОТЛАДКА',
 };
 
 const LEVEL_CSS: Record<number, string> = {
@@ -78,14 +79,8 @@ export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, on
     <div className="log-viewer">
       {/* Header */}
       <div className="log-viewer-header">
-        <button
-          type="button"
-          className="btn-back-pill"
-          onClick={onClose}
-        >
-          &larr; Back
-        </button>
-        <span className="log-viewer-title">Logs</span>
+        <BackButton onClick={onClose} />
+        <span className="log-viewer-title">Логи</span>
         <span className="log-viewer-count">{filtered.length}</span>
       </div>
 
@@ -96,17 +91,17 @@ export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, on
           value={minLevel}
           onChange={e => setMinLevel(Number(e.target.value) as LogLevel)}
         >
-          <option value={LogLevel.ERROR}>Errors only</option>
-          <option value={LogLevel.SUMMARY}>Summary+</option>
-          <option value={LogLevel.VERBOSE}>Verbose+</option>
-          <option value={LogLevel.DEBUG}>All (Debug)</option>
+          <option value={LogLevel.ERROR}>Только ошибки</option>
+          <option value={LogLevel.SUMMARY}>Сводка+</option>
+          <option value={LogLevel.VERBOSE}>Подробно+</option>
+          <option value={LogLevel.DEBUG}>Всё (отладка)</option>
         </select>
         <div className="log-viewer-actions">
           <button type="button" className="btn-text-sm" onClick={handleExport}>
-            Export JSON
+            Экспорт JSON
           </button>
           <button type="button" className="btn-text-sm" onClick={onClear}>
-            Clear
+            Очистить
           </button>
         </div>
       </div>
@@ -118,7 +113,7 @@ export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, on
         onScroll={handleScroll}
       >
         {filtered.length === 0 ? (
-          <div className="log-viewer-empty">No log messages</div>
+          <div className="log-viewer-empty">Нет сообщений</div>
         ) : (
           filtered.map((msg, i) => (
             <div

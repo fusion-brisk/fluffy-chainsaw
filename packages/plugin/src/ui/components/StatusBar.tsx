@@ -1,9 +1,9 @@
 /**
  * StatusBar — Compact connection status indicators
  *
- * Shows Relay and Extension connection status as pills in top-right corner.
- * When all connected: compact "Все ОК ✓" that expands on hover.
- * When any disconnected: always expanded with problem items highlighted.
+ * Shows connection status as a single indicator with click-to-expand details.
+ * Inspector and Logs buttons are icon-only to save space.
+ * No hover logic — all interactions are click-based.
  */
 
 import React, { memo, useState } from 'react';
@@ -15,7 +15,6 @@ interface StatusBarProps {
   hasPendingData?: boolean;
   onRelayClick?: () => void;
   onExtensionClick?: () => void;
-  onLogsClick?: () => void;
   onInspectorClick?: () => void;
   onClearQueue?: () => void;
 }
@@ -76,6 +75,20 @@ const StatusPill: React.FC<StatusPillProps> = memo(({ label, tooltip, status, on
 
 StatusPill.displayName = 'StatusPill';
 
+/**
+ * Find the first problem service for error state display.
+ */
+function getFirstProblem(
+  relayConnected: boolean,
+  extensionInstalled: boolean,
+  mcpConnected?: boolean
+): { name: string; key: 'relay' | 'extension' | 'mcp' } | null {
+  if (mcpConnected === false) return { name: 'MCP', key: 'mcp' };
+  if (!relayConnected) return { name: 'Relay', key: 'relay' };
+  if (!extensionInstalled) return { name: 'Расширение', key: 'extension' };
+  return null;
+}
+
 export const StatusBar: React.FC<StatusBarProps> = memo(({
   relayConnected,
   extensionInstalled,
@@ -83,45 +96,36 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
   hasPendingData,
   onRelayClick,
   onExtensionClick,
-  onLogsClick,
   onInspectorClick,
   onClearQueue
 }) => {
   const allGood = relayConnected && extensionInstalled;
-  const [expanded, setExpanded] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [confirmingClear, setConfirmingClear] = useState(false);
 
-  // When something is disconnected, always show full pills
-  const showPills = !allGood || expanded;
+  const problem = getFirstProblem(relayConnected, extensionInstalled, mcpConnected);
+
+  const handleProblemAction = () => {
+    if (!problem) return;
+    if (problem.key === 'relay' && onRelayClick) onRelayClick();
+    if (problem.key === 'extension' && onExtensionClick) onExtensionClick();
+  };
 
   return (
-    <div
-      className="status-bar"
-      onMouseEnter={() => { if (allGood) setExpanded(true); }}
-      onMouseLeave={() => { setExpanded(false); setConfirmingClear(false); }}
-    >
+    <div className="status-bar">
+      {/* Icon-only buttons for Inspector and Logs */}
       {onInspectorClick && (
         <button
           type="button"
           className="status-pill status-pill--log status-pill--clickable"
           onClick={onInspectorClick}
           aria-label="Инспектор компонентов"
+          title="Инспектор компонентов"
         >
           <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9881;</span>
-          <span className="status-pill-label">Инспектор</span>
         </button>
       )}
-      {onLogsClick && (
-        <button
-          type="button"
-          className="status-pill status-pill--log status-pill--clickable"
-          onClick={onLogsClick}
-          aria-label="Просмотр логов"
-        >
-          <span className="status-pill-icon" style={{ fontSize: '10px' }}>&#9776;</span>
-          <span className="status-pill-label">Логи</span>
-        </button>
-      )}
+      {/* Logs button removed — access via Ctrl+Shift+L */}
 
       {/* Clear queue action — visible when relay has pending data */}
       {hasPendingData && onClearQueue && (
@@ -158,13 +162,47 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
         )
       )}
 
-      {/* Compact "all OK" badge — only when everything connected and not hovered */}
-      {allGood && !showPills && (
-        <span className="status-bar-ok">Все ОК ✓</span>
+      {/* Status indicator */}
+      {allGood && !detailsOpen && (
+        <button
+          type="button"
+          className="status-bar-ok status-bar-ok--clickable"
+          onClick={() => setDetailsOpen(true)}
+          aria-label="Показать статус подключений"
+          title="Нажмите для подробностей"
+        >
+          Все ОК ✓
+        </button>
       )}
 
-      {/* Full pills — always shown when disconnected, on hover when all OK */}
-      {showPills && (
+      {/* Error state — always show first problem */}
+      {!allGood && problem && !detailsOpen && (
+        <span className="status-bar-error">
+          <span className="status-bar-error-text">⚠ {problem.name} офлайн</span>
+          {(problem.key === 'relay' || problem.key === 'extension') && (
+            <button
+              type="button"
+              className="status-pill status-pill--setup status-pill--clickable"
+              onClick={handleProblemAction}
+              aria-label={`Настроить ${problem.name}`}
+            >
+              <span className="status-pill-label">Настроить</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="status-pill status-pill--log status-pill--clickable"
+            onClick={() => setDetailsOpen(true)}
+            aria-label="Подробнее"
+            title="Показать все подключения"
+          >
+            <span className="status-pill-label">...</span>
+          </button>
+        </span>
+      )}
+
+      {/* Expanded details — click to toggle */}
+      {detailsOpen && (
         <>
           {mcpConnected !== undefined && (
             <StatusPill
@@ -187,6 +225,15 @@ export const StatusBar: React.FC<StatusBarProps> = memo(({
             status={extensionInstalled ? 'active' : 'setup'}
             onClick={onExtensionClick}
           />
+          <button
+            type="button"
+            className="status-pill status-pill--log status-pill--clickable"
+            onClick={() => setDetailsOpen(false)}
+            aria-label="Свернуть"
+            title="Свернуть статус"
+          >
+            <span className="status-pill-icon" style={{ fontSize: '10px' }}>✕</span>
+          </button>
         </>
       )}
     </div>

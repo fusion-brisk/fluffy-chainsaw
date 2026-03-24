@@ -264,19 +264,32 @@ export interface RelayPayload {
 export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success';
 
 /**
- * Размеры окна плагина для разных состояний
+ * Размеры окна плагина — 3 tier'а вместо отдельного размера для каждого state.
+ * compact:  checking only (тонкая полоска)
+ * standard: ready, confirming, processing, success
+ * extended: guides, logs, inspector, whatsNew
  */
 export const UI_SIZES = {
-  checking: { width: 320, height: 56 },
-  ready: { width: 400, height: 380 },
-  confirming: { width: 340, height: 340 },
-  processing: { width: 340, height: 300 },
-  success: { width: 340, height: 320 },
-  extensionGuide: { width: 380, height: 520 },
-  whatsNew: { width: 380, height: 520 },
-  logsViewer: { width: 380, height: 520 },
-  inspector: { width: 420, height: 520 }
+  compact:  { width: 320, height: 56 },
+  standard: { width: 400, height: 400 },
+  extended: { width: 420, height: 520 },
 } as const;
+
+export type UITier = keyof typeof UI_SIZES;
+
+/** Map any AppState or panel name to a size tier */
+export const STATE_TO_TIER: Record<string, UITier> = {
+  checking: 'compact',
+  ready: 'standard',
+  confirming: 'standard',
+  processing: 'standard',
+  success: 'standard',
+  extensionGuide: 'extended',
+  relayGuide: 'extended',
+  logsViewer: 'extended',
+  inspector: 'extended',
+  whatsNew: 'extended',
+};
 
 /**
  * Данные компонента для инспектора

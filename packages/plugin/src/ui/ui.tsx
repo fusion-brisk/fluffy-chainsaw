@@ -20,6 +20,7 @@ import {
   ImportInfo,
   ProcessingStats,
   UI_SIZES,
+  STATE_TO_TIER,
 } from '../types';
 import type { RelayPayload } from '../types';
 import {
@@ -40,14 +41,13 @@ import { ReadyView } from './components/ReadyView';
 import { ProcessingView } from './components/ProcessingView';
 
 import { Confetti } from './components/Confetti';
-import { ImportConfirmDialog, ImportMode } from './components/ImportConfirmDialog';
+import { ImportConfirmDialog, ImportOptions } from './components/ImportConfirmDialog';
 import { SuccessView } from './components/SuccessView';
-import { ExtensionGuide } from './components/ExtensionGuide';
-import { RelayGuide } from './components/RelayGuide';
+import { SetupFlow } from './components/SetupFlow';
 import { StatusBar } from './components/StatusBar';
 import { UpdateBanner } from './components/UpdateBanner';
-import { SetupWizard } from './components/SetupWizard';
-import { WhatsNewDialog } from './components/WhatsNewDialog';
+// SetupWizard removed — replaced by SetupFlow
+// WhatsNewDialog removed — replaced by inline WhatsNewBanner in ReadyView
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
@@ -93,8 +93,7 @@ const App: React.FC = () => {
   const [confettiActive, setConfettiActive] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
-  const [showExtensionGuide, setShowExtensionGuide] = useState(false);
-  const [showRelayGuide, setShowRelayGuide] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
   const [showLogViewer, setShowLogViewer] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const [showInspector, setShowInspector] = useState(false);
@@ -104,11 +103,12 @@ const App: React.FC = () => {
   const [lastStats, setLastStats] = useState<ProcessingStats | null>(null);
   const [relayConnected, setRelayConnected] = useState(false);
   const [extensionInstalled, setExtensionInstalled] = useState(false);
+  const [isFirstRun, setIsFirstRun] = useState(true);
   const previousStateRef = useRef<AppState | null>(null);
 
   // Processing refs
   const processingStartTimeRef = useRef<number | null>(null);
-  const currentSizeRef = useRef<{ width: number; height: number }>({ width: UI_SIZES.checking.width, height: UI_SIZES.checking.height });
+  const currentSizeRef = useRef<{ width: number; height: number }>({ width: UI_SIZES.compact.width, height: UI_SIZES.compact.height });
   const resizeAnimationRef = useRef<number | null>(null);
   const isFirstResizeRef = useRef(true);
   const isMountedRef = useRef(true);
@@ -118,8 +118,9 @@ const App: React.FC = () => {
   const pendingEntryIdRef = useRef<string | null>(null);
 
   // === ANIMATED RESIZE HELPER ===
-  const resizeUI = useCallback((state: AppState | keyof typeof UI_SIZES) => {
-    const targetSize = UI_SIZES[state as keyof typeof UI_SIZES] || UI_SIZES.ready;
+  const resizeUI = useCallback((state: string) => {
+    const tier = STATE_TO_TIER[state] || 'standard';
+    const targetSize = UI_SIZES[tier];
     const currentSize = currentSizeRef.current;
 
     if (resizeAnimationRef.current) {
@@ -198,6 +199,13 @@ const App: React.FC = () => {
   // === MARK EXTENSION AS INSTALLED ===
   const markExtensionInstalled = useCallback(() => {
     setExtensionInstalled(true);
+    setIsFirstRun(false);
+    sendMessageToPlugin({ type: 'save-setup-skipped' });
+  }, []);
+
+  // === DISMISS ONBOARDING ===
+  const handleDismissOnboarding = useCallback(() => {
+    setIsFirstRun(false);
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
@@ -263,7 +271,10 @@ const App: React.FC = () => {
   usePluginMessages({
     handlers: {
       onSetupSkippedLoaded: (skipped) => {
-        if (skipped) setExtensionInstalled(true);
+        if (skipped) {
+          setExtensionInstalled(true);
+          setIsFirstRun(false);
+        }
       },
       onLog: (message) => {
         // Determine level from message content heuristic
@@ -321,9 +332,7 @@ const App: React.FC = () => {
       onWhatsNewStatus: (data) => {
         if (data.shouldShow) {
           setCurrentVersion(data.currentVersion);
-          previousStateRef.current = appState;
           setShowWhatsNew(true);
-          resizeUI('whatsNew');
         }
       },
       onDebugReport: (report) => {
@@ -388,9 +397,10 @@ const App: React.FC = () => {
   }, [resizeUI]);
 
   // === CONFIRM IMPORT HANDLER ===
-  const handleConfirmImport = useCallback((mode: ImportMode) => {
+  const handleConfirmImport = useCallback((options: ImportOptions) => {
     if (!pendingImport) return;
 
+    const { mode, includeScreenshots } = options;
     const { rows, query, entryId } = pendingImport;
     const scope = mode === 'selection' ? 'selection' : 'page';
 
@@ -423,7 +433,8 @@ const App: React.FC = () => {
       sendMessageToPlugin({
         type: 'apply-relay-payload',
         payload: relayPayloadRef.current,
-        scope
+        scope,
+        includeScreenshots
       });
       relayPayloadRef.current = null;
     } else {
@@ -431,7 +442,8 @@ const App: React.FC = () => {
         type: 'import-csv',
         rows,
         scope,
-        resetBeforeImport: false
+        resetBeforeImport: false,
+        includeScreenshots
       });
       relayPayloadRef.current = null;
     }
@@ -462,28 +474,15 @@ const App: React.FC = () => {
     resizeUI('ready');
   }, [resizeUI, relay]);
 
-  // === GUIDE HANDLERS ===
-  const handleShowExtensionGuide = useCallback(() => {
+  // === SETUP FLOW HANDLERS ===
+  const handleShowSetup = useCallback(() => {
     previousStateRef.current = appState;
-    setShowExtensionGuide(true);
+    setShowSetup(true);
     resizeUI('extensionGuide');
   }, [appState, resizeUI]);
 
-  const handleCloseExtensionGuide = useCallback(() => {
-    setShowExtensionGuide(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
-
-  const handleShowRelayGuide = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowRelayGuide(true);
-    resizeUI('extensionGuide');
-  }, [appState, resizeUI]);
-
-  const handleCloseRelayGuide = useCallback(() => {
-    setShowRelayGuide(false);
+  const handleCloseSetup = useCallback(() => {
+    setShowSetup(false);
     const prevState = previousStateRef.current || appState;
     resizeUI(prevState);
     previousStateRef.current = null;
@@ -506,6 +505,23 @@ const App: React.FC = () => {
   const handleClearLogs = useCallback(() => {
     setLogMessages([]);
   }, []);
+
+  // === KEYBOARD SHORTCUTS ===
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+Shift+L → toggle log viewer
+      if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+        e.preventDefault();
+        if (showLogViewer) {
+          handleCloseLogViewer();
+        } else {
+          handleShowLogViewer();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showLogViewer, handleCloseLogViewer, handleShowLogViewer]);
 
   // === INSPECTOR HANDLERS ===
   const handleShowInspector = useCallback(() => {
@@ -537,22 +553,21 @@ const App: React.FC = () => {
       className="glass-app"
     >
       {/* StatusBar — always visible except during checking, guides, log viewer, or inspector */}
-      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && !showInspector && (
+      {appState !== 'checking' && !showSetup && !showLogViewer && !showInspector && (
         <StatusBar
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           mcpConnected={mcpStatus.connected}
           hasPendingData={pendingImport !== null}
-          onRelayClick={handleShowRelayGuide}
-          onExtensionClick={handleShowExtensionGuide}
-          onLogsClick={handleShowLogViewer}
+          onRelayClick={handleShowSetup}
+          onExtensionClick={handleShowSetup}
           onInspectorClick={handleShowInspector}
           onClearQueue={handleClearQueue}
         />
       )}
 
       {/* Update notification banners */}
-      {appState !== 'checking' && !showExtensionGuide && !showRelayGuide && !showLogViewer && !showInspector && (
+      {appState !== 'checking' && !showSetup && !showLogViewer && !showInspector && (
         <UpdateBanner
           relayUpdate={versionCheck.relayUpdate}
           extensionUpdate={versionCheck.extensionUpdate}
@@ -569,26 +584,35 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Ready state with SetupWizard or WaitingState */}
-      {appState === 'ready' && !showExtensionGuide && !showRelayGuide && (
+      {/* Ready state */}
+      {appState === 'ready' && !showSetup && !showLogViewer && !showInspector && (
         needsSetup ? (
-          <SetupWizard
+          <SetupFlow
             relayConnected={relayConnected}
             extensionInstalled={extensionInstalled}
-            onSkip={markExtensionInstalled}
+            onComplete={markExtensionInstalled}
+            onBack={markExtensionInstalled}
           />
         ) : (
           <ReadyView
             lastQuery={lastQuery}
             relayConnected={relayConnected}
-            onShowExtensionGuide={handleShowExtensionGuide}
+            isFirstTime={isFirstRun}
+            showWhatsNew={showWhatsNew}
+            currentVersion={currentVersion}
+            onShowExtensionGuide={handleShowSetup}
             onReimport={relayConnected ? () => relay.reimport() : undefined}
+            onDismissOnboarding={handleDismissOnboarding}
+            onDismissWhatsNew={() => {
+              setShowWhatsNew(false);
+              sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
+            }}
           />
         )
       )}
 
       {/* Confirming state */}
-      {appState === 'confirming' && pendingImport && !showExtensionGuide && !showRelayGuide && (
+      {appState === 'confirming' && pendingImport && !showSetup && !showLogViewer && !showInspector && (
         <ImportConfirmDialog
           query={importInfo.query}
           itemCount={importInfo.itemCount}
@@ -601,7 +625,7 @@ const App: React.FC = () => {
       )}
 
       {/* Processing state */}
-      {appState === 'processing' && !showExtensionGuide && !showRelayGuide && (
+      {appState === 'processing' && !showSetup && !showLogViewer && !showInspector && (
         <ProcessingView
           importInfo={importInfo}
           onCancel={handleCancel}
@@ -609,7 +633,7 @@ const App: React.FC = () => {
       )}
 
       {/* Success state */}
-      {appState === 'success' && !showExtensionGuide && !showRelayGuide && (
+      {appState === 'success' && !showSetup && !showLogViewer && !showInspector && (
         <SuccessView
           query={importInfo.query}
           stats={lastStats}
@@ -619,19 +643,21 @@ const App: React.FC = () => {
       )}
 
       {/* Confetti celebration (success only) */}
-      <Confetti
-        isActive={confettiActive}
-        onComplete={handleConfettiComplete}
-      />
-
-      {/* Extension installation guide */}
-      {showExtensionGuide && (
-        <ExtensionGuide onBack={handleCloseExtensionGuide} />
+      {!showLogViewer && !showInspector && (
+        <Confetti
+          isActive={confettiActive}
+          onComplete={handleConfettiComplete}
+        />
       )}
 
-      {/* Relay installation guide */}
-      {showRelayGuide && (
-        <RelayGuide onBack={handleCloseRelayGuide} />
+      {/* Unified setup flow (relay + extension) */}
+      {showSetup && (
+        <SetupFlow
+          relayConnected={relayConnected}
+          extensionInstalled={extensionInstalled}
+          onComplete={handleCloseSetup}
+          onBack={handleCloseSetup}
+        />
       )}
 
       {/* Component Inspector */}
@@ -651,19 +677,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* What's New dialog */}
-      {showWhatsNew && (
-        <WhatsNewDialog
-          currentVersion={currentVersion}
-          onClose={() => {
-            setShowWhatsNew(false);
-            sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
-            const prevState = previousStateRef.current || appState;
-            resizeUI(prevState);
-            previousStateRef.current = null;
-          }}
-        />
-      )}
+      {/* WhatsNew is now an inline banner inside ReadyView */}
     </div>
   );
 };
