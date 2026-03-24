@@ -4,7 +4,7 @@
 
 import { Logger } from '../../logger';
 
-/** Timeout for component import (ms) */
+/** Timeout for component loading (ms) */
 var IMPORT_TIMEOUT = 15000;
 
 /**
@@ -23,7 +23,7 @@ export function clearComponentCache(): void {
 /**
  * Импортировать компонент из библиотеки с кэшированием
  */
-export async function importComponent(key: string): Promise<ComponentNode | null> {
+export async function loadComponent(key: string): Promise<ComponentNode | null> {
   if (!key) {
     Logger.warn('[PageCreator] Пустой ключ компонента');
     return null;

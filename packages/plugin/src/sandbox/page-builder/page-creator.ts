@@ -32,7 +32,7 @@ import {
 import { buildPageStructure, sortContentNodes, detectSnippetType } from './structure-builder';
 import { StructureNode, ContainerType, ContainerConfig } from './types';
 import { renderWizards } from '../plugin/wizard-processor';
-import { importComponent, createPlaceholder } from './component-import';
+import { loadComponent, createPlaceholder } from './component-import';
 import { applyFill, applyFillStyle } from './fill-utils';
 import { createInstanceForElement, applyDataToInstance, createGroupWithChildren } from './instance-factory';
 import { preloadInstanceFonts, applySnippetImages, applyFavicon, applyQuoteAvatar } from './image-operations';
@@ -94,7 +94,7 @@ async function createSnippetInstance(
 
   Logger.debug(`[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`);
 
-  const component = await importComponent(componentKey);
+  const component = await loadComponent(componentKey);
   if (!component) {
     Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type);
     return createPlaceholder(node.type, 360, 120);
@@ -420,7 +420,7 @@ async function renderStructureNode(
       const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
       if (titleConfig?.key) {
         try {
-          const titleComponent = await importComponent(titleConfig.key);
+          const titleComponent = await loadComponent(titleConfig.key);
           if (titleComponent) {
             const titleInstance = titleComponent.createInstance();
 
@@ -485,7 +485,7 @@ async function renderStructureNode(
       const showAllFlag = node.children?.[0]?.data?.['#ProductsTilesShowAll'];
       if (showAllFlag === 'true') {
         try {
-          const btnComponent = await importComponent('d11550f55331ddcb57d6d8e566dc288de8c706d7');
+          const btnComponent = await loadComponent('d11550f55331ddcb57d6d8e566dc288de8c706d7');
           if (btnComponent) {
             const btnInstance = btnComponent.createInstance();
             // Устанавливаем пропсы: View=Secondary, Size=M, Text=True
@@ -557,7 +557,7 @@ async function renderStructureNode(
       const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
       if (titleConfig?.key) {
         try {
-          const titleComponent = await importComponent(titleConfig.key);
+          const titleComponent = await loadComponent(titleConfig.key);
           if (titleComponent) {
             const titleInstance = titleComponent.createInstance();
 
@@ -635,7 +635,7 @@ async function renderStructureNode(
       const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
       if (titleConfig?.key) {
         try {
-          const titleComponent = await importComponent(titleConfig.key);
+          const titleComponent = await loadComponent(titleConfig.key);
           if (titleComponent) {
             const titleInstance = titleComponent.createInstance();
 
@@ -843,7 +843,7 @@ export async function createSerpPage(
   try {
     const headerConfig = LAYOUT_COMPONENT_MAP['Header'];
     if (headerConfig?.key) {
-      const headerComponent = await importComponent(headerConfig.key);
+      const headerComponent = await loadComponent(headerConfig.key);
       if (headerComponent) {
         const headerInstance = headerComponent.createInstance();
 
@@ -1163,7 +1163,7 @@ export async function createSerpPage(
   try {
     const footerConfig = LAYOUT_COMPONENT_MAP['Footer'];
     if (footerConfig?.key) {
-      const footerComponent = await importComponent(footerConfig.key);
+      const footerComponent = await loadComponent(footerConfig.key);
       if (footerComponent) {
         const footerInstance = footerComponent.createInstance();
         pageFrame.appendChild(footerInstance);

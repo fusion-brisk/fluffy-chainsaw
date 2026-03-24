@@ -15,7 +15,7 @@ function buildEmbeddedHtml() {
   const template = read('src/ui/ui.html');
   const css = read('src/ui/styles.css');
   const bridgeJs = read('src/sandbox/mcp-bridge/bridge-ui.js');
-  const js = read('dist/ui.js');
+  const js = read('dist/ui.js').replace(/\/\/# sourceMappingURL=.*$/m, '');
   
   const shim = 'window.process=window.process||{env:{}};';
   

@@ -7,7 +7,7 @@ import { handlerRegistry } from '../handlers/registry';
 import type { HandlerContext } from '../handlers/types';
 import { buildInstanceCache } from '../../utils/instance-cache';
 import { getComponentConfig } from './component-map';
-import { importComponent, createPlaceholder } from './component-import';
+import { loadComponent, createPlaceholder } from './component-import';
 import type { PageElement, SnippetType } from './types';
 
 /**
@@ -34,7 +34,7 @@ export async function createInstanceForElement(
     : config.key;
 
   // Импортируем компонент
-  const component = await importComponent(componentKey);
+  const component = await loadComponent(componentKey);
   if (!component) {
     Logger.warn('[PageCreator] Component not found, using placeholder: ' + element.type);
     return createPlaceholder(element.type, 360, 120);

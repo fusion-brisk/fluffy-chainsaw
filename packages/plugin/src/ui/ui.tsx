@@ -113,7 +113,7 @@ const App: React.FC = () => {
   const isFirstResizeRef = useRef(true);
   const isMountedRef = useRef(true);
 
-  // Relay payload ref for import
+  // Relay payload ref for loading
   const relayPayloadRef = useRef<RelayPayload | null>(null);
   const pendingEntryIdRef = useRef<string | null>(null);
 
@@ -305,7 +305,7 @@ const App: React.FC = () => {
         setLastStats(stats);
       },
       onDone: () => {
-        // Acknowledge relay data after successful import
+        // Acknowledge relay data after successful load
         if (pendingEntryIdRef.current) {
           const entryIdToAck = pendingEntryIdRef.current;
           pendingEntryIdRef.current = null;
@@ -404,7 +404,7 @@ const App: React.FC = () => {
     const { rows, query, entryId } = pendingImport;
     const scope = mode === 'selection' ? 'selection' : 'page';
 
-    // Store entryId for acknowledgment after successful import
+    // Store entryId for acknowledgment after successful load
     if (entryId) {
       pendingEntryIdRef.current = entryId;
 

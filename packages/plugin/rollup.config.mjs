@@ -14,7 +14,7 @@ export default [
       file: 'dist/ui.js',
       format: 'iife',
       name: 'EProductSnippetUI',
-      sourcemap: !isProduction
+      sourcemap: false
     },
     plugins: [
       resolve({
@@ -48,7 +48,7 @@ export default [
       file: 'dist/code.js',
       format: 'iife',
       name: 'EProductSnippetCode',
-      sourcemap: !isProduction
+      sourcemap: false
     },
     plugins: [
       typescript({

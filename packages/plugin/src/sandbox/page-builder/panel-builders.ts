@@ -12,7 +12,7 @@ import {
   LAYOUT_COMPONENT_MAP,
   getContainerConfig,
 } from './component-map';
-import { importComponent } from './component-import';
+import { loadComponent } from './component-import';
 import { applyFill, applyFillStyle } from './fill-utils';
 import { loadAndApplyImage, findFillableLayer, findImageLayer } from './image-operations';
 import type { ImageGridItem } from './image-operations';
@@ -282,7 +282,7 @@ export async function createAsideFiltersPanel(
 
   Logger.info('[EAsideFilters] Создаём панель с ' + parsed.filters.length + ' фильтрами');
 
-  // Pre-import all needed components via ComponentSet + variant matching
+  // Pre-load all needed components via ComponentSet + variant matching
   var titleComponent: ComponentNode | null = null;
   var checkboxComponent: ComponentNode | null = null;
   var categoryComponent: ComponentNode | null = null;
@@ -303,7 +303,7 @@ export async function createAsideFiltersPanel(
     var entry = asideEntries[ci2];
     var importedComponent: ComponentNode | null = null;
 
-    // Strategy 1: import as ComponentSet and find variant
+    // Strategy 1: load as ComponentSet and find variant
     try {
       var compSet = await figma.importComponentSetByKeyAsync(entry.config.setKey);
       if (compSet) {
@@ -626,7 +626,7 @@ export async function createImagesGridPanel(
   const title = data['#ImagesGrid_title'] || 'Картинки';
 
   // Импортируем EThumb (variant: Type=New; feb-26, Ratio=Manual)
-  const eThumbComponent = await importComponent(ETHUMB_CONFIG.manualVariantKey);
+  const eThumbComponent = await loadComponent(ETHUMB_CONFIG.manualVariantKey);
   // EThumb не обязателен — если недоступен, рендерим простые прямоугольники с изображениями
 
   // === Wrapper frame (VERTICAL) ===
@@ -643,7 +643,7 @@ export async function createImagesGridPanel(
   // === Заголовок «Картинки» ===
   const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
   if (titleConfig && titleConfig.key) {
-    const titleComponent = await importComponent(titleConfig.key);
+    const titleComponent = await loadComponent(titleConfig.key);
     if (titleComponent) {
       const titleInstance = titleComponent.createInstance();
       wrapper.appendChild(titleInstance);

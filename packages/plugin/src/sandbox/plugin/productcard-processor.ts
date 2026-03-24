@@ -219,7 +219,7 @@ async function fillItemsList(
   try {
     offerComponent = await figma.importComponentByKeyAsync(EOFFER_ITEM_KEY);
   } catch (e) {
-    Logger.error('[ProductCard] Failed to import EOfferItem: ' + String(e));
+    Logger.error('[ProductCard] Failed to load EOfferItem: ' + String(e));
     return;
   }
 

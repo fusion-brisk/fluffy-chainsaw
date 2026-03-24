@@ -161,7 +161,7 @@ export function useRelayConnection({
     }
   }, [relayUrl, peekRelayData]);
 
-  // ackData — acknowledge relay data after successful import (with retry)
+  // ackData — acknowledge relay data after successful load (with retry)
   const ackData = useCallback(async (entryId: string) => {
     lastProcessedEntryIdRef.current = entryId;
     isAckInProgressRef.current = true;
@@ -206,7 +206,7 @@ export function useRelayConnection({
     lastProcessedEntryIdRef.current = null;
   }, [relayUrl]);
 
-  // reimport — re-queue last import payload
+  // reimport — re-queue last relay payload
   const reimport = useCallback(async (): Promise<boolean> => {
     try {
       const res = await fetch(`${relayUrl}/reimport`, { method: 'POST' });
