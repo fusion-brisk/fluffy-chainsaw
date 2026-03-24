@@ -6,8 +6,6 @@
 
 import { Logger } from '../../logger';
 import { TEXT_FIELD_NAMES } from '../../config';
-// Container cache отключен для экономии памяти
-// import { getContainerStructure } from '../../utils/container-cache';
 import { LayerDataItem, IMAGE_FIELDS } from '../../types';
 import { safeGetLayerName, safeGetLayerType } from '../../utils/node-search';
 import { findContainerForLayers, getContainerName, normalizeContainerName } from '../../utils/container-search';
@@ -502,7 +500,7 @@ export function createLayerData(
     
     const { row, rowIndex } = assignment;
     
-    // Добавляем ID контейнера в row для использования кэшем в image-handlers
+    // Добавляем ID контейнера в row для использования кэшем
     row['#_containerId'] = containerKey;
     
     // Создаём карту нормализованных ключей
