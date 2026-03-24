@@ -16,12 +16,10 @@ import { Logger } from '../../logger';
 
 export function installConsoleCapture(): void {
   var levels: string[] = ['log', 'info', 'warn', 'error', 'debug'];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  var originals: Record<string, (...args: any[]) => void> = {};
+  var originals: Record<string, (...args: unknown[]) => void> = {};
 
   for (var i = 0; i < levels.length; i++) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    originals[levels[i]] = (console as any)[levels[i]];
+    originals[levels[i]] = (console as unknown as Record<string, (...args: unknown[]) => void>)[levels[i]];
   }
 
   function safeSerialize(val: unknown): unknown {
@@ -36,13 +34,11 @@ export function installConsoleCapture(): void {
 
   for (var j = 0; j < levels.length; j++) {
     (function(level: string) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (console as any)[level] = function() {
+      (console as unknown as Record<string, (...args: unknown[]) => void>)[level] = function() {
         // Call original so output still appears in Figma DevTools
         originals[level].apply(console, arguments as unknown as unknown[]);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        var args: any[] = [];
+        var args: unknown[] = [];
         var messageParts: string[] = [];
         for (var k = 0; k < arguments.length; k++) {
           args.push(safeSerialize(arguments[k]));

@@ -69,7 +69,7 @@ function setPropertyWithFallback(
         instance.setProperties({ [fullKey]: value });
         return true;
       } catch {
-        // Обе попытки не удались
+        Logger.debug('[setProperty] Both keys failed: ' + simpleKey + ', ' + fullKey);
       }
     }
     return false;
@@ -136,7 +136,7 @@ function setVariantWithoutOptions(
       return true;
     }
   } catch {
-    // ignore
+    // Property batch set failed (removed node or restricted property) — skip silently
   }
 
   trackSetPropertyError(instance.name, simpleKey, value, instance);

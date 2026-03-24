@@ -69,8 +69,8 @@ function flushToUI(): void {
   // Формируем сообщения для UI
   for (const entry of batch) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const figmaGlobal = (globalThis as any).figma;
+      const figmaGlobal = (globalThis as unknown as Record<string, unknown>).figma as
+        { ui?: { postMessage?: (msg: unknown) => void } } | undefined;
       if (figmaGlobal && figmaGlobal.ui && typeof figmaGlobal.ui.postMessage === 'function') {
         figmaGlobal.ui.postMessage({ type: 'log', message: entry.message });
       }
@@ -233,16 +233,14 @@ export const Logger = {
   /**
    * Ошибки — всегда логируются (кроме SILENT)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error(message: string, ...args: any[]): void {
+  error(message: string, ...args: unknown[]): void {
     log(LogLevel.ERROR, message, undefined, ...args);
   },
 
   /**
    * Предупреждения — уровень ERROR+
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     // Warnings показываются на уровне ERROR и выше
     if (currentLevel >= LogLevel.ERROR) {
       console.warn(message, ...args);
@@ -258,16 +256,14 @@ export const Logger = {
    * Информационные сообщения — уровень SUMMARY+
    * Используется для ключевых этапов: начало, завершение, итоги
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     log(LogLevel.SUMMARY, message, undefined, ...args);
   },
 
   /**
    * Summary — итоговая статистика (alias для info)
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  summary(message: string, ...args: any[]): void {
+  summary(message: string, ...args: unknown[]): void {
     log(LogLevel.SUMMARY, message, undefined, ...args);
   },
 
@@ -275,8 +271,7 @@ export const Logger = {
    * Verbose — детальные этапы
    * Используется для информации о каждом контейнере
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  verbose(message: string, ...args: any[]): void {
+  verbose(message: string, ...args: unknown[]): void {
     log(LogLevel.VERBOSE, message, undefined, ...args);
   },
 
@@ -284,8 +279,7 @@ export const Logger = {
    * Debug — максимальная детализация
    * Используется для поиска нод, кэширования, отладки
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     log(LogLevel.DEBUG, message, undefined, ...args);
   },
 
@@ -293,8 +287,7 @@ export const Logger = {
    * Debug с указанием источника
    * Используется для группировки логов по модулям
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  debugFrom(source: string, message: string, ...args: any[]): void {
+  debugFrom(source: string, message: string, ...args: unknown[]): void {
     log(LogLevel.DEBUG, message, source, ...args);
   },
 

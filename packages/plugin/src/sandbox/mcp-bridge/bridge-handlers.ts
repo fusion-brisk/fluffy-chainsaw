@@ -12,6 +12,70 @@
 import { Logger } from '../../logger';
 import { PORTS } from '../../config';
 
+/** Base message from MCP bridge WebSocket */
+interface BridgeMessage {
+  type: string;
+  requestId?: string;
+  // Node operations
+  nodeId?: string;
+  parentId?: string;
+  newName?: string;
+  // Code execution
+  code?: string;
+  timeout?: number;
+  // Variables
+  variableId?: string;
+  collectionId?: string;
+  name?: string;
+  value?: unknown;
+  modeId?: string;
+  modeName?: string;
+  description?: string;
+  descriptionMarkdown?: string;
+  scopes?: VariableScope[];
+  resolvedType?: VariableResolvedDataType;
+  valuesByMode?: Record<string, unknown>;
+  initialModeName?: string;
+  additionalModes?: string[];
+  // Components
+  componentKey?: string;
+  variant?: Record<string, string>;
+  position?: { x: number; y: number };
+  size?: { width: number; height: number };
+  overrides?: Record<string, string | boolean>;
+  propertyName?: string;
+  propertyType?: ComponentPropertyType;
+  defaultValue?: string | boolean;
+  preferredValues?: unknown[];
+  newValue?: Record<string, unknown>;
+  // Geometry
+  width?: number;
+  height?: number;
+  withConstraints?: boolean;
+  x?: number;
+  y?: number;
+  fills?: unknown[];
+  strokes?: unknown[];
+  strokeWeight?: number;
+  opacity?: number;
+  radius?: number;
+  // Text
+  text?: string;
+  fontSize?: number;
+  // Screenshot
+  format?: string;
+  scale?: number;
+  // Child node creation
+  nodeType?: string;
+  properties?: Record<string, unknown>;
+  // Arrangement
+  gap?: number;
+  columns?: number;
+  // Batch
+  commands?: Array<{ type: string; params: Record<string, unknown> }>;
+  [key: string]: unknown;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -106,8 +170,7 @@ export function debugLog(level: string, source: string, message: string, data?: 
       message: message,
       data: data
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (fetch as any)(DEBUG_RELAY_URL + '/debug-log', {
+    (fetch as (url: string, init: Record<string, unknown>) => Promise<unknown>)(DEBUG_RELAY_URL + '/debug-log', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: body
@@ -163,8 +226,7 @@ var BRIDGE_TYPES: Record<string, boolean> = {
 // Main dispatcher — returns true if message was handled
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function handleBridgeMessage(msg: any): Promise<boolean> {
+export async function handleBridgeMessage(msg: BridgeMessage): Promise<boolean> {
   if (!msg || !msg.type || !BRIDGE_TYPES[msg.type]) {
     return false;
   }
@@ -299,9 +361,8 @@ export async function handleBridgeMessage(msg: any): Promise<boolean> {
 // Handler implementations
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleExecuteCode(msg: any, requestId: string): Promise<void> {
-  Logger.debug('[MCP Bridge] Executing code, length: ' + msg.code.length);
+async function handleExecuteCode(msg: BridgeMessage, requestId: string): Promise<void> {
+  Logger.debug('[MCP Bridge] Executing code, length: ' + msg.code!.length);
 
   var wrappedCode = '(async function() {\n' + msg.code + '\n})()';
   var timeoutMs = msg.timeout || 5000;
@@ -360,9 +421,8 @@ async function handleExecuteCode(msg: any, requestId: string): Promise<void> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleUpdateVariable(msg: any, requestId: string): Promise<void> {
-  var variable = await figma.variables.getVariableByIdAsync(msg.variableId);
+async function handleUpdateVariable(msg: BridgeMessage, requestId: string): Promise<void> {
+  var variable = await figma.variables.getVariableByIdAsync(msg.variableId!);
   if (!variable) throw new Error('Variable not found: ' + msg.variableId);
 
   var value = msg.value;
@@ -373,19 +433,18 @@ async function handleUpdateVariable(msg: any, requestId: string): Promise<void> 
     value = hexToFigmaRGB(value);
   }
 
-  variable.setValueForMode(msg.modeId, value);
+  variable.setValueForMode(msg.modeId!, value as VariableValue);
 
   replySuccess('UPDATE_VARIABLE_RESULT', requestId, {
     variable: serializeVariable(variable)
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleCreateVariable(msg: any, requestId: string): Promise<void> {
-  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId);
+async function handleCreateVariable(msg: BridgeMessage, requestId: string): Promise<void> {
+  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId!);
   if (!collection) throw new Error('Collection not found: ' + msg.collectionId);
 
-  var variable = figma.variables.createVariable(msg.name, collection, msg.resolvedType);
+  var variable = figma.variables.createVariable(msg.name!, collection, msg.resolvedType!);
 
   if (msg.valuesByMode) {
     for (var modeId in msg.valuesByMode) {
@@ -393,7 +452,7 @@ async function handleCreateVariable(msg: any, requestId: string): Promise<void> 
       if (msg.resolvedType === 'COLOR' && typeof val === 'string') {
         val = hexToFigmaRGB(val);
       }
-      variable.setValueForMode(modeId, val);
+      variable.setValueForMode(modeId, val as VariableValue);
     }
   }
 
@@ -405,9 +464,8 @@ async function handleCreateVariable(msg: any, requestId: string): Promise<void> 
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleCreateVariableCollection(msg: any, requestId: string): Promise<void> {
-  var collection = figma.variables.createVariableCollection(msg.name);
+async function handleCreateVariableCollection(msg: BridgeMessage, requestId: string): Promise<void> {
+  var collection = figma.variables.createVariableCollection(msg.name!);
 
   if (msg.initialModeName && collection.modes.length > 0) {
     collection.renameMode(collection.modes[0].modeId, msg.initialModeName);
@@ -424,9 +482,8 @@ async function handleCreateVariableCollection(msg: any, requestId: string): Prom
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleDeleteVariable(msg: any, requestId: string): Promise<void> {
-  var variable = await figma.variables.getVariableByIdAsync(msg.variableId);
+async function handleDeleteVariable(msg: BridgeMessage, requestId: string): Promise<void> {
+  var variable = await figma.variables.getVariableByIdAsync(msg.variableId!);
   if (!variable) throw new Error('Variable not found: ' + msg.variableId);
 
   var deletedInfo = { id: variable.id, name: variable.name };
@@ -435,9 +492,8 @@ async function handleDeleteVariable(msg: any, requestId: string): Promise<void> 
   replySuccess('DELETE_VARIABLE_RESULT', requestId, { deleted: deletedInfo });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleDeleteVariableCollection(msg: any, requestId: string): Promise<void> {
-  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId);
+async function handleDeleteVariableCollection(msg: BridgeMessage, requestId: string): Promise<void> {
+  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId!);
   if (!collection) throw new Error('Collection not found: ' + msg.collectionId);
 
   var deletedInfo = { id: collection.id, name: collection.name, variableCount: collection.variableIds.length };
@@ -446,22 +502,20 @@ async function handleDeleteVariableCollection(msg: any, requestId: string): Prom
   replySuccess('DELETE_VARIABLE_COLLECTION_RESULT', requestId, { deleted: deletedInfo });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleRenameVariable(msg: any, requestId: string): Promise<void> {
-  var variable = await figma.variables.getVariableByIdAsync(msg.variableId);
+async function handleRenameVariable(msg: BridgeMessage, requestId: string): Promise<void> {
+  var variable = await figma.variables.getVariableByIdAsync(msg.variableId!);
   if (!variable) throw new Error('Variable not found: ' + msg.variableId);
 
   var oldName = variable.name;
-  variable.name = msg.newName;
+  variable.name = msg.newName!;
 
   var serialized = serializeVariable(variable);
   serialized.oldName = oldName;
   replySuccess('RENAME_VARIABLE_RESULT', requestId, { variable: serialized, oldName: oldName });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetVariableDescription(msg: any, requestId: string): Promise<void> {
-  var variable = await figma.variables.getVariableByIdAsync(msg.variableId);
+async function handleSetVariableDescription(msg: BridgeMessage, requestId: string): Promise<void> {
+  var variable = await figma.variables.getVariableByIdAsync(msg.variableId!);
   if (!variable) throw new Error('Variable not found: ' + msg.variableId);
 
   variable.description = msg.description || '';
@@ -471,12 +525,11 @@ async function handleSetVariableDescription(msg: any, requestId: string): Promis
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleAddMode(msg: any, requestId: string): Promise<void> {
-  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId);
+async function handleAddMode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId!);
   if (!collection) throw new Error('Collection not found: ' + msg.collectionId);
 
-  var newModeId = collection.addMode(msg.modeName);
+  var newModeId = collection.addMode(msg.modeName!);
 
   replySuccess('ADD_MODE_RESULT', requestId, {
     collection: serializeCollection(collection),
@@ -484,9 +537,8 @@ async function handleAddMode(msg: any, requestId: string): Promise<void> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleRenameMode(msg: any, requestId: string): Promise<void> {
-  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId);
+async function handleRenameMode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var collection = await figma.variables.getVariableCollectionByIdAsync(msg.collectionId!);
   if (!collection) throw new Error('Collection not found: ' + msg.collectionId);
 
   var currentMode = null;
@@ -499,7 +551,7 @@ async function handleRenameMode(msg: any, requestId: string): Promise<void> {
   if (!currentMode) throw new Error('Mode not found: ' + msg.modeId);
 
   var oldName = currentMode.name;
-  collection.renameMode(msg.modeId, msg.newName);
+  collection.renameMode(msg.modeId!, msg.newName!);
 
   var serialized = serializeCollection(collection);
   serialized.oldName = oldName;
@@ -522,9 +574,8 @@ async function handleRefreshVariables(requestId: string): Promise<void> {
   replySuccess('REFRESH_VARIABLES_RESULT', requestId, { data: variablesData });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleGetComponent(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleGetComponent(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET' && node.type !== 'INSTANCE') {
     throw new Error('Node is not a component. Type: ' + node.type);
@@ -706,8 +757,7 @@ async function handleGetLocalComponents(requestId: string): Promise<void> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleInstantiateComponent(msg: any, requestId: string): Promise<void> {
+async function handleInstantiateComponent(msg: BridgeMessage, requestId: string): Promise<void> {
   var component: ComponentNode | null = null;
 
   if (msg.componentKey) {
@@ -833,9 +883,8 @@ async function handleInstantiateComponent(msg: any, requestId: string): Promise<
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetNodeDescription(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetNodeDescription(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('description' in node)) throw new Error('Node type ' + node.type + ' does not support description');
 
@@ -849,9 +898,8 @@ async function handleSetNodeDescription(msg: any, requestId: string): Promise<vo
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleAddComponentProperty(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleAddComponentProperty(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET') {
     throw new Error('Node must be a COMPONENT or COMPONENT_SET. Got: ' + node.type);
@@ -860,47 +908,44 @@ async function handleAddComponentProperty(msg: any, requestId: string): Promise<
     throw new Error('Cannot add properties to variant components. Add to the parent COMPONENT_SET instead.');
   }
 
-  var options = msg.preferredValues ? { preferredValues: msg.preferredValues } : undefined;
-  var propertyNameWithId = (node as ComponentNode).addComponentProperty(msg.propertyName, msg.propertyType, msg.defaultValue, options);
+  var options = msg.preferredValues ? { preferredValues: msg.preferredValues } as ComponentPropertyOptions : undefined;
+  var propertyNameWithId = (node as ComponentNode).addComponentProperty(msg.propertyName!, msg.propertyType!, msg.defaultValue!, options);
 
   replySuccess('ADD_COMPONENT_PROPERTY_RESULT', requestId, { propertyName: propertyNameWithId });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleEditComponentProperty(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleEditComponentProperty(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET') {
     throw new Error('Node must be a COMPONENT or COMPONENT_SET. Got: ' + node.type);
   }
 
-  var propertyNameWithId = (node as ComponentNode).editComponentProperty(msg.propertyName, msg.newValue);
+  var propertyNameWithId = (node as ComponentNode).editComponentProperty(msg.propertyName!, msg.newValue!);
   replySuccess('EDIT_COMPONENT_PROPERTY_RESULT', requestId, { propertyName: propertyNameWithId });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleDeleteComponentProperty(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleDeleteComponentProperty(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'COMPONENT' && node.type !== 'COMPONENT_SET') {
     throw new Error('Node must be a COMPONENT or COMPONENT_SET. Got: ' + node.type);
   }
 
-  (node as ComponentNode).deleteComponentProperty(msg.propertyName);
+  (node as ComponentNode).deleteComponentProperty(msg.propertyName!);
   replySuccess('DELETE_COMPONENT_PROPERTY_RESULT', requestId, {});
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleResizeNode(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleResizeNode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('resize' in node)) throw new Error('Node type ' + node.type + ' does not support resize');
 
   var resizeable = node as FrameNode;
   if (msg.withConstraints !== false) {
-    resizeable.resize(msg.width, msg.height);
+    resizeable.resize(msg.width!, msg.height!);
   } else {
-    resizeable.resizeWithoutConstraints(msg.width, msg.height);
+    resizeable.resizeWithoutConstraints(msg.width!, msg.height!);
   }
 
   replySuccess('RESIZE_NODE_RESULT', requestId, {
@@ -908,30 +953,27 @@ async function handleResizeNode(msg: any, requestId: string): Promise<void> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleMoveNode(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleMoveNode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('x' in node)) throw new Error('Node type ' + node.type + ' does not support positioning');
 
   var positioned = node as FrameNode;
-  positioned.x = msg.x;
-  positioned.y = msg.y;
+  positioned.x = msg.x!;
+  positioned.y = msg.y!;
 
   replySuccess('MOVE_NODE_RESULT', requestId, {
     node: { id: node.id, name: node.name, x: positioned.x, y: positioned.y }
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetNodeFills(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetNodeFills(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('fills' in node)) throw new Error('Node type ' + node.type + ' does not support fills');
 
   var fillable = node as GeometryMixin & BaseNode;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  var processedFills = msg.fills.map(function(fill: any) {
+  var processedFills = (msg.fills as Record<string, unknown>[]).map(function(fill: Record<string, unknown>) {
     if (fill.type === 'SOLID' && typeof fill.color === 'string') {
       var rgb = hexToFigmaRGB(fill.color);
       return {
@@ -943,22 +985,20 @@ async function handleSetNodeFills(msg: any, requestId: string): Promise<void> {
     return fill;
   });
 
-  fillable.fills = processedFills;
+  fillable.fills = processedFills as unknown as Paint[];
 
   replySuccess('SET_NODE_FILLS_RESULT', requestId, {
     node: { id: node.id, name: node.name }
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetNodeStrokes(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetNodeStrokes(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('strokes' in node)) throw new Error('Node type ' + node.type + ' does not support strokes');
 
   var strokable = node as GeometryMixin & BaseNode;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  var processedStrokes = msg.strokes.map(function(stroke: any) {
+  var processedStrokes = (msg.strokes as Record<string, unknown>[]).map(function(stroke: Record<string, unknown>) {
     if (stroke.type === 'SOLID' && typeof stroke.color === 'string') {
       var rgb = hexToFigmaRGB(stroke.color);
       return {
@@ -970,7 +1010,7 @@ async function handleSetNodeStrokes(msg: any, requestId: string): Promise<void> 
     return stroke;
   });
 
-  strokable.strokes = processedStrokes;
+  strokable.strokes = processedStrokes as unknown as Paint[];
   if (msg.strokeWeight !== undefined) {
     (node as GeometryMixin).strokeWeight = msg.strokeWeight;
   }
@@ -980,36 +1020,33 @@ async function handleSetNodeStrokes(msg: any, requestId: string): Promise<void> 
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetNodeOpacity(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetNodeOpacity(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('opacity' in node)) throw new Error('Node type ' + node.type + ' does not support opacity');
 
   var blendable = node as BlendMixin & BaseNode;
-  blendable.opacity = Math.max(0, Math.min(1, msg.opacity));
+  blendable.opacity = Math.max(0, Math.min(1, msg.opacity!));
 
   replySuccess('SET_NODE_OPACITY_RESULT', requestId, {
     node: { id: node.id, name: node.name, opacity: blendable.opacity }
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetNodeCornerRadius(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetNodeCornerRadius(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('cornerRadius' in node)) throw new Error('Node type ' + node.type + ' does not support corner radius');
 
-  (node as RectangleNode).cornerRadius = msg.radius;
+  (node as RectangleNode).cornerRadius = msg.radius!;
 
   replySuccess('SET_NODE_CORNER_RADIUS_RESULT', requestId, {
     node: { id: node.id, name: node.name, cornerRadius: (node as RectangleNode).cornerRadius }
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleCloneNode(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleCloneNode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('clone' in node)) throw new Error('Node type ' + node.type + ' does not support cloning');
 
@@ -1020,9 +1057,8 @@ async function handleCloneNode(msg: any, requestId: string): Promise<void> {
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleDeleteNode(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleDeleteNode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
 
   var deletedInfo = { id: node.id, name: node.name };
@@ -1031,28 +1067,26 @@ async function handleDeleteNode(msg: any, requestId: string): Promise<void> {
   replySuccess('DELETE_NODE_RESULT', requestId, { deleted: deletedInfo });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleRenameNode(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleRenameNode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
 
   var oldName = node.name;
-  node.name = msg.newName;
+  node.name = msg.newName!;
 
   replySuccess('RENAME_NODE_RESULT', requestId, {
     node: { id: node.id, name: node.name, oldName: oldName }
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetTextContent(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetTextContent(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'TEXT') throw new Error('Node must be a TEXT node. Got: ' + node.type);
 
   var textNode = node as TextNode;
   await figma.loadFontAsync(textNode.fontName as FontName);
-  textNode.characters = msg.text;
+  textNode.characters = msg.text!;
 
   if (msg.fontSize) textNode.fontSize = msg.fontSize;
 
@@ -1061,9 +1095,8 @@ async function handleSetTextContent(msg: any, requestId: string): Promise<void> 
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleCreateChildNode(msg: any, requestId: string): Promise<void> {
-  var parent = await figma.getNodeByIdAsync(msg.parentId);
+async function handleCreateChildNode(msg: BridgeMessage, requestId: string): Promise<void> {
+  var parent = await figma.getNodeByIdAsync(msg.parentId!);
   if (!parent) throw new Error('Parent node not found: ' + msg.parentId);
   if (!('appendChild' in parent)) throw new Error('Parent node type ' + parent.type + ' does not support children');
 
@@ -1085,7 +1118,7 @@ async function handleCreateChildNode(msg: any, requestId: string): Promise<void>
       var textN = figma.createText();
       await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
       textN.fontName = { family: 'Inter', style: 'Regular' };
-      if (props.text) textN.characters = props.text;
+      if (props.text) textN.characters = props.text as string;
       newNode = textN;
       break;
     }
@@ -1105,23 +1138,22 @@ async function handleCreateChildNode(msg: any, requestId: string): Promise<void>
       throw new Error('Unsupported node type: ' + msg.nodeType);
   }
 
-  if (props.name) newNode.name = props.name;
-  if (props.x !== undefined) newNode.x = props.x;
-  if (props.y !== undefined) newNode.y = props.y;
+  if (props.name) newNode.name = props.name as string;
+  if (props.x !== undefined) newNode.x = props.x as number;
+  if (props.y !== undefined) newNode.y = props.y as number;
   if (props.width !== undefined && props.height !== undefined) {
-    (newNode as FrameNode).resize(props.width, props.height);
+    (newNode as FrameNode).resize(props.width as number, props.height as number);
   }
 
   if (props.fills) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    var processedFills = props.fills.map(function(fill: any) {
+    var processedFills = (props.fills as Record<string, unknown>[]).map(function(fill: Record<string, unknown>) {
       if (fill.type === 'SOLID' && typeof fill.color === 'string') {
         var rgb = hexToFigmaRGB(fill.color);
         return { type: 'SOLID', color: { r: rgb.r, g: rgb.g, b: rgb.b }, opacity: rgb.a !== undefined ? rgb.a : 1 };
       }
       return fill;
     });
-    (newNode as GeometryMixin).fills = processedFills;
+    (newNode as GeometryMixin).fills = processedFills as unknown as Paint[];
   }
 
   parentNode.appendChild(newNode);
@@ -1131,8 +1163,7 @@ async function handleCreateChildNode(msg: any, requestId: string): Promise<void>
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleCaptureScreenshot(msg: any, requestId: string): Promise<void> {
+async function handleCaptureScreenshot(msg: BridgeMessage, requestId: string): Promise<void> {
   var node: BaseNode | null = msg.nodeId ? await figma.getNodeByIdAsync(msg.nodeId) : figma.currentPage;
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (!('exportAsync' in node)) throw new Error('Node type ' + node.type + ' does not support export');
@@ -1165,9 +1196,8 @@ async function handleCaptureScreenshot(msg: any, requestId: string): Promise<voi
   });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleSetInstanceProperties(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleSetInstanceProperties(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'INSTANCE') throw new Error('Node must be an INSTANCE. Got: ' + node.type);
 
@@ -1183,12 +1213,12 @@ async function handleSetInstanceProperties(msg: any, requestId: string): Promise
     var newValue = propUpdates[propName];
 
     if (currentProps[propName] !== undefined) {
-      propsToSet[propName] = newValue;
+      propsToSet[propName] = newValue as string | boolean | VariableAlias;
     } else {
       var foundMatch = false;
       for (var existingProp in currentProps) {
         if (existingProp.indexOf(propName + '#') === 0) {
-          propsToSet[existingProp] = newValue;
+          propsToSet[existingProp] = newValue as string | boolean | VariableAlias;
           foundMatch = true;
           break;
         }
@@ -1240,9 +1270,8 @@ function handleReloadUI(requestId: string): void {
   figma.ui.postMessage({ type: 'SOFT_RELOAD' });
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleArrangeComponentSet(msg: any, requestId: string): Promise<void> {
-  var node = await figma.getNodeByIdAsync(msg.nodeId);
+async function handleArrangeComponentSet(msg: BridgeMessage, requestId: string): Promise<void> {
+  var node = await figma.getNodeByIdAsync(msg.nodeId!);
   if (!node) throw new Error('Node not found: ' + msg.nodeId);
   if (node.type !== 'COMPONENT_SET') throw new Error('Node must be a COMPONENT_SET. Got: ' + node.type);
 
@@ -1283,8 +1312,7 @@ async function handleArrangeComponentSet(msg: any, requestId: string): Promise<v
 // Batch execute — run multiple commands in a single round-trip
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleBatchExecute(msg: any, requestId: string): Promise<void> {
+async function handleBatchExecute(msg: BridgeMessage, requestId: string): Promise<void> {
   var commands = msg.commands as Array<{ type: string; params: Record<string, unknown> }>;
   if (!commands || !Array.isArray(commands) || commands.length === 0) {
     throw new Error('BATCH_EXECUTE requires non-empty commands array');
@@ -1316,7 +1344,7 @@ async function handleBatchExecute(msg: any, requestId: string): Promise<void> {
         fakeMsg.requestId = tempRequestId;
 
         // Execute through the main dispatcher
-        var handled = await handleBridgeMessage(fakeMsg);
+        var handled = await handleBridgeMessage(fakeMsg as BridgeMessage);
         if (!handled) {
           results.push({ success: false, error: 'Unknown command type: ' + cmd.type });
         } else {

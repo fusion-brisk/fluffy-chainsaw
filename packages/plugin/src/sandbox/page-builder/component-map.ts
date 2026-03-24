@@ -127,7 +127,7 @@ export const VARIABLE_KEYS = {
 /**
  * Маппинг типов сниппетов на конфигурацию компонентов
  * 
- * TODO: Заполнить реальными ключами из библиотеки DC • ECOM
+ * TODO(2026-03): Fill with real component keys from DC • ECOM library
  * Ключи можно получить:
  * 1. Через Dev Console в Figma (см. scripts/get-component-keys.js)
  * 2. Из URL компонента (Copy link → node-id=XXX:YYY)
@@ -164,7 +164,7 @@ export const COMPONENT_NODE_IDS = {
 
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
   'ESnippet': {
-    // TODO: обновить ключ после публикации версии с withThumb
+    // TODO(2026-03): Update key after withThumb variant published
     key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Platform=Desktop
     keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91', // Platform=Touch
     name: 'ESnippet',
@@ -176,6 +176,7 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
       'withDelivery': true,
       'withFintech': true,
       'withPrice': true,
+      'withPromo': false,
       // 'withThumb': true, // Добавить после публикации новой версии
     },
   },
@@ -223,6 +224,7 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
     name: 'ESnippet',
     defaultVariant: {
       'Platform': 'Desktop',
+      'withPromo': false,
     },
   },
 
@@ -232,6 +234,17 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
     name: 'ESnippet',
     defaultVariant: {
       'Platform': 'Desktop',
+      'withPromo': false,
+    },
+  },
+
+  'Organic_Adv': {
+    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Maps to ESnippet (Desktop) — промо-сниппет
+    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
+    name: 'ESnippet',
+    defaultVariant: {
+      'Platform': 'Desktop',
+      'withPromo': false,
     },
   },
 
@@ -273,7 +286,7 @@ export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = 
   },
   
   'Footer': {
-    key: '', // TODO: обновить ключ Footer
+    key: '', // TODO(2026-03): Update Footer component key
     name: 'Footer',
     defaultVariant: {
       'Platform': 'Desktop',
@@ -610,7 +623,7 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
       bottom: 0,
       left: 0,
     },
-    childTypes: ['Organic', 'Organic_withOfferInfo'],
+    childTypes: ['Organic', 'Organic_withOfferInfo', 'Organic_Adv'],
     childWidth: 'FILL',
   },
 
