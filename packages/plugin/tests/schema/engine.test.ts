@@ -29,6 +29,10 @@ import { applySchema } from '../../src/sandbox/schema/engine';
 import { trySetProperty } from '../../src/sandbox/property-utils';
 import { getCachedInstance } from '../../src/utils/instance-cache';
 import type { ComponentSchema } from '../../src/sandbox/schema/types';
+import { ESHOP_ITEM_SCHEMA } from '../../src/sandbox/schema/eshop-item';
+import { EOFFER_ITEM_SCHEMA } from '../../src/sandbox/schema/eoffer-item';
+import { EPRODUCT_SNIPPET_SCHEMA } from '../../src/sandbox/schema/eproduct-snippet';
+import { ESNIPPET_SCHEMA } from '../../src/sandbox/schema/esnippet';
 
 const mockTrySetProperty = vi.mocked(trySetProperty);
 const mockGetCachedInstance = vi.mocked(getCachedInstance);
@@ -485,6 +489,278 @@ describe('applySchema', () => {
       expect(mockTrySetProperty).toHaveBeenCalledWith(nestedInst, ['isOfficial'], true, '#OS');
 
       expect(mockTrySetProperty).toHaveBeenCalledTimes(6);
+    });
+  });
+
+  // =========================================================================
+  // Schema integration tests — real schemas from production
+  // =========================================================================
+
+  describe('ESHOP_ITEM_SCHEMA integration', () => {
+    it('sets all boolean properties for full data row', () => {
+      const nestedInst = mockInstance('EShopName');
+      mockGetCachedInstance.mockReturnValue(nestedInst);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EShopItem');
+      const row: CSVRow = {
+        '#Brand': 'Apple',
+        '#BUTTON': 'true',
+        '#isCheckout': 'true',
+        '#ReviewsNumber': '42',
+        '#DeliveryList': 'Курьер',
+        '#EPriceGroup_Fintech': 'true',
+        '#PriceDisclaimer': 'true',
+        '#ShopInfo-Bnpl': 'true',
+        '#FavoriteBtn': 'true',
+        '#OrganicTitle': 'iPhone 15',
+        '#OrganicText': 'Описание',
+        '#ShopName': 'Ozon',
+        '#OfficialShop': 'true',
+      };
+
+      applySchema(container, row, ESHOP_ITEM_SCHEMA, mockCache());
+
+      // brand=true (hasValue)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['brand', 'Brand'], true, '#Brand'
+      );
+      // withButton=true (compute: Desktop default + checkout)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withButton', 'buttons', 'BUTTONS'], true, '#BUTTON'
+      );
+      // withReviews=true (compute)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withReviews'], true, '#withReviews'
+      );
+      // withDelivery=true (compute)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withDelivery', 'delivery', 'Delivery'], true, '#withDelivery'
+      );
+      // withFintech=true (equals)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withFintech', 'fintech', 'Fintech'], true, '#withFintech'
+      );
+      // organicTitle string
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['organicTitle'], 'iPhone 15', '#OrganicTitle'
+      );
+      // Nested EShopName — name + isOfficial
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        nestedInst, ['name'], 'Ozon', '#ShopName'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        nestedInst, ['isOfficial'], true, '#OfficialShop'
+      );
+    });
+
+    it('sets booleans to false for empty row', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EShopItem');
+      applySchema(container, {} as CSVRow, ESHOP_ITEM_SCHEMA, mockCache());
+
+      // brand=false (hasValue, no #Brand)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['brand', 'Brand'], false, '#Brand'
+      );
+      // withReviews=false
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withReviews'], false, '#withReviews'
+      );
+      // withDelivery=false
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withDelivery', 'delivery', 'Delivery'], false, '#withDelivery'
+      );
+      // organicTitle skipped (skipIfEmpty) — should NOT be called with empty
+      const titleCalls = mockTrySetProperty.mock.calls.filter(
+        c => c[1][0] === 'organicTitle'
+      );
+      expect(titleCalls).toHaveLength(0);
+    });
+  });
+
+  describe('EOFFER_ITEM_SCHEMA integration', () => {
+    it('always sets withButton=true', () => {
+      const nestedInst = mockInstance('EShopName');
+      mockGetCachedInstance.mockReturnValue(nestedInst);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EOfferItem');
+      applySchema(container, {} as CSVRow, EOFFER_ITEM_SCHEMA, mockCache());
+
+      // withButton always true for EOfferItem
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withButton'], true, '#EOfferItem_hasButton'
+      );
+    });
+
+    it('sets withTitle=true when OrganicTitle present', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EOfferItem');
+      applySchema(container, { '#OrganicTitle': 'Product' } as CSVRow, EOFFER_ITEM_SCHEMA, mockCache());
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withTitle', 'Offer Title'], true, '#withTitle'
+      );
+    });
+
+    it('sets withQuotes=true from QuoteText', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EOfferItem');
+      applySchema(container, { '#QuoteText': 'Отличный товар!' } as CSVRow, EOFFER_ITEM_SCHEMA, mockCache());
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withQuotes'], true, '#withQuotes'
+      );
+    });
+  });
+
+  describe('EPRODUCT_SNIPPET_SCHEMA integration', () => {
+    it('applies delivery and button properties', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippet');
+      const row: CSVRow = {
+        '#EDeliveryGroup': 'true',
+        '#EMarketCheckoutLabel': 'true',
+        '#OrganicTitle': 'Ноутбук',
+        '#Brand': 'Lenovo',
+      };
+
+      applySchema(container, row, EPRODUCT_SNIPPET_SCHEMA, mockCache());
+
+      // withDelivery=true (equals)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withDelivery', 'Delivery'], true, '#withDelivery'
+      );
+      // withButton=true (compute: EMarketCheckoutLabel)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withButton', 'Button'], true, '#withButton'
+      );
+      // organicTitle string
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['organicTitle', 'title', 'Title'], 'Ноутбук', '#OrganicTitle'
+      );
+      // brand=true (hasValue)
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['brand', 'Brand'], true, '#Brand'
+      );
+    });
+
+    it('sets withButton=false without checkout or button flag', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippet');
+      applySchema(container, {} as CSVRow, EPRODUCT_SNIPPET_SCHEMA, mockCache());
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withButton', 'Button'], false, '#withButton'
+      );
+    });
+  });
+
+  describe('ESNIPPET_SCHEMA integration', () => {
+    it('sets all ESnippet properties for shop snippet', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('ESnippet');
+      const row: CSVRow = {
+        '#SnippetType': 'EShopItem',
+        '#withThumb': 'true',
+        '#ReviewsNumber': '15',
+        '#EDeliveryGroup': 'true',
+        '#EPriceGroup_Fintech': 'true',
+        '#addressText': 'Москва',
+        '#Sitelinks': 'true',
+        '#Promo': 'Скидка',
+        '#BUTTON': 'true',
+        '#ShopInfo-Bnpl': 'true',
+        '#Phone': '+7999',
+        '#OrganicPrice': '1990',
+        '#ProductRating': '4.5',
+        '#showKebab': 'true',
+        '#OfficialShop': 'true',
+        '#isPromo': 'true',
+        '#OrganicTitle': 'Товар',
+        '#OrganicText': 'Описание',
+        '#OrganicHost': 'shop.ru',
+        '#OrganicPath': '/product/123',
+      };
+
+      applySchema(container, row, ESNIPPET_SCHEMA, mockCache());
+
+      // Spot-check key properties
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withThumb'], true, '#withThumb'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withReviews'], true, '#withReviews'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withDelivery'], true, '#withDelivery'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withContacts'], true, '#withContacts'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['organicTitle'], 'Товар', '#OrganicTitle'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['isOfficial', 'official', 'Official'], true, '#isOfficial'
+      );
+    });
+
+    it('disables all compute properties for Organic snippet type', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('ESnippet');
+      const row: CSVRow = {
+        '#SnippetType': 'Organic',
+        '#EDeliveryGroup': 'true',
+        '#OrganicPrice': '1990',
+        '#Phone': '+7999',
+        '#Promo': 'text',
+      };
+
+      applySchema(container, row, ESNIPPET_SCHEMA, mockCache());
+
+      // All Organic-suppressed properties should be false
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withDelivery'], false, '#withDelivery'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withPrice'], false, '#withPrice'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withContacts'], false, '#withContacts'
+      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container, ['withPromo'], false, '#withPromo'
+      );
+    });
+
+    it('skips empty string properties with skipIfEmpty', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('ESnippet');
+      applySchema(container, { '#SnippetType': 'Organic' } as CSVRow, ESNIPPET_SCHEMA, mockCache());
+
+      // organicTitle should not appear in calls (skipIfEmpty + empty)
+      const titleCalls = mockTrySetProperty.mock.calls.filter(
+        c => c[1][0] === 'organicTitle'
+      );
+      expect(titleCalls).toHaveLength(0);
     });
   });
 });
