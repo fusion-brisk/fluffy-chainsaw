@@ -1,111 +1,37 @@
 // Re-export all utilities from modules
 
-// Regex utilities
-export { 
-  getCachedRegex, 
-  escapeRegex 
-} from './regex';
-
-// Encoding utilities
-export { 
-  fixEncoding, 
-  getTextContent 
-} from './encoding';
-
 // Network utilities
-export { 
-  CONFIG, 
-  SPREADSHEET_ID, 
-  APPS_SCRIPT_URL, 
-  fetchWithRetry, 
+export {
+  CONFIG,
+  SPREADSHEET_ID,
+  APPS_SCRIPT_URL,
+  fetchWithRetry,
   convertImageToBase64,
   processCSVRows,
   createSheetFromParsedData
 } from './network';
 
 // Plugin bridge utilities
-export { 
-  log, 
-  applyFigmaTheme, 
-  sendMessageToPlugin, 
+export {
+  log,
+  applyFigmaTheme,
+  sendMessageToPlugin,
   closePlugin,
   shuffleArray
   // loadPagesList, loadSheetsList - not used, kept internal for future use
 } from './plugin-bridge';
 
 // DOM utilities
-export { 
-  findSnippetContainers, 
-  filterTopLevelContainers, 
-  isInsideAdvProductGallery,
-  extractProductURL,
-  getStyleTags
+export {
+  isInsideAdvProductGallery
 } from './dom-utils';
 
-// DOM Cache utilities (Phase 5 optimization)
-export {
-  buildContainerCache,
-  buildDOMCache,
-  findSnippetContainersOptimized,
-  queryFromCache,
-  queryAllFromCache,
-  queryFirstMatch,
-  hasClass,
-  getTextByClass
-} from './dom-cache';
-export type { ContainerCache, DOMCache } from './dom-cache';
-
 // Price extraction utilities
-export { 
+export {
   extractPrices,
   formatPriceWithThinSpace
 } from './price-extractor';
 export type { PriceResult } from './price-extractor';
-
-// JSON parsing utilities
-export { 
-  parseJsonFromNoframes,
-  extractFaviconFromJson,
-  collectAllFields,
-  extractSnippetsFromJson
-} from './json-parser';
-
-// CSS Cache utilities (Phase 4 optimization)
-export { 
-  buildCSSCache,
-  getRulesByClass,
-  getRuleByClasses,
-  getRuleByClassPattern,
-  getFirstSpriteUrl,
-  getPositionForClass,
-  getSizeForClass
-} from './css-cache';
-export type { CSSCache, CSSRuleEntry } from './css-cache';
-
-// Favicon extraction utilities
-export { 
-  extractFavicon 
-} from './favicon-extractor';
-export type { SpriteState } from './favicon-extractor';
-
-// Container structure cache (Figma node search optimization)
-export {
-  buildContainerStructureCache,
-  clearContainerStructureCache,
-  getContainerStructure,
-  findCachedNodeByName,
-  findAllCachedNodesByName,
-  findAllCachedNodesByNameContains,
-  getAllCachedInstances,
-  findCachedTextLayer,
-  findCachedInstance,
-  getFirstImageTarget,
-  findImageTargetByName,
-  getContainerIdForNode,
-  hasContainerCache,
-  getCacheStats
-} from './container-cache';
-export type { ContainerStructure } from './container-cache';
 
 // Component properties cache (property lookup optimization)
 export {
@@ -127,6 +53,9 @@ export {
   ADV_SELECTORS
 } from './yandex-shared';
 
+// Layer search utilities
+export { findFillableLayer } from './layer-search';
+
 // Relay payload parsing
 export { extractRowsFromPayload } from './relay-payload';
 export type { ParsedRelayData } from './relay-payload';
@@ -146,7 +75,7 @@ export function debounce<T extends (...args: any[]) => void>(
   delay: number
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  
+
   return (...args: Parameters<T>) => {
     if (timeoutId) {
       clearTimeout(timeoutId);
