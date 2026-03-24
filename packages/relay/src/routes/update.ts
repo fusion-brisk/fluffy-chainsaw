@@ -66,9 +66,16 @@ async function checkForUpdate(): Promise<UpdateInfo | null> {
   }
 }
 
+// Hardcoded relay binary path — never use process.execPath to avoid replacing system node
+const RELAY_BINARY_PATH = path.join(
+  process.env.HOME || '/tmp',
+  '.contentify',
+  'relay-host'
+);
+
 /** Download new binary, replace current, and restart via launchctl */
 async function downloadAndReplace(update: UpdateInfo): Promise<void> {
-  const binaryPath = process.execPath;
+  const binaryPath = RELAY_BINARY_PATH;
   const backupPath = binaryPath + '.backup';
   const tempPath = binaryPath + '.new';
 

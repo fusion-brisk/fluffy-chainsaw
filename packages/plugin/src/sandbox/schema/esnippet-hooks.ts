@@ -123,18 +123,43 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
     }
   }
 
-  // Hide unused sitelink slots beyond the actual count (e.g. slots 5-6 when only 4 exist)
+  // Hide unused sitelink slots beyond the actual count.
+  // Structure: Sitelink(FRAME) → #Sitelink_N(TEXT), preceded by Dot(ELLIPSE).
+  // Must hide: the TEXT, its parent Sitelink FRAME, and the preceding Dot.
   var MAX_SITELINK_SLOTS = 6;
   for (var k = texts.length + 1; k <= MAX_SITELINK_SLOTS; k++) {
-    var unusedLayer =
+    var unusedText =
       findFirstNodeByName(sitelinksContainer, '#Sitelink_' + k) ||
       findFirstNodeByName(sitelinksContainer, 'Sitelink_' + k);
-    if (unusedLayer && 'visible' in unusedLayer) {
-      try {
-        (unusedLayer as SceneNode).visible = false;
-        Logger.debug('   [ESnippet-hook] Sitelink_' + k + ' hidden (unused)');
-      } catch (_e) { Logger.debug('[ESnippet-hook] Sitelink_' + k + ' visibility toggle failed'); }
+    if (!unusedText) continue;
+
+    // 1. Hide the text node itself
+    if ('visible' in unusedText) {
+      try { (unusedText as SceneNode).visible = false; } catch (_e) { /* skip */ }
     }
+
+    // 2. Hide the parent Sitelink FRAME
+    var parentFrame = unusedText.parent;
+    if (parentFrame && parentFrame.name === 'Sitelink' && 'visible' in parentFrame) {
+      try {
+        (parentFrame as SceneNode).visible = false;
+      } catch (_e) { /* skip */ }
+
+      // 3. Hide the Dot preceding this Sitelink FRAME
+      var grandParent = parentFrame.parent;
+      if (grandParent && 'children' in grandParent) {
+        var siblings = (grandParent as FrameNode).children;
+        var frameIndex = siblings.indexOf(parentFrame as SceneNode);
+        if (frameIndex > 0) {
+          var prevSibling = siblings[frameIndex - 1];
+          if (prevSibling.name === 'Dot' && 'visible' in prevSibling) {
+            try { (prevSibling as SceneNode).visible = false; } catch (_e) { /* skip */ }
+          }
+        }
+      }
+    }
+
+    Logger.debug('   [ESnippet-hook] Sitelink_' + k + ' + container + Dot hidden');
   }
 }
 
@@ -193,11 +218,25 @@ function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
   const promoText = (row['#Promo'] || '').trim();
   if (!promoText) return;
 
-  // Set promo text (after Figma rename: #PromoText is the direct layer name)
-  const layer = findTextLayerByName(instance, '#PromoText');
-  if (layer) {
-    safeSetTextNode(layer, promoText);
-    Logger.debug('   [ESnippet-hook] Promo text set');
+  // Try #PromoLabel first (current Figma naming), fallback to #PromoText (legacy)
+  const labelLayer =
+    findTextLayerByName(instance, '#PromoLabel') ||
+    findTextLayerByName(instance, '#PromoText');
+  if (labelLayer) {
+    // Use #PromoLabel field if available, otherwise full #Promo text
+    const labelText = ((row as Record<string, string | undefined>)['#PromoLabel'] || promoText).trim();
+    safeSetTextNode(labelLayer, labelText);
+    Logger.debug('   [ESnippet-hook] PromoLabel set: "' + labelText.substring(0, 40) + '"');
+  }
+
+  // Set promo link text if available
+  const promoLink = ((row as Record<string, string | undefined>)['#PromoLink'] || '').trim();
+  if (promoLink) {
+    const linkLayer = findTextLayerByName(instance, 'link');
+    if (linkLayer) {
+      safeSetTextNode(linkLayer, promoLink);
+      Logger.debug('   [ESnippet-hook] Promo link set: "' + promoLink + '"');
+    }
   }
 }
 

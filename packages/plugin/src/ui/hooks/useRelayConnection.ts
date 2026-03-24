@@ -125,7 +125,7 @@ export function useRelayConnection({
         wizardCount,
       });
     } catch (error) {
-      console.error('Error peeking relay data:', error);
+      console.error('[Relay:peek] Error:', error);
     }
   }, [relayUrl]);
 

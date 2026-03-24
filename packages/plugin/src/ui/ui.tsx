@@ -429,20 +429,11 @@ const App: React.FC = () => {
     resizeUI('processing');
     processingStartTimeRef.current = Date.now();
 
-    if (relayPayloadRef.current && mode === 'artboard') {
+    if (relayPayloadRef.current) {
       sendMessageToPlugin({
         type: 'apply-relay-payload',
         payload: relayPayloadRef.current,
         scope,
-        includeScreenshots
-      });
-      relayPayloadRef.current = null;
-    } else {
-      sendMessageToPlugin({
-        type: 'import-csv',
-        rows,
-        scope,
-        resetBeforeImport: false,
         includeScreenshots
       });
       relayPayloadRef.current = null;
@@ -538,7 +529,7 @@ const App: React.FC = () => {
   }, [appState, resizeUI]);
 
   const handleCancel = useCallback(() => {
-    sendMessageToPlugin({ type: 'cancel-import' });
+    // Cancel is a no-op for relay imports (they complete atomically)
   }, []);
 
   const handleConfettiComplete = useCallback(() => {

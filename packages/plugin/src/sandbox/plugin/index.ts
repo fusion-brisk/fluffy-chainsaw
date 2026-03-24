@@ -7,7 +7,6 @@ export type {
   CSVRow,
   ContainerGroup,
   ContainerRowAssignment,
-  ImportContext,
   ContainerCollectionResult,
   RowMappingResult,
   ProgressCallback,
@@ -33,16 +32,6 @@ export {
   createLayerData,
   prepareContainersForProcessing
 } from './data-assignment';
-
-// Snippet processor
-export {
-  processImportCSV
-} from './snippet-processor';
-
-export type {
-  ImportCSVParams,
-  ImportCSVResult
-} from './snippet-processor';
 
 // Wizard processor
 export {

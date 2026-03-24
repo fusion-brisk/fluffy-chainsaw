@@ -206,6 +206,12 @@ export interface CSVFields {
   '#EShopListTitle'?: string;
   /** Заголовок ProductsTiles блока (напр. «Избранное») */
   '#ProductsTilesTitle'?: string;
+  /** Наличие кнопки «Показать все» в ProductsTiles */
+  '#ProductsTilesShowAll'?: 'true' | 'false';
+  /** Текст кнопки «Показать все» в ProductsTiles */
+  '#ProductsTilesShowAllText'?: string;
+  /** URL кнопки «Показать все» */
+  '#ProductsTilesShowAllHref'?: string;
   /** Наличие картинки в сниппете */
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */
@@ -220,8 +226,12 @@ export interface CSVFields {
   '#Sitelink_3'?: string;
   /** Сайтлинк 4 */
   '#Sitelink_4'?: string;
-  /** Текст промо-блока */
+  /** Текст промо-блока (полный) */
   '#Promo'?: string;
+  /** Текст промо-лейбла */
+  '#PromoLabel'?: string;
+  /** Текст ссылки промо-блока */
+  '#PromoLink'?: string;
   /** Есть ли промо-блок */
   '#withPromo'?: 'true' | 'false';
   /** Текст рекламной метки */
@@ -457,13 +467,18 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#isVerified',
   '#Sitelinks',
   '#withPromo',
+  '#PromoLabel',
+  '#PromoLink',
   '#withQuotes',
   '#withPrice',
   '#isCatalogPage',
   '#hidePriceBlock',
   '#ShopInfo-Bnpl',
   '#hasShopOfflineRegion',
-  '#InfoIcon'
+  '#InfoIcon',
+  '#ProductsTilesShowAll',
+  '#ProductsTilesShowAllText',
+  '#ProductsTilesShowAllHref'
 ];
 
 /**

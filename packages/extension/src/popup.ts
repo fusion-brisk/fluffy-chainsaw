@@ -1,9 +1,23 @@
-// @ts-nocheck
 /**
  * Contentify Extension — Popup (Relay-Only Architecture)
  *
  * Single-click to parse & send to relay server.
  */
+
+import { isYandexPage, getRelayUrl } from './shared-utils';
+
+declare global {
+  interface Window {
+    __contentifyParsingRules?: unknown;
+  }
+}
+
+interface ParseResult {
+  error?: string;
+  rows?: Record<string, string>[];
+  wizards?: unknown[];
+  productCard?: unknown;
+}
 
 // Elements
 const mainView = document.getElementById('mainView');
@@ -13,30 +27,14 @@ const hintEl = document.getElementById('hint');
 
 let isProcessing = false;
 
-// Check if page is Yandex
-function isYandexPage(url) {
-  try {
-    const hostname = new URL(url).hostname;
-    return hostname.includes('yandex') || hostname.includes('ya.ru');
-  } catch {
-    return false;
-  }
-}
-
 // Get current tab
-async function getCurrentTab() {
+async function getCurrentTab(): Promise<chrome.tabs.Tab> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
 }
 
-// Get relay URL from storage
-async function getRelayUrl() {
-  const { relayUrl } = await chrome.storage.local.get('relayUrl');
-  return relayUrl || 'http://localhost:3847';
-}
-
 // Check relay availability (non-blocking)
-async function checkRelay(url) {
+async function checkRelay(url: string): Promise<boolean> {
   try {
     const res = await fetch(`${url}/status`, { signal: AbortSignal.timeout(1500) });
     return res.ok;
@@ -46,24 +44,25 @@ async function checkRelay(url) {
 }
 
 // Load cached parsing rules (shared with plugin)
-async function loadCachedRules() {
+async function loadCachedRules(): Promise<unknown> {
   try {
     const cached = await chrome.storage.local.get('parsingRulesCache');
-    if (cached.parsingRulesCache?.rules) {
-      return cached.parsingRulesCache.rules;
+    const cache = cached.parsingRulesCache as Record<string, unknown> | undefined;
+    if (cache?.rules) {
+      return cache.rules;
     }
   } catch { /* no cached rules */ }
   return null;
 }
 
 // Parse page data
-async function parsePageData(tabId) {
+async function parsePageData(tabId: number): Promise<ParseResult | undefined> {
   // Inject shared parsing rules before content script
   const rules = await loadCachedRules();
   if (rules) {
     await chrome.scripting.executeScript({
       target: { tabId },
-      func: (r) => { window.__contentifyParsingRules = r; },
+      func: (r: unknown) => { (window as Window).__contentifyParsingRules = r; },
       args: [rules]
     });
   }
@@ -72,38 +71,48 @@ async function parsePageData(tabId) {
     target: { tabId },
     files: ['dist/content.js']
   });
-  return results[0]?.result;
+  return results[0]?.result as ParseResult | undefined;
 }
 
 // Update UI state
-function setState(state, message, hint = '') {
-  indicator.className = `indicator ${state}`;
-  statusEl.className = `status ${state}`;
-  statusEl.textContent = message;
-  hintEl.textContent = hint;
-  mainView.className = `main-view ${state}`;
+function setState(state: string, message: string, hint: string = ''): void {
+  if (indicator) {
+    indicator.className = `indicator ${state}`;
+  }
+  if (statusEl) {
+    statusEl.className = `status ${state}`;
+    statusEl.textContent = message;
+  }
+  if (hintEl) {
+    hintEl.textContent = hint;
+  }
+  if (mainView) {
+    mainView.className = `main-view ${state}`;
+  }
 
   // Update indicator icon
-  switch (state) {
-    case 'loading':
-      indicator.textContent = '⏳';
-      break;
-    case 'success':
-      indicator.textContent = '✅';
-      break;
-    case 'error':
-      indicator.textContent = '❌';
-      break;
-    case 'disabled':
-      indicator.textContent = '🌐';
-      break;
-    default:
-      indicator.textContent = '📤';
+  if (indicator) {
+    switch (state) {
+      case 'loading':
+        indicator.textContent = '⏳';
+        break;
+      case 'success':
+        indicator.textContent = '✅';
+        break;
+      case 'error':
+        indicator.textContent = '❌';
+        break;
+      case 'disabled':
+        indicator.textContent = '🌐';
+        break;
+      default:
+        indicator.textContent = '📤';
+    }
   }
 }
 
 // Main send handler (relay-only)
-async function handleClick() {
+async function handleClick(): Promise<void> {
   if (isProcessing) return;
 
   isProcessing = true;
@@ -119,7 +128,7 @@ async function handleClick() {
     }
 
     // Parse page
-    const parseResult = await parsePageData(tab.id);
+    const parseResult = await parsePageData(tab.id!);
 
     if (!parseResult || parseResult.error || !parseResult.rows?.length) {
       setState('error', 'Нет данных', parseResult?.error || 'Сниппеты не найдены');
@@ -184,9 +193,9 @@ async function handleClick() {
       setTimeout(() => window.close(), 1000);
     }
 
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Error:', err);
-    setState('error', 'Ошибка', err.message || 'Попробуйте снова');
+    setState('error', 'Ошибка', (err as Error).message || 'Попробуйте снова');
   } finally {
     isProcessing = false;
   }
@@ -213,5 +222,7 @@ async function handleClick() {
   }
 
   // Bind click to main view
-  mainView.addEventListener('click', handleClick);
+  mainView?.addEventListener('click', handleClick);
 })();
+
+export {};

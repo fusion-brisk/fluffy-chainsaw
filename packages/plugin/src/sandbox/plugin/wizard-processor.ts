@@ -13,6 +13,8 @@
 import { Logger } from '../../logger';
 import { ETHUMB_CONFIG } from '../page-builder/component-map';
 import { findTextNode } from '../../utils/node-search';
+import { findFillableLayer } from '../../utils/layer-search';
+import { fetchAndApplyImage } from '../image-apply';
 import type {
   WizardPayload,
   WizardComponent,
@@ -237,22 +239,7 @@ function findFaviconInstance(sourceInstance: InstanceNode): InstanceNode | null 
   return walk(sourceInstance);
 }
 
-/**
- * Находит заполняемый слой внутри фавиконки (после переключения в Placeholder).
- * Ищет первый нод с fills (не текстовый).
- */
-function findFillableLayer(node: BaseNode): SceneNode | null {
-  if (node.type !== 'TEXT' && 'fills' in node && !node.removed) {
-    return node as SceneNode;
-  }
-  if ('children' in node && node.children) {
-    for (const child of node.children) {
-      const found = findFillableLayer(child);
-      if (found) return found;
-    }
-  }
-  return null;
-}
+// findFillableLayer imported from ../../utils/layer-search
 
 /**
  * Ищет дочерние инстансы с именем «Source» внутри Markdown p+source и заполняет их.
@@ -446,26 +433,14 @@ async function fallbackListItem(comp: WizardList, index: number): Promise<FrameN
 
 /**
  * Нормализует URL и применяет изображение к слою с fills (IMAGE fill).
- * scaleMode по умолчанию FIT.
+ * Delegates to shared fetchAndApplyImage utility.
  */
 async function applyImageToFillableLayer(
   layer: SceneNode,
   url: string,
   scaleMode: 'FIT' | 'FILL' = 'FIT'
 ): Promise<boolean> {
-  if (!url || !('fills' in layer)) return false;
-  let normalizedSrc = url;
-  if (normalizedSrc.startsWith('//')) normalizedSrc = 'https:' + normalizedSrc;
-  try {
-    const response = await fetch(normalizedSrc);
-    if (!response.ok) return false;
-    const buffer = await response.arrayBuffer();
-    const image = figma.createImage(new Uint8Array(buffer));
-    (layer as GeometryMixin).fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: scaleMode }];
-    return true;
-  } catch {
-    return false;
-  }
+  return fetchAndApplyImage(layer, url, scaleMode, '[Wizard]');
 }
 
 async function fallbackImage(comp: WizardImage): Promise<FrameNode> {
@@ -651,13 +626,8 @@ async function renderParagraph(comp: WizardParagraph): Promise<SceneNode | null>
               faviconInst.setProperties({ 'ID': 'Placeholder' });
 
               const fillLayer = findFillableLayer(faviconInst);
-              if (fillLayer && 'fills' in fillLayer) {
-                const response = await fetch(fn.iconUrl);
-                if (response.ok) {
-                  const buffer = await response.arrayBuffer();
-                  const image = figma.createImage(new Uint8Array(buffer));
-                  (fillLayer as GeometryMixin).fills = [{ type: 'IMAGE', imageHash: image.hash, scaleMode: 'FILL' }];
-                }
+              if (fillLayer) {
+                await fetchAndApplyImage(fillLayer, fn.iconUrl, 'FILL', '[Wizard favicon]');
               }
             } catch {
               Logger.debug(`[Wizard] Не удалось загрузить favicon #${i + 1}: ${fn.iconUrl.substring(0, 60)}`);

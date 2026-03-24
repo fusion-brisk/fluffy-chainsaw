@@ -38,6 +38,16 @@ screenshots/
 # MCP config (local dev)
 .mcp.json
 
+# Agent skills (installed per-project via npx skills)
+.agents/
+.claude/skills/
+skills-lock.json
+
+# Claude Code local
+.claude/settings.local.json
+.claude/specs/in-progress/*
+!.claude/specs/in-progress/.gitkeep.md
+
 # Editor directories and files
 .idea
 .vscode

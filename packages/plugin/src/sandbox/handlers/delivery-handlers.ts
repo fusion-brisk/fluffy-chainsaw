@@ -16,20 +16,8 @@ import {
   safeSetTextNode
 } from '../../utils/node-search';
 import { getCachedInstance, getCachedInstanceByNames } from '../../utils/instance-cache';
+import { isSnippetContainer } from '../../utils/container-search';
 import { HandlerContext } from './types';
-
-/**
- * Список основных контейнеров сниппетов
- */
-const SNIPPET_CONTAINERS = ['ESnippet', 'Snippet', 'EOfferItem', 'EShopItem', 'EProductSnippet', 'EProductSnippet2', 'Organic_withOfferInfo'];
-
-/**
- * Проверяет, является ли контейнер основным сниппетом
- */
-function isSnippetContainer(container: BaseNode): boolean {
-  if (!container || !('name' in container)) return false;
-  return SNIPPET_CONTAINERS.indexOf(String(container.name)) !== -1;
-}
 
 /**
  * Добавляет буллит-префикс если его еще нет

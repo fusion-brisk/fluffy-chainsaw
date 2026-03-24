@@ -22,6 +22,7 @@ import {
 import {
   getCachedInstance,
 } from '../../utils/instance-cache';
+import { fetchAndApplyImage } from '../image-apply';
 import { HandlerContext } from './types';
 
 /**
@@ -405,39 +406,7 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
   }
 
   Logger.debug(`   👤 [QuoteAvatar] Найден слой: "${layer.name}"`);
-
-  try {
-    let normalizedUrl = avatarUrl;
-    if (avatarUrl.startsWith('//')) {
-      normalizedUrl = `https:${avatarUrl}`;
-    }
-
-    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      Logger.debug(`   👤 [QuoteAvatar] ❌ URL без http(s)`);
-      return;
-    }
-
-    const response = await fetch(normalizedUrl);
-    if (!response.ok) {
-      Logger.debug(`   👤 [QuoteAvatar] ❌ Ошибка загрузки: ${response.status}`);
-      return;
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const imageHash = figma.createImage(uint8Array).hash;
-
-    const imagePaint: ImagePaint = {
-      type: 'IMAGE',
-      scaleMode: 'FILL', // FILL для аватарок (чтобы заполнить круг)
-      imageHash: imageHash
-    };
-    (layer as GeometryMixin).fills = [imagePaint];
-    Logger.debug(`   👤 [QuoteAvatar] ✅ Аватар применён к "${layer.name}"`);
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    Logger.debug(`   👤 [QuoteAvatar] ❌ Ошибка: ${msg}`);
-  }
+  await fetchAndApplyImage(layer, avatarUrl, 'FILL', '[QuoteAvatar]');
 }
 
 /**

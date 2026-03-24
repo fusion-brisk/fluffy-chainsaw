@@ -35,29 +35,15 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({
   const [viewMode, setViewMode] = useState<'table' | 'json'>('table');
 
   // Advanced settings local state
-  const [imageTimeout, setImageTimeout] = useState(settings?.imageTimeoutMs ?? 10000);
-  const [maxConcurrent, setMaxConcurrent] = useState(settings?.maxConcurrentImages ?? 6);
   const [logLevel, setLogLevel] = useState(settings?.logLevel ?? 2);
 
   // Sync from props when settings load/change
   useEffect(() => {
-    if (settings?.imageTimeoutMs !== undefined) setImageTimeout(settings.imageTimeoutMs);
-    if (settings?.maxConcurrentImages !== undefined) setMaxConcurrent(settings.maxConcurrentImages);
     if (settings?.logLevel !== undefined) setLogLevel(settings.logLevel);
-  }, [settings?.imageTimeoutMs, settings?.maxConcurrentImages, settings?.logLevel]);
+  }, [settings?.logLevel]);
 
   const saveSettings = (patch: Partial<UserSettings>) => {
     sendMessageToPlugin({ type: 'save-settings', settings: patch as UserSettings });
-  };
-
-  const handleImageTimeoutChange = (value: number) => {
-    setImageTimeout(value);
-    saveSettings({ imageTimeoutMs: value });
-  };
-
-  const handleMaxConcurrentChange = (value: number) => {
-    setMaxConcurrent(value);
-    saveSettings({ maxConcurrentImages: value });
   };
 
   const handleLogLevelChange = (value: number) => {
@@ -241,44 +227,6 @@ export const SettingsView: React.FC<SettingsViewProps> = memo(({
         </div>
 
         <div className="settings-section-content">
-          {/* Image Timeout */}
-          <div className="settings-field">
-            <label className="settings-label">
-              Image timeout: {(imageTimeout / 1000).toFixed(0)}s
-            </label>
-            <input
-              type="range"
-              className="settings-range"
-              min={5000}
-              max={30000}
-              step={1000}
-              value={imageTimeout}
-              onChange={(e) => handleImageTimeoutChange(Number(e.target.value))}
-            />
-            <div className="settings-hint">
-              How long to wait for each image download (5-30s)
-            </div>
-          </div>
-
-          {/* Max Concurrent Images */}
-          <div className="settings-field">
-            <label className="settings-label">
-              Concurrent images: {maxConcurrent}
-            </label>
-            <input
-              type="range"
-              className="settings-range"
-              min={1}
-              max={10}
-              step={1}
-              value={maxConcurrent}
-              onChange={(e) => handleMaxConcurrentChange(Number(e.target.value))}
-            />
-            <div className="settings-hint">
-              Number of parallel image downloads (1-10)
-            </div>
-          </div>
-
           {/* Log Level */}
           <div className="settings-field">
             <label className="settings-label">Log level</label>

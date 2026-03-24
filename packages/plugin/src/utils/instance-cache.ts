@@ -384,7 +384,7 @@ export function getGroupsSortedByDepth(cache: DeepCache): Array<FrameNode | Grou
 /**
  * Получает статистику кэша (для отладки)
  */
-export function getCacheStats(cache: DeepCache): {
+export function getInstanceCacheStats(cache: DeepCache): {
   size: number;
   instances: number;
   textNodes: number;

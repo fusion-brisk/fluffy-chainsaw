@@ -11,6 +11,7 @@
 
 import { Logger } from '../../logger';
 import { safeSetTextNode } from '../../utils/node-search';
+import { fetchAndApplyImage } from '../image-apply';
 import type { ProductCardPayload } from '../../types/wizard-types';
 
 const EPRODUCT_CARD_KEY = '0dc66339607f6612b33cfb4fea50673c7ffc937f';
@@ -614,50 +615,12 @@ async function fillOfferDirect(
 // ============================================================================
 
 async function applyImageToNode(node: SceneNode, url: string): Promise<void> {
-  let normalizedUrl = url;
-  if (url.startsWith('//')) normalizedUrl = 'https:' + url;
-
-  if (url.startsWith('data:')) {
-    const match = url.match(/^data:[^;]+;base64,(.+)$/);
-    if (match && match[1]) {
-      const target = findFillableTarget(node);
-      if (!target) {
-        Logger.info('[ProductCard] Image: no fillable target in ' + node.name);
-        return;
-      }
-      const bytes = figma.base64Decode(match[1]);
-      const image = figma.createImage(bytes);
-      target.fills = [{ type: 'IMAGE', scaleMode: 'FIT', imageHash: image.hash }];
-    }
-    return;
-  }
-
-  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-    Logger.info('[ProductCard] Image: invalid URL "' + url.substring(0, 40) + '"');
-    return;
-  }
-
-  const target = findFillableTarget(node);
+  var target = findFillableTarget(node);
   if (!target) {
     Logger.info('[ProductCard] Image: no fillable target in ' + node.name + ' (type=' + node.type + ')');
     return;
   }
-
-  const response = await fetch(normalizedUrl);
-  if (!response.ok) {
-    Logger.info('[ProductCard] Image: HTTP ' + response.status + ' for ' + normalizedUrl.substring(0, 60));
-    return;
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const bytes = new Uint8Array(arrayBuffer);
-  if (bytes.length === 0) {
-    Logger.info('[ProductCard] Image: empty response for ' + normalizedUrl.substring(0, 60));
-    return;
-  }
-
-  const image = figma.createImage(bytes);
-  target.fills = [{ type: 'IMAGE', scaleMode: 'FIT', imageHash: image.hash }];
+  await fetchAndApplyImage(target as unknown as SceneNode, url, 'FIT', '[ProductCard]');
 }
 
 function findFillableTarget(node: SceneNode): GeometryMixin | null {

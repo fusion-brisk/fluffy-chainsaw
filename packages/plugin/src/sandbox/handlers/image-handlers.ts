@@ -15,6 +15,7 @@ import {
 import {
   getCachedInstance,
 } from '../../utils/instance-cache';
+import { fetchAndApplyImage } from '../image-apply';
 import { HandlerContext } from './types';
 import { CSVRow } from '../../types/csv-fields';
 
@@ -89,48 +90,7 @@ async function applySingleImage(container: SceneNode, row: CSVRow): Promise<void
   }
 
   Logger.debug(`🖼️ [applySingleImage] Применяем к "${layer.name}", URL="${url.substring(0, 50)}..."`);
-
-  try {
-    let normalizedUrl = url;
-    if (url.startsWith('//')) {
-      normalizedUrl = `https:${url}`;
-    }
-
-    // Валидация URL
-    try {
-      const urlObj = new URL(normalizedUrl);
-      if (!['http:', 'https:'].includes(urlObj.protocol)) {
-        Logger.debug(`⚠️ [applySingleImage] Неподдерживаемый протокол: ${urlObj.protocol}`);
-        return;
-      }
-    } catch (urlErr) {
-      Logger.debug(`⚠️ [applySingleImage] Невалидный URL: ${normalizedUrl}`);
-      return;
-    }
-
-    const response = await fetch(normalizedUrl);
-    if (!response.ok) {
-      Logger.debug(`❌ [applySingleImage] Ошибка загрузки: ${response.status}`);
-      return;
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-    const imageHash = figma.createImage(uint8Array).hash;
-
-    if ('fills' in layer) {
-      const imagePaint: ImagePaint = {
-        type: 'IMAGE',
-        scaleMode: 'FIT',
-        imageHash: imageHash
-      };
-      (layer as GeometryMixin).fills = [imagePaint];
-      Logger.debug(`✅ [applySingleImage] Изображение применено`);
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    Logger.debug(`❌ [applySingleImage] Ошибка: ${msg}`);
-  }
+  await fetchAndApplyImage(layer, url, 'FIT', '[applySingleImage]');
 }
 
 /**
@@ -251,53 +211,7 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
     }
 
     Logger.debug(`🖼️ [applyThumbGroupImages] Применяем ${fieldName} к слою "${layer.name}"`);
-
-    try {
-      // Нормализуем URL
-      let normalizedUrl = url;
-      if (url.startsWith('//')) {
-        normalizedUrl = `https:${url}`;
-      }
-
-      // Валидация URL
-      try {
-        const urlObj = new URL(normalizedUrl);
-        if (!['http:', 'https:'].includes(urlObj.protocol)) {
-          Logger.debug(`⚠️ [applyThumbGroupImages] Неподдерживаемый протокол: ${urlObj.protocol}`);
-          return;
-        }
-      } catch (urlErr) {
-        Logger.debug(`⚠️ [applyThumbGroupImages] Невалидный URL: ${normalizedUrl}`);
-        return;
-      }
-
-      // Загружаем изображение
-      const response = await fetch(normalizedUrl);
-      if (!response.ok) {
-        Logger.debug(`❌ [applyThumbGroupImages] Ошибка загрузки ${fieldName}: ${response.status}`);
-        return;
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      // Создаём hash изображения
-      const imageHash = figma.createImage(uint8Array).hash;
-
-      // Применяем к слою
-      if ('fills' in layer) {
-        const imagePaint: ImagePaint = {
-          type: 'IMAGE',
-          scaleMode: 'FIT',
-          imageHash: imageHash
-        };
-        (layer as GeometryMixin).fills = [imagePaint];
-        Logger.debug(`✅ [applyThumbGroupImages] ${fieldName} применён к "${layer.name}"`);
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      Logger.debug(`❌ [applyThumbGroupImages] Ошибка ${fieldName}: ${msg}`);
-    }
+    await fetchAndApplyImage(layer, url, 'FIT', `[applyThumbGroupImages] ${fieldName}:`);
   });
 
   await Promise.all(loadPromises);

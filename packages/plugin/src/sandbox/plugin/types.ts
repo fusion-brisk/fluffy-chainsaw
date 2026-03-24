@@ -21,14 +21,6 @@ export interface ContainerRowAssignment {
   rowIndex: number;
 }
 
-/** Контекст обработки import-csv */
-export interface ImportContext {
-  rows: CSVRow[];
-  scope: 'page' | 'selection';
-  resetBeforeImport: boolean;
-  startTime: number;
-}
-
 /** Результат сборки контейнеров */
 export interface ContainerCollectionResult {
   snippetGroups: Map<string, SceneNode[]>;
@@ -63,8 +55,7 @@ export type MessageType =
   | 'set-remote-url'
   | 'check-whats-new'
   | 'mark-whats-new-seen'
-  | 'reset-snippets'
-  | 'import-csv';
+  | 'reset-snippets';
 
 /** Интерфейс входящего сообщения */
 export interface PluginMessage {

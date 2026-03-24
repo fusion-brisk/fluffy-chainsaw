@@ -80,8 +80,6 @@ export interface UserSettings {
   mode?: PluginMode;
   remoteConfigUrl?: string;
   resetBeforeImport?: boolean;
-  imageTimeoutMs?: number;      // default 10000
-  maxConcurrentImages?: number;  // default 6
   logLevel?: number;             // default 2 (SUMMARY)
 }
 
@@ -95,7 +93,7 @@ export interface PluginSettings {
 
 export interface DebugReport {
   timestamp: string;
-  operation: 'import-csv' | 'relay-import';
+  operation: 'relay-import';
   success: boolean;
   duration: number;
   query?: string;
@@ -139,7 +137,7 @@ export interface ParsingRulesMetadata {
  * Messages sent from UI → Code (via parent.postMessage)
  * 
  * Categories:
- * - IMPORT: import-csv (main action)
+ * - IMPORT: apply-relay-payload (from browser extension)
  * - LIFECYCLE: close, get-theme, test
  * - SELECTION: check-selection, get-pages
  * - SETTINGS: get-settings, save-settings, get-remote-url, set-remote-url
@@ -147,12 +145,9 @@ export interface ParsingRulesMetadata {
  *                  dismiss-rules-update, reset-rules-cache
  * - WHATS NEW: check-whats-new, mark-whats-new-seen
  */
-export type UIMessage = 
-  // === IMPORT ===
-  | { type: 'import-csv'; rows: CSVRow[]; scope: string; filter?: string; resetBeforeImport?: boolean }
-  | { type: 'cancel-import' }  // Cancel current import operation
+export type UIMessage =
   // === BROWSER RELAY ===
-  | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string }  // Apply data from browser extension via relay
+  | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string; includeScreenshots?: boolean }  // Apply data from browser extension via relay
   // === RESET ===
   | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
   // === LIFECYCLE ===

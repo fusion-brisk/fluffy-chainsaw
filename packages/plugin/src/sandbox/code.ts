@@ -1,16 +1,15 @@
 /**
  * Contentify Plugin — Entry Point
- * 
+ *
  * Минимальный entry point, делегирующий логику в модули:
  * - plugin/message-router.ts — роутинг сообщений
- * - plugin/snippet-processor.ts — обработка import-csv
  * - plugin/global-handlers.ts — глобальные функции
+ * - page-builder/ — создание SERP страниц из relay payload
  */
 
 import { Logger, LogLevel } from '../logger';
-import { ImageProcessor } from './image-handlers';
 import { ParsingRulesManager } from '../parsing-rules-manager';
-import { handleSimpleMessage, processImportCSV, CSVRow } from './plugin';
+import { handleSimpleMessage, CSVRow } from './plugin';
 import { createSerpPage } from './page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
@@ -89,7 +88,6 @@ installConsoleCapture();
 Logger.info('Плагин Contentify загружен');
 
 // Глобальные экземпляры
-const imageProcessor = new ImageProcessor();
 const rulesManager = new ParsingRulesManager();
 
 // Загрузка скриншотов и размещение рядом с SERP фреймом
@@ -141,14 +139,6 @@ async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Pro
   }
 
   Logger.info(`📸 Размещено ${imageHashes.length} сегментов скриншота`);
-}
-
-// Флаг отмены текущей операции
-let isImportCancelled = false;
-
-// Функция для проверки отмены (используется в processImportCSV)
-export function checkCancelled(): boolean {
-  return isImportCancelled;
 }
 
 // Проверка обновлений правил парсинга
@@ -360,13 +350,6 @@ figma.ui.onmessage = async (msg) => {
     const handled = await handleSimpleMessage(msg, rulesManager, checkRulesUpdates);
     if (handled) return;
     
-    // === Cancel Import ===
-    if (msg.type === 'cancel-import') {
-      isImportCancelled = true;
-      figma.ui.postMessage({ type: 'import-cancelled' });
-      return;
-    }
-    
     // === Apply Relay Payload (from Browser Extension) ===
     if (msg.type === 'apply-relay-payload') {
       const payload = msg.payload as {
@@ -471,9 +454,11 @@ figma.ui.onmessage = async (msg) => {
           
           Logger.info(`✅ SERP "${result.frame.name}": ${count} сниппетов`);
 
-          placeScreenshotSegments(result.frame, query).catch(err =>
-            Logger.error('Screenshot placement failed:', err)
-          );
+          if (msg.includeScreenshots !== false) {
+            placeScreenshotSegments(result.frame, query).catch(err =>
+              Logger.error('Screenshot placement failed:', err)
+            );
+          }
 
           exportResultToRelay(result.frame, query).catch(err =>
             Logger.error('Result export failed:', err)
@@ -514,71 +499,6 @@ figma.ui.onmessage = async (msg) => {
         });
         figma.notify('❌ Ошибка импорта из браузера');
       }
-      
-      return;
-    }
-    
-    // === Import CSV ===
-    if (msg.type === 'import-csv') {
-      // Сбрасываем флаг отмены перед началом
-      isImportCancelled = false;
-      
-      const rows = (msg.rows || []) as CSVRow[];
-      const scope = (msg.scope || 'page') as 'page' | 'selection';
-      const resetBeforeImport = (msg.resetBeforeImport || false) as boolean;
-
-      debugLog('info', 'sandbox', 'Import started', { rowCount: rows.length, scope, resetBeforeImport });
-
-      // Callback для прогресса (проверяет отмену)
-      const onProgress = (current: number, total: number, message: string, operationType: string) => {
-        if (isImportCancelled) return;
-        figma.ui.postMessage({ type: 'progress', current, total, message, operationType });
-      };
-      
-      // Основная обработка
-      const result = await processImportCSV(
-        { rows, scope, resetBeforeImport },
-        imageProcessor,
-        onProgress,
-        () => isImportCancelled // Передаём функцию проверки отмены
-      );
-      
-      // Если отменено — не отправляем результаты
-      if (isImportCancelled) {
-        Logger.info('⛔ Импорт был отменён пользователем');
-        return;
-      }
-      
-      debugLog('info', 'sandbox', 'Import completed', {
-        processedCount: result.processedCount,
-        totalContainers: result.totalContainers,
-        fieldsSet: result.fieldsSet || 0,
-        fieldsFailed: result.fieldsFailed || 0,
-        handlerErrors: result.handlerErrors || 0,
-        images: result.imageStats
-      });
-
-      // Отправляем статистику
-      figma.ui.postMessage({
-        type: 'stats',
-        stats: {
-          processedInstances: result.processedCount,
-          totalInstances: result.totalContainers,
-          successfulImages: result.imageStats.successfulImages,
-          skippedImages: result.imageStats.skippedImages,
-          failedImages: result.imageStats.failedImages,
-          errors: result.imageStats.errors,
-          fieldsSet: result.fieldsSet || 0,
-          fieldsFailed: result.fieldsFailed || 0,
-          handlerErrors: result.handlerErrors || 0
-        }
-      });
-      
-      // Отправляем завершение
-      figma.ui.postMessage({
-        type: 'done',
-        count: result.processedCount
-      });
       
       return;
     }

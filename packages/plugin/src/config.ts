@@ -143,24 +143,6 @@ export const TEXT_FIELD_NAMES = [
 // COMPONENT_CONFIG удалён — значения инлайнены в handlers
 // (handleEPriceGroup, handleELabelGroup, handleEPriceBarometer)
 
-// Настройки для изображений
-export const IMAGE_CONFIG = {
-  TIMEOUT_MS: 10000,                     // 10 секунд (было 30) — быстрее освобождаем очередь
-  MAX_SIZE_BYTES: 10 * 1024 * 1024,      // 10MB
-  MAX_CONCURRENT: 6,                     // 6 параллельных загрузок (было 3)
-  CACHE_TTL_MS: 7 * 24 * 60 * 60 * 1000, // 7 дней в миллисекундах
-  RETRY_COUNT: 2,                        // Количество повторных попыток при ошибке загрузки
-  RETRY_DELAY_MS: 500                    // Задержка между попытками (мс)
-};
-
-/**
- * Override IMAGE_CONFIG values at runtime (e.g. from user settings)
- */
-export function updateImageConfig(overrides: { timeoutMs?: number; maxConcurrent?: number }): void {
-  if (overrides.timeoutMs) IMAGE_CONFIG.TIMEOUT_MS = overrides.timeoutMs;
-  if (overrides.maxConcurrent) IMAGE_CONFIG.MAX_CONCURRENT = overrides.maxConcurrent;
-}
-
 // ============================================
 // EXTERNAL URLS
 // ============================================

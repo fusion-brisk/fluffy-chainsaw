@@ -3,7 +3,7 @@
  */
 
 import { Logger, LogLevel } from '../../logger';
-import { PLUGIN_VERSION, updateImageConfig } from '../../config';
+import { PLUGIN_VERSION } from '../../config';
 import { ParsingRulesManager } from '../../parsing-rules-manager';
 import { resetAllSnippets } from './global-handlers';
 import type { UserSettings } from '../../types';
@@ -59,25 +59,15 @@ export async function handleSimpleMessage(
   // === Settings handlers ===
   if (type === 'get-settings') {
     try {
-      const [scope, imageTimeoutMs, maxConcurrentImages, logLevel] = await Promise.all([
+      const [scope, logLevel] = await Promise.all([
         figma.clientStorage.getAsync('contentify_scope'),
-        figma.clientStorage.getAsync('contentify_image_timeout'),
-        figma.clientStorage.getAsync('contentify_max_concurrent'),
         figma.clientStorage.getAsync('contentify_log_level'),
       ]);
       const settings: UserSettings = {
         scope: (scope === 'page' || scope === 'selection') ? scope : 'selection',
       };
-      if (typeof imageTimeoutMs === 'number') settings.imageTimeoutMs = imageTimeoutMs;
-      if (typeof maxConcurrentImages === 'number') settings.maxConcurrentImages = maxConcurrentImages;
-      if (typeof logLevel === 'number') settings.logLevel = logLevel;
-
-      // Apply persisted overrides so they take effect immediately on plugin start
-      updateImageConfig({
-        timeoutMs: settings.imageTimeoutMs,
-        maxConcurrent: settings.maxConcurrentImages,
-      });
       if (typeof logLevel === 'number') {
+        settings.logLevel = logLevel;
         Logger.setLevel(logLevel as LogLevel);
       }
 
@@ -97,25 +87,12 @@ export async function handleSimpleMessage(
       if (settings.scope) {
         writes.push(figma.clientStorage.setAsync('contentify_scope', settings.scope));
       }
-      if (typeof settings.imageTimeoutMs === 'number') {
-        writes.push(figma.clientStorage.setAsync('contentify_image_timeout', settings.imageTimeoutMs));
-      }
-      if (typeof settings.maxConcurrentImages === 'number') {
-        writes.push(figma.clientStorage.setAsync('contentify_max_concurrent', settings.maxConcurrentImages));
-      }
       if (typeof settings.logLevel === 'number') {
         writes.push(figma.clientStorage.setAsync('contentify_log_level', settings.logLevel));
         Logger.setLevel(settings.logLevel as LogLevel);
       }
 
       await Promise.all(writes);
-
-      // Apply image config overrides immediately
-      updateImageConfig({
-        timeoutMs: settings.imageTimeoutMs,
-        maxConcurrent: settings.maxConcurrentImages,
-      });
-
       Logger.debug('Settings saved:', settings);
     }
     return true;

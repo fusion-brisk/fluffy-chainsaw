@@ -1,9 +1,27 @@
-// @ts-nocheck
+// TypeScript strict mode enabled
 /**
  * Content Script: Yandex Search Results Parser
  * Извлекает данные из сниппетов поисковой выдачи Яндекса
  * Основано на логике src/utils/snippet-parser.ts
  */
+
+interface ParsingRuleEntry {
+  domSelectors?: string[];
+  domAttribute?: string;
+  type?: string;
+}
+
+interface ParsingRules {
+  version?: string;
+  rules?: Record<string, ParsingRuleEntry>;
+}
+
+declare global {
+  interface Window {
+    __contentifyParsingRules?: unknown;
+    __contentifyResult?: unknown;
+  }
+}
 
 (function() {
   'use strict';
@@ -57,7 +75,7 @@
    * @param {string} [options.attribute] - Extract attribute instead of text
    * @returns {string|null} Extracted value or null
    */
-  function queryByRules(container, fieldName, parsingRules, options) {
+  function queryByRules(container: Element, fieldName: string, parsingRules: ParsingRules | null, options?: { attribute?: string }) {
     if (!parsingRules?.rules?.[fieldName]?.domSelectors) return null;
     
     const rule = parsingRules.rules[fieldName];
@@ -96,7 +114,7 @@
   /**
    * Получает текстовое содержимое элемента
    */
-  function getTextContent(el) {
+  function getTextContent(el: Element | null) {
     if (!el) return '';
     return (el.textContent || '').trim().replace(/\s+/g, ' ');
   }
@@ -105,10 +123,10 @@
    * Извлекает текст заголовка, исключая вложенные Path/greenurl элементы.
    * На touch SERP заголовок и greenurl могут быть внутри одного элемента.
    */
-  function getTitleTextClean(el) {
+  function getTitleTextClean(el: Element | null) {
     if (!el) return '';
     // Remove path/greenurl children from a cloned element to get clean title text
-    var clone = el.cloneNode(true);
+    var clone = el.cloneNode(true) as Element;
     var pathEls = clone.querySelectorAll('.Path, .OrganicTitle-Path, .Organic-Path, .OrganicUrl, .Favicon, [class*="GreenUrl"], [class*="greenurl"]');
     for (var i = 0; i < pathEls.length; i++) {
       pathEls[i].remove();
@@ -120,7 +138,7 @@
    * Форматирует цену с математическим пробелом (U+2009)
    * SOURCE OF TRUTH: src/utils/price-extractor.ts → formatPriceWithThinSpace
    */
-  function formatPriceWithThinSpace(priceStr) {
+  function formatPriceWithThinSpace(priceStr: string) {
     if (!priceStr || priceStr.length < 4) return priceStr;
     return priceStr.replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009');
   }
@@ -128,7 +146,7 @@
   /**
    * Проверяет, находится ли элемент внутри рекламной галереи
    */
-  function isInsideAdvProductGallery(container) {
+  function isInsideAdvProductGallery(container: Element) {
     let parent = container.parentElement;
     while (parent) {
       const cls = parent.className || '';
@@ -186,7 +204,7 @@
    * 
    * Они помечаются флагом #isAdv=true
    */
-  function isAdvertisement(container) {
+  function isAdvertisement(container: Element) {
     // Больше ничего не пропускаем — парсим все рекламные сниппеты
     // Они будут помечены флагом #isAdv=true
     return false;
@@ -197,7 +215,7 @@
    * SOURCE OF TRUTH: src/utils/yandex-shared.ts → getSnippetType
    * Порядок проверок критичен — должен совпадать с yandex-shared.ts
    */
-  function getSnippetType(container) {
+  function getSnippetType(container: Element) {
     const className = container.className || '';
     
     // EOfferItem — оффер с ценой
@@ -250,7 +268,7 @@
   /**
    * Извлекает URL продукта
    */
-  function extractProductURL(container) {
+  function extractProductURL(container: Element) {
     // Сначала пробуем найти data-href (используется в EProductSnippet2)
     const dataHrefSelectors = [
       '.EProductSnippet2-Overlay[data-href]',
@@ -297,7 +315,7 @@
   /**
    * Извлекает изображение с учётом srcset и data-src
    */
-  function extractImage(container, selectors) {
+  function extractImage(container: Element, selectors: string[]) {
     for (const selector of selectors) {
       const img = container.querySelector(selector);
       if (img) {
@@ -322,7 +340,7 @@
   /**
    * Извлекает цены
    */
-  function extractPrices(container) {
+  function extractPrices(container: Element) {
     const result = { price: '', currency: '', oldPrice: '' };
     
     // Ищем текущую цену (не в .EPrice_view_old)
@@ -412,7 +430,7 @@
   /**
    * Извлекает скидку
    */
-  function extractDiscount(container) {
+  function extractDiscount(container: Element) {
     const discountSelectors = [
       '.EPriceGroup-LabelDiscount .Label-Content',
       '.LabelDiscount .Label-Content',
@@ -442,7 +460,7 @@
   /**
    * Извлекает favicon с использованием getComputedStyle для живых страниц
    */
-  function extractFavicon(container) {
+  function extractFavicon(container: Element) {
     // Селекторы для поиска Favicon элемента
     const faviconSelectors = [
       '.Favicon[class*="Favicon-Page"]',  // Спрайт с классом страницы
@@ -495,7 +513,7 @@
   /**
    * Обрабатывает URL фавиконки (нормализация)
    */
-  function processFaviconUrl(url, el, styleAttr) {
+  function processFaviconUrl(url: string, el: Element, styleAttr: string) {
     let cleanUrl = url.trim();
     if (!cleanUrl.startsWith('http') && !cleanUrl.startsWith('data:')) {
       cleanUrl = cleanUrl.startsWith('//') ? `https:${cleanUrl}` : `https://${cleanUrl}`;
@@ -514,7 +532,7 @@
    * Обрабатывает спрайт-URL с несколькими доменами
    * Извлекает конкретный домен по background-position или классу
    */
-  function processSpriteUrl(bgUrl, bgPosition, el) {
+  function processSpriteUrl(bgUrl: string, bgPosition: string, el: Element) {
     let cleanUrl = bgUrl.trim();
     if (!cleanUrl.startsWith('http')) {
       cleanUrl = cleanUrl.startsWith('//') ? `https:${cleanUrl}` : `https://${cleanUrl}`;
@@ -529,7 +547,7 @@
     const v2Match = cleanUrl.match(/favicon\.yandex\.net\/favicon\/v2\/([^?]+)/);
     if (!v2Match || !v2Match[1]) return cleanUrl;
     
-    const domains = v2Match[1].split(';').filter(d => d.trim());
+    const domains = v2Match[1].split(';').filter((d: string) => d.trim());
     if (domains.length === 0) return cleanUrl;
     
     // Определяем индекс по классу или background-position
@@ -610,7 +628,7 @@
   /**
    * Валидирует рейтинг (0-5)
    */
-  function validateRating(text) {
+  function validateRating(text: string | null) {
     if (!text || text.trim() === '') return null;
     const trimmed = text.trim();
     
@@ -636,11 +654,11 @@
   /**
    * Извлекает данные из EOfferItem (карточка предложения в попапе)
    */
-  function extractEOfferItem(container) {
+  function extractEOfferItem(container: Element) {
     // Получаем ID родительского serp-item
     const serpItemId = getSerpItemId(container);
-    
-    const row = {
+
+    const row: Record<string, string> = {
       '#SnippetType': 'EOfferItem',
       '#serpItemId': serpItemId || ''
     };
@@ -739,14 +757,14 @@
    * @param {string} snippetType - тип сниппета
    * @param {string} platform - платформа ('desktop' или 'touch')
    */
-  function extractStandardSnippet(container, snippetType, platform, parsingRules) {
+  function extractStandardSnippet(container: Element, snippetType: string, platform: string, parsingRules: ParsingRules | null) {
     platform = platform || 'desktop';
     const isTouch = platform === 'touch';
-    
+
     // Получаем ID родительского serp-item
     const serpItemId = getSerpItemId(container);
 
-    const row = {
+    const row: Record<string, string> = {
       '#SnippetType': snippetType,
       '#serpItemId': serpItemId || '',
       '#platform': platform
@@ -870,7 +888,7 @@
     if (!row['#FaviconImage'] && row['#ShopName']) {
       const shopName = row['#ShopName'].toLowerCase().trim();
       // Маппинг известных магазинов на домены
-      const knownShops = {
+      const knownShops: Record<string, string> = {
         'wildberries': 'www.wildberries.ru',
         'ozon': 'www.ozon.ru',
         'яндекс маркет': 'market.yandex.ru',
@@ -921,7 +939,7 @@
       const thumbGroupEl = thumbGroup || container.querySelector('[class*="EThumbGroup"]');
       if (thumbGroupEl) {
         const thumbItems = thumbGroupEl.querySelectorAll('.EThumbGroup-Item .EThumb-Image, .EThumb-Image');
-        const images = [];
+        const images: string[] = [];
         
         thumbItems.forEach((img, i) => {
           if (i >= 3) return; // Максимум 3 картинки
@@ -1161,7 +1179,7 @@
     );
     if (deliveryGroup) {
       const items = deliveryGroup.querySelectorAll('.EDeliveryGroup-Item');
-      const deliveryItems = [];
+      const deliveryItems: string[] = [];
       items.forEach((item, i) => {
         if (i >= 3) return;
         const text = item.textContent?.trim();
@@ -1205,7 +1223,7 @@
       
       // Извлекаем текст региона БЕЗ ссылки
       // Клонируем элемент, удаляем ссылку, получаем текст
-      const clonedRegion = shopOfflineRegion.cloneNode(true);
+      const clonedRegion = shopOfflineRegion.cloneNode(true) as Element;
       const linkInClone = clonedRegion.querySelector('.Link[role="button"], .Link_theme_normal');
       if (linkInClone) {
         linkInClone.remove();
@@ -1335,7 +1353,7 @@
     );
     if (ebnplContainer) {
       const bnplItems = ebnplContainer.querySelectorAll('.Line-AddonContent, [class*="Line-AddonContent"]');
-      const bnplOptions = [];
+      const bnplOptions: string[] = [];
       
       bnplItems.forEach((item, i) => {
         if (i >= 5) return; // максимум 5 опций
@@ -1366,7 +1384,7 @@
     );
     if (shopInfoBnplEl) {
       const bnplTexts = shopInfoBnplEl.querySelectorAll('p, span, a, div');
-      const bnplTypes = [];
+      const bnplTypes: string[] = [];
       
       bnplTexts.forEach(function(el) {
         if (bnplTypes.length >= 5) return;
@@ -1458,7 +1476,7 @@
     if (sitelinksContainer) {
       row['#Sitelinks'] = 'true';
       const sitelinkItems = sitelinksContainer.querySelectorAll('.Sitelinks-Title, .Sitelinks-Item a.Sitelinks-Title');
-      const sitelinks = [];
+      const sitelinks: string[] = [];
       sitelinkItems.forEach((item, i) => {
         if (i >= 4) return; // Максимум 4 сайтлинка
         const text = getTextContent(item);
@@ -1510,8 +1528,8 @@
   /**
    * Находит родительский <li.serp-item> и возвращает его data-cid
    */
-  function getSerpItemId(element) {
-    let parent = element;
+  function getSerpItemId(element: Element) {
+    let parent: Element | null = element;
     while (parent) {
       if (parent.tagName === 'LI' && parent.classList && parent.classList.contains('serp-item')) {
         return parent.getAttribute('data-cid') || parent.getAttribute('data-log-node') || null;
@@ -1525,9 +1543,9 @@
    * Извлекает данные из AdvProductGallery — рекламной галереи товаров
    * Возвращает МАССИВ строк (каждая карточка — отдельная строка)
    */
-  function extractAdvProductGallery(container) {
-    const results = [];
-    
+  function extractAdvProductGallery(container: Element) {
+    const results: Record<string, string>[] = [];
+
     // Получаем ID родительского serp-item
     const serpItemId = getSerpItemId(container);
     
@@ -1542,8 +1560,9 @@
     
     console.log(`[AdvProductGallery] Найдено ${cards.length} карточек`);
     
-    for (const card of cards) {
-      const row = {
+    for (let ci = 0; ci < cards.length; ci++) {
+      const card = cards[ci];
+      const row: Record<string, string> = {
         '#SnippetType': 'EProductSnippet2',
         '#isAdv': 'true',
         '#AdvGalleryTitle': galleryTitle,
@@ -1650,11 +1669,11 @@
    * Извлекает данные из рекламного органического сниппета (Organic_withAdvLabel)
    * Эти сниппеты отображаются как ESnippet в Figma
    */
-  function extractOrganicAdvSnippet(container) {
+  function extractOrganicAdvSnippet(container: Element) {
     // Получаем ID родительского serp-item
     const serpItemId = getSerpItemId(container);
-    
-    const row = {
+
+    const row: Record<string, string> = {
       '#SnippetType': 'ESnippet',  // Для Figma — используем ESnippet
       '#isPromo': 'true',
       '#serpItemId': serpItemId || ''
@@ -1845,7 +1864,7 @@
     const deliveryGroup = container.querySelector('.EDeliveryGroup:not(.EDeliveryGroup-Item), .ShopInfo-Deliveries');
     if (deliveryGroup) {
       const items = deliveryGroup.querySelectorAll('.EDeliveryGroup-Item');
-      const deliveryItems = [];
+      const deliveryItems: string[] = [];
       items.forEach((item, i) => {
         if (i >= 3) return;
         const text = item.textContent?.trim();
@@ -1893,7 +1912,7 @@
       row['#Sitelinks'] = 'true';
       // FIX: правильный селектор — .Sitelinks-Title напрямую или через .Sitelinks-Item a
       const sitelinkItems = sitelinksContainer.querySelectorAll('.Sitelinks-Title, .Sitelinks-Item a.Sitelinks-Title');
-      const sitelinks = [];
+      const sitelinks: string[] = [];
       sitelinkItems.forEach((item, i) => {
         if (i >= 4) return; // Максимум 4 сайтлинка
         const text = getTextContent(item);
@@ -1922,21 +1941,27 @@
     }
     
     // === ПРОМО-БЛОК ===
-    const promoSelectors = [
-      '.PromoOffer .InfoSection-Text',
-      '.InfoSection-Text',
-      '.PromoOffer'
-    ];
-    for (const selector of promoSelectors) {
-      const promoEl = container.querySelector(selector);
-      if (promoEl) {
-        const promoText = getTextContent(promoEl);
-        if (promoText) {
-          row['#Promo'] = promoText;
-          row['#withPromo'] = 'true';
-          console.log(`[Organic_Adv] Промо-блок: "${promoText}"`);
-          break;
+    // Ищем контейнер PromoOffer/InfoSection, затем извлекаем label и link отдельно
+    const promoContainer = container.querySelector('.InfoSection.PromoOffer') || container.querySelector('.PromoOffer');
+    if (promoContainer) {
+      const textEl = promoContainer.querySelector('.InfoSection-Text');
+      const promoText = textEl ? getTextContent(textEl) : getTextContent(promoContainer);
+      if (promoText) {
+        row['#Promo'] = promoText;
+        row['#withPromo'] = 'true';
+        // Label = текст промо-описания
+        row['#PromoLabel'] = promoText;
+        // Link = текст ссылки-действия (sibling InfoSection-Link)
+        const linkEl = promoContainer.querySelector('.InfoSection-Link, a[class*="Link"]');
+        if (linkEl) {
+          const linkText = getTextContent(linkEl);
+          if (linkText) {
+            row['#PromoLink'] = linkText;
+            // Очищаем label от текста ссылки если он попал в общий текст
+            row['#PromoLabel'] = promoText.replace(linkText, '').trim();
+          }
         }
+        console.log(`[Organic_Adv] Промо-блок: label="${row['#PromoLabel']}", link="${row['#PromoLink'] || ''}"`);
       }
     }
     if (!row['#Promo']) {
@@ -1984,10 +2009,11 @@
 
     console.log('[EQuickFilters] Найдена панель фильтров');
 
-    const result = {
-      '#SnippetType': 'EQuickFilters',
-      '#FilterButtons': []  // Массив объектов {text, type}
+    const result: Record<string, string> = {
+      '#SnippetType': 'EQuickFilters'
     };
+
+    const filterButtons: { text: string; type: string }[] = [];
 
     // Кнопка "Все фильтры" (EAllFiltersButton)
     const allFiltersBtn = filtersPanel.querySelector('.EAllFiltersButton button');
@@ -1999,46 +2025,47 @@
     // Кнопки быстрых фильтров
     const quickFiltersContainer = filtersPanel.querySelector('.EQuickFilters') || filtersPanel;
     const filterItems = quickFiltersContainer.querySelectorAll('.EQuickFilters-Item');
-    
-    for (const item of filterItems) {
+
+    for (let fi = 0; fi < filterItems.length; fi++) {
+      const item = filterItems[fi];
       const btn = item.querySelector('button');
       if (!btn) continue;
-      
+
       // Определяем тип кнопки по классам
       let buttonType = 'dropdown'; // default
-      
+
       if (item.classList.contains('EQuickFilters-SortItem')) {
         // Кнопка сортировки (без иконки)
         buttonType = 'sort';
-      } else if (item.classList.contains('EQuickFilters-Suggest') || 
+      } else if (item.classList.contains('EQuickFilters-Suggest') ||
                  btn.classList.contains('ESuggestButton') ||
                  btn.classList.contains('Button_view_pseudo')) {
         // Suggest-кнопка (Outline стиль)
         buttonType = 'suggest';
-      } else if (btn.classList.contains('EQuickFilters-Open') || 
+      } else if (btn.classList.contains('EQuickFilters-Open') ||
                  btn.querySelector('.EFilterButton-Icon_pos_right')) {
         // Dropdown с иконкой справа
         buttonType = 'dropdown';
       }
-      
+
       // Текст кнопки — в .EFilterButton-Text или .ESuggestButton-Text
       const textEl = btn.querySelector('.EFilterButton-Text, .ESuggestButton-Text');
-      const text = textEl ? textEl.textContent.trim() : '';
-      
+      const text = textEl ? (textEl.textContent || '').trim() : '';
+
       if (text) {
-        result['#FilterButtons'].push({ text, type: buttonType });
+        filterButtons.push({ text, type: buttonType });
         console.log(`[EQuickFilters] Кнопка: "${text}" (${buttonType})`);
       }
     }
 
-    console.log(`[EQuickFilters] Найдено ${result['#FilterButtons'].length} кнопок фильтров`);
+    console.log(`[EQuickFilters] Найдено ${filterButtons.length} кнопок фильтров`);
 
     // Преобразуем массив в отдельные поля для совместимости
-    result['#FilterButtons'].forEach((btn, i) => {
+    filterButtons.forEach((btn, i) => {
       result[`#FilterButton_${i + 1}`] = btn.text;
       result[`#FilterButtonType_${i + 1}`] = btn.type;
     });
-    result['#FilterButtonsCount'] = String(result['#FilterButtons'].length);
+    result['#FilterButtonsCount'] = String(filterButtons.length);
 
     return result;
   }
@@ -2055,16 +2082,16 @@
 
     console.log('[EAsideFilters] Найдена панель боковых фильтров');
 
-    var filters = [];
+    var filters: { title: string; type?: string; items?: string[]; placeholderFrom?: string; placeholderTo?: string; hasMore?: boolean }[] = [];
     var items = aside.querySelectorAll('.EAsideFilters-Item');
 
     for (var idx = 0; idx < items.length; idx++) {
       var item = items[idx];
       var titleEl = item.querySelector('.EAsideFilters-Title') || item.querySelector('.EAsideFilters-Text');
-      var title = titleEl ? titleEl.textContent.trim() : '';
+      var title = titleEl ? (titleEl.textContent || '').trim() : '';
       if (!title) continue;
 
-      var filterData = { title: title };
+      var filterData: { title: string; type?: string; items?: string[]; placeholderFrom?: string; placeholderTo?: string; hasMore?: boolean } = { title: title };
 
       if (item.classList.contains('EAsideFilters-FilterItem_type_boolean')) {
         // Boolean toggle filter (e.g. "Сушка" with Tumbler)
@@ -2075,13 +2102,13 @@
         filterData.items = [];
         var catItems = item.querySelectorAll('.ECategories-Text');
         for (var ci = 0; ci < catItems.length; ci++) {
-          var text = catItems[ci].textContent.trim();
+          var text = (catItems[ci].textContent || '').trim();
           if (text) filterData.items.push(text);
         }
       } else if (item.classList.contains('EAsideFilters-FilterItem_type_number')) {
         // Number range filter (price, volume, etc.)
         filterData.type = 'number';
-        var inputs = item.querySelectorAll('.ENumberInputGroup-Input input');
+        var inputs = item.querySelectorAll<HTMLInputElement>('.ENumberInputGroup-Input input');
         if (inputs.length >= 2) {
           filterData.placeholderFrom = inputs[0].placeholder || '';
           filterData.placeholderTo = inputs[1].placeholder || '';
@@ -2092,7 +2119,7 @@
         filterData.items = [];
         var enumItems = item.querySelectorAll('.EEnumFilterItem-Text');
         for (var ei = 0; ei < enumItems.length; ei++) {
-          var eText = enumItems[ei].textContent.trim();
+          var eText = (enumItems[ei].textContent || '').trim();
           if (eText) filterData.items.push(eText);
         }
         filterData.hasMore = !!item.querySelector('.EAsideFilters-Expand');
@@ -2111,10 +2138,11 @@
 
     console.log('[EAsideFilters] Найдено ' + filters.length + ' фильтров');
 
-    return {
+    const asideResult: Record<string, string> = {
       '#SnippetType': 'EAsideFilters',
       '#AsideFilters_data': JSON.stringify({ filters: filters })
     };
+    return asideResult;
   }
 
   /**
@@ -2128,18 +2156,18 @@
    * @param {string} serpItemId - ID serp-item
    * @returns {Object} CSVRow с #ImagesGrid_data JSON
    */
-  function extractImagesGrid(serpItem, serpItemId) {
-    const images = [];
+  function extractImagesGrid(serpItem: Element, serpItemId: string) {
+    const images: { url: string; width: number; height: number; row: number }[] = [];
     const rows = serpItem.querySelectorAll('.ImagesGridJustifier-Row');
 
-    rows.forEach(function(row, rowIndex) {
-      const imgs = row.querySelectorAll('img.Thumb-Image, .ImagesGridImages-Image img');
-      imgs.forEach(function(img) {
-        const src = img.getAttribute('src') || img.src || '';
+    rows.forEach(function(rowEl: Element, rowIndex: number) {
+      const imgs = rowEl.querySelectorAll('img.Thumb-Image, .ImagesGridImages-Image img');
+      imgs.forEach(function(img: Element) {
+        const src = img.getAttribute('src') || (img as HTMLImageElement).src || '';
         images.push({
           url: src.indexOf('//') === 0 ? 'https:' + src : src,
-          width: parseFloat(img.getAttribute('width')) || 150,
-          height: parseFloat(img.getAttribute('height')) || 150,
+          width: parseFloat(img.getAttribute('width') || '0') || 150,
+          height: parseFloat(img.getAttribute('height') || '0') || 150,
           row: rowIndex
         });
       });
@@ -2151,7 +2179,7 @@
 
     console.log('[extractImagesGrid] Найдено ' + images.length + ' картинок в ' + rows.length + ' рядах');
 
-    return {
+    const imagesGridRow: Record<string, string> = {
       '#SnippetType': 'ImagesGrid',
       '#containerType': 'ImagesGrid',
       '#serpItemId': serpItemId,
@@ -2159,12 +2187,13 @@
       '#ImagesGrid_data': JSON.stringify(images),
       '#ImagesGrid_count': String(images.length)
     };
+    return imagesGridRow;
   }
 
   /**
    * Определяет тип контейнера serp-item по классам и атрибутам
    */
-  function getSerpItemContainerType(serpItem) {
+  function getSerpItemContainerType(serpItem: Element) {
     const className = serpItem.className || '';
     const fastName = serpItem.getAttribute('data-fast-name') || '';
     const fastSubtype = serpItem.getAttribute('data-fast-subtype') || '';
@@ -2259,7 +2288,7 @@
    * @param {Element} serpItem - контейнер serp-item
    * @param {string} platform - платформа ('desktop' или 'touch')
    */
-  function extractRowData(serpItem, platform, parsingRules) {
+  function extractRowData(serpItem: Element, platform: string, parsingRules: ParsingRules | null) {
     platform = platform || 'desktop';
     
     // Используем data-cid или data-log-node как fallback
@@ -2278,7 +2307,7 @@
     // 1. EntityOffersOrganic — содержит .Organic.Organic_withOfferInfo элементы
     // 2. Стандартный EntityOffers — содержит .EShopItem элементы
     if (containerType === 'EntityOffers') {
-      const results = [];
+      const results: Record<string, string>[] = [];
       
       // Проверяем вариант EntityOffersOrganic
       const isOrganicVariant = serpItem.querySelector('.EntityOffersOrganic') !== null;
@@ -2310,7 +2339,8 @@
         // Тип сниппета зависит от платформы
         const snippetType = platform === 'desktop' ? 'ESnippet' : 'EShopItem';
         
-        for (const organic of organicItems) {
+        for (let oi = 0; oi < organicItems.length; oi++) {
+          const organic = organicItems[oi];
           // Извлекаем данные как стандартный сниппет
           const row = extractStandardSnippet(organic, snippetType, platform, parsingRules);
           if (row) {
@@ -2328,8 +2358,8 @@
         const shopItems = serpItem.querySelectorAll('.EShopItem');
         console.log(`[EntityOffers] Стандартный: найдено ${shopItems.length} EShopItem внутри`);
         
-        for (const shopItem of shopItems) {
-          const row = extractStandardSnippet(shopItem, 'EShopItem', platform, parsingRules);
+        for (let si = 0; si < shopItems.length; si++) {
+          const row = extractStandardSnippet(shopItems[si], 'EShopItem', platform, parsingRules);
           if (row) {
             row['#serpItemId'] = serpItemId;
             row['#containerType'] = 'EntityOffers';
@@ -2344,7 +2374,7 @@
     
     // === ProductsTiles — плитки EProductSnippet2 ===
     if (containerType === 'ProductsTiles') {
-      const results = [];
+      const results: Record<string, string>[] = [];
       // Ищем все EProductSnippet2 (только верхнего уровня, не вложенные)
       // Используем :scope для ограничения поиска только прямыми или непосредственными потомками
       const allProducts = serpItem.querySelectorAll('.EProductSnippet2.ProductTile-Item, .ProductTile-Item.EProductSnippet2');
@@ -2384,7 +2414,20 @@
       if (skippedCount > 0) {
         console.log(`[ProductsTiles] Пропущено ${skippedCount} из ${products.length} продуктов`);
       }
-      
+
+      // Кнопка «Показать все» — ищем <a> с текстом "Показать все" / "Показать ещё" внутри serpItem
+      const showAllLink = serpItem.querySelector('a.Button[class*="Button_width_max"]');
+      if (showAllLink && results.length > 0) {
+        const showAllText = (showAllLink.textContent || '').trim();
+        const showAllHref = showAllLink.getAttribute('href') || '';
+        if (showAllText) {
+          results[0]['#ProductsTilesShowAll'] = 'true';
+          results[0]['#ProductsTilesShowAllText'] = showAllText;
+          results[0]['#ProductsTilesShowAllHref'] = showAllHref;
+          console.log(`[ProductsTiles] Кнопка «${showAllText}» найдена, href="${showAllHref.substring(0, 60)}..."`);
+        }
+      }
+
       return results.length > 0 ? results : null;
     }
     
@@ -2406,7 +2449,7 @@
     
     // === EShopList — список магазинов (множественные EShopItem) ===
     if (containerType === 'EShopList') {
-      const results = [];
+      const results: Record<string, string>[] = [];
       
       // Извлекаем заголовок группы (например "Цены в магазинах")
       let shopListTitle = 'Цены в магазинах'; // default
@@ -2502,7 +2545,7 @@
   /**
    * Фильтрует вложенные контейнеры
    */
-  function filterTopLevelContainers(containers) {
+  function filterTopLevelContainers(containers: Element[]) {
     if (containers.length <= 1) return containers;
     
     const containerSet = new Set(containers);
@@ -2533,8 +2576,8 @@
   /**
    * Дедуплицирует строки
    */
-  function deduplicateRows(rows) {
-    const unique = new Map();
+  function deduplicateRows(rows: Record<string, string>[]) {
+    const unique = new Map<string, Record<string, string>>();
     let duplicatesRemoved = 0;
 
     for (const row of rows) {
@@ -2602,12 +2645,12 @@
 
       if (unique.has(key)) {
         duplicatesRemoved++;
-        const existing = unique.get(key);
+        const existing = unique.get(key)!;
         console.log(`[Dedup] ⚠️ Дубликат #${duplicatesRemoved} (по ${keyType}):`);
         console.log(`  Существующий: "${(existing['#OrganicTitle'] || '').substring(0, 40)}..." — ${existing['#ShopName']} — ${existing['#OrganicPrice']}₽`);
         console.log(`  Новый (пропущен): "${(row['#OrganicTitle'] || '').substring(0, 40)}..." — ${row['#ShopName']} — ${row['#OrganicPrice']}₽`);
         console.log(`  Ключ: ${key.substring(0, 80)}...`);
-        
+
         // Приоритет строке с изображением
         if (row['#OrganicImage'] && !existing['#OrganicImage']) {
           console.log(`  → Заменяем на новый (есть изображение)`);
@@ -2632,14 +2675,14 @@
   /**
    * Нормализует текст: множественные пробелы → один, trim
    */
-  function normalizeWizardText(value) {
+  function normalizeWizardText(value: string | null) {
     return (value || '').replace(/\s+/g, ' ').trim();
   }
 
   /**
    * Нормализует текст спана: неразрывные пробелы → обычные
    */
-  function normalizeWizardSpanText(value) {
+  function normalizeWizardSpanText(value: string | null) {
     return (value || '').replace(/\u00a0/g, ' ');
   }
 
@@ -2647,10 +2690,10 @@
    * Извлекает спаны (text + bold) из элемента, пропуская FuturisFootnote
    * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/utils/dom.js → extractSpans
    */
-  function extractWizardSpans(containerEl) {
-    var spans = [];
+  function extractWizardSpans(containerEl: Element) {
+    var spans: { text: string; bold: boolean }[] = [];
 
-    function pushSpan(text, bold) {
+    function pushSpan(text: string, bold: boolean) {
       var normalized = normalizeWizardSpanText(text);
       if (!normalized) return;
       var last = spans.length > 0 ? spans[spans.length - 1] : null;
@@ -2661,17 +2704,18 @@
       spans.push({ text: normalized, bold: bold });
     }
 
-    function walk(node, inheritedBold) {
+    function walk(node: Node, inheritedBold: boolean) {
       if (node.nodeType === Node.TEXT_NODE) {
         pushSpan(node.nodeValue || '', inheritedBold);
         return;
       }
       if (node.nodeType !== Node.ELEMENT_NODE) return;
-      
-      // Пропускаем footnote-ссылки
-      if (node.classList && node.classList.contains('FuturisFootnote')) return;
+      var el = node as Element;
 
-      var isBold = inheritedBold || node.tagName === 'STRONG' || node.tagName === 'B';
+      // Пропускаем footnote-ссылки
+      if (el.classList && el.classList.contains('FuturisFootnote')) return;
+
+      var isBold = inheritedBold || el.tagName === 'STRONG' || el.tagName === 'B';
       var children = node.childNodes;
       for (var i = 0; i < children.length; i++) {
         walk(children[i], isBold);
@@ -2686,7 +2730,7 @@
    * Извлекает footnotes (источники) из элемента
    * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/utils/dom.js → extractFootnotes
    */
-  function extractWizardFootnotes(containerEl) {
+  function extractWizardFootnotes(containerEl: Element) {
     var footnoteLinks = containerEl.querySelectorAll('a.Link.FuturisFootnote.FuturisFootnote_redesign');
     var result = [];
     for (var i = 0; i < footnoteLinks.length; i++) {
@@ -2701,8 +2745,8 @@
           iconUrl = match[1];
         }
         // Fallback: inline style
-        if (!iconUrl && iconEl.style && iconEl.style.backgroundImage) {
-          var bgMatch = iconEl.style.backgroundImage.match(/url\(["']?(.*?)["']?\)/i);
+        if (!iconUrl && (iconEl as HTMLElement).style && (iconEl as HTMLElement).style.backgroundImage) {
+          var bgMatch = (iconEl as HTMLElement).style.backgroundImage.match(/url\(["']?(.*?)["']?\)/i);
           if (bgMatch) iconUrl = bgMatch[1];
         }
       }
@@ -2720,7 +2764,7 @@
    * Определяет тип компонента и извлекает данные из одного DOM-элемента
    * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/parsers/ya-ru.js → buildComponentFromElement
    */
-  function buildWizardComponent(el) {
+  function buildWizardComponent(el: Element) {
     // Заголовки: определяем уровень из tagName (h1–h6), fallback h2
     if (el.classList.contains('FuturisContentSection-Title') || /^H[1-6]$/i.test(el.tagName || '')) {
       var level = /^H([1-6])$/i.test(el.tagName || '') ? el.tagName.toLowerCase() : 'h2';
@@ -2809,10 +2853,10 @@
    * Рекурсивно обходит DOM-дерево и собирает все компоненты wizard
    * Логика аналогична mishamisha/llm-answers-exporter-0.1.0/src/parsers/ya-ru.js → collectComponents
    */
-  function collectWizardComponents(rootEl) {
-    var components = [];
+  function collectWizardComponents(rootEl: Element) {
+    var components: Record<string, unknown>[] = [];
 
-    function walk(node) {
+    function walk(node: Element) {
       var children = node.children;
       if (!children) return;
       for (var i = 0; i < children.length; i++) {
@@ -2853,7 +2897,7 @@
 
         // Get visible (collapsed) height — find parent with overflow clipping
         var visibleHeight = 0;
-        var el = wrapper;
+        var el: Element | null = wrapper;
         while (el && el !== document.body) {
           var style = window.getComputedStyle(el);
           var overflow = style.overflow || style.overflowY;
@@ -2905,11 +2949,11 @@
       card = viewer;
     }
 
-    console.log('[ProductCard] Обнаружен открытый сайдбар (' + card.className.substring(0, 50) + ')');
-    var result = {};
+    console.log('[ProductCard] Обнаружен открытый сайдбар (' + (card.className || '').substring(0, 50) + ')');
+    var result: Record<string, unknown> = {};
 
     // 1. Gallery images
-    var images = [];
+    var images: string[] = [];
     var thumbs = card.querySelectorAll('.EProductCard-Item_type_ditto .EThumb-Image');
     for (var i = 0; i < thumbs.length; i++) {
       var src = thumbs[i].getAttribute('src');
@@ -2920,38 +2964,38 @@
 
     // 2. Header: title + rating
     var titleEl = card.querySelector('.EProductCard-Item_type_ecom-header .EPageTitleCut');
-    result.title = titleEl ? titleEl.textContent.trim() : '';
+    result.title = titleEl ? (titleEl.textContent || '').trim() : '';
 
     var ratingEl = card.querySelector('.EProductCard-RatingLabel .Label-Content');
-    result.rating = ratingEl ? ratingEl.textContent.trim() : '';
+    result.rating = ratingEl ? (ratingEl.textContent || '').trim() : '';
 
     // 3. Default offer (reuse extractEOfferItem)
     var defaultOfferEl = card.querySelector('.EProductCard-Item_type_ecom-default-offer .EOfferItem');
     result.defaultOffer = defaultOfferEl ? extractEOfferItem(defaultOfferEl) : null;
-    if (result.defaultOffer) {
-      enrichOfferFromDOM(defaultOfferEl, result.defaultOffer);
+    if (result.defaultOffer && defaultOfferEl) {
+      enrichOfferFromDOM(defaultOfferEl, result.defaultOffer as Record<string, string>);
     }
 
     // 4. Other offers
     var offerEls = card.querySelectorAll('.EProductCard-Item_type_ecom-offers .EOfferItem');
-    result.offers = [];
+    result.offers = [] as Record<string, string>[];
     for (var j = 0; j < offerEls.length; j++) {
       var offer = extractEOfferItem(offerEls[j]);
       if (offer) {
         enrichOfferFromDOM(offerEls[j], offer);
-        result.offers.push(offer);
+        (result.offers as Record<string, string>[]).push(offer);
       }
     }
-    console.log('[ProductCard] Предложения: 1 default + ' + result.offers.length + ' others');
+    console.log('[ProductCard] Предложения: 1 default + ' + (result.offers as Record<string, string>[]).length + ' others');
 
     // 5. Specs
     var specEls = card.querySelectorAll('.EProductSpecs-Property');
-    result.specs = [];
+    result.specs = [] as { name: string; value: string }[];
     for (var k = 0; k < specEls.length; k++) {
       var nameEl = specEls[k].querySelector('.EProductSpecs-PropertyNameText');
       var valEl = specEls[k].querySelector('.EProductSpecs-PropertyValue .HtmlView');
       if (nameEl && valEl) {
-        result.specs.push({ name: nameEl.textContent.trim(), value: valEl.textContent.trim() });
+        (result.specs as { name: string; value: string }[]).push({ name: (nameEl.textContent || '').trim(), value: (valEl.textContent || '').trim() });
       }
     }
 
@@ -2959,7 +3003,7 @@
     // ReviewHeader has structure: "Отзывы" · "586"
     var reviewTitleItems = card.querySelectorAll('.ReviewHeader-TitleItem');
     for (var ri = 0; ri < reviewTitleItems.length; ri++) {
-      var text = reviewTitleItems[ri].textContent.trim();
+      var text = (reviewTitleItems[ri].textContent || '').trim();
       if (/^\d/.test(text)) {
         result.reviewCount = text;
         break;
@@ -2967,26 +3011,27 @@
     }
 
     // Aspects (pros/cons)
-    result.aspects = { pros: [], cons: [] };
+    result.aspects = { pros: [] as { text: string; count: string }[], cons: [] as { text: string; count: string }[] };
     var aspectEls = card.querySelectorAll('.ReviewSummarizationAspect');
     for (var m = 0; m < aspectEls.length; m++) {
       var isPro = !!aspectEls[m].querySelector('.ReviewSummarizationAspect-Icon_pro');
       var aspectTextEl = aspectEls[m].querySelector('.ReviewSummarizationAspect-Text');
       var countEl = aspectEls[m].querySelector('.ReviewSummarizationAspectLabel');
       var aspectItem = {
-        text: aspectTextEl ? aspectTextEl.childNodes[0].textContent.trim() : '',
-        count: countEl ? countEl.textContent.trim().replace(/\D/g, '') : ''
+        text: aspectTextEl && aspectTextEl.childNodes[0] ? (aspectTextEl.childNodes[0].textContent || '').trim() : '',
+        count: countEl ? (countEl.textContent || '').trim().replace(/\D/g, '') : ''
       };
-      if (isPro) result.aspects.pros.push(aspectItem);
-      else result.aspects.cons.push(aspectItem);
+      var aspects = result.aspects as { pros: { text: string; count: string }[]; cons: { text: string; count: string }[] };
+      if (isPro) aspects.pros.push(aspectItem);
+      else aspects.cons.push(aspectItem);
     }
 
     // 7. Average price range (EPriceBarometerLegend)
     var avgPriceEls = card.querySelectorAll('.EPriceBarometerLegend-Range .EPrice-A11yValue');
     if (avgPriceEls.length >= 2) {
       result.avgPriceRange = {
-        from: avgPriceEls[0].textContent.trim(),
-        to: avgPriceEls[1].textContent.trim()
+        from: (avgPriceEls[0].textContent || '').trim(),
+        to: (avgPriceEls[1].textContent || '').trim()
       };
     }
 
@@ -2994,7 +3039,7 @@
     var aliceBestPricesEl = card.querySelector('.AliceBestPrices');
     result.findCheaper = !!aliceBestPricesEl;
 
-    console.log('[ProductCard] Итого: title="' + result.title.substring(0, 40) + '", rating=' + result.rating + ', specs=' + result.specs.length + ', reviews=' + (result.reviewCount || '0') + ', avgPrice=' + (result.avgPriceRange ? result.avgPriceRange.from + '-' + result.avgPriceRange.to : 'нет') + ', findCheaper=' + result.findCheaper);
+    console.log('[ProductCard] Итого: title="' + String(result.title || '').substring(0, 40) + '", rating=' + result.rating + ', specs=' + (result.specs as unknown[]).length + ', reviews=' + (result.reviewCount || '0') + ', avgPrice=' + (result.avgPriceRange ? (result.avgPriceRange as { from: string; to: string }).from + '-' + (result.avgPriceRange as { from: string; to: string }).to : 'нет') + ', findCheaper=' + result.findCheaper);
     return result;
   }
 
@@ -3002,11 +3047,11 @@
    * Обогащает EOfferItem row дополнительными полями из DOM сайдбара
    * (OldPrice, Discount, Fintech, Title — не извлекаются в базовом extractEOfferItem)
    */
-  function enrichOfferFromDOM(el, row) {
+  function enrichOfferFromDOM(el: Element, row: Record<string, string>) {
     // Old price
     var oldPriceEl = el.querySelector('.EPriceGroup-PriceOld .EPrice-Value');
     if (oldPriceEl) {
-      var oldDigits = oldPriceEl.textContent.replace(PRICE_DIGITS_REGEX, '');
+      var oldDigits = (oldPriceEl.textContent || '').replace(PRICE_DIGITS_REGEX, '');
       if (oldDigits) {
         row['#OldPrice'] = formatPriceWithThinSpace(oldDigits);
         row['#EPriceGroup_OldPrice'] = 'true';
@@ -3016,9 +3061,9 @@
     // Discount
     var discountEl = el.querySelector('.EPriceGroup-LabelDiscount .Label-Content');
     if (discountEl) {
-      row['#discount'] = discountEl.textContent.trim();
+      row['#discount'] = (discountEl.textContent || '').trim();
       row['#EPriceGroup_Discount'] = 'true';
-      var pct = discountEl.textContent.replace(/[^\d]/g, '');
+      var pct = (discountEl.textContent || '').replace(/[^\d]/g, '');
       if (pct) row['#DiscountPercent'] = pct;
     }
 
@@ -3033,9 +3078,9 @@
     }
 
     // Title (offer-specific title, different from product title)
-    var titleEl = el.querySelector('.EOfferItem-Title');
-    if (titleEl) {
-      row['#OrganicTitle'] = titleEl.textContent.trim();
+    var offerTitleEl = el.querySelector('.EOfferItem-Title');
+    if (offerTitleEl) {
+      row['#OrganicTitle'] = (offerTitleEl.textContent || '').trim();
     }
 
     // Crossborder
@@ -3049,7 +3094,7 @@
       row['#EDeliveryGroup'] = 'true';
       row['#EDeliveryGroup-Count'] = String(deliveryItems.length);
       for (var di = 0; di < Math.min(deliveryItems.length, 3); di++) {
-        row['#EDeliveryGroup-Item-' + (di + 1)] = deliveryItems[di].textContent.trim();
+        row['#EDeliveryGroup-Item-' + (di + 1)] = (deliveryItems[di].textContent || '').trim();
       }
     }
 
@@ -3058,19 +3103,19 @@
     if (reviewsLabel) {
       var ratingContentEl = reviewsLabel.querySelector('.RatingOneStar .Line-AddonContent');
       if (ratingContentEl) {
-        row['#ShopInfo-Ugc'] = ratingContentEl.textContent.trim();
-        row['#ShopRating'] = ratingContentEl.textContent.trim();
+        row['#ShopInfo-Ugc'] = (ratingContentEl.textContent || '').trim();
+        row['#ShopRating'] = (ratingContentEl.textContent || '').trim();
       }
       var reviewsTextEl = reviewsLabel.querySelector('.EReviewsLabel-Text');
       if (reviewsTextEl) {
-        row['#EReviews_shopText'] = reviewsTextEl.textContent.trim();
+        row['#EReviews_shopText'] = (reviewsTextEl.textContent || '').trim();
       }
     }
 
     // Favicon
     var faviconEl = el.querySelector('.Favicon');
     if (faviconEl) {
-      var bgImage = faviconEl.style.backgroundImage || '';
+      var bgImage = (faviconEl as HTMLElement).style.backgroundImage || '';
       var urlMatch = bgImage.match(/url\("?([^"]+)"?\)/);
       if (urlMatch && urlMatch[1]) {
         row['#FaviconImage'] = urlMatch[1];
@@ -3086,7 +3131,7 @@
    * Главная функция — извлекает все сниппеты и wizard-блоки со страницы
    * @param {Object|null} parsingRules - Shared parsing rules from remote config (optional)
    */
-  function extractSnippets(parsingRules) {
+  function extractSnippets(parsingRules: ParsingRules | null) {
     console.log('🔍 [Content] Начинаю парсинг страницы...');
     if (parsingRules?.version) {
       console.log(`📋 [Content] Используем shared parsing rules v${parsingRules.version}`);
@@ -3112,14 +3157,14 @@
                       document.querySelector('.HeaderPhone-Input') ||
                       document.querySelector('input[name="text"]');
       if (queryEl) {
-        query = queryEl.value || queryEl.getAttribute('value') || '';
+        query = (queryEl as HTMLInputElement).value || queryEl.getAttribute('value') || '';
       }
     } catch (_e) { /* search input may not exist on page */ }
     console.log(`🔎 [Content] Поисковый запрос: "${query}"`);
     
     // Находим контейнеры
     const allContainers = document.querySelectorAll(CONTAINER_SELECTORS);
-    const containerArray = Array.from(new Set(allContainers));
+    const containerArray = Array.from(new Set(Array.from(allContainers)));
     const containers = filterTopLevelContainers(containerArray);
     console.log(`📦 [Content] Найдено контейнеров: ${containers.length}`);
     
@@ -3134,8 +3179,8 @@
     });
     
     // Извлекаем данные
-    const results = [];
-    
+    const results: Record<string, string>[] = [];
+
     // Сначала извлекаем EQuickFilters (панель фильтров)
     const quickFilters = extractEQuickFilters();
     if (quickFilters) {
@@ -3210,7 +3255,7 @@
     console.log(`✅ [Content] Извлечено сниппетов: ${finalResults.length}`);
     
     // Статистика по типам
-    const stats = {};
+    const stats: Record<string, number> = {};
     for (const row of finalResults) {
       const type = row['#SnippetType'] || 'Unknown';
       stats[type] = (stats[type] || 0) + 1;
@@ -3243,5 +3288,11 @@
   // Выполняем парсинг и возвращаем результат
   // Shared parsing rules may have been injected by background.js
   const parsingRules = (typeof window !== 'undefined' && window.__contentifyParsingRules) || null;
-  return extractSnippets(parsingRules);
+  const __contentifyResult = extractSnippets(parsingRules);
+  // Expose result globally so chrome.scripting.executeScript can read it
+  // (esbuild wraps in extra IIFE, swallowing the return value)
+  window.__contentifyResult = __contentifyResult;
+  return __contentifyResult;
 })();
+
+export {};
