@@ -369,11 +369,203 @@ describe('computeSnippetWithEcomMeta', () => {
     expect(computeSnippetWithEcomMeta({ '#OrganicPrice': '1990' })).toBe(true);
   });
 
+  it('returns true with OldPrice', () => {
+    expect(computeSnippetWithEcomMeta({ '#OldPrice': '2990' })).toBe(true);
+  });
+
+  it('returns true with ReviewCount', () => {
+    expect(computeSnippetWithEcomMeta({ '#ReviewCount': '15' })).toBe(true);
+  });
+
+  it('returns true with EPriceBarometer_View', () => {
+    expect(computeSnippetWithEcomMeta({ '#EPriceBarometer_View': 'good' })).toBe(true);
+  });
+
+  it('returns true with ELabelGroup', () => {
+    expect(computeSnippetWithEcomMeta({ '#ELabelGroup': 'true' })).toBe(true);
+  });
+
   it('returns false with false values', () => {
     expect(computeSnippetWithEcomMeta({ '#ProductRating': 'false' })).toBe(false);
   });
 
   it('returns false with empty values', () => {
     expect(computeSnippetWithEcomMeta({ '#ProductRating': '' })).toBe(false);
+  });
+
+  it('returns false with no fields', () => {
+    expect(computeSnippetWithEcomMeta({})).toBe(false);
+  });
+});
+
+// ============================================================================
+// ESnippet transforms — dedicated tests for each function
+// ============================================================================
+
+describe('computeSnippetWithDelivery (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with EDeliveryGroup=true', () => {
+    expect(computeSnippetWithDelivery({ ...base, '#EDeliveryGroup': 'true' })).toBe(true);
+  });
+
+  it('returns true with EDelivery_abroad=true', () => {
+    expect(computeSnippetWithDelivery({ ...base, '#EDelivery_abroad': 'true' })).toBe(true);
+  });
+
+  it('returns false with neither flag', () => {
+    expect(computeSnippetWithDelivery(base)).toBe(false);
+  });
+
+  it('returns false with EDeliveryGroup=false', () => {
+    expect(computeSnippetWithDelivery({ ...base, '#EDeliveryGroup': 'false' })).toBe(false);
+  });
+});
+
+describe('computeSnippetWithMeta (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with delivery', () => {
+    expect(computeSnippetWithMeta({ ...base, '#EDeliveryGroup': 'true' })).toBe(true);
+  });
+
+  it('returns true with BNPL', () => {
+    expect(computeSnippetWithMeta({ ...base, '#ShopInfo-Bnpl': 'true' })).toBe(true);
+  });
+
+  it('returns true with both delivery and BNPL', () => {
+    expect(computeSnippetWithMeta({ ...base, '#EDeliveryGroup': 'true', '#ShopInfo-Bnpl': 'true' })).toBe(true);
+  });
+
+  it('returns false without delivery or BNPL', () => {
+    expect(computeSnippetWithMeta(base)).toBe(false);
+  });
+});
+
+describe('computeSnippetWithData (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with reviews', () => {
+    expect(computeSnippetWithData({ ...base, '#ReviewsNumber': '10' })).toBe(true);
+  });
+
+  it('returns true with delivery', () => {
+    expect(computeSnippetWithData({ ...base, '#EDeliveryGroup': 'true' })).toBe(true);
+  });
+
+  it('returns true with BNPL', () => {
+    expect(computeSnippetWithData({ ...base, '#ShopInfo-Bnpl': 'true' })).toBe(true);
+  });
+
+  it('returns false with nothing', () => {
+    expect(computeSnippetWithData(base)).toBe(false);
+  });
+
+  it('returns false with empty reviews', () => {
+    expect(computeSnippetWithData({ ...base, '#ReviewsNumber': '' })).toBe(false);
+  });
+});
+
+describe('computeSnippetWithPrice (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with OrganicPrice', () => {
+    expect(computeSnippetWithPrice({ ...base, '#OrganicPrice': '1990' })).toBe(true);
+  });
+
+  it('returns false with empty price', () => {
+    expect(computeSnippetWithPrice({ ...base, '#OrganicPrice': '' })).toBe(false);
+  });
+
+  it('returns false with whitespace price', () => {
+    expect(computeSnippetWithPrice({ ...base, '#OrganicPrice': '   ' })).toBe(false);
+  });
+
+  it('returns false without price field', () => {
+    expect(computeSnippetWithPrice(base)).toBe(false);
+  });
+});
+
+describe('computeSnippetWithFintech (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with EPriceGroup_Fintech=true', () => {
+    expect(computeSnippetWithFintech({ ...base, '#EPriceGroup_Fintech': 'true' })).toBe(true);
+  });
+
+  it('returns false with EPriceGroup_Fintech=false', () => {
+    expect(computeSnippetWithFintech({ ...base, '#EPriceGroup_Fintech': 'false' })).toBe(false);
+  });
+
+  it('returns false without fintech field', () => {
+    expect(computeSnippetWithFintech(base)).toBe(false);
+  });
+});
+
+describe('computeSnippetWithPromo (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with Promo text', () => {
+    expect(computeSnippetWithPromo({ ...base, '#Promo': 'Скидка 20%' })).toBe(true);
+  });
+
+  it('returns false with empty Promo', () => {
+    expect(computeSnippetWithPromo({ ...base, '#Promo': '' })).toBe(false);
+  });
+
+  it('returns false with whitespace Promo', () => {
+    expect(computeSnippetWithPromo({ ...base, '#Promo': '   ' })).toBe(false);
+  });
+
+  it('returns false without Promo field', () => {
+    expect(computeSnippetWithPromo(base)).toBe(false);
+  });
+});
+
+describe('computeWithAddress (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with hasShopOfflineRegion=true', () => {
+    expect(computeWithAddress({ ...base, '#hasShopOfflineRegion': 'true' })).toBe(true);
+  });
+
+  it('returns true with addressText', () => {
+    expect(computeWithAddress({ ...base, '#addressText': 'Москва, ул. Тверская' })).toBe(true);
+  });
+
+  it('returns false with empty addressText', () => {
+    expect(computeWithAddress({ ...base, '#addressText': '' })).toBe(false);
+  });
+
+  it('returns false with whitespace addressText', () => {
+    expect(computeWithAddress({ ...base, '#addressText': '   ' })).toBe(false);
+  });
+
+  it('returns false without address fields', () => {
+    expect(computeWithAddress(base)).toBe(false);
+  });
+});
+
+describe('computeWithContacts (dedicated)', () => {
+  const base: CSVRow = { '#SnippetType': 'EShopItem' };
+
+  it('returns true with Phone', () => {
+    expect(computeWithContacts({ ...base, '#Phone': '+7 999 123 45 67' })).toBe(true);
+  });
+
+  it('returns true with Contacts', () => {
+    expect(computeWithContacts({ ...base, '#Contacts': 'info@shop.ru' })).toBe(true);
+  });
+
+  it('returns false with empty Phone', () => {
+    expect(computeWithContacts({ ...base, '#Phone': '' })).toBe(false);
+  });
+
+  it('returns false with whitespace Contacts', () => {
+    expect(computeWithContacts({ ...base, '#Contacts': '   ' })).toBe(false);
+  });
+
+  it('returns false without contact fields', () => {
+    expect(computeWithContacts(base)).toBe(false);
   });
 });
