@@ -189,7 +189,7 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
 /** Cache for imported component sets (setKey -> ComponentSetNode) */
 var componentSetCache = new Map<string, ComponentSetNode>();
 
-/** Timeout for component set import (ms) */
+/** Timeout for component set loading (ms) */
 var IMPORT_TIMEOUT = 15000;
 
 /**
