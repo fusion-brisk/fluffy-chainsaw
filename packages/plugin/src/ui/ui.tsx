@@ -20,7 +20,6 @@ import {
 } from '../types';
 import type { RelayPayload } from '../types';
 import {
-  applyFigmaTheme,
   sendMessageToPlugin,
 } from '../utils/index';
 import { buildImportSummary } from '../utils/format';
@@ -200,7 +199,6 @@ const App: React.FC = () => {
 
   // === INITIALIZATION ===
   useEffect(() => {
-    applyFigmaTheme();
     sendMessageToPlugin({ type: 'get-settings' });
     sendMessageToPlugin({ type: 'get-setup-skipped' });
     sendMessageToPlugin({ type: 'check-whats-new' });

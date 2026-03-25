@@ -14,7 +14,6 @@ export {
 // Plugin bridge utilities
 export {
   log,
-  applyFigmaTheme,
   sendMessageToPlugin,
   closePlugin,
   shuffleArray
