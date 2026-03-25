@@ -175,7 +175,9 @@ export type UIMessage =
   | { type: 'set-log-level'; level: number }  // 0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG
   | { type: 'get-log-level' }  // Response: 'log-level-loaded'
   // === UI RESIZE ===
-  | { type: 'resize-ui'; width: number; height: number };  // Resize plugin window
+  | { type: 'resize-ui'; width: number; height: number }  // Resize plugin window
+  // === PLATFORM ===
+  | { type: 'set-platform'; platform: 'desktop' | 'mobile' };  // UI platform info
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
@@ -253,7 +255,7 @@ export interface RelayPayload {
  * - 'processing': обработка данных
  * - 'success': импорт успешно завершён
  */
-export type AppState = 'setup' | 'checking' | 'ready' | 'confirming' | 'processing' | 'success';
+export type AppState = 'setup' | 'checking' | 'ready' | 'confirming' | 'processing' | 'success' | 'error';
 
 /**
  * Events that trigger state transitions in the FSM.
@@ -281,19 +283,20 @@ export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState
   checking:   { CONNECTION_SUCCESS: 'ready', CONNECTION_FAILURE: 'ready' },
   ready:      { DATA_RECEIVED: 'confirming', OPEN_PANEL: 'ready', CLOSE_PANEL: 'ready' },
   confirming: { CONFIRM_IMPORT: 'processing', CANCEL_IMPORT: 'ready' },
-  processing: { IMPORT_COMPLETE: 'success', IMPORT_FAILURE: 'ready' },
+  processing: { IMPORT_COMPLETE: 'success', IMPORT_FAILURE: 'error' },
   success:    { DISMISS_SUCCESS: 'ready' },
+  error:      { DISMISS_SUCCESS: 'ready' },
 };
 
 /**
- * Размеры окна плагина — 3 tier'а вместо отдельного размера для каждого state.
- * compact:  checking only (тонкая полоска)
- * standard: ready, confirming, processing, success
- * extended: guides, logs, inspector, whatsNew
+ * Размеры окна плагина — 3 tier'а.
+ * compact:  default — ready, checking, processing, success, error
+ * standard: confirming only (единственный момент решения)
+ * extended: onboarding, logs, inspector, settings, what's new
  */
 export const UI_SIZES = {
   compact:  { width: 320, height: 56 },
-  standard: { width: 400, height: 400 },
+  standard: { width: 320, height: 220 },
   extended: { width: 420, height: 520 },
 } as const;
 
@@ -303,10 +306,11 @@ export type UITier = keyof typeof UI_SIZES;
 export const STATE_TO_TIER: Record<string, UITier> = {
   setup: 'extended',
   checking: 'compact',
-  ready: 'standard',
+  ready: 'compact',
   confirming: 'standard',
-  processing: 'standard',
-  success: 'standard',
+  processing: 'compact',
+  success: 'compact',
+  error: 'compact',
   extensionGuide: 'extended',
   relayGuide: 'extended',
   logsViewer: 'extended',

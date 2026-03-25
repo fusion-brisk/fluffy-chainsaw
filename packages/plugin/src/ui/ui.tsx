@@ -1,16 +1,10 @@
 /**
  * Contentify Plugin — UI Entry Point (Relay-Only)
  *
- * Unified UI with minimal states:
- * - setup: First-run onboarding wizard (3-step setup flow)
- * - checking: Initial relay connection check
- * - ready: Ready to work (relay status shown as indicator)
- * - processing: Importing/processing data
- * - confirming: Data received, awaiting user confirmation
- * - success: Import completed successfully
- *
- * RELAY-ONLY ARCHITECTURE:
- * - Data flows: Extension → Relay Server → WebSocket/HTTP → Plugin UI → Sandbox
+ * Compact-first architecture:
+ * - compact (320×56): checking, ready, processing, success, error — via CompactStrip
+ * - standard (320×220): confirming only — ImportConfirmDialog
+ * - extended (420×520): setup, logs, inspector, whatsNew
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,7 +13,7 @@ import {
   CSVRow,
   AppState,
 } from '../types';
-import type { RelayPayload } from '../types';
+import type { RelayPayload, ProgressData } from '../types';
 import {
   sendMessageToPlugin,
 } from '../utils/index';
@@ -33,17 +27,14 @@ import { useMcpStatus } from './hooks/useMcpStatus';
 import { usePanelManager } from './hooks/usePanelManager';
 import { useResizeUI } from './hooks/useResizeUI';
 import { useImportFlow } from './hooks/useImportFlow';
+import { usePlatform } from './hooks/usePlatform';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
 
 // Components
-import { ReadyView } from './components/ReadyView';
-import { ProcessingView } from './components/ProcessingView';
-
+import { CompactStrip } from './components/CompactStrip';
 import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog } from './components/ImportConfirmDialog';
-import { SuccessView } from './components/SuccessView';
 import { SetupFlow } from './components/SetupFlow';
-import { StatusBar } from './components/StatusBar';
 import { UpdateBanner } from './components/UpdateBanner';
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
@@ -57,7 +48,6 @@ const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
 // Main App Component
 const App: React.FC = () => {
   // === CORE STATE ===
-  // Initial state is 'setup' — will transition to 'checking' once we know if setup was skipped
   const [appState, setAppState] = useState<AppState>('setup');
   const [relayUrl] = useState(() => {
     try {
@@ -75,14 +65,15 @@ const App: React.FC = () => {
   const [isFirstRun, setIsFirstRun] = useState(true);
   const [lastImportCount, setLastImportCount] = useState<number | undefined>();
   const [lastImportTime, setLastImportTime] = useState<number | undefined>();
-  // Tracks whether we've received the setup-skipped response from sandbox
   const [setupResolved, setSetupResolved] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const [progressData, setProgressData] = useState<ProgressData>({ current: 0, total: 0 });
 
   // === HOOKS ===
+  const platform = usePlatform();
   const resizeUI = useResizeUI();
   const panels = usePanelManager(appState, resizeUI);
 
-  // Ref for import flow actions — breaks circular dependency with relay hook
   const importFlowRef = useRef<import('./hooks/useImportFlow').ImportFlow>(null!);
 
   const markExtensionInstalled = useCallback(() => {
@@ -91,7 +82,6 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
-  /** Called when SetupFlow completes as the primary 'setup' state view */
   const handleSetupComplete = useCallback(() => {
     markExtensionInstalled();
     setAppState('checking');
@@ -128,7 +118,6 @@ const App: React.FC = () => {
   const importFlow = useImportFlow(appState, setAppState, resizeUI, relay);
   importFlowRef.current = importFlow;
 
-  // Derived from relay hook — no separate state needed
   const relayConnected = relay.connected;
 
   const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
@@ -147,13 +136,11 @@ const App: React.FC = () => {
         if (skipped) {
           setExtensionInstalled(true);
           setIsFirstRun(false);
-          // Skip setup wizard — go straight to checking → ready
           if (appState === 'setup') {
             setAppState('checking');
             resizeUI('checking');
           }
         } else {
-          // First run — stay on 'setup', resize to extended
           if (appState === 'setup') {
             resizeUI('setup');
           }
@@ -174,6 +161,7 @@ const App: React.FC = () => {
         setHasSelection(sel);
       },
       onProgress: (progress) => {
+        setProgressData(progress);
         if (appState === 'processing' && progress.operationType) {
           importFlow.updateStage(progress.operationType);
         }
@@ -193,7 +181,8 @@ const App: React.FC = () => {
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
       },
-      onError: () => {
+      onError: (message) => {
+        setErrorMessage(message || 'Ошибка импорта');
         importFlow.clearPendingEntry();
         importFlow.finishProcessing('error');
       },
@@ -222,7 +211,7 @@ const App: React.FC = () => {
         setInspectorData(components);
       },
     },
-    processingStartTime: null, // processingStartTimeRef is now internal to useImportFlow
+    processingStartTime: null,
   });
 
   // === INITIALIZATION ===
@@ -252,6 +241,16 @@ const App: React.FC = () => {
     }
   }, [appState, relay.connected, resizeUI]);
 
+  // === COMPACT STRIP RESIZE (for menu) ===
+  const handleRequestResize = useCallback((height: number) => {
+    sendMessageToPlugin({ type: 'resize-ui', width: 320, height });
+  }, []);
+
+  // Send platform info to sandbox (for future use)
+  useEffect(() => {
+    sendMessageToPlugin({ type: 'set-platform', platform });
+  }, [platform]);
+
   // === PANEL HANDLERS ===
   const handleShowSetup = useCallback(() => panels.openPanel('setup'), [panels]);
   const handleCloseSetup = useCallback(() => panels.closePanel(), [panels]);
@@ -263,6 +262,36 @@ const App: React.FC = () => {
   const handleClearLogs = useCallback(() => {
     setLogMessages([]);
   }, []);
+
+  // === MENU ACTION HANDLER ===
+  const handleMenuAction = useCallback((action: string) => {
+    switch (action) {
+      case 'logs':
+        panels.openPanel('logs');
+        break;
+      case 'inspector':
+        panels.openPanel('inspector');
+        break;
+      case 'setup':
+        panels.openPanel('setup');
+        break;
+      case 'whatsNew':
+        setShowWhatsNew(true);
+        // TODO: could open whatsNew panel
+        break;
+      case 'clearQueue':
+        importFlow.clearQueue();
+        break;
+      case 'dismiss-success':
+        importFlow.completeSuccess();
+        break;
+      case 'dismiss-error':
+        setErrorMessage(undefined);
+        setAppState('ready');
+        resizeUI('ready');
+        break;
+    }
+  }, [panels, importFlow, setAppState, resizeUI]);
 
   // === KEYBOARD SHORTCUTS ===
   useEffect(() => {
@@ -280,37 +309,19 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [panels]);
 
-  // === VIEW TRANSITIONS ===
-  const prevStateRef = useRef(appState);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+  // === COMPACT STRIP MODE ===
+  const compactStripMode = appState === 'error' ? 'error'
+    : appState === 'checking' ? 'checking'
+    : appState === 'processing' ? 'processing'
+    : appState === 'success' ? 'success'
+    : 'ready';
 
-  useEffect(() => {
-    if (prevStateRef.current !== appState) {
-      setIsTransitioning(true);
-      const timer = setTimeout(() => {
-        setIsTransitioning(false);
-        prevStateRef.current = appState;
-      }, 200); // --duration-normal
-      return () => clearTimeout(timer);
-    }
-  }, [appState]);
+  const isCompactState = ['checking', 'ready', 'processing', 'success', 'error'].includes(appState);
 
   // === RENDER ===
-  const showMainContent = !panels.isPanelOpen;
-
   return (
     <div className="glass-app">
-      {/* Update banners — visible when main content is shown (not during setup or checking) */}
-      {appState !== 'checking' && appState !== 'setup' && showMainContent && (
-        <UpdateBanner
-          relayUpdate={versionCheck.relayUpdate}
-          extensionUpdate={versionCheck.extensionUpdate}
-          onDismissRelay={versionCheck.dismissRelay}
-          onDismissExtension={versionCheck.dismissExtension}
-        />
-      )}
-
-      {/* Main content — mutually exclusive via appState */}
+      {/* Setup flow — initial or as panel */}
       {appState === 'setup' && setupResolved && (
         <SetupFlow
           relayConnected={relayConnected}
@@ -320,69 +331,52 @@ const App: React.FC = () => {
         />
       )}
 
-      {appState === 'checking' && (
-        <div className="checking-view">
-          <div className="checking-view-spinner" />
-          <span className="checking-view-text">Подключение...</span>
-        </div>
+      {/* Compact strip — checking, ready, processing, success, error */}
+      {isCompactState && !panels.isPanelOpen && (
+        <CompactStrip
+          mode={compactStripMode}
+          connected={relayConnected && extensionInstalled}
+          current={progressData.current}
+          total={progressData.total}
+          count={importFlow.lastStats?.processedInstances || importFlow.lastStats?.totalInstances}
+          duration={importFlow.lastStats ? undefined : undefined}
+          errorMessage={errorMessage}
+          lastQuery={importFlow.lastQuery}
+          lastImportCount={lastImportCount}
+          lastImportTime={lastImportTime}
+          hasPendingData={importFlow.pending !== null}
+          platform={platform}
+          onRequestResize={handleRequestResize}
+          onMenuAction={handleMenuAction}
+        />
       )}
 
-      {showMainContent && (
-        <div className={`view-container ${isTransitioning ? 'view-enter' : 'view-enter-active'}`}>
-          {appState === 'ready' && (
-            <ReadyView
-              lastQuery={importFlow.lastQuery}
-              lastImportCount={lastImportCount}
-              lastImportTime={lastImportTime}
-              relayConnected={relayConnected}
-              isFirstTime={isFirstRun}
-              hasSelection={hasSelection}
-              showWhatsNew={showWhatsNew}
-              currentVersion={currentVersion}
-              onShowExtensionGuide={handleShowSetup}
-              onReimport={relayConnected ? () => relay.reimport() : undefined}
-              onFillSelection={relayConnected ? () => relay.reimport() : undefined}
-              onReset={importFlow.clearQueue}
-              onDismissOnboarding={handleDismissOnboarding}
-              onDismissWhatsNew={() => {
-                setShowWhatsNew(false);
-                sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
-              }}
-            />
-          )}
-
-          {appState === 'confirming' && importFlow.pending && (
-            <ImportConfirmDialog
-              query={importFlow.info.query}
-              itemCount={importFlow.info.itemCount}
-              source={importFlow.info.source}
-              summary={importFlow.info.summary}
-              hasSelection={hasSelection}
-              onConfirm={importFlow.confirm}
-              onCancel={importFlow.cancel}
-            />
-          )}
-
-          {appState === 'processing' && (
-            <ProcessingView
-              importInfo={importFlow.info}
-              onCancel={importFlow.handleCancel}
-            />
-          )}
-
-          {appState === 'success' && (
-            <SuccessView
-              query={importFlow.info.query}
-              stats={importFlow.lastStats}
-              onComplete={importFlow.completeSuccess}
-              onShowLogs={handleShowLogViewer}
-            />
-          )}
-        </div>
+      {/* Confirming — standard size dialog */}
+      {appState === 'confirming' && !panels.isPanelOpen && importFlow.pending && (
+        <ImportConfirmDialog
+          query={importFlow.info.query}
+          itemCount={importFlow.info.itemCount}
+          source={importFlow.info.source}
+          summary={importFlow.info.summary}
+          hasSelection={hasSelection}
+          onConfirm={importFlow.confirm}
+          onCancel={importFlow.cancel}
+          onClearQueue={importFlow.clearQueue}
+        />
       )}
 
-      {/* Confetti — hidden during panel overlays */}
-      {showMainContent && (
+      {/* Update banners — only in compact ready state */}
+      {appState === 'ready' && !panels.isPanelOpen && (
+        <UpdateBanner
+          relayUpdate={versionCheck.relayUpdate}
+          extensionUpdate={versionCheck.extensionUpdate}
+          onDismissRelay={versionCheck.dismissRelay}
+          onDismissExtension={versionCheck.dismissExtension}
+        />
+      )}
+
+      {/* Confetti — for first-run success */}
+      {!panels.isPanelOpen && (
         <Confetti
           isActive={importFlow.confettiActive}
           isFirstRun={isFirstRun}
@@ -410,21 +404,6 @@ const App: React.FC = () => {
           messages={logMessages}
           onClose={handleCloseLogViewer}
           onClear={handleClearLogs}
-        />
-      )}
-
-      {/* StatusBar — fixed bottom, visible in all states except setup and checking */}
-      {appState !== 'checking' && appState !== 'setup' && (
-        <StatusBar
-          relayConnected={relayConnected}
-          extensionInstalled={extensionInstalled}
-          mcpConnected={mcpStatus.connected}
-          hasPendingData={importFlow.pending !== null}
-          onRelayClick={handleShowSetup}
-          onExtensionClick={handleShowSetup}
-          onInspectorClick={handleShowInspector}
-          onLogsClick={handleShowLogViewer}
-          onClearQueue={importFlow.clearQueue}
         />
       )}
     </div>
