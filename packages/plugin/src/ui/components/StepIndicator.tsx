@@ -19,7 +19,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = memo(({
   completedSteps,
 }) => {
   return (
-    <div className="step-indicator" role="navigation" aria-label="Setup progress">
+    <div className="step-indicator" role="navigation" aria-label="Прогресс настройки">
       {steps.map((step, index) => {
         const isCompleted = completedSteps.has(index);
         const isCurrent = index === currentStep;
@@ -44,7 +44,7 @@ export const StepIndicator: React.FC<StepIndicatorProps> = memo(({
             <div
               className={dotClass}
               title={step.title}
-              aria-label={`${step.title}: ${isCompleted ? 'completed' : isCurrent ? 'current' : 'upcoming'}`}
+              aria-label={`${step.title}: ${isCompleted ? 'завершено' : isCurrent ? 'текущий' : 'впереди'}`}
             />
           </React.Fragment>
         );
