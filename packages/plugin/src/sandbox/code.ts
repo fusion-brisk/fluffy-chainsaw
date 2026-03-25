@@ -11,6 +11,7 @@ import { Logger, LogLevel } from '../logger';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { handleSimpleMessage, CSVRow } from './plugin';
 import { createSerpPage } from './page-builder';
+import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
 import { handleBridgeMessage, fetchAndSendVariablesData, debugLog } from './mcp-bridge/bridge-handlers';
@@ -541,8 +542,7 @@ figma.ui.onmessage = async (msg) => {
       });
 
       try {
-        var feedModule = await import('./feed-page-builder');
-        var feedResult = await feedModule.createFeedPage(feedCards, {
+        var feedResult = await createFeedPage(feedCards, {
           platform: feedPayload.platform || 'desktop'
         });
 
