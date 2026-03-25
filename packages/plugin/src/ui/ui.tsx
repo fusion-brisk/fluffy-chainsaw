@@ -2,6 +2,7 @@
  * Contentify Plugin — UI Entry Point (Relay-Only)
  *
  * Unified UI with minimal states:
+ * - setup: First-run onboarding wizard (3-step setup flow)
  * - checking: Initial relay connection check
  * - ready: Ready to work (relay status shown as indicator)
  * - processing: Importing/processing data
@@ -17,14 +18,9 @@ import ReactDOM from 'react-dom/client';
 import {
   CSVRow,
   AppState,
-  ImportInfo,
-  ProcessingStats,
-  UI_SIZES,
-  STATE_TO_TIER,
 } from '../types';
 import type { RelayPayload } from '../types';
 import {
-  applyFigmaTheme,
   sendMessageToPlugin,
 } from '../utils/index';
 import { buildImportSummary } from '../utils/format';
@@ -34,6 +30,9 @@ import { useRelayConnection } from './hooks/useRelayConnection';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
 import { useMcpStatus } from './hooks/useMcpStatus';
+import { usePanelManager } from './hooks/usePanelManager';
+import { useResizeUI } from './hooks/useResizeUI';
+import { useImportFlow } from './hooks/useImportFlow';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
 
 // Components
@@ -41,13 +40,11 @@ import { ReadyView } from './components/ReadyView';
 import { ProcessingView } from './components/ProcessingView';
 
 import { Confetti } from './components/Confetti';
-import { ImportConfirmDialog, ImportOptions } from './components/ImportConfirmDialog';
+import { ImportConfirmDialog } from './components/ImportConfirmDialog';
 import { SuccessView } from './components/SuccessView';
 import { SetupFlow } from './components/SetupFlow';
 import { StatusBar } from './components/StatusBar';
 import { UpdateBanner } from './components/UpdateBanner';
-// SetupWizard removed — replaced by SetupFlow
-// WhatsNewDialog removed — replaced by inline WhatsNewBanner in ReadyView
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
@@ -57,27 +54,11 @@ import { PORTS } from '../config';
 // Default relay URL
 const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
 
-// Minimum processing display time (ms) for smooth UX
-const MIN_PROCESSING_TIME = 800;
-
-// Resize animation duration (ms)
-const RESIZE_ANIMATION_DURATION = 400;
-
-// Delay before resize starts (ms) - allows content to prepare
-const RESIZE_DELAY = 50;
-
-// Pending import data structure
-interface PendingImport {
-  rows: CSVRow[];
-  query: string;
-  source: string;
-  entryId?: string;
-}
-
 // Main App Component
 const App: React.FC = () => {
-  // === STATE ===
-  const [appState, setAppState] = useState<AppState>('checking');
+  // === CORE STATE ===
+  // Initial state is 'setup' — will transition to 'checking' once we know if setup was skipped
+  const [appState, setAppState] = useState<AppState>('setup');
   const [relayUrl] = useState(() => {
     try {
       return localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
@@ -85,162 +66,47 @@ const App: React.FC = () => {
       return DEFAULT_RELAY_URL;
     }
   });
-  const [lastQuery, setLastQuery] = useState<string | undefined>();
-  const [importInfo, setImportInfo] = useState<ImportInfo>({
-    query: '',
-    itemCount: 0
-  });
-  const [confettiActive, setConfettiActive] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
-  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
-  const [showLogViewer, setShowLogViewer] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
-  const [showInspector, setShowInspector] = useState(false);
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>([]);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
-  const [lastStats, setLastStats] = useState<ProcessingStats | null>(null);
-  const [relayConnected, setRelayConnected] = useState(false);
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
-  const previousStateRef = useRef<AppState | null>(null);
+  const [lastImportCount, setLastImportCount] = useState<number | undefined>();
+  const [lastImportTime, setLastImportTime] = useState<number | undefined>();
+  // Tracks whether we've received the setup-skipped response from sandbox
+  const [setupResolved, setSetupResolved] = useState(false);
 
-  // Processing refs
-  const processingStartTimeRef = useRef<number | null>(null);
-  const currentSizeRef = useRef<{ width: number; height: number }>({ width: UI_SIZES.compact.width, height: UI_SIZES.compact.height });
-  const resizeAnimationRef = useRef<number | null>(null);
-  const isFirstResizeRef = useRef(true);
-  const isMountedRef = useRef(true);
+  // === HOOKS ===
+  const resizeUI = useResizeUI();
+  const panels = usePanelManager(appState, resizeUI);
 
-  // Relay payload ref for loading
-  const relayPayloadRef = useRef<RelayPayload | null>(null);
-  const pendingEntryIdRef = useRef<string | null>(null);
+  // Ref for import flow actions — breaks circular dependency with relay hook
+  const importFlowRef = useRef<import('./hooks/useImportFlow').ImportFlow>(null!);
 
-  // === ANIMATED RESIZE HELPER ===
-  const resizeUI = useCallback((state: string) => {
-    const tier = STATE_TO_TIER[state] || 'standard';
-    const targetSize = UI_SIZES[tier];
-    const currentSize = currentSizeRef.current;
-
-    if (resizeAnimationRef.current) {
-      cancelAnimationFrame(resizeAnimationRef.current);
-      resizeAnimationRef.current = null;
-    }
-
-    if (currentSize.width === targetSize.width && currentSize.height === targetSize.height) {
-      return;
-    }
-
-    if (isFirstResizeRef.current) {
-      isFirstResizeRef.current = false;
-      currentSizeRef.current = { width: targetSize.width, height: targetSize.height };
-      sendMessageToPlugin({ type: 'resize-ui', width: targetSize.width, height: targetSize.height });
-      return;
-    }
-
-    setTimeout(() => {
-      const startWidth = currentSizeRef.current.width;
-      const startHeight = currentSizeRef.current.height;
-      const deltaWidth = targetSize.width - startWidth;
-      const deltaHeight = targetSize.height - startHeight;
-      const startTime = performance.now();
-
-      const easeInOutQuad = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-
-      const animate = (currentTime: number) => {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / RESIZE_ANIMATION_DURATION, 1);
-        const easedProgress = easeInOutQuad(progress);
-
-        const newWidth = Math.round(startWidth + deltaWidth * easedProgress);
-        const newHeight = Math.round(startHeight + deltaHeight * easedProgress);
-
-        currentSizeRef.current = { width: newWidth, height: newHeight };
-        sendMessageToPlugin({ type: 'resize-ui', width: newWidth, height: newHeight });
-
-        if (progress < 1) {
-          resizeAnimationRef.current = requestAnimationFrame(animate);
-        } else {
-          resizeAnimationRef.current = null;
-        }
-      };
-
-      resizeAnimationRef.current = requestAnimationFrame(animate);
-    }, RESIZE_DELAY);
-  }, []);
-
-  // === FINISH PROCESSING WITH MIN DELAY ===
-  const finishProcessing = useCallback((type: 'success' | 'error' | 'cancel') => {
-    const elapsed = processingStartTimeRef.current
-      ? Date.now() - processingStartTimeRef.current
-      : MIN_PROCESSING_TIME;
-    const remainingDelay = Math.max(0, MIN_PROCESSING_TIME - elapsed);
-
-    setTimeout(() => {
-      if (!isMountedRef.current) return;
-
-      processingStartTimeRef.current = null;
-
-      if (type === 'success') {
-        setConfettiActive(true);
-        setAppState('success');
-        resizeUI('success');
-      } else if (type === 'error') {
-        setAppState('ready');
-        resizeUI('ready');
-      } else {
-        setAppState('ready');
-        resizeUI('ready');
-      }
-    }, remainingDelay);
-  }, [resizeUI]);
-
-  // === MARK EXTENSION AS INSTALLED ===
   const markExtensionInstalled = useCallback(() => {
     setExtensionInstalled(true);
     setIsFirstRun(false);
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
-  // === DISMISS ONBOARDING ===
-  const handleDismissOnboarding = useCallback(() => {
-    setIsFirstRun(false);
-    sendMessageToPlugin({ type: 'save-setup-skipped' });
-  }, []);
+  /** Called when SetupFlow completes as the primary 'setup' state view */
+  const handleSetupComplete = useCallback(() => {
+    markExtensionInstalled();
+    setAppState('checking');
+    resizeUI('checking');
+  }, [markExtensionInstalled, resizeUI]);
 
-  // === SET CONFIRMING STATE (shared by relay) ===
-  const showConfirmation = useCallback((data: {
-    rows: CSVRow[];
-    query: string;
-    source: string;
-    entryId?: string;
-  }) => {
-    const totalCount = data.rows.length;
-    setPendingImport({
-      rows: data.rows,
-      query: data.query || 'Импорт данных',
-      source: data.source,
-      entryId: data.entryId,
-    });
-    setImportInfo({
-      query: data.query || 'Импорт данных',
-      itemCount: totalCount,
-      source: data.source,
-    });
-    setAppState('confirming');
-    resizeUI('confirming');
-  }, [resizeUI]);
-
-  // === RELAY CONNECTION HOOK ===
   const relay = useRelayConnection({
     relayUrl,
-    enabled: appState !== 'processing' && appState !== 'confirming',
+    enabled: appState !== 'setup' && appState !== 'processing' && appState !== 'confirming',
     onDataReceived: useCallback((data: RelayDataEvent) => {
       if (!extensionInstalled) {
         markExtensionInstalled();
       }
-      relayPayloadRef.current = data.payload as RelayPayload | null;
+      const flow = importFlowRef.current;
+      flow.setRelayPayload(data.payload as RelayPayload | null);
 
       const totalCount = data.rows.length + data.wizardCount;
       const summary = buildImportSummary({
@@ -248,46 +114,57 @@ const App: React.FC = () => {
         wizardCount: data.wizardCount,
         payload: data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null,
       });
-      showConfirmation({
+      flow.showConfirmation({
         rows: data.rows,
         query: data.query,
         source: 'Яндекс',
         entryId: data.entryId,
       });
-      setImportInfo(prev => ({ ...prev, itemCount: totalCount, summary }));
-    }, [extensionInstalled, markExtensionInstalled, showConfirmation]),
-    onConnectionChange: useCallback((connected: boolean) => {
-      setRelayConnected(connected);
-    }, []),
+      flow.updateInfo({ itemCount: totalCount, summary });
+    }, [extensionInstalled, markExtensionInstalled]),
+    onConnectionChange: useCallback(() => {}, []),
   });
 
-  // === VERSION CHECK HOOK ===
-  const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
+  const importFlow = useImportFlow(appState, setAppState, resizeUI, relay);
+  importFlowRef.current = importFlow;
 
-  // === MCP STATUS HOOK ===
+  // Derived from relay hook — no separate state needed
+  const relayConnected = relay.connected;
+
+  const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
   const mcpStatus = useMcpStatus();
 
-  // === PLUGIN MESSAGES HOOK ===
+  const handleDismissOnboarding = useCallback(() => {
+    setIsFirstRun(false);
+    sendMessageToPlugin({ type: 'save-setup-skipped' });
+  }, []);
+
+  // === PLUGIN MESSAGES ===
   usePluginMessages({
     handlers: {
       onSetupSkippedLoaded: (skipped) => {
+        setSetupResolved(true);
         if (skipped) {
           setExtensionInstalled(true);
           setIsFirstRun(false);
+          // Skip setup wizard — go straight to checking → ready
+          if (appState === 'setup') {
+            setAppState('checking');
+            resizeUI('checking');
+          }
+        } else {
+          // First run — stay on 'setup', resize to extended
+          if (appState === 'setup') {
+            resizeUI('setup');
+          }
         }
       },
       onLog: (message) => {
-        // Determine level from message content heuristic
         let level = LogLevel.SUMMARY;
         if (message.startsWith('[') && message.includes(']')) {
-          // Source-tagged messages are typically debug
           level = LogLevel.DEBUG;
         }
-        const entry: LogMessage = {
-          level,
-          message,
-          timestamp: Date.now(),
-        };
+        const entry: LogMessage = { level, message, timestamp: Date.now() };
         setLogMessages(prev => {
           const next = [...prev, entry];
           return next.length > 500 ? next.slice(-500) : next;
@@ -298,36 +175,31 @@ const App: React.FC = () => {
       },
       onProgress: (progress) => {
         if (appState === 'processing' && progress.operationType) {
-          setImportInfo(prev => ({ ...prev, stage: progress.operationType }));
+          importFlow.updateStage(progress.operationType);
         }
       },
       onStats: (stats) => {
-        setLastStats(stats);
+        importFlow.setStats(stats);
       },
       onDone: () => {
-        // Acknowledge relay data after successful load
-        if (pendingEntryIdRef.current) {
-          const entryIdToAck = pendingEntryIdRef.current;
-          pendingEntryIdRef.current = null;
-          relay.ackData(entryIdToAck);
-        }
-        finishProcessing('success');
+        setLastImportCount(importFlow.info.itemCount || undefined);
+        setLastImportTime(Date.now());
+        importFlow.ackPendingEntry();
+        importFlow.finishProcessing('success');
       },
       onRelayPayloadApplied: () => {
-        if (pendingEntryIdRef.current) {
-          const entryIdToAck = pendingEntryIdRef.current;
-          pendingEntryIdRef.current = null;
-          relay.ackData(entryIdToAck);
-        }
-        finishProcessing('success');
+        setLastImportCount(importFlow.info.itemCount || undefined);
+        setLastImportTime(Date.now());
+        importFlow.ackPendingEntry();
+        importFlow.finishProcessing('success');
       },
       onError: () => {
-        pendingEntryIdRef.current = null;
-        finishProcessing('error');
+        importFlow.clearPendingEntry();
+        importFlow.finishProcessing('error');
       },
       onImportCancelled: () => {
-        pendingEntryIdRef.current = null;
-        finishProcessing('cancel');
+        importFlow.clearPendingEntry();
+        importFlow.finishProcessing('cancel');
       },
       onWhatsNewStatus: (data) => {
         if (data.shouldShow) {
@@ -350,24 +222,19 @@ const App: React.FC = () => {
         setInspectorData(components);
       },
     },
-    processingStartTime: processingStartTimeRef.current,
+    processingStartTime: null, // processingStartTimeRef is now internal to useImportFlow
   });
 
   // === INITIALIZATION ===
   useEffect(() => {
-    isMountedRef.current = true;
-    applyFigmaTheme();
     sendMessageToPlugin({ type: 'get-settings' });
     sendMessageToPlugin({ type: 'get-setup-skipped' });
     sendMessageToPlugin({ type: 'check-whats-new' });
-
-    return () => { isMountedRef.current = false; };
   }, []);
 
-  // Transition from checking to ready once relay connection is resolved
+  // Transition from checking to ready
   useEffect(() => {
     if (appState === 'checking') {
-      // Give relay hook time to do initial check, then move to ready
       const timer = setTimeout(() => {
         if (appState === 'checking') {
           setAppState('ready');
@@ -378,120 +245,20 @@ const App: React.FC = () => {
     }
   }, [appState, resizeUI]);
 
-  // Move to ready or confirming once relay initial check completes
   useEffect(() => {
     if (appState === 'checking' && relay.connected) {
-      setRelayConnected(true);
-      // If data was received, state is already 'confirming' via onDataReceived
-      if (appState === 'checking') {
-        setAppState('ready');
-        resizeUI('ready');
-      }
+      setAppState('ready');
+      resizeUI('ready');
     }
   }, [appState, relay.connected, resizeUI]);
 
-  // === HANDLE SUCCESS VIEW COMPLETE ===
-  const handleSuccessComplete = useCallback(() => {
-    setAppState('ready');
-    resizeUI('ready');
-  }, [resizeUI]);
-
-  // === CONFIRM IMPORT HANDLER ===
-  const handleConfirmImport = useCallback((options: ImportOptions) => {
-    if (!pendingImport) return;
-
-    const { mode, includeScreenshots } = options;
-    const { rows, query, entryId } = pendingImport;
-    const scope = mode === 'selection' ? 'selection' : 'page';
-
-    // Store entryId for acknowledgment after successful load
-    if (entryId) {
-      pendingEntryIdRef.current = entryId;
-
-      // Safety timeout: if code.ts never sends 'done' within 30s, ack
-      const safetyEntryId = entryId;
-      setTimeout(() => {
-        if (pendingEntryIdRef.current === safetyEntryId) {
-          pendingEntryIdRef.current = null;
-          relay.ackData(safetyEntryId);
-        }
-      }, 30000);
-    }
-
-    setLastQuery(query);
-    setImportInfo({
-      query,
-      itemCount: rows.length,
-      source: pendingImport.source,
-      stage: 'components'
-    });
-    setAppState('processing');
-    resizeUI('processing');
-    processingStartTimeRef.current = Date.now();
-
-    if (relayPayloadRef.current) {
-      sendMessageToPlugin({
-        type: 'apply-relay-payload',
-        payload: relayPayloadRef.current,
-        scope,
-        includeScreenshots
-      });
-      relayPayloadRef.current = null;
-    }
-
-    setPendingImport(null);
-  }, [pendingImport, resizeUI, relay]);
-
-  const handleCancelImport = useCallback(() => {
-    // Block this entry temporarily to prevent re-showing
-    const cancelledEntryId = pendingImport?.entryId;
-    if (cancelledEntryId) {
-      relay.blockEntry(cancelledEntryId);
-    }
-
-    setPendingImport(null);
-    relayPayloadRef.current = null;
-    pendingEntryIdRef.current = null;
-    setAppState('ready');
-    resizeUI('ready');
-  }, [resizeUI, relay, pendingImport]);
-
-  const handleClearQueue = useCallback(() => {
-    relay.clearQueue();
-    setPendingImport(null);
-    relayPayloadRef.current = null;
-    pendingEntryIdRef.current = null;
-    setAppState('ready');
-    resizeUI('ready');
-  }, [resizeUI, relay]);
-
-  // === SETUP FLOW HANDLERS ===
-  const handleShowSetup = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowSetup(true);
-    resizeUI('extensionGuide');
-  }, [appState, resizeUI]);
-
-  const handleCloseSetup = useCallback(() => {
-    setShowSetup(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
-
-  // === LOG VIEWER HANDLERS ===
-  const handleShowLogViewer = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowLogViewer(true);
-    resizeUI('logsViewer');
-  }, [appState, resizeUI]);
-
-  const handleCloseLogViewer = useCallback(() => {
-    setShowLogViewer(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
+  // === PANEL HANDLERS ===
+  const handleShowSetup = useCallback(() => panels.openPanel('setup'), [panels]);
+  const handleCloseSetup = useCallback(() => panels.closePanel(), [panels]);
+  const handleShowLogViewer = useCallback(() => panels.openPanel('logs'), [panels]);
+  const handleCloseLogViewer = useCallback(() => panels.closePanel(), [panels]);
+  const handleShowInspector = useCallback(() => panels.openPanel('inspector'), [panels]);
+  const handleCloseInspector = useCallback(() => panels.closePanel(), [panels]);
 
   const handleClearLogs = useCallback(() => {
     setLogMessages([]);
@@ -500,65 +267,41 @@ const App: React.FC = () => {
   // === KEYBOARD SHORTCUTS ===
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Shift+L → toggle log viewer
       if (e.ctrlKey && e.shiftKey && e.key === 'L') {
         e.preventDefault();
-        if (showLogViewer) {
-          handleCloseLogViewer();
+        if (panels.activePanel === 'logs') {
+          panels.closePanel();
         } else {
-          handleShowLogViewer();
+          panels.openPanel('logs');
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showLogViewer, handleCloseLogViewer, handleShowLogViewer]);
+  }, [panels]);
 
-  // === INSPECTOR HANDLERS ===
-  const handleShowInspector = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowInspector(true);
-    resizeUI('inspector');
-  }, [appState, resizeUI]);
+  // === VIEW TRANSITIONS ===
+  const prevStateRef = useRef(appState);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
-  const handleCloseInspector = useCallback(() => {
-    setShowInspector(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
-
-  const handleCancel = useCallback(() => {
-    // Cancel is a no-op for relay imports (they complete atomically)
-  }, []);
-
-  const handleConfettiComplete = useCallback(() => {
-    setConfettiActive(false);
-  }, []);
+  useEffect(() => {
+    if (prevStateRef.current !== appState) {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+        prevStateRef.current = appState;
+      }, 200); // --duration-normal
+      return () => clearTimeout(timer);
+    }
+  }, [appState]);
 
   // === RENDER ===
-  const needsSetup = !extensionInstalled;
+  const showMainContent = !panels.isPanelOpen;
 
   return (
-    <div
-      className="glass-app"
-    >
-      {/* StatusBar — always visible except during checking, guides, log viewer, or inspector */}
-      {appState !== 'checking' && !showSetup && !showLogViewer && !showInspector && (
-        <StatusBar
-          relayConnected={relayConnected}
-          extensionInstalled={extensionInstalled}
-          mcpConnected={mcpStatus.connected}
-          hasPendingData={pendingImport !== null}
-          onRelayClick={handleShowSetup}
-          onExtensionClick={handleShowSetup}
-          onInspectorClick={handleShowInspector}
-          onClearQueue={handleClearQueue}
-        />
-      )}
-
-      {/* Update notification banners */}
-      {appState !== 'checking' && !showSetup && !showLogViewer && !showInspector && (
+    <div className="glass-app">
+      {/* Update banners — visible when main content is shown (not during setup or checking) */}
+      {appState !== 'checking' && appState !== 'setup' && showMainContent && (
         <UpdateBanner
           relayUpdate={versionCheck.relayUpdate}
           extensionUpdate={versionCheck.extensionUpdate}
@@ -567,7 +310,16 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* Checking state */}
+      {/* Main content — mutually exclusive via appState */}
+      {appState === 'setup' && setupResolved && (
+        <SetupFlow
+          relayConnected={relayConnected}
+          extensionInstalled={extensionInstalled}
+          onComplete={handleSetupComplete}
+          onBack={handleSetupComplete}
+        />
+      )}
+
       {appState === 'checking' && (
         <div className="checking-view">
           <div className="checking-view-spinner" />
@@ -575,74 +327,71 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Ready state */}
-      {appState === 'ready' && !showSetup && !showLogViewer && !showInspector && (
-        needsSetup ? (
-          <SetupFlow
-            relayConnected={relayConnected}
-            extensionInstalled={extensionInstalled}
-            onComplete={markExtensionInstalled}
-            onBack={markExtensionInstalled}
-          />
-        ) : (
-          <ReadyView
-            lastQuery={lastQuery}
-            relayConnected={relayConnected}
-            isFirstTime={isFirstRun}
-            showWhatsNew={showWhatsNew}
-            currentVersion={currentVersion}
-            onShowExtensionGuide={handleShowSetup}
-            onReimport={relayConnected ? () => relay.reimport() : undefined}
-            onDismissOnboarding={handleDismissOnboarding}
-            onDismissWhatsNew={() => {
-              setShowWhatsNew(false);
-              sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
-            }}
-          />
-        )
+      {showMainContent && (
+        <div className={`view-container ${isTransitioning ? 'view-enter' : 'view-enter-active'}`}>
+          {appState === 'ready' && (
+            <ReadyView
+              lastQuery={importFlow.lastQuery}
+              lastImportCount={lastImportCount}
+              lastImportTime={lastImportTime}
+              relayConnected={relayConnected}
+              isFirstTime={isFirstRun}
+              hasSelection={hasSelection}
+              showWhatsNew={showWhatsNew}
+              currentVersion={currentVersion}
+              onShowExtensionGuide={handleShowSetup}
+              onReimport={relayConnected ? () => relay.reimport() : undefined}
+              onFillSelection={relayConnected ? () => relay.reimport() : undefined}
+              onReset={importFlow.clearQueue}
+              onDismissOnboarding={handleDismissOnboarding}
+              onDismissWhatsNew={() => {
+                setShowWhatsNew(false);
+                sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
+              }}
+            />
+          )}
+
+          {appState === 'confirming' && importFlow.pending && (
+            <ImportConfirmDialog
+              query={importFlow.info.query}
+              itemCount={importFlow.info.itemCount}
+              source={importFlow.info.source}
+              summary={importFlow.info.summary}
+              hasSelection={hasSelection}
+              onConfirm={importFlow.confirm}
+              onCancel={importFlow.cancel}
+            />
+          )}
+
+          {appState === 'processing' && (
+            <ProcessingView
+              importInfo={importFlow.info}
+              onCancel={importFlow.handleCancel}
+            />
+          )}
+
+          {appState === 'success' && (
+            <SuccessView
+              query={importFlow.info.query}
+              stats={importFlow.lastStats}
+              onComplete={importFlow.completeSuccess}
+              onShowLogs={handleShowLogViewer}
+            />
+          )}
+        </div>
       )}
 
-      {/* Confirming state */}
-      {appState === 'confirming' && pendingImport && !showSetup && !showLogViewer && !showInspector && (
-        <ImportConfirmDialog
-          query={importInfo.query}
-          itemCount={importInfo.itemCount}
-          source={importInfo.source}
-          summary={importInfo.summary}
-          hasSelection={hasSelection}
-          onConfirm={handleConfirmImport}
-          onCancel={handleCancelImport}
-        />
-      )}
-
-      {/* Processing state */}
-      {appState === 'processing' && !showSetup && !showLogViewer && !showInspector && (
-        <ProcessingView
-          importInfo={importInfo}
-          onCancel={handleCancel}
-        />
-      )}
-
-      {/* Success state */}
-      {appState === 'success' && !showSetup && !showLogViewer && !showInspector && (
-        <SuccessView
-          query={importInfo.query}
-          stats={lastStats}
-          onComplete={handleSuccessComplete}
-          onShowLogs={handleShowLogViewer}
-        />
-      )}
-
-      {/* Confetti celebration (success only) */}
-      {!showLogViewer && !showInspector && (
+      {/* Confetti — hidden during panel overlays */}
+      {showMainContent && (
         <Confetti
-          isActive={confettiActive}
-          onComplete={handleConfettiComplete}
+          isActive={importFlow.confettiActive}
+          isFirstRun={isFirstRun}
+          onComplete={importFlow.handleConfettiComplete}
         />
       )}
 
-      {/* Unified setup flow (relay + extension) */}
-      {showSetup && (
+      {/* Panel overlays — only one at a time */}
+      {panels.activePanel === 'setup' && (
         <SetupFlow
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
@@ -650,17 +399,13 @@ const App: React.FC = () => {
           onBack={handleCloseSetup}
         />
       )}
-
-      {/* Component Inspector */}
-      {showInspector && (
+      {panels.activePanel === 'inspector' && (
         <ComponentInspector
           components={inspectorData}
           onClose={handleCloseInspector}
         />
       )}
-
-      {/* Log viewer */}
-      {showLogViewer && (
+      {panels.activePanel === 'logs' && (
         <LogViewer
           messages={logMessages}
           onClose={handleCloseLogViewer}
@@ -668,7 +413,20 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* WhatsNew is now an inline banner inside ReadyView */}
+      {/* StatusBar — fixed bottom, visible in all states except setup and checking */}
+      {appState !== 'checking' && appState !== 'setup' && (
+        <StatusBar
+          relayConnected={relayConnected}
+          extensionInstalled={extensionInstalled}
+          mcpConnected={mcpStatus.connected}
+          hasPendingData={importFlow.pending !== null}
+          onRelayClick={handleShowSetup}
+          onExtensionClick={handleShowSetup}
+          onInspectorClick={handleShowInspector}
+          onLogsClick={handleShowLogViewer}
+          onClearQueue={importFlow.clearQueue}
+        />
+      )}
     </div>
   );
 };

@@ -3,11 +3,12 @@
  *
  * Receives log messages collected by the UI thread from code thread postMessage.
  * Provides level filtering, JSON export, and clear functionality.
+ * Wrapped in PanelLayout for consistent secondary-panel chrome.
  */
 
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { LogLevel } from '../../../logger';
-import { BackButton } from '../BackButton';
+import { PanelLayout } from '../PanelLayout';
 
 export interface LogMessage {
   level: LogLevel;
@@ -29,10 +30,10 @@ const LEVEL_LABELS: Record<number, string> = {
 };
 
 const LEVEL_CSS: Record<number, string> = {
-  [LogLevel.ERROR]: 'log-viewer-entry--error',
-  [LogLevel.SUMMARY]: 'log-viewer-entry--summary',
-  [LogLevel.VERBOSE]: 'log-viewer-entry--verbose',
-  [LogLevel.DEBUG]: 'log-viewer-entry--debug',
+  [LogLevel.ERROR]: 'log-entry--error',
+  [LogLevel.SUMMARY]: 'log-entry--summary',
+  [LogLevel.VERBOSE]: 'log-entry--verbose',
+  [LogLevel.DEBUG]: 'log-entry--debug',
 };
 
 function formatTime(ts: number): string {
@@ -42,6 +43,36 @@ function formatTime(ts: number): string {
   const ss = String(d.getSeconds()).padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
 }
+
+/** Footer with level filter, export, and clear actions */
+const LogFooter: React.FC<{
+  minLevel: LogLevel;
+  onLevelChange: (level: LogLevel) => void;
+  onExport: () => void;
+  onClear: () => void;
+}> = memo(({ minLevel, onLevelChange, onExport, onClear }) => (
+  <div className="log-footer">
+    <select
+      className="scope-select log-footer__filter"
+      value={minLevel}
+      onChange={e => onLevelChange(Number(e.target.value) as LogLevel)}
+    >
+      <option value={LogLevel.ERROR}>Только ошибки</option>
+      <option value={LogLevel.SUMMARY}>Сводка+</option>
+      <option value={LogLevel.VERBOSE}>Подробно+</option>
+      <option value={LogLevel.DEBUG}>Всё (отладка)</option>
+    </select>
+    <div className="log-footer__actions">
+      <button type="button" className="btn-text-sm" onClick={onExport}>
+        Экспорт
+      </button>
+      <button type="button" className="btn-text-sm" onClick={onClear}>
+        Очистить
+      </button>
+    </div>
+  </div>
+));
+LogFooter.displayName = 'LogFooter';
 
 export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, onClear }) => {
   const [minLevel, setMinLevel] = useState<LogLevel>(LogLevel.SUMMARY);
@@ -75,59 +106,38 @@ export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, on
     URL.revokeObjectURL(url);
   }, [filtered]);
 
+  const footer = (
+    <LogFooter
+      minLevel={minLevel}
+      onLevelChange={setMinLevel}
+      onExport={handleExport}
+      onClear={onClear}
+    />
+  );
+
   return (
-    <div className="log-viewer">
-      {/* Header */}
-      <div className="log-viewer-header">
-        <BackButton onClick={onClose} />
-        <span className="log-viewer-title">Логи</span>
-        <span className="log-viewer-count">{filtered.length}</span>
-      </div>
-
-      {/* Toolbar */}
-      <div className="log-viewer-toolbar">
-        <select
-          className="scope-select log-viewer-filter"
-          value={minLevel}
-          onChange={e => setMinLevel(Number(e.target.value) as LogLevel)}
-        >
-          <option value={LogLevel.ERROR}>Только ошибки</option>
-          <option value={LogLevel.SUMMARY}>Сводка+</option>
-          <option value={LogLevel.VERBOSE}>Подробно+</option>
-          <option value={LogLevel.DEBUG}>Всё (отладка)</option>
-        </select>
-        <div className="log-viewer-actions">
-          <button type="button" className="btn-text-sm" onClick={handleExport}>
-            Экспорт JSON
-          </button>
-          <button type="button" className="btn-text-sm" onClick={onClear}>
-            Очистить
-          </button>
-        </div>
-      </div>
-
-      {/* Log list */}
+    <PanelLayout title="Логи" onBack={onClose} footer={footer}>
       <div
-        className="log-viewer-list"
+        className="log-list"
         ref={listRef}
         onScroll={handleScroll}
       >
         {filtered.length === 0 ? (
-          <div className="log-viewer-empty">Нет сообщений</div>
+          <div className="log-list__empty">Нет сообщений</div>
         ) : (
           filtered.map((msg, i) => (
             <div
               key={i}
-              className={`log-viewer-entry ${LEVEL_CSS[msg.level] || ''}`}
+              className={`log-entry ${LEVEL_CSS[msg.level] || ''}`}
             >
-              <span className="log-viewer-entry-time">{formatTime(msg.timestamp)}</span>
-              <span className="log-viewer-entry-level">{LEVEL_LABELS[msg.level] || '?'}</span>
-              <span className="log-viewer-entry-msg">{msg.message}</span>
+              <span className="log-entry__time">{formatTime(msg.timestamp)}</span>
+              <span className="log-entry__level">{LEVEL_LABELS[msg.level] || '?'}</span>
+              <span className="log-entry__msg">{msg.message}</span>
             </div>
           ))
         )}
       </div>
-    </div>
+    </PanelLayout>
   );
 });
 

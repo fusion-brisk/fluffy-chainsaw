@@ -5,3 +5,11 @@ export type { PluginMessageHandlers } from './usePluginMessages';
 
 export { useRelayConnection } from './useRelayConnection';
 export type { UseRelayConnectionOptions, UseRelayConnectionReturn, RelayDataEvent } from './useRelayConnection';
+
+export { usePanelManager } from './usePanelManager';
+export type { PanelName, PanelManager } from './usePanelManager';
+
+export { useResizeUI } from './useResizeUI';
+
+export { useImportFlow } from './useImportFlow';
+export type { PendingImport, ImportFlow } from './useImportFlow';

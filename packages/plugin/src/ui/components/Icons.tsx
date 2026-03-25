@@ -190,4 +190,34 @@ export const BrowserIllustration: React.FC<{ className?: string }> = ({ classNam
   </svg>
 );
 
+// SearchToFigma illustration — browser with magnifier → arrow → layers stack
+export const SearchToFigmaIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {/* Browser window */}
+    <rect x="4" y="10" width="32" height="26" rx="3" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="4" y1="17" x2="36" y2="17" stroke="currentColor" strokeWidth="1.5" />
+    {/* Browser dots */}
+    <circle cx="9" cy="13.5" r="1" fill="currentColor" />
+    <circle cx="13" cy="13.5" r="1" fill="currentColor" />
+    <circle cx="17" cy="13.5" r="1" fill="currentColor" />
+    {/* Search result lines */}
+    <line x1="9" y1="22" x2="25" y2="22" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <line x1="9" y1="26" x2="20" y2="26" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    <line x1="9" y1="30" x2="22" y2="30" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
+    {/* Magnifier on browser */}
+    <circle cx="30" cy="28" r="5" stroke="currentColor" strokeWidth="1.5" />
+    <line x1="33.5" y1="31.5" x2="37" y2="35" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    {/* Arrow */}
+    <line x1="40" y1="36" x2="52" y2="36" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <polyline points="49,32 53,36 49,40" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    {/* Layers/artboard stack */}
+    <rect x="56" y="44" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+    <rect x="52" y="48" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+    <rect x="48" y="52" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
+    {/* Small content lines in top layer */}
+    <line x1="60" y1="49" x2="72" y2="49" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+    <line x1="60" y1="52" x2="68" y2="52" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+  </svg>
+);
+
 // Note: Sparkle, RingSpinner, SuccessCheckmark, InboxGlass removed in Figma-style refactor

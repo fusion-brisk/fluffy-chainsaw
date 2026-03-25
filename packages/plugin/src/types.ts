@@ -72,12 +72,9 @@ export interface SheetData {
  * - 'page': заполнить все компоненты на странице
  * - 'build': создать новый фрейм из HTML
  */
-export type PluginMode = 'selection' | 'page' | 'build';
-
 export interface UserSettings {
   /** @deprecated используй mode */
   scope?: 'selection' | 'page';
-  mode?: PluginMode;
   remoteConfigUrl?: string;
   resetBeforeImport?: boolean;
   logLevel?: number;             // default 2 (SUMMARY)
@@ -256,7 +253,37 @@ export interface RelayPayload {
  * - 'processing': обработка данных
  * - 'success': импорт успешно завершён
  */
-export type AppState = 'checking' | 'ready' | 'confirming' | 'processing' | 'success';
+export type AppState = 'setup' | 'checking' | 'ready' | 'confirming' | 'processing' | 'success';
+
+/**
+ * Events that trigger state transitions in the FSM.
+ * See docs/FSM_STATES.md for the full state diagram.
+ */
+export type AppEvent =
+  | 'SETUP_COMPLETE'
+  | 'CONNECTION_SUCCESS'
+  | 'CONNECTION_FAILURE'
+  | 'DATA_RECEIVED'
+  | 'CONFIRM_IMPORT'
+  | 'CANCEL_IMPORT'
+  | 'IMPORT_COMPLETE'
+  | 'IMPORT_FAILURE'
+  | 'DISMISS_SUCCESS'
+  | 'OPEN_PANEL'
+  | 'CLOSE_PANEL';
+
+/**
+ * Type-safe FSM transition map: FSM_TRANSITIONS[currentState][event] → nextState.
+ * Undefined entries mean the event is not valid in that state (no-op).
+ */
+export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState>>> = {
+  setup:      { SETUP_COMPLETE: 'checking' },
+  checking:   { CONNECTION_SUCCESS: 'ready', CONNECTION_FAILURE: 'ready' },
+  ready:      { DATA_RECEIVED: 'confirming', OPEN_PANEL: 'ready', CLOSE_PANEL: 'ready' },
+  confirming: { CONFIRM_IMPORT: 'processing', CANCEL_IMPORT: 'ready' },
+  processing: { IMPORT_COMPLETE: 'success', IMPORT_FAILURE: 'ready' },
+  success:    { DISMISS_SUCCESS: 'ready' },
+};
 
 /**
  * Размеры окна плагина — 3 tier'а вместо отдельного размера для каждого state.
@@ -274,6 +301,7 @@ export type UITier = keyof typeof UI_SIZES;
 
 /** Map any AppState or panel name to a size tier */
 export const STATE_TO_TIER: Record<string, UITier> = {
+  setup: 'extended',
   checking: 'compact',
   ready: 'standard',
   confirming: 'standard',

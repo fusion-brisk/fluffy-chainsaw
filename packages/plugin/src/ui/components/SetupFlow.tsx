@@ -1,13 +1,16 @@
 /**
- * SetupFlow — Unified setup stepper
+ * SetupFlow -- 3-step onboarding wizard
  *
- * Replaces SetupWizard, ExtensionGuide, and RelayGuide with a single
- * multi-step flow. Auto-skips completed steps based on connection status.
+ * Step 1: Relay server (download installer, auto-detects connection)
+ * Step 2: Browser extension (download CRX, auto-detects installation)
+ * Step 3: Ready (instructions + "Start" button)
+ *
+ * Auto-skips completed steps with a brief "already connected" confirmation.
  */
 
-import React, { memo, useCallback, useState, useEffect } from 'react';
+import React, { memo, useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { EXTENSION_URLS } from '../../config';
-import { BackButton } from './BackButton';
+import { StepIndicator } from './StepIndicator';
 
 interface SetupFlowProps {
   relayConnected: boolean;
@@ -16,28 +19,29 @@ interface SetupFlowProps {
   onBack: () => void;
 }
 
-/** All setup steps in order */
-interface SetupStep {
+interface WizardStep {
   id: string;
   title: string;
-  group: 'relay' | 'extension';
-  autoSkip?: 'relay' | 'extension';
+  description: string;
 }
 
-const STEPS: readonly SetupStep[] = [
-  { id: 'relay-download', title: 'Скачайте Relay', group: 'relay' },
-  { id: 'relay-install', title: 'Распакуйте и запустите установщик', group: 'relay' },
-  { id: 'relay-verify', title: 'Проверка подключения Relay', group: 'relay', autoSkip: 'relay' },
-  { id: 'ext-download', title: 'Скачайте расширение', group: 'extension' },
-  { id: 'ext-install', title: 'Загрузите в Chrome', group: 'extension' },
-  { id: 'ext-verify', title: 'Проверка расширения', group: 'extension', autoSkip: 'extension' },
+const STEPS: readonly WizardStep[] = [
+  {
+    id: 'relay',
+    title: 'Relay-сервер',
+    description: 'Relay передаёт данные из браузера в Figma',
+  },
+  {
+    id: 'extension',
+    title: 'Расширение браузера',
+    description: 'Расширение собирает данные с поисковой выдачи',
+  },
+  {
+    id: 'ready',
+    title: 'Всё готово!',
+    description: 'Откройте поиск Яндекса — данные придут автоматически',
+  },
 ];
-
-function getInitialStep(relayConnected: boolean, extensionInstalled: boolean): number {
-  if (!relayConnected) return 0;
-  if (!extensionInstalled) return 3; // skip to extension steps
-  return STEPS.length - 1;
-}
 
 export const SetupFlow: React.FC<SetupFlowProps> = memo(({
   relayConnected,
@@ -45,44 +49,110 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(({
   onComplete,
   onBack,
 }) => {
-  const [currentStep, setCurrentStep] = useState(() =>
-    getInitialStep(relayConnected, extensionInstalled)
-  );
-  const [copied, setCopied] = useState(false);
+  const [currentStep, setCurrentStep] = useState(() => {
+    if (!relayConnected) return 0;
+    if (!extensionInstalled) return 1;
+    return 2;
+  });
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(() => {
+    const initial = new Set<number>();
+    if (relayConnected) initial.add(0);
+    if (extensionInstalled) initial.add(1);
+    return initial;
+  });
+  const [autoSkipMessage, setAutoSkipMessage] = useState<string | null>(null);
+  const autoAdvanceTimerRef = useRef<number | null>(null);
 
   const step = STEPS[currentStep];
-  const totalSteps = STEPS.length;
+  const isLastStep = currentStep === STEPS.length - 1;
 
-  // Auto-skip verification steps when connection detected
+  // Memoize steps array for StepIndicator (stable reference)
+  const indicatorSteps = useMemo(
+    () => STEPS.map(s => ({ id: s.id, title: s.title })),
+    []
+  );
+
+  // Cleanup timer on unmount
   useEffect(() => {
-    if (!step) return;
-    if (step.autoSkip === 'relay' && relayConnected) {
-      if (currentStep < totalSteps - 1) {
-        setCurrentStep(prev => prev + 1);
-      } else {
-        onComplete();
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
       }
-    }
-    if (step.autoSkip === 'extension' && extensionInstalled) {
-      onComplete();
-    }
-  }, [step, relayConnected, extensionInstalled, currentStep, totalSteps, onComplete]);
+    };
+  }, []);
+
+  const markComplete = useCallback((stepIndex: number) => {
+    setCompletedSteps(prev => {
+      const next = new Set(prev);
+      next.add(stepIndex);
+      return next;
+    });
+  }, []);
+
+  const goToStep = useCallback((stepIndex: number) => {
+    setAutoSkipMessage(null);
+    setCurrentStep(stepIndex);
+  }, []);
+
+  // Auto-detect: Step 0 (relay)
+  useEffect(() => {
+    if (currentStep !== 0 || !relayConnected) return;
+
+    markComplete(0);
+    setAutoSkipMessage('Уже подключено');
+
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      autoAdvanceTimerRef.current = null;
+      goToStep(1);
+    }, 1000);
+  }, [currentStep, relayConnected, markComplete, goToStep]);
+
+  // Auto-detect: Step 1 (extension)
+  useEffect(() => {
+    if (currentStep !== 1 || !extensionInstalled) return;
+
+    markComplete(1);
+    setAutoSkipMessage('Уже подключено');
+
+    autoAdvanceTimerRef.current = window.setTimeout(() => {
+      autoAdvanceTimerRef.current = null;
+      goToStep(2);
+    }, 1000);
+  }, [currentStep, extensionInstalled, markComplete, goToStep]);
+
+  // Live detection: mark steps as completed when signals arrive
+  useEffect(() => {
+    if (relayConnected) markComplete(0);
+  }, [relayConnected, markComplete]);
+
+  useEffect(() => {
+    if (extensionInstalled) markComplete(1);
+  }, [extensionInstalled, markComplete]);
 
   const handleNext = useCallback(() => {
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep(prev => prev + 1);
-    } else {
+    if (isLastStep) {
       onComplete();
+    } else {
+      markComplete(currentStep);
+      goToStep(currentStep + 1);
     }
-  }, [currentStep, totalSteps, onComplete]);
+  }, [currentStep, isLastStep, onComplete, markComplete, goToStep]);
 
   const handlePrev = useCallback(() => {
     if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
+      goToStep(currentStep - 1);
     } else {
       onBack();
     }
-  }, [currentStep, onBack]);
+  }, [currentStep, goToStep, onBack]);
+
+  const handleSkip = useCallback(() => {
+    if (isLastStep) {
+      onComplete();
+    } else {
+      goToStep(currentStep + 1);
+    }
+  }, [currentStep, isLastStep, onComplete, goToStep]);
 
   const handleDownloadRelay = useCallback(() => {
     window.open(EXTENSION_URLS.INSTALLER_DOWNLOAD, '_blank');
@@ -92,74 +162,58 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(({
     window.open(EXTENSION_URLS.EXTENSION_DOWNLOAD, '_blank');
   }, []);
 
-  const handleCopyExtensionsUrl = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(EXTENSION_URLS.EXTENSIONS_PAGE);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Silently fail — user can manually navigate
-    }
-  }, []);
-
-  // Can skip if relay is already connected (extension steps can be done later)
-  const canSkip = relayConnected && !extensionInstalled;
-
   /** Render step-specific content */
-  const renderStepContent = (stepId: string) => {
-    switch (stepId) {
-      case 'relay-download':
-        return (
-          <button type="button" className="btn-primary extension-guide-action" onClick={handleDownloadRelay}>
-            Скачать установщик
-          </button>
-        );
+  const renderStepContent = (stepIndex: number) => {
+    // Show auto-skip confirmation
+    if (autoSkipMessage) {
+      return (
+        <div className="setup-flow__auto-skip">
+          <span className="setup-flow__checkmark">&#10003;</span>
+          <span>{autoSkipMessage}</span>
+        </div>
+      );
+    }
 
-      case 'relay-install':
-        return (
-          <p className="extension-guide-hint">
-            Дважды кликните на скачанный .zip файл, откройте Contentify Installer и следуйте инструкциям
-          </p>
-        );
-
-      case 'relay-verify':
+    switch (stepIndex) {
+      case 0:
         return relayConnected ? (
-          <p className="extension-guide-hint" style={{ color: 'var(--status-connected)' }}>
-            ✓ Relay подключён
-          </p>
+          <div className="setup-flow__auto-skip">
+            <span className="setup-flow__checkmark">&#10003;</span>
+            <span>Relay подключён</span>
+          </div>
         ) : (
-          <p className="extension-guide-hint">
-            Ожидание подключения Relay...
-          </p>
-        );
-
-      case 'ext-download':
-        return (
-          <button type="button" className="btn-primary extension-guide-action" onClick={handleDownloadExtension}>
-            Скачать .zip
-          </button>
-        );
-
-      case 'ext-install':
-        return (
           <>
-            <button type="button" className="extension-guide-link" onClick={handleCopyExtensionsUrl}>
-              {copied ? '✓ Скопировано' : 'Скопировать chrome://extensions'}
+            <button type="button" className="btn-primary" onClick={handleDownloadRelay}>
+              Скачать установщик
             </button>
-            <p className="extension-guide-hint">
-              Включите режим разработчика → «Загрузить распакованное» → выберите папку extension
+            <p className="setup-flow__hint">
+              Проверяем подключение...
             </p>
           </>
         );
 
-      case 'ext-verify':
+      case 1:
         return extensionInstalled ? (
-          <p className="extension-guide-hint" style={{ color: 'var(--status-connected)' }}>
-            ✓ Расширение установлено
-          </p>
+          <div className="setup-flow__auto-skip">
+            <span className="setup-flow__checkmark">&#10003;</span>
+            <span>Расширение установлено</span>
+          </div>
         ) : (
-          <p className="extension-guide-hint">
-            Ожидание подключения расширения...
+          <>
+            <button type="button" className="btn-primary" onClick={handleDownloadExtension}>
+              Скачать расширение
+            </button>
+            <p className="setup-flow__hint">
+              Откройте chrome://extensions, включите режим разработчика,
+              перетащите скачанный .crx файл на страницу
+            </p>
+          </>
+        );
+
+      case 2:
+        return (
+          <p className="setup-flow__hint">
+            Введите запрос &#8594; дождитесь SERP &#8594; данные появятся здесь
           </p>
         );
 
@@ -171,45 +225,37 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(({
   if (!step) return null;
 
   return (
-    <div className="extension-guide--figma view-animate-in">
-      <BackButton onClick={handlePrev} />
-
-      {/* Progress indicator */}
-      <div className="setup-flow-progress">
-        <span className="setup-flow-progress-text">
-          Шаг {currentStep + 1} из {totalSteps}
-        </span>
-        <div className="setup-flow-progress-bar">
-          <div
-            className="setup-flow-progress-fill"
-            style={{ width: `${((currentStep + 1) / totalSteps) * 100}%` }}
-          />
-        </div>
+    <div className="setup-flow view-animate-in">
+      <div className="setup-flow__progress">
+        <StepIndicator
+          steps={indicatorSteps}
+          currentStep={currentStep}
+          completedSteps={completedSteps}
+        />
       </div>
 
-      {/* Current step */}
-      <div className="extension-guide-steps">
-        <div className="figma-card extension-guide-step">
-          <div className="extension-guide-step-header">
-            <span className="step-number">{currentStep + 1}</span>
-            <span className="extension-guide-step-title">{step.title}</span>
-          </div>
-          {renderStepContent(step.id)}
-        </div>
+      <div className="setup-flow__content">
+        <h2 className="setup-flow__title">{step.title}</h2>
+        <p className="setup-flow__description">{step.description}</p>
+        {renderStepContent(currentStep)}
       </div>
 
-      {/* Navigation */}
-      <div className="setup-flow-nav">
-        {canSkip && (
-          <button type="button" className="btn-text" onClick={onComplete}>
-            Пропустить
+      <div className="setup-flow__footer">
+        {currentStep > 0 && (
+          <button type="button" className="btn-text" onClick={handlePrev}>
+            &#8592; Назад
           </button>
         )}
-        {!step.autoSkip && (
-          <button type="button" className="btn-secondary" onClick={handleNext}>
-            {currentStep < totalSteps - 1 ? 'Далее' : 'Готово'}
+        <div className="setup-flow__footer-right">
+          {!isLastStep && (
+            <button type="button" className="btn-text" onClick={handleSkip}>
+              Пропустить
+            </button>
+          )}
+          <button type="button" className="btn-primary setup-flow__btn-next" onClick={handleNext}>
+            {isLastStep ? 'Начать' : 'Далее \u2192'}
           </button>
-        )}
+        </div>
       </div>
     </div>
   );

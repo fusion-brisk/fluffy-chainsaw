@@ -162,16 +162,4 @@ export const EXTENSION_URLS = {
 // ============================================
 
 // Метки этапов обработки
-export const STAGE_LABELS: Record<string, string> = {
-  'relay-import': 'Импорт из браузера',
-  'resetting': 'Сброс сниппетов',
-  'parsing': 'Парсинг файла',
-  'searching': 'Поиск контейнеров',
-  'grouping': 'Группировка сниппетов',
-  'components': 'Импорт компонентов',
-  'text': 'Обработка текста',
-  'images-start': 'Загрузка изображений',
-  'images': 'Загрузка изображений',
-  'default': 'Обработка'
-};
 

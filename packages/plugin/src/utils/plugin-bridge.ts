@@ -14,24 +14,6 @@ export function log(message: string, logArea?: HTMLTextAreaElement): void {
   Logger.debug(`[${timestamp}] ${message}`);
 }
 
-// Apply Figma theme
-export function applyFigmaTheme(): void {
-  try {
-    // Try to get theme from Figma via postMessage
-    parent.postMessage({ pluginMessage: { type: 'get-theme' } }, '*');
-    
-    // Fallback: use system theme
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
-    
-    Logger.debug(`Applied theme: ${prefersDark ? 'dark' : 'light'}`);
-  } catch (error) {
-    // If theme detection fails, use dark theme by default
-    document.documentElement.setAttribute('data-theme', 'dark');
-    Logger.debug('Applied default theme: dark');
-  }
-}
-
 // Send message to plugin (typed for compile-time validation)
 export function sendMessageToPlugin(message: UIMessage): void {
   try {
