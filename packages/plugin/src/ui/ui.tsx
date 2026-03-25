@@ -73,6 +73,8 @@ const App: React.FC = () => {
   const [currentVersion, setCurrentVersion] = useState('');
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
+  const [lastImportCount, setLastImportCount] = useState<number | undefined>();
+  const [lastImportTime, setLastImportTime] = useState<number | undefined>();
   // Tracks whether we've received the setup-skipped response from sandbox
   const [setupResolved, setSetupResolved] = useState(false);
 
@@ -180,10 +182,14 @@ const App: React.FC = () => {
         importFlow.setStats(stats);
       },
       onDone: () => {
+        setLastImportCount(importFlow.info.itemCount || undefined);
+        setLastImportTime(Date.now());
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
       },
       onRelayPayloadApplied: () => {
+        setLastImportCount(importFlow.info.itemCount || undefined);
+        setLastImportTime(Date.now());
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
       },
@@ -323,12 +329,17 @@ const App: React.FC = () => {
           {appState === 'ready' && (
             <ReadyView
               lastQuery={importFlow.lastQuery}
+              lastImportCount={lastImportCount}
+              lastImportTime={lastImportTime}
               relayConnected={relayConnected}
               isFirstTime={isFirstRun}
+              hasSelection={hasSelection}
               showWhatsNew={showWhatsNew}
               currentVersion={currentVersion}
               onShowExtensionGuide={handleShowSetup}
               onReimport={relayConnected ? () => relay.reimport() : undefined}
+              onFillSelection={relayConnected ? () => relay.reimport() : undefined}
+              onReset={importFlow.clearQueue}
               onDismissOnboarding={handleDismissOnboarding}
               onDismissWhatsNew={() => {
                 setShowWhatsNew(false);
