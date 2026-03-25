@@ -446,36 +446,33 @@ const App: React.FC = () => {
 
   // === RENDER ===
   const needsSetup = !extensionInstalled;
+  const showMainContent = !panels.isPanelOpen;
 
   return (
-    <div
-      className="glass-app"
-    >
-      {/* StatusBar — always visible except during checking or when a panel overlay is open */}
-      {appState !== 'checking' && !panels.isPanelOpen && (
-        <StatusBar
-          relayConnected={relayConnected}
-          extensionInstalled={extensionInstalled}
-          mcpConnected={mcpStatus.connected}
-          hasPendingData={pendingImport !== null}
-          onRelayClick={handleShowSetup}
-          onExtensionClick={handleShowSetup}
-          onInspectorClick={handleShowInspector}
-          onClearQueue={handleClearQueue}
-        />
+    <div className="glass-app">
+      {/* StatusBar + banners — visible when main content is shown */}
+      {appState !== 'checking' && showMainContent && (
+        <>
+          <StatusBar
+            relayConnected={relayConnected}
+            extensionInstalled={extensionInstalled}
+            mcpConnected={mcpStatus.connected}
+            hasPendingData={pendingImport !== null}
+            onRelayClick={handleShowSetup}
+            onExtensionClick={handleShowSetup}
+            onInspectorClick={handleShowInspector}
+            onClearQueue={handleClearQueue}
+          />
+          <UpdateBanner
+            relayUpdate={versionCheck.relayUpdate}
+            extensionUpdate={versionCheck.extensionUpdate}
+            onDismissRelay={versionCheck.dismissRelay}
+            onDismissExtension={versionCheck.dismissExtension}
+          />
+        </>
       )}
 
-      {/* Update notification banners */}
-      {appState !== 'checking' && !panels.isPanelOpen && (
-        <UpdateBanner
-          relayUpdate={versionCheck.relayUpdate}
-          extensionUpdate={versionCheck.extensionUpdate}
-          onDismissRelay={versionCheck.dismissRelay}
-          onDismissExtension={versionCheck.dismissExtension}
-        />
-      )}
-
-      {/* Checking state */}
+      {/* Main content — mutually exclusive via appState */}
       {appState === 'checking' && (
         <div className="checking-view">
           <div className="checking-view-spinner" />
@@ -483,73 +480,73 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Ready state */}
-      {appState === 'ready' && !panels.isPanelOpen && (
-        needsSetup ? (
-          <SetupFlow
-            relayConnected={relayConnected}
-            extensionInstalled={extensionInstalled}
-            onComplete={markExtensionInstalled}
-            onBack={markExtensionInstalled}
-          />
-        ) : (
-          <ReadyView
-            lastQuery={lastQuery}
-            relayConnected={relayConnected}
-            isFirstTime={isFirstRun}
-            showWhatsNew={showWhatsNew}
-            currentVersion={currentVersion}
-            onShowExtensionGuide={handleShowSetup}
-            onReimport={relayConnected ? () => relay.reimport() : undefined}
-            onDismissOnboarding={handleDismissOnboarding}
-            onDismissWhatsNew={() => {
-              setShowWhatsNew(false);
-              sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
-            }}
-          />
-        )
+      {showMainContent && (
+        <>
+          {appState === 'ready' && (
+            needsSetup ? (
+              <SetupFlow
+                relayConnected={relayConnected}
+                extensionInstalled={extensionInstalled}
+                onComplete={markExtensionInstalled}
+                onBack={markExtensionInstalled}
+              />
+            ) : (
+              <ReadyView
+                lastQuery={lastQuery}
+                relayConnected={relayConnected}
+                isFirstTime={isFirstRun}
+                showWhatsNew={showWhatsNew}
+                currentVersion={currentVersion}
+                onShowExtensionGuide={handleShowSetup}
+                onReimport={relayConnected ? () => relay.reimport() : undefined}
+                onDismissOnboarding={handleDismissOnboarding}
+                onDismissWhatsNew={() => {
+                  setShowWhatsNew(false);
+                  sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
+                }}
+              />
+            )
+          )}
+
+          {appState === 'confirming' && pendingImport && (
+            <ImportConfirmDialog
+              query={importInfo.query}
+              itemCount={importInfo.itemCount}
+              source={importInfo.source}
+              summary={importInfo.summary}
+              hasSelection={hasSelection}
+              onConfirm={handleConfirmImport}
+              onCancel={handleCancelImport}
+            />
+          )}
+
+          {appState === 'processing' && (
+            <ProcessingView
+              importInfo={importInfo}
+              onCancel={handleCancel}
+            />
+          )}
+
+          {appState === 'success' && (
+            <SuccessView
+              query={importInfo.query}
+              stats={lastStats}
+              onComplete={handleSuccessComplete}
+              onShowLogs={handleShowLogViewer}
+            />
+          )}
+        </>
       )}
 
-      {/* Confirming state */}
-      {appState === 'confirming' && pendingImport && !panels.isPanelOpen && (
-        <ImportConfirmDialog
-          query={importInfo.query}
-          itemCount={importInfo.itemCount}
-          source={importInfo.source}
-          summary={importInfo.summary}
-          hasSelection={hasSelection}
-          onConfirm={handleConfirmImport}
-          onCancel={handleCancelImport}
-        />
-      )}
-
-      {/* Processing state */}
-      {appState === 'processing' && !panels.isPanelOpen && (
-        <ProcessingView
-          importInfo={importInfo}
-          onCancel={handleCancel}
-        />
-      )}
-
-      {/* Success state */}
-      {appState === 'success' && !panels.isPanelOpen && (
-        <SuccessView
-          query={importInfo.query}
-          stats={lastStats}
-          onComplete={handleSuccessComplete}
-          onShowLogs={handleShowLogViewer}
-        />
-      )}
-
-      {/* Confetti celebration (success only) */}
-      {panels.activePanel !== 'logs' && panels.activePanel !== 'inspector' && (
+      {/* Confetti — hidden during logs/inspector panels */}
+      {showMainContent && (
         <Confetti
           isActive={confettiActive}
           onComplete={handleConfettiComplete}
         />
       )}
 
-      {/* Unified setup flow (relay + extension) */}
+      {/* Panel overlays — only one at a time */}
       {panels.activePanel === 'setup' && (
         <SetupFlow
           relayConnected={relayConnected}
@@ -558,16 +555,12 @@ const App: React.FC = () => {
           onBack={handleCloseSetup}
         />
       )}
-
-      {/* Component Inspector */}
       {panels.activePanel === 'inspector' && (
         <ComponentInspector
           components={inspectorData}
           onClose={handleCloseInspector}
         />
       )}
-
-      {/* Log viewer */}
       {panels.activePanel === 'logs' && (
         <LogViewer
           messages={logMessages}
@@ -575,8 +568,6 @@ const App: React.FC = () => {
           onClear={handleClearLogs}
         />
       )}
-
-      {/* WhatsNew is now an inline banner inside ReadyView */}
     </div>
   );
 };
