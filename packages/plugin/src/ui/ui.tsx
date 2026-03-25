@@ -34,6 +34,7 @@ import { useRelayConnection } from './hooks/useRelayConnection';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
 import { useMcpStatus } from './hooks/useMcpStatus';
+import { usePanelManager } from './hooks/usePanelManager';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
 
 // Components
@@ -93,10 +94,7 @@ const App: React.FC = () => {
   const [confettiActive, setConfettiActive] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
-  const [showSetup, setShowSetup] = useState(false);
-  const [showLogViewer, setShowLogViewer] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
-  const [showInspector, setShowInspector] = useState(false);
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>([]);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
@@ -104,7 +102,7 @@ const App: React.FC = () => {
   const [relayConnected, setRelayConnected] = useState(false);
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
-  const previousStateRef = useRef<AppState | null>(null);
+  // Panel manager replaces showSetup/showLogViewer/showInspector + previousStateRef
 
   // Processing refs
   const processingStartTimeRef = useRef<number | null>(null);
@@ -169,6 +167,9 @@ const App: React.FC = () => {
       resizeAnimationRef.current = requestAnimationFrame(animate);
     }, RESIZE_DELAY);
   }, []);
+
+  // === PANEL MANAGER ===
+  const panels = usePanelManager(appState, resizeUI);
 
   // === FINISH PROCESSING WITH MIN DELAY ===
   const finishProcessing = useCallback((type: 'success' | 'error' | 'cancel') => {
@@ -465,33 +466,11 @@ const App: React.FC = () => {
     resizeUI('ready');
   }, [resizeUI, relay]);
 
-  // === SETUP FLOW HANDLERS ===
-  const handleShowSetup = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowSetup(true);
-    resizeUI('extensionGuide');
-  }, [appState, resizeUI]);
-
-  const handleCloseSetup = useCallback(() => {
-    setShowSetup(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
-
-  // === LOG VIEWER HANDLERS ===
-  const handleShowLogViewer = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowLogViewer(true);
-    resizeUI('logsViewer');
-  }, [appState, resizeUI]);
-
-  const handleCloseLogViewer = useCallback(() => {
-    setShowLogViewer(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
+  // Panel open/close handlers derived from usePanelManager
+  const handleShowSetup = useCallback(() => panels.openPanel('setup'), [panels]);
+  const handleCloseSetup = useCallback(() => panels.closePanel(), [panels]);
+  const handleShowLogViewer = useCallback(() => panels.openPanel('logs'), [panels]);
+  const handleCloseLogViewer = useCallback(() => panels.closePanel(), [panels]);
 
   const handleClearLogs = useCallback(() => {
     setLogMessages([]);
@@ -503,30 +482,19 @@ const App: React.FC = () => {
       // Ctrl+Shift+L → toggle log viewer
       if (e.ctrlKey && e.shiftKey && e.key === 'L') {
         e.preventDefault();
-        if (showLogViewer) {
-          handleCloseLogViewer();
+        if (panels.activePanel === 'logs') {
+          panels.closePanel();
         } else {
-          handleShowLogViewer();
+          panels.openPanel('logs');
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showLogViewer, handleCloseLogViewer, handleShowLogViewer]);
+  }, [panels]);
 
-  // === INSPECTOR HANDLERS ===
-  const handleShowInspector = useCallback(() => {
-    previousStateRef.current = appState;
-    setShowInspector(true);
-    resizeUI('inspector');
-  }, [appState, resizeUI]);
-
-  const handleCloseInspector = useCallback(() => {
-    setShowInspector(false);
-    const prevState = previousStateRef.current || appState;
-    resizeUI(prevState);
-    previousStateRef.current = null;
-  }, [appState, resizeUI]);
+  const handleShowInspector = useCallback(() => panels.openPanel('inspector'), [panels]);
+  const handleCloseInspector = useCallback(() => panels.closePanel(), [panels]);
 
   const handleCancel = useCallback(() => {
     // Cancel is a no-op for relay imports (they complete atomically)
@@ -543,8 +511,8 @@ const App: React.FC = () => {
     <div
       className="glass-app"
     >
-      {/* StatusBar — always visible except during checking, guides, log viewer, or inspector */}
-      {appState !== 'checking' && !showSetup && !showLogViewer && !showInspector && (
+      {/* StatusBar — always visible except during checking or when a panel overlay is open */}
+      {appState !== 'checking' && !panels.isPanelOpen && (
         <StatusBar
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
@@ -558,7 +526,7 @@ const App: React.FC = () => {
       )}
 
       {/* Update notification banners */}
-      {appState !== 'checking' && !showSetup && !showLogViewer && !showInspector && (
+      {appState !== 'checking' && !panels.isPanelOpen && (
         <UpdateBanner
           relayUpdate={versionCheck.relayUpdate}
           extensionUpdate={versionCheck.extensionUpdate}
@@ -576,7 +544,7 @@ const App: React.FC = () => {
       )}
 
       {/* Ready state */}
-      {appState === 'ready' && !showSetup && !showLogViewer && !showInspector && (
+      {appState === 'ready' && !panels.isPanelOpen && (
         needsSetup ? (
           <SetupFlow
             relayConnected={relayConnected}
@@ -603,7 +571,7 @@ const App: React.FC = () => {
       )}
 
       {/* Confirming state */}
-      {appState === 'confirming' && pendingImport && !showSetup && !showLogViewer && !showInspector && (
+      {appState === 'confirming' && pendingImport && !panels.isPanelOpen && (
         <ImportConfirmDialog
           query={importInfo.query}
           itemCount={importInfo.itemCount}
@@ -616,7 +584,7 @@ const App: React.FC = () => {
       )}
 
       {/* Processing state */}
-      {appState === 'processing' && !showSetup && !showLogViewer && !showInspector && (
+      {appState === 'processing' && !panels.isPanelOpen && (
         <ProcessingView
           importInfo={importInfo}
           onCancel={handleCancel}
@@ -624,7 +592,7 @@ const App: React.FC = () => {
       )}
 
       {/* Success state */}
-      {appState === 'success' && !showSetup && !showLogViewer && !showInspector && (
+      {appState === 'success' && !panels.isPanelOpen && (
         <SuccessView
           query={importInfo.query}
           stats={lastStats}
@@ -634,7 +602,7 @@ const App: React.FC = () => {
       )}
 
       {/* Confetti celebration (success only) */}
-      {!showLogViewer && !showInspector && (
+      {panels.activePanel !== 'logs' && panels.activePanel !== 'inspector' && (
         <Confetti
           isActive={confettiActive}
           onComplete={handleConfettiComplete}
@@ -642,7 +610,7 @@ const App: React.FC = () => {
       )}
 
       {/* Unified setup flow (relay + extension) */}
-      {showSetup && (
+      {panels.activePanel === 'setup' && (
         <SetupFlow
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
@@ -652,7 +620,7 @@ const App: React.FC = () => {
       )}
 
       {/* Component Inspector */}
-      {showInspector && (
+      {panels.activePanel === 'inspector' && (
         <ComponentInspector
           components={inspectorData}
           onClose={handleCloseInspector}
@@ -660,7 +628,7 @@ const App: React.FC = () => {
       )}
 
       {/* Log viewer */}
-      {showLogViewer && (
+      {panels.activePanel === 'logs' && (
         <LogViewer
           messages={logMessages}
           onClose={handleCloseLogViewer}
