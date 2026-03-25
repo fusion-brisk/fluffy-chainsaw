@@ -2544,7 +2544,11 @@ button:disabled {
 /* ============================================
    LOG VIEWER
    ============================================ */
-.log-viewer {
+/* ============================================
+   PANEL LAYOUT — shared wrapper for secondary panels
+   ============================================ */
+
+.panel-layout {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -2552,64 +2556,75 @@ button:disabled {
   animation: viewAppear 0.25s ease-out;
 }
 
-.log-viewer-header {
+.panel-layout__header {
+  height: 40px;
   display: flex;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-lg) var(--space-lg) var(--space-md);
-}
-
-.log-viewer-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--figma-color-text);
-  flex: 1;
-}
-
-.log-viewer-count {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--figma-color-text-tertiary);
-  background: var(--figma-color-bg-tertiary);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-variant-numeric: tabular-nums;
-}
-
-.log-viewer-toolbar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: 0 var(--space-lg) var(--space-md);
-}
-
-.log-viewer-filter {
+  justify-content: center;
+  position: relative;
+  border-bottom: 1px solid var(--figma-color-border);
+  padding: 0 16px;
   flex-shrink: 0;
 }
 
-.log-viewer-actions {
-  display: flex;
-  gap: var(--space-xs);
-  margin-left: auto;
+.panel-layout__back {
+  position: absolute;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px;
+  background: none;
+  border: none;
+  color: var(--figma-color-text-secondary);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--transition-normal);
 }
 
-.log-viewer-list {
+.panel-layout__back:hover {
+  color: var(--figma-color-text);
+}
+
+.panel-layout__title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--figma-color-text);
+}
+
+.panel-layout__content {
   flex: 1;
   overflow-y: auto;
-  padding: 0 var(--space-lg) var(--space-lg);
   min-height: 0;
 }
 
-.log-viewer-empty {
+.panel-layout__footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--figma-color-border);
+  padding: 12px 16px;
+}
+
+/* ============================================
+   LOG VIEWER — entries + footer (inside PanelLayout)
+   ============================================ */
+
+.log-list {
+  padding: 0 var(--space-lg) var(--space-lg);
+  min-height: 100%;
+}
+
+.log-list__empty {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
+  min-height: 200px;
   font-size: var(--font-size-sm);
   color: var(--figma-color-text-tertiary);
 }
 
-.log-viewer-entry {
+.log-entry {
   display: flex;
   gap: var(--space-sm);
   padding: 2px 0;
@@ -2620,17 +2635,17 @@ button:disabled {
   border-bottom: 1px solid var(--figma-color-border);
 }
 
-.log-viewer-entry:last-child {
+.log-entry:last-child {
   border-bottom: none;
 }
 
-.log-viewer-entry-time {
+.log-entry__time {
   color: var(--figma-color-text-tertiary);
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
 }
 
-.log-viewer-entry-level {
+.log-entry__level {
   flex-shrink: 0;
   width: 52px;
   font-weight: var(--font-weight-semibold);
@@ -2638,36 +2653,53 @@ button:disabled {
   font-size: var(--font-size-xs);
 }
 
-.log-viewer-entry-msg {
+.log-entry__msg {
   flex: 1;
   word-break: break-word;
   white-space: pre-wrap;
 }
 
 /* Level color-coding */
-.log-viewer-entry--error .log-viewer-entry-level,
-.log-viewer-entry--error .log-viewer-entry-msg {
+.log-entry--error .log-entry__level,
+.log-entry--error .log-entry__msg {
   color: var(--figma-color-text-danger);
 }
 
-.log-viewer-entry--summary .log-viewer-entry-level {
+.log-entry--summary .log-entry__level {
   color: var(--figma-color-text);
 }
 
-.log-viewer-entry--verbose .log-viewer-entry-level {
+.log-entry--verbose .log-entry__level {
   color: var(--figma-color-text-secondary);
 }
 
-.log-viewer-entry--verbose .log-viewer-entry-msg {
+.log-entry--verbose .log-entry__msg {
   color: var(--figma-color-text-secondary);
 }
 
-.log-viewer-entry--debug .log-viewer-entry-level {
+.log-entry--debug .log-entry__level {
   color: var(--figma-color-text-tertiary);
 }
 
-.log-viewer-entry--debug .log-viewer-entry-msg {
+.log-entry--debug .log-entry__msg {
   color: var(--figma-color-text-tertiary);
+}
+
+/* Log footer — filter + actions */
+.log-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.log-footer__filter {
+  flex-shrink: 0;
+}
+
+.log-footer__actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-left: auto;
 }
 
 /* Log button in StatusBar */
@@ -2710,36 +2742,10 @@ button:disabled {
 /* ============================================
    COMPONENT INSPECTOR
    ============================================ */
-.comp-inspector {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-.comp-inspector-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--figma-color-border);
-}
-
-.comp-inspector-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--figma-color-text);
-}
-
-.comp-inspector-actions {
-  display: flex;
-  gap: var(--space-xs);
-}
+/* Component Inspector — body content (inside PanelLayout) */
 
 .comp-inspector-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-sm);
+  padding: 0;
 }
 
 .comp-inspector-empty {

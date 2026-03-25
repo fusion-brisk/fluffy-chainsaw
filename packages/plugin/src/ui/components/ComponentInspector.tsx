@@ -1,6 +1,13 @@
+/**
+ * ComponentInspector — Displays selected Figma component instances with keys and properties.
+ *
+ * Wrapped in PanelLayout for consistent secondary-panel chrome.
+ * Shows instance name, component key, component set key, and all properties.
+ */
+
 import React, { memo, useCallback } from 'react';
 import type { ComponentInspectorData } from '../../types';
-import { BackButton } from './BackButton';
+import { PanelLayout } from './PanelLayout';
 
 interface ComponentInspectorProps {
   components: ComponentInspectorData[];
@@ -42,18 +49,14 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
     copyToClipboard(text);
   }, [components]);
 
-  return (
-    <div className="comp-inspector">
-      <BackButton onClick={onClose} />
-      <div className="comp-inspector-header">
-        <span className="comp-inspector-title">Инспектор компонентов</span>
-        <div className="comp-inspector-actions">
-          {components.length > 0 && (
-            <button type="button" className="btn-secondary" onClick={handleCopyAll}>Копировать всё</button>
-          )}
-        </div>
-      </div>
+  const footer = components.length > 0 ? (
+    <button type="button" className="btn-secondary" onClick={handleCopyAll}>
+      Копировать всё
+    </button>
+  ) : undefined;
 
+  return (
+    <PanelLayout title="Инспектор" onBack={onClose} footer={footer}>
       <div className="comp-inspector-body">
         {components.length === 0 ? (
           <div className="comp-inspector-empty">
@@ -110,7 +113,7 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
           ))
         )}
       </div>
-    </div>
+    </PanelLayout>
   );
 });
 
