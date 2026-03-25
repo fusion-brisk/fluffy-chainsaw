@@ -30,6 +30,25 @@ export {
   getMissingRequiredFields 
 } from './validation';
 
+// Feed Card types
+export type {
+  FeedCardRow,
+  FeedCardFields,
+  FeedCardType,
+  FeedCardSize,
+  FeedPlatform,
+  FeedComponentVariant,
+  VariantSelector,
+  FeedMasonryConfig
+} from './feed-card-types';
+
+export {
+  FEED_REQUIRED_FIELDS,
+  FEED_IMAGE_FIELDS,
+  FEED_BOOLEAN_FIELDS,
+  DEFAULT_MASONRY_CONFIG
+} from './feed-card-types';
+
 // Wizard types
 export type {
   WizardSpan,
