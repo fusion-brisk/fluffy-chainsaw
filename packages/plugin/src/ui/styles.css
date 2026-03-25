@@ -763,14 +763,18 @@ button:disabled {
    CONFIRM DIALOG — Compact (320 × 220)
    ============================================ */
 
-/* Fills glass-app via flex — footer pins to bottom via margin-top: auto */
+/* Fixed to viewport — bypasses any parent height/padding/overflow issues */
 .confirm-dialog {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
   background: var(--figma-color-bg);
   animation: viewAppear 0.25s ease-out;
+  z-index: 10;
 }
 
 .confirm-dialog__content {
