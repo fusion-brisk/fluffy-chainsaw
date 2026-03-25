@@ -65,9 +65,14 @@
 /* Reset & Base */
 * { box-sizing: border-box; }
 
+html {
+  height: 100%;
+}
+
 body {
   margin: 0;
   padding: 0;
+  height: 100%;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: var(--font-size-base);
   background-color: var(--figma-color-bg);
@@ -83,9 +88,10 @@ body {
 #react-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  padding: var(--space-lg);
-  gap: var(--space-md);
+  height: 100%;
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
 }
 
 /* Typography */
@@ -352,14 +358,13 @@ button:disabled {
   background: var(--figma-color-text-tertiary);
 }
 
-/* Glass app container - no padding, plugin window provides frame */
+/* Glass app container — fills iframe, no extra padding */
 .glass-app {
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   padding: 0;
-  padding-bottom: 32px; /* space for fixed StatusBar */
   gap: 0;
   background: var(--figma-color-bg);
   overflow: hidden;
@@ -488,377 +493,456 @@ button:disabled {
   }
 }
 
-/* ============================================
-   PROCESSING VIEW
-   ============================================ */
-.processing-view--figma {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  padding-top: 48px; /* Space for StatusBar */
-  background: var(--figma-color-bg);
-  animation: viewAppear 0.35s ease-out;
-  height: 100%;
-  position: relative;
-  text-align: center;
-}
-
-.processing-view--figma .processing-view-spinner {
-  width: 48px;
-  height: 48px;
-  border: 2px solid var(--figma-color-border);
-  border-top-color: var(--figma-color-bg-brand);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  margin-bottom: 4px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.processing-view--figma .processing-view-title {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
-  color: var(--figma-color-text);
-  margin: 0;
-}
-
-.processing-view-counter {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Progress bar */
-.processing-view-progress {
-  width: 60%;
-  height: 3px;
-  background: var(--figma-color-border);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-
-.processing-view-progress-bar {
-  height: 100%;
-  background: var(--figma-color-bg-brand);
-  border-radius: 2px;
-  animation: processingIndeterminate 1.5s ease-in-out infinite;
-}
-
-@keyframes processingIndeterminate {
-  0%   { width: 0%; margin-left: 0; }
-  50%  { width: 40%; margin-left: 30%; }
-  100% { width: 0%; margin-left: 100%; }
-}
-
-/* Cancel link */
-.processing-view-cancel-link {
-  background: none;
-  border: none;
-  padding: 4px 8px;
-  color: var(--figma-color-text-tertiary);
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  cursor: pointer;
-  transition: color var(--transition-fast);
-  margin-top: 8px;
-}
-
-.processing-view-cancel-link:hover {
-  color: var(--figma-color-text-danger, #e53935);
-}
+/* Processing/Success/Checking views — removed, replaced by CompactStrip */
 
 /* ============================================
-   SUCCESS VIEW
+   COMPACT STRIP (320×56 — default state)
    ============================================ */
-.success-view--figma {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  padding-top: 48px; /* Space for StatusBar */
-  background: var(--figma-color-bg);
-  text-align: center;
-  height: 100%;
+.compact-strip {
   position: relative;
-}
-
-.success-view--figma .success-view-icon {
-  width: 48px;
-  height: 48px;
-  color: var(--figma-color-text-success);
-  margin-bottom: 4px;
-}
-
-.success-view--figma .success-view-icon--error {
-  color: var(--figma-color-text-danger, #e53935);
-}
-
-.success-view--figma .success-view-title {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-semibold);
-  color: var(--figma-color-text-success);
-  margin: 0;
-}
-
-.success-view--figma .success-view-title--error {
-  color: var(--figma-color-text-danger, #e53935);
-}
-
-.success-view--figma .success-view-desc {
-  font-size: var(--font-size-base);
-  color: var(--figma-color-text-secondary);
-  line-height: 1.5;
-  max-width: 240px;
-  margin: 0;
-}
-
-.success-view-stats {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-.success-stat {
-  font-size: var(--font-size-sm);
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.success-stat--ok {
-  color: var(--figma-color-text-secondary);
-  background: var(--figma-color-bg-secondary);
-}
-
-.success-stat--warn {
-  color: var(--figma-color-text-danger, #e53935);
-  background: rgba(229, 57, 53, 0.08);
-}
-
-.success-view-logs-link {
-  font-size: var(--font-size-sm);
-  margin-top: -4px;
-}
-
-/* Auto-dismiss bar */
-.success-view-dismiss-bar {
-  position: absolute;
-  bottom: 60px;
-  left: 24px;
-  right: 24px;
-  height: 2px;
-  background: var(--figma-color-border);
-  border-radius: 1px;
-  overflow: hidden;
-}
-
-.success-view-dismiss-bar-fill {
-  height: 100%;
   width: 100%;
-  background: var(--figma-color-bg-brand);
-  transform-origin: right;
-  animation: dismissShrink linear forwards;
+  height: 56px;
+  overflow: visible;
 }
 
-@keyframes dismissShrink {
-  from { transform: scaleX(1); }
-  to { transform: scaleX(0); }
-}
-
-/* Done button */
-.success-view-done {
-  width: auto;
-  padding: 8px 24px;
-  margin-top: 8px;
-}
-
-/* ============================================
-   CHECKING VIEW - Initial loading state
-   ============================================ */
-.checking-view {
+.compact-strip__content {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
-  background: transparent;
-  min-height: 40px;
-  animation: viewAppear 0.25s ease-out;
+  gap: 10px;
+  padding: 0 16px;
+  height: 56px;
 }
 
-.checking-view-spinner {
-  width: 14px;
-  height: 14px;
+.compact-strip__spacer { flex: 1; }
+
+/* Status icons */
+.compact-strip__spinner {
+  width: 12px;
+  height: 12px;
   border: 2px solid var(--figma-color-border);
   border-top-color: var(--figma-color-text-secondary);
   border-radius: 50%;
   animation: processingSpinner 0.7s linear infinite;
+  flex-shrink: 0;
 }
 
-.checking-view-text {
-  font-size: var(--font-size-sm);
+.compact-strip__spinner--brand {
+  border-color: var(--figma-color-border);
+  border-top-color: var(--figma-color-bg-brand);
+}
+
+.compact-strip__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.compact-strip__dot--ok {
+  background-color: var(--figma-color-text-success, #1bc47d);
+}
+
+.compact-strip__dot--offline {
+  background-color: var(--figma-color-border-strong, #999);
+}
+
+.compact-strip__icon {
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.compact-strip__icon--success {
+  color: var(--figma-color-text-success, #1bc47d);
+}
+
+.compact-strip__icon--error {
+  color: var(--figma-color-text-danger, #f24822);
+}
+
+/* Status text */
+.compact-strip__text {
+  font-size: var(--font-size-base);
+  color: var(--figma-color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compact-strip--error .compact-strip__text {
+  color: var(--figma-color-text-danger, #f24822);
+}
+
+.compact-strip--error {
+  cursor: pointer;
+}
+
+/* Menu button */
+.compact-strip__menu-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 16px;
   color: var(--figma-color-text-secondary);
-  letter-spacing: -0.01em;
+  border-radius: var(--radius-small);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.compact-strip__menu-btn:hover {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-text);
+}
+
+/* Progress bar */
+.compact-strip__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--figma-color-border);
+}
+
+.compact-strip__progress-fill {
+  height: 100%;
+  background: var(--figma-color-bg-brand);
+  transition: width 200ms ease-out;
+}
+
+.compact-strip__progress-fill--success {
+  width: 100%;
+  background: var(--figma-color-text-success, #1bc47d);
+  animation: progressShrink 3s linear forwards;
+}
+
+@keyframes progressShrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+/* Tooltip */
+.compact-strip__tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 16px;
+  right: 16px;
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-medium);
+  padding: 6px 10px;
+  font-size: var(--font-size-xs);
+  color: var(--figma-color-text-secondary);
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 100;
 }
 
 /* ============================================
-   CONFIRM VIEW
+   COMPACT STRIP — Menu (desktop: dropdown below strip)
    ============================================ */
-.confirm-view--figma {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  padding-top: 48px; /* Space for StatusBar */
-  padding-bottom: 0;
+
+.compact-strip__menu {
+  border-top: 1px solid var(--figma-color-border);
+  padding: 8px 0;
   background: var(--figma-color-bg);
-  animation: viewAppear 0.35s ease-out;
-  height: 100%;
-  position: relative;
+  animation: menuAppear 0.12s ease-out;
 }
 
-.confirm-view-header {
+@keyframes menuAppear {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.compact-strip__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: none;
+  color: var(--figma-color-text);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.4;
+  transition: background var(--duration-micro);
+}
+
+.compact-strip__menu-item:hover {
+  background: var(--figma-color-bg-hover);
+}
+
+.compact-strip__menu-item:active {
+  background: var(--figma-color-bg-pressed, var(--figma-color-bg-hover));
+}
+
+.compact-strip__menu-item--danger {
+  color: var(--figma-color-text-danger, #f24822);
+}
+
+.compact-strip__menu-icon {
+  width: 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--figma-color-icon-secondary, var(--figma-color-text-secondary));
+}
+
+.compact-strip__menu-item--danger .compact-strip__menu-icon {
+  color: var(--figma-color-text-danger, #f24822);
+}
+
+.compact-strip__menu-separator {
+  height: 1px;
+  background: var(--figma-color-border);
+  margin: 4px 16px;
+}
+
+/* Menu button active state */
+.compact-strip__menu-btn--active {
+  color: var(--figma-color-text);
+  background: var(--figma-color-bg-hover);
+  border-radius: var(--radius-small);
+}
+
+/* ============================================
+   COMPACT STRIP — Mobile (iPad) bottom sheet
+   ============================================ */
+
+.compact-strip__menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  animation: overlayFadeIn 0.15s ease-out;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.compact-strip__menu-sheet {
+  width: 100%;
+  background: var(--figma-color-bg);
+  border-radius: 12px 12px 0 0;
+  padding: 8px 0 16px;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: sheetSlideUp 0.2s var(--ease-out);
+}
+
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.compact-strip__menu-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--figma-color-border-strong, var(--figma-color-border));
+  border-radius: 2px;
+  margin: 4px auto 12px;
+}
+
+.compact-strip__menu-item--touch {
+  padding: 14px 20px;  /* 48px touch target */
+  font-size: var(--font-size-lg);
+}
+
+/* ============================================
+   CONFIRM DIALOG — Compact (320 × 220)
+   ============================================ */
+
+/* Fills glass-app via flex — footer pins to bottom via margin-top: auto */
+.confirm-dialog {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  background: var(--figma-color-bg);
+  animation: viewAppear 0.25s ease-out;
 }
 
-.confirm-view--figma .confirm-view-title {
-  font-size: var(--font-size-xl);
+.confirm-dialog__content {
+  flex: 0 0 auto;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Header: query + summary */
+.confirm-dialog__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.confirm-dialog__query {
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
   color: var(--figma-color-text);
-  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.confirm-view-query {
-  font-size: var(--font-size-base);
+.confirm-dialog__summary {
+  font-size: var(--font-size-sm);
   color: var(--figma-color-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Summary list */
-.confirm-view-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.confirm-view-summary-item {
+/* Controls row: segmented + checkbox */
+.confirm-dialog__controls {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-base);
-  color: var(--figma-color-text);
-}
-
-.confirm-view-summary-icon {
-  font-size: var(--font-size-base);
-  flex-shrink: 0;
-  width: 16px;
-  text-align: center;
-}
-
-/* Mode radio group */
-.confirm-view-mode {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.confirm-view-mode-label {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-secondary);
-  font-weight: var(--font-weight-medium);
-}
-
-.confirm-view-radio {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-base);
-  color: var(--figma-color-text);
-  cursor: pointer;
-  padding-left: 2px;
-}
-
-.confirm-view-radio--disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.confirm-view-radio input[type="radio"] {
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--figma-color-bg-brand);
-}
-
-.confirm-view-radio--disabled input[type="radio"] {
-  cursor: not-allowed;
-}
-
-/* Checkbox */
-.confirm-view--figma .confirm-view-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-secondary);
-  cursor: pointer;
-}
-
-.confirm-view--figma .confirm-view-checkbox input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  cursor: pointer;
-  accent-color: var(--figma-color-bg-brand);
-}
-
-/* Sticky footer */
-.confirm-view-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
   gap: 12px;
-  padding: 12px 0;
-  border-top: 1px solid var(--figma-color-border);
-  margin-top: auto;
 }
 
-.confirm-view-footer-cancel {
-  background: none;
+/* Segmented Control (Figma UI3 style) */
+.confirm-dialog__segmented {
+  display: flex;
+  background: var(--figma-color-bg-secondary, rgba(0,0,0,0.04));
+  border-radius: var(--radius-medium);
+  padding: 2px;
+  gap: 0;
+}
+
+.confirm-dialog__segment {
+  padding: 6px 14px;
   border: none;
-  padding: 8px 12px;
+  background: transparent;
   color: var(--figma-color-text-secondary);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   font-family: inherit;
   cursor: pointer;
-  transition: color var(--transition-fast);
-  border-radius: var(--btn-radius);
+  border-radius: calc(var(--radius-medium) - 2px);
+  transition: all 0.15s ease;
+  white-space: nowrap;
 }
 
-.confirm-view-footer-cancel:hover {
+.confirm-dialog__segment:hover:not(:disabled):not(.active) {
   color: var(--figma-color-text);
+}
+
+.confirm-dialog__segment.active {
+  background: var(--figma-color-bg);
+  color: var(--figma-color-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.confirm-dialog__segment:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Checkbox — compact inline */
+.confirm-dialog__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.confirm-dialog__checkbox input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--figma-color-bg-brand);
+  cursor: pointer;
+}
+
+/* Footer — pinned to bottom */
+.confirm-dialog__footer {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-top: 1px solid var(--figma-color-border);
+  margin-top: auto;
+  gap: 6px;
+}
+
+.confirm-dialog__footer-right {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Button: Danger text (Очистить) */
+.confirm-dialog__btn-danger {
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  color: var(--figma-color-text-danger, #f24822);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.confirm-dialog__btn-danger:hover {
+  opacity: 0.7;
+}
+
+/* Button: Secondary (Отмена) */
+.confirm-dialog__btn-secondary {
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-medium);
+  color: var(--figma-color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.confirm-dialog__btn-secondary:hover {
+  border-color: var(--figma-color-border-strong, var(--figma-color-border));
   background: var(--figma-color-bg-hover);
 }
 
-.confirm-view-footer-submit {
-  width: auto;
-  padding: 8px 20px;
-  font-size: var(--font-size-base);
-  box-shadow: none;
+/* Button: Primary (Импорт →) */
+.confirm-dialog__btn-primary {
+  padding: 6px 12px;
+  background: var(--figma-color-bg-brand);
+  border: none;
+  border-radius: var(--radius-medium);
+  color: var(--figma-color-text-onbrand, #fff);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.confirm-dialog__btn-primary:hover {
+  background: var(--figma-color-bg-brand-hover, var(--figma-color-bg-brand));
+}
+
+.confirm-dialog__btn-primary:active {
+  transform: scale(0.98);
 }
 
 /* ============================================
@@ -1343,139 +1427,7 @@ button:disabled {
 /* ============================================
    SETUP WIZARD
    ============================================ */
-/* ============================================
-   READY VIEW - Figma style (redesigned)
-   ============================================ */
-.ready-view--figma {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  position: relative;
-  background: var(--figma-color-bg);
-}
-
-/* Inline banner slot (WhatsNew) — between StatusBar and content */
-.ready-view-banner-slot {
-  flex-shrink: 0;
-  padding: 0 var(--space-lg);
-}
-
-/* Scrollable content area — takes remaining space, centers children */
-.ready-view-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  overflow-y: auto;
-  padding: var(--space-xl) var(--space-lg);
-}
-
-/* Empty state container */
-.ready-view-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  max-width: 280px;
-}
-
-/* Illustration */
-.ready-view-illustration {
-  width: 80px;
-  height: 80px;
-  opacity: 0.5;
-  margin-bottom: var(--space-xl);
-  color: var(--figma-color-text-secondary);
-}
-
-/* Primary text */
-.ready-view-primary-text {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--figma-color-text);
-  margin: 0 0 var(--space-xs);
-  line-height: 1.4;
-}
-
-/* Secondary text */
-.ready-view-secondary-text {
-  font-size: var(--font-size-base);
-  color: var(--figma-color-text-secondary);
-  margin: 0 0 var(--space-xl);
-  line-height: 1.5;
-}
-
-/* Last Import Card */
-.ready-view-last-card {
-  width: 100%;
-  padding: var(--space-lg);
-  border: 1px solid var(--figma-color-border);
-  border-radius: var(--radius-medium);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color var(--transition-fast);
-  background: var(--figma-color-bg);
-}
-
-.ready-view-last-card:hover {
-  border-color: var(--figma-color-bg-brand);
-}
-
-.ready-view-last-card:focus-visible {
-  outline: 2px solid var(--figma-color-bg-brand);
-  outline-offset: 1px;
-}
-
-.ready-view-last-card-header {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--figma-color-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: var(--space-xs);
-}
-
-.ready-view-last-card-query {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
-  color: var(--figma-color-text);
-  margin-bottom: var(--space-xs);
-  word-break: break-word;
-}
-
-.ready-view-last-card-meta {
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-tertiary);
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.ready-view-last-card-sep {
-  opacity: 0.5;
-}
-
-/* Footer — sticky bottom */
-.ready-view-footer {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-lg) var(--space-xl);
-  border-top: 1px solid var(--figma-color-border);
-}
-
-.ready-view-footer-btn {
-  flex: 1;
-  font-size: var(--font-size-sm) !important;
-  padding: var(--space-sm) var(--space-md) !important;
-}
-
-.ready-view-footer-reset {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
+/* Ready view — removed, replaced by CompactStrip */
 
 /* ============================================
    LOG VIEWER
@@ -1723,32 +1675,70 @@ button:disabled {
   margin-bottom: 4px;
 }
 
-.comp-inspector-prop {
+/* New grid-based properties table */
+.inspector-properties {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 1px 0;
+  flex-direction: column;
+  gap: 2px;
+  font-family: 'SF Mono', 'Consolas', monospace;
   font-size: var(--font-size-sm);
 }
 
-.comp-inspector-prop-name {
+.inspector-property-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) 64px minmax(0, 2fr);
+  gap: 8px;
+  padding: 4px 0;
+  align-items: baseline;
+  border-bottom: 1px solid var(--figma-color-border);
+}
+
+.inspector-property-row:last-child {
+  border-bottom: none;
+}
+
+.inspector-prop-name {
+  color: var(--figma-color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector-prop-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: var(--font-size-xs);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.inspector-prop-badge--text {
+  background: var(--figma-color-bg-secondary);
+  color: var(--figma-color-text-secondary);
+}
+
+.inspector-prop-badge--boolean {
+  background: var(--figma-color-bg-selected);
   color: var(--figma-color-text);
-  word-break: break-word;
-  flex: 1;
-  min-width: 0;
 }
 
-.comp-inspector-prop-type {
-  color: var(--figma-color-text-tertiary);
-  flex-shrink: 0;
-  font-size: var(--font-size-xs);
+.inspector-prop-badge--variant {
+  background: var(--figma-color-bg-selected);
+  color: var(--figma-color-text);
 }
 
-.comp-inspector-prop-value {
-  color: var(--figma-color-text-brand);
-  flex-shrink: 0;
-  font-family: 'SF Mono', 'Menlo', monospace;
-  font-size: var(--font-size-xs);
+.inspector-prop-badge--instance_swap {
+  background: var(--figma-color-bg-secondary);
+  color: var(--figma-color-text-secondary);
+}
+
+.inspector-prop-value {
+  color: var(--figma-color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ============================================

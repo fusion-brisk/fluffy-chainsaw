@@ -19,6 +19,9 @@ import { PORTS } from '../config';
 
 const RELAY_URL = 'http://localhost:' + PORTS.RELAY;
 
+/** Platform detected from UI (desktop or mobile/iPad) */
+let clientPlatform: 'desktop' | 'mobile' = 'desktop';
+
 /** Pure JS base64 encoder — no btoa dependency, safe for Figma sandbox */
 function bytesToBase64(bytes: Uint8Array): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -341,6 +344,12 @@ figma.ui.onmessage = async (msg) => {
       if (typeof width === 'number' && typeof height === 'number' && width > 0 && height > 0) {
         figma.ui.resize(width, height);
       }
+      return;
+    }
+
+    // === Platform info from UI (stored for future use) ===
+    if (msg.type === 'set-platform') {
+      clientPlatform = msg.platform;
       return;
     }
 

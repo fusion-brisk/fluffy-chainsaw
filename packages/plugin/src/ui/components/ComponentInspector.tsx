@@ -23,6 +23,10 @@ function copyToClipboard(text: string): void {
   document.body.removeChild(textarea);
 }
 
+function truncateHash(hash: string): string {
+  return hash.length > 12 ? hash.slice(0, 6) + '\u2026' + hash.slice(-4) : hash;
+}
+
 export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ components, onClose }) => {
 
   const handleCopyKey = useCallback((key: string) => {
@@ -77,8 +81,8 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
 
               <div className="comp-inspector-row comp-inspector-row--key">
                 <span className="comp-inspector-label">Ключ</span>
-                <code className="comp-inspector-key" onClick={() => handleCopyKey(comp.componentKey)} title="Click to copy">
-                  {comp.componentKey || '(no key)'}
+                <code className="comp-inspector-key" onClick={() => handleCopyKey(comp.componentKey)} title={comp.componentKey || 'Click to copy'}>
+                  {comp.componentKey ? truncateHash(comp.componentKey) : '(no key)'}
                 </code>
               </div>
 
@@ -90,8 +94,8 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
                   </div>
                   <div className="comp-inspector-row comp-inspector-row--key">
                     <span className="comp-inspector-label">Ключ набора</span>
-                    <code className="comp-inspector-key" onClick={() => handleCopyKey(comp.componentSetKey!)} title="Click to copy">
-                      {comp.componentSetKey}
+                    <code className="comp-inspector-key" onClick={() => handleCopyKey(comp.componentSetKey!)} title={comp.componentSetKey}>
+                      {truncateHash(comp.componentSetKey)}
                     </code>
                   </div>
                 </>
@@ -100,13 +104,21 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(({ com
               {Object.keys(comp.properties).length > 0 && (
                 <div className="comp-inspector-props">
                   <span className="comp-inspector-props-title">Свойства ({Object.keys(comp.properties).length})</span>
-                  {Object.entries(comp.properties).map(([propName, propData]) => (
-                    <div key={propName} className="comp-inspector-prop">
-                      <span className="comp-inspector-prop-name">{propName}</span>
-                      <span className="comp-inspector-prop-type">{propData.type}</span>
-                      <span className="comp-inspector-prop-value">{JSON.stringify(propData.value)}</span>
-                    </div>
-                  ))}
+                  <div className="inspector-properties">
+                    {Object.entries(comp.properties).map(([propName, propData]) => (
+                      <div key={propName} className="inspector-property-row">
+                        <span className="inspector-prop-name" title={propName}>
+                          {propName.length > 24 ? propName.slice(0, 24) + '\u2026' : propName}
+                        </span>
+                        <span className={`inspector-prop-badge inspector-prop-badge--${propData.type.toLowerCase()}`}>
+                          {propData.type}
+                        </span>
+                        <span className="inspector-prop-value" title={String(propData.value)}>
+                          {String(propData.value).length > 32 ? String(propData.value).slice(0, 32) + '\u2026' : String(propData.value)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
