@@ -17,7 +17,7 @@ import type { RelayPayload, ProgressData } from '../types';
 import {
   sendMessageToPlugin,
 } from '../utils/index';
-import { buildImportSummary } from '../utils/format';
+import { buildImportSummary, buildImportSummaryData } from '../utils/format';
 
 // Hooks
 import { useRelayConnection } from './hooks/useRelayConnection';
@@ -119,10 +119,16 @@ const App: React.FC = () => {
         flow.setRelayPayload(data.payload as RelayPayload | null);
 
         const totalCount = data.rows.length + data.wizardCount;
+        const payloadTyped = data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null;
         const summary = buildImportSummary({
           rows: data.rows,
           wizardCount: data.wizardCount,
-          payload: data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null,
+          payload: payloadTyped,
+        });
+        const summaryData = buildImportSummaryData({
+          rows: data.rows,
+          wizardCount: data.wizardCount,
+          payload: payloadTyped,
         });
         flow.showConfirmation({
           rows: data.rows,
@@ -130,7 +136,7 @@ const App: React.FC = () => {
           source: 'Яндекс',
           entryId: data.entryId,
         });
-        flow.updateInfo({ itemCount: totalCount, summary });
+        flow.updateInfo({ itemCount: totalCount, summary, summaryData });
       }
     }, [extensionInstalled, markExtensionInstalled]),
     onConnectionChange: useCallback(() => {}, []),
@@ -378,7 +384,7 @@ const App: React.FC = () => {
           query={importFlow.info.query}
           itemCount={importFlow.info.itemCount}
           source={importFlow.info.source}
-          summary={importFlow.info.summary}
+          summaryData={importFlow.info.summaryData}
           hasSelection={hasSelection}
           sourceType={importFlow.pending?.sourceType}
           onConfirm={importFlow.confirm}

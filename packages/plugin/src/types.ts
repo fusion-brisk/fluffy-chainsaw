@@ -145,6 +145,7 @@ export interface ParsingRulesMetadata {
 export type UIMessage =
   // === BROWSER RELAY ===
   | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string; includeScreenshots?: boolean }  // Apply data from browser extension via relay
+  | { type: 'apply-feed-payload'; payload: { cards: Array<Record<string, string>>; platform: string } }  // Apply ya.ru feed cards
   // === RESET ===
   | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
   // === LIFECYCLE ===
@@ -296,7 +297,7 @@ export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState
  */
 export const UI_SIZES = {
   compact:  { width: 320, height: 56 },
-  standard: { width: 320, height: 220 },
+  standard: { width: 320, height: 320 },
   extended: { width: 420, height: 520 },
 } as const;
 
@@ -334,6 +335,14 @@ export interface ComponentInspectorData {
 /**
  * Информация о текущем запросе/импорте
  */
+/** Structured import summary — per-entity counts for the confirm dialog */
+export interface ImportSummaryData {
+  snippetCount: number;
+  wizardCount: number;
+  filterCount: number;
+  offerCount: number;
+}
+
 export interface ImportInfo {
   query: string;
   itemCount: number;
@@ -341,6 +350,8 @@ export interface ImportInfo {
   stage?: string;
   /** Human-readable breakdown: "42 сниппета, фильтры (5), сайдбар (8 офферов)" */
   summary?: string;
+  /** Structured per-entity counts for the confirm dialog */
+  summaryData?: ImportSummaryData;
 }
 
 // ============================================================================

@@ -1,15 +1,22 @@
 /**
- * ImportConfirmDialog — compact confirmation screen (320 x 220)
+ * ImportConfirmDialog — confirmation screen (320 × 320)
  *
  * Layout:
- *   «query»                              — semibold, ellipsis
- *   summary line                         — secondary, ellipsis
- *   [Артборд | Выделение]  ☑ Скриншоты  — segmented + checkbox
+ *   Импорт данных                         — title, 16px semibold
+ *   «query»                               — secondary, ellipsis
+ *   43 сниппета                           — summary list (only non-zero)
+ *   5 фильтров
+ *   Режим
+ *   ◉ Новый артборд                       — native radio
+ *   ○ Заполнить выделение                 — disabled if !hasSelection
+ *   ☐ Включить скриншоты                  — native checkbox
  *   ─────────────────────────────────────
- *   Очистить        [Отмена] [Импорт →]  — footer
+ *   Очистить        [Отмена] [Импортировать]
  */
 
 import React, { memo, useEffect, useState, useCallback } from 'react';
+import type { ImportSummaryData } from '../../types';
+import { pluralize } from '../../utils/format';
 
 export type ImportMode = 'artboard' | 'selection';
 
@@ -22,7 +29,7 @@ interface Props {
   query: string;
   itemCount: number;
   source?: string;
-  summary?: string;
+  summaryData?: ImportSummaryData;
   hasSelection: boolean;
   /** 'feed' when importing ya.ru rhythm feed cards */
   sourceType?: 'serp' | 'feed';
@@ -31,24 +38,11 @@ interface Props {
   onClearQueue?: () => void;
 }
 
-/**
- * Format summary with dot separator for compact display.
- * "42 сниппета, фильтры (5), сайдбар (8 офферов)" → "42 сниппета · фильтры (5) · сайдбар (8 офферов)"
- */
-function formatSummary(summary: string | undefined, itemCount: number): string {
-  if (!summary) {
-    const word = itemCount === 1 ? 'элемент' : itemCount < 5 ? 'элемента' : 'элементов';
-    return `${itemCount} ${word}`;
-  }
-  // Replace comma separators with middle dot
-  return summary.replace(/,\s*/g, ' \u00B7 ');
-}
-
 export const ImportConfirmDialog: React.FC<Props> = memo(({
   query,
   itemCount,
-  summary,
   hasSelection,
+  summaryData,
   sourceType,
   onConfirm,
   onCancel,
@@ -57,10 +51,6 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
   const isFeed = sourceType === 'feed';
   const [mode, setMode] = useState<ImportMode>('artboard');
   const [includeScreenshots, setIncludeScreenshots] = useState(!isFeed);
-
-  const displaySummary = isFeed
-    ? `${itemCount} ${itemCount === 1 ? 'карточка' : itemCount < 5 ? 'карточки' : 'карточек'} фида`
-    : formatSummary(summary, itemCount);
 
   const handleConfirm = useCallback(() => {
     onConfirm({ mode, includeScreenshots });
@@ -79,49 +69,84 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [onCancel, handleConfirm]);
 
+  // Build summary lines from structured data
+  const summaryLines: string[] = [];
+  if (isFeed) {
+    summaryLines.push(`${itemCount} ${pluralize(itemCount, 'карточка', 'карточки', 'карточек')} фида`);
+  } else if (summaryData) {
+    if (summaryData.snippetCount > 0) {
+      summaryLines.push(`${summaryData.snippetCount} ${pluralize(summaryData.snippetCount, 'сниппет', 'сниппета', 'сниппетов')}`);
+    }
+    if (summaryData.wizardCount > 0) {
+      summaryLines.push(`${summaryData.wizardCount} ${pluralize(summaryData.wizardCount, 'wizard', 'wizard', 'wizard')}`);
+    }
+    if (summaryData.filterCount > 0) {
+      summaryLines.push(`${summaryData.filterCount} ${pluralize(summaryData.filterCount, 'фильтр', 'фильтра', 'фильтров')}`);
+    }
+    if (summaryData.offerCount > 0) {
+      summaryLines.push(`${summaryData.offerCount} ${pluralize(summaryData.offerCount, 'оффер', 'оффера', 'офферов')}`);
+    }
+  } else {
+    const word = pluralize(itemCount, 'элемент', 'элемента', 'элементов');
+    summaryLines.push(`${itemCount} ${word}`);
+  }
+
   return (
     <div className="confirm-dialog">
       {/* Content */}
       <div className="confirm-dialog__content">
-        {/* Query + Summary */}
+        {/* Title + Query */}
         <div className="confirm-dialog__header">
-          <div className="confirm-dialog__query" title={query}>
-            {query ? `\u00AB${query}\u00BB` : ''}
-          </div>
-          <div className="confirm-dialog__summary" title={displaySummary}>
-            {displaySummary}
-          </div>
+          <h2 className="confirm-dialog__title">Импорт данных</h2>
+          {query && (
+            <div className="confirm-dialog__query" title={query}>
+              {`\u00AB${query}\u00BB`}
+            </div>
+          )}
         </div>
 
-        {/* Controls row: segmented + checkbox */}
-        <div className="confirm-dialog__controls">
-          <div className="confirm-dialog__segmented">
-            <button
-              type="button"
-              className={`confirm-dialog__segment${mode === 'artboard' ? ' active' : ''}`}
-              onClick={() => setMode('artboard')}
-            >
-              Артборд
-            </button>
-            <button
-              type="button"
-              className={`confirm-dialog__segment${mode === 'selection' ? ' active' : ''}`}
-              onClick={() => setMode('selection')}
-              disabled={!hasSelection}
-            >
-              Выделение
-            </button>
-          </div>
+        {/* Summary list */}
+        <div className="confirm-dialog__summary-list">
+          {summaryLines.map((line, i) => (
+            <div key={i} className="confirm-dialog__summary-item">{line}</div>
+          ))}
+        </div>
 
-          <label className="confirm-dialog__checkbox">
+        {/* Mode: native radio */}
+        <fieldset className="confirm-dialog__mode">
+          <legend className="confirm-dialog__mode-label">Режим</legend>
+          <label className="confirm-dialog__radio">
             <input
-              type="checkbox"
-              checked={includeScreenshots}
-              onChange={(e) => setIncludeScreenshots(e.target.checked)}
+              type="radio"
+              name="importMode"
+              value="artboard"
+              checked={mode === 'artboard'}
+              onChange={() => setMode('artboard')}
             />
-            <span>Скриншоты</span>
+            <span>Новый артборд</span>
           </label>
-        </div>
+          <label className="confirm-dialog__radio">
+            <input
+              type="radio"
+              name="importMode"
+              value="selection"
+              checked={mode === 'selection'}
+              onChange={() => setMode('selection')}
+              disabled={!hasSelection}
+            />
+            <span>Заполнить выделение</span>
+          </label>
+        </fieldset>
+
+        {/* Screenshot checkbox */}
+        <label className="confirm-dialog__checkbox">
+          <input
+            type="checkbox"
+            checked={includeScreenshots}
+            onChange={(e) => setIncludeScreenshots(e.target.checked)}
+          />
+          <span>Включить скриншоты</span>
+        </label>
       </div>
 
       {/* Footer */}
@@ -150,7 +175,7 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
             onClick={handleConfirm}
             autoFocus
           >
-            Импорт \u2192
+            Импорт
           </button>
         </div>
       </div>

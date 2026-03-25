@@ -3,6 +3,7 @@
  */
 
 import type { CSVRow } from '../types/csv-fields';
+import type { ImportSummaryData } from '../types';
 
 /**
  * Russian pluralization helper.
@@ -94,6 +95,47 @@ export function buildImportSummary(opts: {
   }
 
   return parts.join(', ') || (snippetCount + ' ' + pluralize(snippetCount, 'элемент', 'элемента', 'элементов'));
+}
+
+/**
+ * Build structured per-entity counts for the confirm dialog.
+ * Same data source as buildImportSummary, but returns numbers instead of a string.
+ */
+export function buildImportSummaryData(opts: {
+  rows: CSVRow[];
+  wizardCount: number;
+  payload?: {
+    productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null;
+  } | null;
+}): ImportSummaryData {
+  const { rows, wizardCount, payload } = opts;
+
+  let snippetCount = 0;
+  let filterCount = 0;
+
+  for (const row of rows) {
+    const t = row['#SnippetType'] || 'unknown';
+    if (t === 'EAsideFilters') {
+      try {
+        const jsonStr = row['#AsideFilters_data'];
+        if (jsonStr) {
+          const parsed = JSON.parse(jsonStr);
+          filterCount = parsed.filters?.length || 0;
+        }
+      } catch { /* ignore */ }
+    } else {
+      snippetCount++;
+    }
+  }
+
+  let offerCount = 0;
+  if (payload?.productCard) {
+    const pc = payload.productCard;
+    offerCount = (Array.isArray(pc.offers) ? pc.offers.length : 0)
+      + (pc.defaultOffer ? 1 : 0);
+  }
+
+  return { snippetCount, wizardCount, filterCount, offerCount };
 }
 
 /**

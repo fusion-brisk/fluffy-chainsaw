@@ -35,6 +35,7 @@ npm run verify                       # typecheck + lint + test + build (before c
 5. **Visibility via booleans** — `trySetProperty(instance, ['withDelivery'], value)`, NOT `instance.visible = false`.
 6. **Logger only** — never `console.log`. Use `Logger.debug()` / `Logger.verbose()`.
 7. **Pure transforms** — `transforms.ts` functions: no side effects, no Figma API.
+8. **CSS fallbacks** — always provide hardcoded fallback for `--figma-color-*` variables. New button classes must be added to the global `button:hover:not(...)` exclusion list in `styles.css`.
 
 ## Investigation Rule
 
@@ -61,6 +62,7 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 | Release | `.claude/rules/release.md` |
 | Module internals | `docs/STRUCTURE.md`, `docs/GLOSSARY.md` |
 | UI hooks/state | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks |
+| UI CSS pitfalls | `.claude/rules/ui-css.md` |
 
 ## Specs Workflow
 
