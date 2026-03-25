@@ -1,55 +1,21 @@
-/* Figma Native-like Styles (Light Theme - UI3 inspired) */
+/* Figma Native Styles — UI3
+   Color variables (--figma-color-*) are injected by Figma when themeColors: true.
+   Dark mode works automatically via Figma's native theme switching. */
 :root {
-  /* Semantic Colors */
-  --color-primary: #0D99FF;
-  --color-primary-hover: #0B87E0;
-  --color-success: #1A7F37;
-  --color-warning: #9A6700;
-  --color-error: #CF222E;
-  
-  /* Semantic Shadows (subtle) */
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.06);
-  
-  /* Light Theme (Default - Figma Native) */
-  --figma-color-bg: #FFFFFF;
-  --figma-color-bg-secondary: #F5F5F5;
-  --figma-color-bg-tertiary: #EBEBEB;
-  --figma-color-bg-hover: #E8E8E8;
-  --figma-color-bg-pressed: #DDDDDD;
-  --figma-color-bg-brand: #0D99FF;
-  --figma-color-bg-brand-hover: #0B87E0;
-  --figma-color-bg-selected: rgba(13, 153, 255, 0.08);
-  
-  --figma-color-text: #1a1a1a;
-  --figma-color-text-secondary: #666666;
-  --figma-color-text-tertiary: #767676;
-  --figma-color-text-onbrand: #FFFFFF;
-  --figma-color-text-danger: #CF222E;
-  --figma-color-text-success: #1A7F37;
-  --figma-color-text-warning: #9A6700;
-  
-  --figma-color-border: #E5E5E5;
-  --figma-color-border-strong: #D0D0D0;
-  --figma-color-border-brand: #0D99FF;
-  --figma-color-border-selected: #0D99FF;
-
-  --figma-color-icon: #333333;
-  --figma-color-icon-secondary: #666666;
-  
-  /* Typography Scale (7 sizes) */
+  /* Typography Scale (UI3: 11px base) */
   --font-size-xs: 10px;
-  --font-size-sm: 11px;
-  --font-size-base: 12px;
+  --font-size-sm: 10px;
+  --font-size-base: 11px;
   --font-size-lg: 13px;
   --font-size-xl: 14px;
   --font-size-2xl: 16px;
   --font-size-3xl: 18px;
 
-  /* Font Weight Scale */
+  /* Font Weight Scale (UI3: 550 semibold) */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
-  --font-weight-semibold: 600;
-  
+  --font-weight-semibold: 550;
+
   /* Spacing Scale */
   --space-xs: 4px;
   --space-sm: 6px;
@@ -57,21 +23,19 @@
   --space-lg: 12px;
   --space-xl: 16px;
   --space-2xl: 20px;
-  
-  /* Simplified - only for primary actions */
-  --gradient-brand: linear-gradient(135deg, #5865F2 0%, #6B73F7 100%);
-  
+
+  /* Radii */
   --radius-small: 4px;
   --radius-medium: 6px;
   --radius-large: 8px;
   --radius-xl: 12px;
-  
+
   /* Shadows (subtle, Figma-style) */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
-  
-  /* Transition Tokens (UI Consistency) */
+
+  /* Transition Tokens */
   --transition-fast: 0.1s ease;
   --transition-normal: 0.2s ease;
   --transition-slow: 0.3s ease-out;
@@ -81,90 +45,14 @@
   --duration-fast: 150ms;
   --duration-normal: 300ms;
   --duration-slow: 500ms;
-  
-  /* ========================================
-     FIGMA-STYLE UI TOKENS
-     ======================================== */
-  
-  /* Card styles (simple, no glassmorphism) */
-  --card-bg: #FFFFFF;
-  --card-border: #E5E5E5;
+
+  /* Component-specific tokens */
   --card-radius: 8px;
   --card-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  
-  /* Button styles (solid colors) */
   --btn-radius: 6px;
-  
-  /* Step Number */
-  --step-number-bg: #0D99FF;
   --step-number-size: 24px;
-  
-  /* Icon Circle */
-  --icon-circle-bg: #F5F5F5;
-  --icon-circle-border: #E5E5E5;
-  --icon-circle-size: 48px;
-  
-  /* Status Pill */
-  --status-pill-bg: #F5F5F5;
-  --status-pill-border: #E5E5E5;
-  --status-connected: #1A7F37;
-  --status-offline: #CF222E;
-  
-  /* Overlay */
-  --overlay-bg: rgba(0, 0, 0, 0.5);
-  --overlay-bg-dark: rgba(0, 0, 0, 0.8);
-  
-  /* Toggle */
-  --toggle-thumb-bg: #FFFFFF;
-  --toggle-thumb-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
-/* Dark Theme Override (optional) */
-[data-theme="dark"] {
-  --figma-color-bg: #1e1e1e;
-  --figma-color-bg-secondary: #2a2a2a;
-  --figma-color-bg-tertiary: #333333;
-  --figma-color-bg-hover: #3a3a3a;
-  --figma-color-bg-pressed: #1a1a1a;
-  --figma-color-bg-brand: #0D99FF;
-  --figma-color-bg-brand-hover: #0B87E0;
-  --figma-color-bg-selected: rgba(13, 153, 255, 0.15);
-  
-  --figma-color-text: #FFFFFF;
-  --figma-color-text-secondary: #999999;
-  --figma-color-text-tertiary: #767676;
-  --figma-color-text-onbrand: #FFFFFF;
-  --figma-color-text-danger: #F85149;
-  --figma-color-text-success: #3FB950;
-  --figma-color-text-warning: #D29922;
-  
-  --figma-color-border: #404040;
-  --figma-color-border-strong: #555555;
-  --figma-color-border-brand: #0D99FF;
-  --figma-color-border-selected: #0D99FF;
-  
-  --figma-color-icon: #FFFFFF;
-  --figma-color-icon-secondary: #999999;
-  
-  --card-bg: #2a2a2a;
-  --card-border: #404040;
-  
-  --status-pill-bg: #333333;
-  --status-pill-border: #404040;
-  --status-connected: #3FB950;
-  --status-offline: #F85149;
-  
-  --icon-circle-bg: #333333;
-  --icon-circle-border: #404040;
-  
-  --step-number-bg: #0D99FF;
-  
-  --overlay-bg: rgba(0, 0, 0, 0.7);
-  --overlay-bg-dark: rgba(0, 0, 0, 0.9);
-  
-  --toggle-thumb-bg: #FFFFFF;
-  --toggle-thumb-shadow: 0 1px 2px rgba(0,0,0,0.4);
-}
 
 /* Reset & Base */
 * { box-sizing: border-box; }
@@ -1107,7 +995,7 @@ button:disabled {
 .whats-new-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg);
+  background: rgba(0,0,0,0.4);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -1135,7 +1023,7 @@ button:disabled {
   width: 20px;
   height: 20px;
   border-radius: 6px;
-  background: var(--gradient-brand);
+  background: linear-gradient(135deg, #5865F2 0%, #6B73F7 100%);
   box-shadow: var(--shadow-sm);
   flex-shrink: 0;
 }
@@ -1367,7 +1255,7 @@ button:disabled {
 .confirm-dialog-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg);
+  background: rgba(0,0,0,0.4);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -1467,8 +1355,8 @@ button:disabled {
    ============================================ */
 /* Figma-style card */
 .figma-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
   border-radius: var(--card-radius);
   box-shadow: var(--card-shadow);
   padding: 12px 16px;
@@ -1505,7 +1393,7 @@ button:disabled {
 
 .btn-primary:active,
 .btn-primary-gradient:active {
-  background: var(--color-primary-hover);
+  background: var(--figma-color-bg-brand-hover);
 }
 
 /* Figma-style secondary button */
@@ -1623,7 +1511,7 @@ button:disabled {
   width: 32px;
   height: 32px;
   border: 2px solid var(--figma-color-border);
-  border-top-color: var(--color-primary);
+  border-top-color: var(--figma-color-bg-brand);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin-bottom: 8px;
@@ -1686,7 +1574,7 @@ button:disabled {
 
 .processing-view--figma .processing-view-stuck {
   font-size: var(--font-size-sm);
-  color: var(--color-warning);
+  color: var(--figma-color-text-warning);
   animation: viewAppear 0.3s ease-out;
 }
 
@@ -1714,7 +1602,7 @@ button:disabled {
 .success-view--figma .success-view-icon {
   width: 48px;
   height: 48px;
-  color: var(--color-success);
+  color: var(--figma-color-text-success);
   margin-bottom: 8px;
 }
 
@@ -1779,7 +1667,7 @@ button:disabled {
 
 .success-view--figma .success-view-progress-bar {
   height: 100%;
-  background: var(--color-success);
+  background: var(--figma-color-text-success);
   animation: progressShrink linear forwards;
 }
 
@@ -1852,11 +1740,11 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--icon-circle-bg);
-  border: 1px solid var(--icon-circle-border);
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
   border-radius: 12px;
   margin-bottom: 8px;
-  color: var(--color-primary);
+  color: var(--figma-color-bg-brand);
 }
 
 .confirm-view--figma .confirm-view-title {
@@ -1972,7 +1860,7 @@ button:disabled {
 }
 
 .confirm-view-clear-link:hover {
-  color: var(--color-error);
+  color: var(--figma-color-text-danger);
 }
 
 .confirm-view-clear-confirm {
@@ -1985,7 +1873,7 @@ button:disabled {
 
 .confirm-view-clear-warn {
   font-size: var(--font-size-sm);
-  color: var(--color-error);
+  color: var(--figma-color-text-danger);
 }
 
 .confirm-view-clear-btns {
@@ -2045,7 +1933,7 @@ button:disabled {
   justify-content: center;
   width: var(--step-number-size);
   height: var(--step-number-size);
-  background: var(--step-number-bg);
+  background: var(--figma-color-bg-brand);
   color: var(--figma-color-text-onbrand);
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
@@ -2070,7 +1958,7 @@ button:disabled {
   border-radius: var(--btn-radius);
   font-size: var(--font-size-sm);
   font-family: monospace;
-  color: var(--color-primary);
+  color: var(--figma-color-bg-brand);
   cursor: pointer;
   transition: background var(--transition-fast);
 }
@@ -2109,7 +1997,7 @@ button:disabled {
 
 .setup-flow-progress-fill {
   height: 100%;
-  background: var(--color-primary);
+  background: var(--figma-color-bg-brand);
   border-radius: 2px;
   transition: width 0.3s ease;
 }
@@ -2165,7 +2053,7 @@ button:disabled {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  border-left: 3px solid var(--color-primary);
+  border-left: 3px solid var(--figma-color-bg-brand);
   margin: var(--space-sm) 0;
 }
 
@@ -2217,7 +2105,7 @@ button:disabled {
 .status-bar-ok {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--status-connected);
+  color: var(--figma-color-text-success);
   padding: 4px 10px;
   white-space: nowrap;
   background: none;
@@ -2245,7 +2133,7 @@ button:disabled {
 .status-bar-error-text {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  color: var(--status-setup);
+  color: var(--figma-color-text-warning);
 }
 
 .status-pill {
@@ -2253,8 +2141,8 @@ button:disabled {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: var(--status-pill-bg);
-  border: 1px solid var(--status-pill-border);
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
   border-radius: 12px;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
@@ -2291,15 +2179,15 @@ button:disabled {
 /* Status variants */
 .status-pill--connected .status-pill-icon,
 .status-pill--active .status-pill-icon {
-  color: var(--status-connected);
+  color: var(--figma-color-text-success);
 }
 
 .status-pill--offline .status-pill-icon {
-  color: var(--status-offline);
+  color: var(--figma-color-text-danger);
 }
 
 .status-pill--setup .status-pill-icon {
-  color: var(--color-warning);
+  color: var(--figma-color-text-warning);
 }
 
 /* ============================================
@@ -2339,15 +2227,15 @@ button:disabled {
 }
 
 .update-banner--warning {
-  background: color-mix(in srgb, var(--color-warning) 12%, var(--figma-color-bg));
-  border: 1px solid color-mix(in srgb, var(--color-warning) 30%, transparent);
-  color: var(--color-warning);
+  background: color-mix(in srgb, var(--figma-color-text-warning) 12%, var(--figma-color-bg));
+  border: 1px solid color-mix(in srgb, var(--figma-color-text-warning) 30%, transparent);
+  color: var(--figma-color-text-warning);
 }
 
 .update-banner--critical {
-  background: color-mix(in srgb, var(--status-offline) 12%, var(--figma-color-bg));
-  border: 1px solid color-mix(in srgb, var(--status-offline) 30%, transparent);
-  color: var(--status-offline);
+  background: color-mix(in srgb, var(--figma-color-text-danger) 12%, var(--figma-color-bg));
+  border: 1px solid color-mix(in srgb, var(--figma-color-text-danger) 30%, transparent);
+  color: var(--figma-color-text-danger);
 }
 
 .update-banner-content {
@@ -2447,8 +2335,8 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--icon-circle-bg);
-  border: 1px solid var(--icon-circle-border);
+  background: var(--figma-color-bg-secondary);
+  border: 1px solid var(--figma-color-border);
   border-radius: 12px;
   margin-bottom: 16px;
   color: var(--figma-color-icon-secondary);
@@ -2489,7 +2377,7 @@ button:disabled {
   background: none;
   border: none;
   padding: 0;
-  color: var(--color-primary);
+  color: var(--figma-color-bg-brand);
   text-decoration: underline;
   text-underline-offset: 2px;
   font-size: inherit;
@@ -2499,7 +2387,7 @@ button:disabled {
 }
 
 .ready-view-link:hover {
-  color: var(--color-primary-hover);
+  color: var(--figma-color-bg-brand-hover);
 }
 
 /* ============================================
