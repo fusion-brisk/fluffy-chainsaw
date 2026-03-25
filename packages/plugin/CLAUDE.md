@@ -69,6 +69,10 @@ Nested Line/Label: `instance.setProperties({ value })`.
 | `src/types/csv-fields.ts` | 200+ explicit CSV fields |
 | `src/config.ts` | Version, URLs, container names |
 | `src/logger.ts` | Logger class |
+| `src/ui/ui.tsx` | UI entry point — thin orchestrator (~390 LOC) |
+| `src/ui/hooks/useImportFlow.ts` | Import lifecycle (confirm, process, success) |
+| `src/ui/hooks/usePanelManager.ts` | Panel overlay state (setup/logs/inspector) |
+| `src/ui/hooks/useResizeUI.ts` | Animated window resize |
 
 ## Testing
 

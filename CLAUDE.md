@@ -60,6 +60,7 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 | Page builder | `docs/PAGE_BUILDER_SETUP.md` |
 | Release | `.claude/rules/release.md` |
 | Module internals | `docs/STRUCTURE.md`, `docs/GLOSSARY.md` |
+| UI hooks/state | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks |
 
 ## Specs Workflow
 

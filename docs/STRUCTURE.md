@@ -51,6 +51,35 @@
 *   `styles.css`: Глобальные стили.
 *   `styles-logs.css`: Стили для панели логов.
 
+##### `src/ui/ui.tsx` — Thin Orchestrator (~390 LOC)
+
+After refactoring, `ui.tsx` is a thin orchestrator that delegates to 7 hooks:
+
+```
+App (~390 LOC)
+├── useResizeUI()        → animated window resize
+├── usePanelManager()    → activePanel, openPanel, closePanel
+├── useImportFlow()      → pending, info, confirm, cancel, stats
+├── useRelayConnection() → relay connection + data polling (existing)
+├── usePluginMessages()  → message routing (existing)
+├── useVersionCheck()    → update banners (existing)
+├── useMcpStatus()       → MCP indicator (existing)
+└── Render: showMainContent guard + panel overlays
+```
+
+##### `src/ui/hooks/` — Custom React Hooks
+
+| Hook | LOC | Responsibility |
+|------|-----|---------------|
+| `usePanelManager.ts` | ~50 | Panel overlay state (setup/logs/inspector). Single `activePanel` instead of 3 booleans. Saves/restores previous appState size. |
+| `useResizeUI.ts` | ~75 | Animated resize via `sendMessageToPlugin('resize-ui')`. Maps state → size tier → eased animation. |
+| `useImportFlow.ts` | ~265 | Import lifecycle: pending data, confirmation, processing, success. Owns relay payload ref, entry ack, min-delay timing. |
+| `useRelayConnection.ts` | ~420 | WebSocket + HTTP polling to relay server. Parses incoming data, manages connection state. |
+| `usePluginMessages.ts` | ~240 | Routes `window.onmessage` events to handler callbacks. |
+| `useVersionCheck.ts` | ~120 | Compares relay/extension versions, shows update banners. |
+| `useMcpStatus.ts` | ~40 | MCP bridge connection indicator. |
+| `index.ts` | — | Re-exports all hooks. |
+
 #### `src/utils/` — Утилиты парсинга (модульная архитектура)
 
 После оптимизации (Фазы 1-4) утилиты разделены на специализированные модули:
@@ -158,16 +187,20 @@ interface ContainerCache {
 - `queryFromCache()`, `queryFirstMatch()` — замена для querySelector
 - Кэш строится для **каждого контейнера** перед extractRowData()
 
-#### `src/components/` — React компоненты UI
+#### `src/ui/components/` — React компоненты UI
 
 | Компонент | Описание |
 |-----------|----------|
-| `DropZone.tsx` | Drag & drop зона для файлов |
-| `Header.tsx` | Заголовок плагина |
-| `LogViewer.tsx` | Панель логов |
-| `ProgressBar.tsx` | Индикатор прогресса |
-| `ScopeControl.tsx` | Переключатель области (Page/Selection) |
-| `StatsPanel.tsx` | Панель статистики |
+| `ReadyView.tsx` | Основной экран готовности |
+| `ProcessingView.tsx` | Индикатор прогресса импорта |
+| `ImportConfirmDialog.tsx` | Диалог подтверждения импорта (scope, screenshots) |
+| `SuccessView.tsx` | Экран успешного завершения |
+| `SetupFlow.tsx` | Настройка relay + расширения |
+| `StatusBar.tsx` | Индикаторы состояния (relay, extension, MCP) |
+| `UpdateBanner.tsx` | Баннер обновления relay/extension |
+| `ComponentInspector.tsx` | Инспектор свойств компонента |
+| `Confetti.tsx` | Анимация конфетти при успехе |
+| `logs/LogViewer.tsx` | Панель логов (Ctrl+Shift+L) |
 
 #### Общие
 *   `types.ts`: TypeScript интерфейсы, общие для UI и Logic. **Важно:** Определяет протокол `postMessage`.
