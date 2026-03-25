@@ -2,8 +2,8 @@ import { useCallback, useRef } from 'react';
 import { UI_SIZES, STATE_TO_TIER } from '../../types';
 import { sendMessageToPlugin } from '../../utils/index';
 
-/** Resize animation duration (ms) */
-const RESIZE_ANIMATION_DURATION = 400;
+/** Resize animation duration (ms) — matches --duration-resize */
+const RESIZE_ANIMATION_DURATION = 350;
 
 /** Delay before resize starts (ms) — allows content to prepare */
 const RESIZE_DELAY = 50;
@@ -48,12 +48,13 @@ export function useResizeUI(): (state: string) => void {
       const deltaHeight = targetSize.height - startHeight;
       const startTime = performance.now();
 
-      const easeInOutQuad = (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      // Approximation of --ease-out: cubic-bezier(0.16, 1, 0.3, 1)
+      const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
 
       const animate = (currentTime: number) => {
         const elapsed = currentTime - startTime;
         const progress = Math.min(elapsed / RESIZE_ANIMATION_DURATION, 1);
-        const easedProgress = easeInOutQuad(progress);
+        const easedProgress = easeOut(progress);
 
         const newWidth = Math.round(startWidth + deltaWidth * easedProgress);
         const newHeight = Math.round(startHeight + deltaHeight * easedProgress);

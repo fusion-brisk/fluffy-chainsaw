@@ -280,6 +280,21 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [panels]);
 
+  // === VIEW TRANSITIONS ===
+  const prevStateRef = useRef(appState);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  useEffect(() => {
+    if (prevStateRef.current !== appState) {
+      setIsTransitioning(true);
+      const timer = setTimeout(() => {
+        setIsTransitioning(false);
+        prevStateRef.current = appState;
+      }, 200); // --duration-normal
+      return () => clearTimeout(timer);
+    }
+  }, [appState]);
+
   // === RENDER ===
   const showMainContent = !panels.isPanelOpen;
 
@@ -313,7 +328,7 @@ const App: React.FC = () => {
       )}
 
       {showMainContent && (
-        <>
+        <div className={`view-container ${isTransitioning ? 'view-enter' : 'view-enter-active'}`}>
           {appState === 'ready' && (
             <ReadyView
               lastQuery={importFlow.lastQuery}
@@ -363,7 +378,7 @@ const App: React.FC = () => {
               onShowLogs={handleShowLogViewer}
             />
           )}
-        </>
+        </div>
       )}
 
       {/* Confetti — hidden during panel overlays */}
