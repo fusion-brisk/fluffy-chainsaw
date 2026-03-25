@@ -70,7 +70,6 @@ const App: React.FC = () => {
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>([]);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
-  const [relayConnected, setRelayConnected] = useState(false);
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
 
@@ -111,13 +110,14 @@ const App: React.FC = () => {
       });
       flow.updateInfo({ itemCount: totalCount, summary });
     }, [extensionInstalled, markExtensionInstalled]),
-    onConnectionChange: useCallback((connected: boolean) => {
-      setRelayConnected(connected);
-    }, []),
+    onConnectionChange: useCallback(() => {}, []),
   });
 
   const importFlow = useImportFlow(appState, setAppState, resizeUI, relay);
   importFlowRef.current = importFlow;
+
+  // Derived from relay hook — no separate state needed
+  const relayConnected = relay.connected;
 
   const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
   const mcpStatus = useMcpStatus();
@@ -221,11 +221,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (appState === 'checking' && relay.connected) {
-      setRelayConnected(true);
-      if (appState === 'checking') {
-        setAppState('ready');
-        resizeUI('ready');
-      }
+      setAppState('ready');
+      resizeUI('ready');
     }
   }, [appState, relay.connected, resizeUI]);
 
