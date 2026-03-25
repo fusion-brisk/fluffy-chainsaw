@@ -72,12 +72,9 @@ export interface SheetData {
  * - 'page': заполнить все компоненты на странице
  * - 'build': создать новый фрейм из HTML
  */
-export type PluginMode = 'selection' | 'page' | 'build';
-
 export interface UserSettings {
   /** @deprecated используй mode */
   scope?: 'selection' | 'page';
-  mode?: PluginMode;
   remoteConfigUrl?: string;
   resetBeforeImport?: boolean;
   logLevel?: number;             // default 2 (SUMMARY)
