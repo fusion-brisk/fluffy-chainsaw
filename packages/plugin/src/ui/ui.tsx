@@ -96,21 +96,42 @@ const App: React.FC = () => {
         markExtensionInstalled();
       }
       const flow = importFlowRef.current;
-      flow.setRelayPayload(data.payload as RelayPayload | null);
 
-      const totalCount = data.rows.length + data.wizardCount;
-      const summary = buildImportSummary({
-        rows: data.rows,
-        wizardCount: data.wizardCount,
-        payload: data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null,
-      });
-      flow.showConfirmation({
-        rows: data.rows,
-        query: data.query,
-        source: 'Яндекс',
-        entryId: data.entryId,
-      });
-      flow.updateInfo({ itemCount: totalCount, summary });
+      const isFeed = data.sourceType === 'feed';
+
+      if (isFeed) {
+        // Feed pipeline — no relay payload storage needed
+        const feedCardCount = data.feedCards?.length || 0;
+        flow.showConfirmation({
+          rows: [],
+          query: 'ya.ru фид',
+          source: 'ya.ru',
+          entryId: data.entryId,
+          sourceType: 'feed',
+          feedCards: data.feedCards,
+        });
+        flow.updateInfo({
+          itemCount: feedCardCount,
+          summary: `${feedCardCount} ${feedCardCount < 5 ? 'карточки' : 'карточек'} фида`,
+        });
+      } else {
+        // SERP pipeline (existing path)
+        flow.setRelayPayload(data.payload as RelayPayload | null);
+
+        const totalCount = data.rows.length + data.wizardCount;
+        const summary = buildImportSummary({
+          rows: data.rows,
+          wizardCount: data.wizardCount,
+          payload: data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null,
+        });
+        flow.showConfirmation({
+          rows: data.rows,
+          query: data.query,
+          source: 'Яндекс',
+          entryId: data.entryId,
+        });
+        flow.updateInfo({ itemCount: totalCount, summary });
+      }
     }, [extensionInstalled, markExtensionInstalled]),
     onConnectionChange: useCallback(() => {}, []),
   });
@@ -359,6 +380,7 @@ const App: React.FC = () => {
           source={importFlow.info.source}
           summary={importFlow.info.summary}
           hasSelection={hasSelection}
+          sourceType={importFlow.pending?.sourceType}
           onConfirm={importFlow.confirm}
           onCancel={importFlow.cancel}
           onClearQueue={importFlow.clearQueue}

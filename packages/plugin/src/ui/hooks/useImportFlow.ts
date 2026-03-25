@@ -13,6 +13,10 @@ export interface PendingImport {
   query: string;
   source: string;
   entryId?: string;
+  /** 'feed' when importing ya.ru rhythm feed cards */
+  sourceType?: 'serp' | 'feed';
+  /** Feed card rows (when sourceType='feed') */
+  feedCards?: Array<Record<string, string>>;
 }
 
 export interface ImportFlowState {
@@ -30,6 +34,8 @@ export interface ImportFlowActions {
     query: string;
     source: string;
     entryId?: string;
+    sourceType?: 'serp' | 'feed';
+    feedCards?: Array<Record<string, string>>;
   }) => void;
   /** User confirmed import — start processing */
   confirm: (options: ImportOptions) => void;
@@ -113,16 +119,21 @@ export function useImportFlow(
     query: string;
     source: string;
     entryId?: string;
+    sourceType?: 'serp' | 'feed';
+    feedCards?: Array<Record<string, string>>;
   }) => {
-    const totalCount = data.rows.length;
+    const isFeed = data.sourceType === 'feed';
+    const totalCount = isFeed ? (data.feedCards?.length || 0) : data.rows.length;
     setPending({
       rows: data.rows,
-      query: data.query || 'Импорт данных',
+      query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
       source: data.source,
       entryId: data.entryId,
+      sourceType: data.sourceType,
+      feedCards: data.feedCards,
     });
     setInfo({
-      query: data.query || 'Импорт данных',
+      query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
       itemCount: totalCount,
       source: data.source,
     });
@@ -134,8 +145,10 @@ export function useImportFlow(
     if (!pending) return;
 
     const { mode, includeScreenshots } = options;
-    const { rows, query, entryId } = pending;
+    const { rows, query, entryId, sourceType, feedCards } = pending;
     const scope = mode === 'selection' ? 'selection' : 'page';
+    const isFeed = sourceType === 'feed';
+    const itemCount = isFeed ? (feedCards?.length || 0) : rows.length;
 
     // Store entryId for acknowledgment after successful load
     if (entryId) {
@@ -154,7 +167,7 @@ export function useImportFlow(
     setLastQuery(query);
     setInfo({
       query,
-      itemCount: rows.length,
+      itemCount,
       source: pending.source,
       stage: 'components'
     });
@@ -162,7 +175,17 @@ export function useImportFlow(
     resizeUI('processing');
     processingStartTimeRef.current = Date.now();
 
-    if (relayPayloadRef.current) {
+    if (isFeed && feedCards) {
+      // Feed pipeline — send to apply-feed-payload handler
+      sendMessageToPlugin({
+        type: 'apply-feed-payload',
+        payload: {
+          cards: feedCards,
+          platform: 'desktop',
+        },
+      });
+    } else if (relayPayloadRef.current) {
+      // SERP pipeline (existing path)
       sendMessageToPlugin({
         type: 'apply-relay-payload',
         payload: relayPayloadRef.current,

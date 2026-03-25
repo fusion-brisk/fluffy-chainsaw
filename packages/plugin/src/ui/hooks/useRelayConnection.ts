@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSVRow } from '../../types/csv-fields';
 import type { ParsedRelayData } from '../../utils/relay-payload';
 import { extractRowsFromPayload } from '../../utils/relay-payload';
 
@@ -26,6 +27,8 @@ export interface RelayDataEvent extends ParsedRelayData {
   entryId: string;
   payload: unknown;
   wizardCount: number;
+  sourceType?: 'serp' | 'feed';
+  feedCards?: Array<Record<string, string>>;
 }
 
 export interface UseRelayConnectionOptions {
@@ -106,6 +109,34 @@ export function useRelayConnection({
       if (entryId === lastProcessedEntryIdRef.current) return;
       if (entryId === pendingEntryIdRef.current) return;
 
+      const sourceType = payload.sourceType || 'serp';
+      const isFeed = sourceType === 'feed';
+
+      if (isFeed) {
+        // Feed pipeline — feedCards instead of rawRows
+        const feedCards = payload.feedCards || [];
+        if (feedCards.length === 0) return;
+
+        const meta = data.meta as { extensionVersion?: string } | undefined;
+        if (meta?.extensionVersion) {
+          setExtensionVersion(meta.extensionVersion);
+        }
+
+        pendingEntryIdRef.current = entryId;
+
+        onDataReceivedRef.current({
+          rows: [] as CSVRow[],
+          query: '',
+          entryId,
+          payload,
+          wizardCount: 0,
+          sourceType: 'feed',
+          feedCards,
+        });
+        return;
+      }
+
+      // SERP pipeline (existing path)
       const parsed = extractRowsFromPayload(payload);
       if (parsed.rows.length === 0) return;
 

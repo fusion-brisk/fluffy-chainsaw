@@ -24,6 +24,8 @@ interface Props {
   source?: string;
   summary?: string;
   hasSelection: boolean;
+  /** 'feed' when importing ya.ru rhythm feed cards */
+  sourceType?: 'serp' | 'feed';
   onConfirm: (options: ImportOptions) => void;
   onCancel: () => void;
   onClearQueue?: () => void;
@@ -47,14 +49,18 @@ export const ImportConfirmDialog: React.FC<Props> = memo(({
   itemCount,
   summary,
   hasSelection,
+  sourceType,
   onConfirm,
   onCancel,
   onClearQueue,
 }) => {
+  const isFeed = sourceType === 'feed';
   const [mode, setMode] = useState<ImportMode>('artboard');
-  const [includeScreenshots, setIncludeScreenshots] = useState(true);
+  const [includeScreenshots, setIncludeScreenshots] = useState(!isFeed);
 
-  const displaySummary = formatSummary(summary, itemCount);
+  const displaySummary = isFeed
+    ? `${itemCount} ${itemCount === 1 ? 'карточка' : itemCount < 5 ? 'карточки' : 'карточек'} фида`
+    : formatSummary(summary, itemCount);
 
   const handleConfirm = useCallback(() => {
     onConfirm({ mode, includeScreenshots });
