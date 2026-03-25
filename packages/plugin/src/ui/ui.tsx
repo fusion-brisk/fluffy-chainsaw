@@ -2,6 +2,7 @@
  * Contentify Plugin — UI Entry Point (Relay-Only)
  *
  * Unified UI with minimal states:
+ * - setup: First-run onboarding wizard (3-step setup flow)
  * - checking: Initial relay connection check
  * - ready: Ready to work (relay status shown as indicator)
  * - processing: Importing/processing data
@@ -56,7 +57,8 @@ const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
 // Main App Component
 const App: React.FC = () => {
   // === CORE STATE ===
-  const [appState, setAppState] = useState<AppState>('checking');
+  // Initial state is 'setup' — will transition to 'checking' once we know if setup was skipped
+  const [appState, setAppState] = useState<AppState>('setup');
   const [relayUrl] = useState(() => {
     try {
       return localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
@@ -71,6 +73,8 @@ const App: React.FC = () => {
   const [currentVersion, setCurrentVersion] = useState('');
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
+  // Tracks whether we've received the setup-skipped response from sandbox
+  const [setupResolved, setSetupResolved] = useState(false);
 
   // === HOOKS ===
   const resizeUI = useResizeUI();
@@ -85,9 +89,16 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
+  /** Called when SetupFlow completes as the primary 'setup' state view */
+  const handleSetupComplete = useCallback(() => {
+    markExtensionInstalled();
+    setAppState('checking');
+    resizeUI('checking');
+  }, [markExtensionInstalled, resizeUI]);
+
   const relay = useRelayConnection({
     relayUrl,
-    enabled: appState !== 'processing' && appState !== 'confirming',
+    enabled: appState !== 'setup' && appState !== 'processing' && appState !== 'confirming',
     onDataReceived: useCallback((data: RelayDataEvent) => {
       if (!extensionInstalled) {
         markExtensionInstalled();
@@ -130,9 +141,20 @@ const App: React.FC = () => {
   usePluginMessages({
     handlers: {
       onSetupSkippedLoaded: (skipped) => {
+        setSetupResolved(true);
         if (skipped) {
           setExtensionInstalled(true);
           setIsFirstRun(false);
+          // Skip setup wizard — go straight to checking → ready
+          if (appState === 'setup') {
+            setAppState('checking');
+            resizeUI('checking');
+          }
+        } else {
+          // First run — stay on 'setup', resize to extended
+          if (appState === 'setup') {
+            resizeUI('setup');
+          }
         }
       },
       onLog: (message) => {
@@ -253,13 +275,12 @@ const App: React.FC = () => {
   }, [panels]);
 
   // === RENDER ===
-  const needsSetup = !extensionInstalled;
   const showMainContent = !panels.isPanelOpen;
 
   return (
     <div className="glass-app">
-      {/* StatusBar + banners — visible when main content is shown */}
-      {appState !== 'checking' && showMainContent && (
+      {/* StatusBar + banners — visible when main content is shown (not during setup or checking) */}
+      {appState !== 'checking' && appState !== 'setup' && showMainContent && (
         <>
           <StatusBar
             relayConnected={relayConnected}
@@ -281,6 +302,15 @@ const App: React.FC = () => {
       )}
 
       {/* Main content — mutually exclusive via appState */}
+      {appState === 'setup' && setupResolved && (
+        <SetupFlow
+          relayConnected={relayConnected}
+          extensionInstalled={extensionInstalled}
+          onComplete={handleSetupComplete}
+          onBack={handleSetupComplete}
+        />
+      )}
+
       {appState === 'checking' && (
         <div className="checking-view">
           <div className="checking-view-spinner" />
@@ -291,29 +321,20 @@ const App: React.FC = () => {
       {showMainContent && (
         <>
           {appState === 'ready' && (
-            needsSetup ? (
-              <SetupFlow
-                relayConnected={relayConnected}
-                extensionInstalled={extensionInstalled}
-                onComplete={markExtensionInstalled}
-                onBack={markExtensionInstalled}
-              />
-            ) : (
-              <ReadyView
-                lastQuery={importFlow.lastQuery}
-                relayConnected={relayConnected}
-                isFirstTime={isFirstRun}
-                showWhatsNew={showWhatsNew}
-                currentVersion={currentVersion}
-                onShowExtensionGuide={handleShowSetup}
-                onReimport={relayConnected ? () => relay.reimport() : undefined}
-                onDismissOnboarding={handleDismissOnboarding}
-                onDismissWhatsNew={() => {
-                  setShowWhatsNew(false);
-                  sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
-                }}
-              />
-            )
+            <ReadyView
+              lastQuery={importFlow.lastQuery}
+              relayConnected={relayConnected}
+              isFirstTime={isFirstRun}
+              showWhatsNew={showWhatsNew}
+              currentVersion={currentVersion}
+              onShowExtensionGuide={handleShowSetup}
+              onReimport={relayConnected ? () => relay.reimport() : undefined}
+              onDismissOnboarding={handleDismissOnboarding}
+              onDismissWhatsNew={() => {
+                setShowWhatsNew(false);
+                sendMessageToPlugin({ type: 'mark-whats-new-seen', version: currentVersion });
+              }}
+            />
           )}
 
           {appState === 'confirming' && importFlow.pending && (
