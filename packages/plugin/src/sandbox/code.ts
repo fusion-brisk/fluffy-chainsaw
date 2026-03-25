@@ -511,7 +511,80 @@ figma.ui.onmessage = async (msg) => {
       
       return;
     }
-    
+
+    // === Apply Feed Payload (ya.ru rhythm feed) ===
+    if (msg.type === 'apply-feed-payload') {
+      var feedPayload = msg.payload as {
+        cards: import('../types/feed-card-types').FeedCardRow[];
+        platform?: import('../types/feed-card-types').FeedPlatform;
+      };
+
+      var feedCards = feedPayload.cards;
+      if (!feedCards || feedCards.length === 0) {
+        figma.ui.postMessage({
+          type: 'relay-payload-applied',
+          success: false,
+          error: 'Нет карточек для импорта'
+        });
+        figma.notify('⚠️ Нет карточек для импорта');
+        return;
+      }
+
+      Logger.info('📦 Feed payload: ' + feedCards.length + ' карточек, platform=' + (feedPayload.platform || 'desktop'));
+
+      figma.ui.postMessage({
+        type: 'progress',
+        current: 10,
+        total: 100,
+        message: 'Импорт фид-карточек...',
+        operationType: 'feed-import'
+      });
+
+      try {
+        var feedModule = await import('./feed-page-builder');
+        var feedResult = await feedModule.createFeedPage(feedCards, {
+          platform: feedPayload.platform || 'desktop'
+        });
+
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 100,
+          total: 100,
+          message: 'Готово!',
+          operationType: 'feed-import'
+        });
+
+        if (feedResult.success && feedResult.frame) {
+          figma.currentPage.selection = [feedResult.frame];
+          figma.viewport.scrollAndZoomIntoView([feedResult.frame]);
+
+          figma.ui.postMessage({
+            type: 'relay-payload-applied',
+            success: true,
+            itemCount: feedResult.createdCount,
+            frameName: feedResult.frame.name
+          });
+
+          Logger.info('✅ Feed "' + feedResult.frame.name + '": ' + feedResult.createdCount + ' карточек');
+        } else {
+          var feedErrorMsg = feedResult.errors && feedResult.errors.length > 0
+            ? feedResult.errors.join('; ')
+            : 'Не удалось создать фид-страницу';
+          throw new Error(feedErrorMsg);
+        }
+      } catch (error) {
+        Logger.error('❌ Ошибка импорта фида:', error);
+        figma.ui.postMessage({
+          type: 'relay-payload-applied',
+          success: false,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        figma.notify('❌ Ошибка импорта фида');
+      }
+
+      return;
+    }
+
   } catch (err) {
     Logger.error('CRITICAL PLUGIN ERROR:', err);
     debugLog('error', 'sandbox', 'CRITICAL: ' + (err instanceof Error ? err.message : String(err)));
