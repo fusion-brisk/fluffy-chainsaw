@@ -1,11 +1,10 @@
 /**
- * ProcessingView — Figma-style processing animation
+ * ProcessingView — centered spinner with progress bar and live counter
  *
- * Shows during data processing with spinner, progress indicator,
- * and cancel button.
+ * Shows during data processing. Single action: cancel (text link).
  */
 
-import React, { memo, useState, useEffect, useRef } from 'react';
+import React, { memo } from 'react';
 import { ImportInfo } from '../../types';
 
 interface ProcessingViewProps {
@@ -13,63 +12,37 @@ interface ProcessingViewProps {
   onCancel?: () => void;
 }
 
-/** Seconds before showing "stuck" hint */
-const STUCK_HINT_DELAY = 15_000;
-
 export const ProcessingView: React.FC<ProcessingViewProps> = memo(({
   importInfo,
   onCancel
 }) => {
-  const { query, summary, stage } = importInfo;
-  const [showStuckHint, setShowStuckHint] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Reset stuck hint timer on every stage change
-  useEffect(() => {
-    setShowStuckHint(false);
-    timerRef.current = setTimeout(() => setShowStuckHint(true), STUCK_HINT_DELAY);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [stage]);
+  const { stage } = importInfo;
 
   const stageLabel = stage ? getStageLabel(stage) : null;
 
   return (
     <div className="processing-view--figma view-animate-in">
-      {/* Simple spinner */}
+      {/* CSS spinner */}
       <div className="processing-view-spinner" />
 
-      {/* Status text */}
-      <h2 className="processing-view-title">Обработка...</h2>
+      {/* Primary text */}
+      <h2 className="processing-view-title">Импортируем данные...</h2>
 
-      {/* Stage indicator */}
+      {/* Stage counter */}
       {stageLabel && (
-        <span className="processing-view-stage">{stageLabel}</span>
+        <span className="processing-view-counter">{stageLabel}</span>
       )}
 
-      {/* Query info */}
-      <div className="processing-view-card figma-card">
-        <span className="processing-view-query">{query || 'Импорт данных'}</span>
-        {summary && (
-          <div className="processing-view-marquee">
-            <span className="processing-view-marquee-text">
-              {summary}&nbsp;&nbsp;·&nbsp;&nbsp;{summary}&nbsp;&nbsp;·&nbsp;&nbsp;
-            </span>
-          </div>
-        )}
+      {/* Progress bar */}
+      <div className="processing-view-progress">
+        <div className="processing-view-progress-bar" />
       </div>
 
-      {/* Stuck hint */}
-      {showStuckHint && (
-        <span className="processing-view-stuck">
-          Если процесс завис, нажмите «Отменить»
-        </span>
-      )}
-
-      {/* Cancel button */}
+      {/* Cancel link */}
       {onCancel && (
         <button
           type="button"
-          className="btn-text processing-view-cancel"
+          className="processing-view-cancel-link"
           onClick={onCancel}
         >
           Отменить
@@ -81,13 +54,13 @@ export const ProcessingView: React.FC<ProcessingViewProps> = memo(({
 
 function getStageLabel(stage: string): string {
   switch (stage) {
-    case 'searching': return 'Поиск контейнеров…';
-    case 'resetting': return 'Сброс компонентов…';
-    case 'grouping': return 'Группировка…';
-    case 'components': return 'Компонентная логика…';
-    case 'text': return 'Обработка текста…';
-    case 'images': return 'Загрузка изображений…';
-    case 'cleanup': return 'Очистка…';
+    case 'searching': return 'Поиск контейнеров\u2026';
+    case 'resetting': return 'Сброс компонентов\u2026';
+    case 'grouping': return 'Группировка\u2026';
+    case 'components': return 'Компонентная логика\u2026';
+    case 'text': return 'Обработка текста\u2026';
+    case 'images': return 'Загрузка изображений\u2026';
+    case 'cleanup': return 'Очистка\u2026';
     default: return stage;
   }
 }

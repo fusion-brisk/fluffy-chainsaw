@@ -382,6 +382,7 @@ const App: React.FC = () => {
       {showMainContent && (
         <Confetti
           isActive={importFlow.confettiActive}
+          isFirstRun={isFirstRun}
           onComplete={importFlow.handleConfettiComplete}
         />
       )}

@@ -2,6 +2,8 @@ import React, { useEffect, useRef, memo } from 'react';
 
 interface ConfettiProps {
   isActive: boolean;
+  /** Only render confetti when true (e.g. first successful import) */
+  isFirstRun?: boolean;
   onComplete?: () => void;
 }
 
@@ -31,13 +33,16 @@ const SUCCESS_COLORS = [
   '#60A5FA', // Голубой
 ];
 
-export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, onComplete }) => {
+export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, isFirstRun = false, onComplete }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
   const particlesRef = useRef<Particle[]>([]);
 
+  // Only show confetti on first successful import
+  const shouldAnimate = isActive && isFirstRun;
+
   useEffect(() => {
-    if (!isActive) {
+    if (!shouldAnimate) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
@@ -174,9 +179,16 @@ export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, onComplete })
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive, onComplete]);
+  }, [shouldAnimate, onComplete]);
 
-  if (!isActive) return null;
+  // If active but not first run, immediately signal completion
+  useEffect(() => {
+    if (isActive && !isFirstRun) {
+      onComplete?.();
+    }
+  }, [isActive, isFirstRun, onComplete]);
+
+  if (!shouldAnimate) return null;
 
   return (
     <canvas
