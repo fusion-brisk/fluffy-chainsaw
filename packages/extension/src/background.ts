@@ -29,6 +29,10 @@ interface ParseResult {
   rows?: Record<string, string>[];
   wizards?: unknown[];
   productCard?: unknown;
+  /** 'feed' when content script detected ya.ru rhythm feed */
+  sourceType?: 'feed' | 'serp';
+  /** Feed card rows (when sourceType='feed') */
+  feedCards?: Record<string, string>[];
 }
 
 interface PageDimensions {
@@ -515,54 +519,76 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
 
     parseResult = pageResult as ParseResult | null;
 
-    if (!parseResult || parseResult.error || !parseResult.rows?.length) {
-      setBadge('0', '#E5534B');
-      clearBadgeAfter(2000);
-      return;
+    const isFeed = parseResult?.sourceType === 'feed';
+
+    if (isFeed) {
+      // --- Feed pipeline ---
+      if (!parseResult || !parseResult.feedCards?.length) {
+        setBadge('0', '#E5534B');
+        clearBadgeAfter(2000);
+        return;
+      }
+    } else {
+      // --- SERP pipeline ---
+      if (!parseResult || parseResult.error || !parseResult.rows?.length) {
+        setBadge('0', '#E5534B');
+        clearBadgeAfter(2000);
+        return;
+      }
     }
 
-    const rows = parseResult.rows;
+    const rows = parseResult.rows || [];
     const wizards = parseResult.wizards || [];
     const productCard = parseResult.productCard || null;
 
     // Capture full-page screenshot (scroll + capture loop)
-    // Determine platform to match Figma layout width
-    const platform = rows.find(r => r['#platform'])?.['#platform'] || 'desktop';
+    // Skip screenshots for feed pages (masonry layout not suitable for scroll capture)
     let screenshots: string[] = [];
     let screenshotMeta: Record<string, unknown> | null = null;
-    try {
-      const result = await captureFullPage(tab.id!, platform);
-      screenshots = result.screenshots;
-      screenshotMeta = {
-        totalHeight: result.totalHeight,
-        viewportHeight: result.viewportHeight,
-        viewportWidth: result.viewportWidth,
-        devicePixelRatio: result.devicePixelRatio,
-        count: result.screenshots.length
-      };
-      const totalKB = screenshots.reduce((sum, s) => sum + s.length, 0);
-      console.log(`[Screenshot] Captured ${screenshots.length} segments, total: ${Math.round(totalKB / 1024)}KB`);
-    } catch (screenshotErr: unknown) {
-      console.log('[Screenshot] Failed:', (screenshotErr as Error).message);
+    if (!isFeed) {
+      const platform = rows.find(r => r['#platform'])?.['#platform'] || 'desktop';
+      try {
+        const result = await captureFullPage(tab.id!, platform);
+        screenshots = result.screenshots;
+        screenshotMeta = {
+          totalHeight: result.totalHeight,
+          viewportHeight: result.viewportHeight,
+          viewportWidth: result.viewportWidth,
+          devicePixelRatio: result.devicePixelRatio,
+          count: result.screenshots.length
+        };
+        const totalKB = screenshots.reduce((sum, s) => sum + s.length, 0);
+        console.log(`[Screenshot] Captured ${screenshots.length} segments, total: ${Math.round(totalKB / 1024)}KB`);
+      } catch (screenshotErr: unknown) {
+        console.log('[Screenshot] Failed:', (screenshotErr as Error).message);
+      }
     }
 
-    // Build payload (schemaVersion 3: rawRows + wizards)
-    const payload = {
+    // Build payload
+    const payload: Record<string, unknown> = {
       schemaVersion: 3,
       source: { url: tab.url, title: tab.title },
       capturedAt: new Date().toISOString(),
-      rawRows: rows,
-      wizards: wizards,
-      productCard: productCard,
-      screenshots: screenshots.length > 0 ? screenshots : undefined,
-      screenshotMeta: screenshotMeta
     };
 
+    if (isFeed) {
+      payload.sourceType = 'feed';
+      payload.feedCards = parseResult.feedCards;
+    } else {
+      payload.rawRows = rows;
+      payload.wizards = wizards;
+      payload.productCard = productCard;
+      if (screenshots.length > 0) payload.screenshots = screenshots;
+      if (screenshotMeta) payload.screenshotMeta = screenshotMeta;
+    }
+
+    const itemCount = isFeed ? (parseResult.feedCards?.length || 0) : rows.length;
     const meta = {
       url: tab.url,
       parsedAt: new Date().toISOString(),
-      snippetCount: rows.length,
-      wizardCount: wizards.length,
+      snippetCount: isFeed ? 0 : rows.length,
+      wizardCount: isFeed ? 0 : wizards.length,
+      feedCardCount: isFeed ? itemCount : undefined,
       extensionVersion: chrome.runtime.getManifest().version
     };
 
@@ -585,8 +611,8 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       console.log('[Relay] Not available:', (relayErr as Error).message);
     }
 
-    const pcLabel = productCard ? '+PC' : '';
-    setBadge(`${rows.length}${pcLabel}`, '#3FB950');
+    const pcLabel = !isFeed && productCard ? '+PC' : '';
+    setBadge(`${itemCount}${pcLabel}`, '#3FB950');
     clearBadgeAfter(3000);
 
     if (relaySuccess) {

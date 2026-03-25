@@ -17,6 +17,10 @@ export interface QueueEntryPayload {
   capturedAt?: string;
   schemaVersion?: number;
   source?: { url?: string };
+  /** 'serp' (default) or 'feed' — determines plugin handler routing */
+  sourceType?: 'serp' | 'feed';
+  /** Feed card rows (when sourceType='feed'). Parallel to rawRows for SERP. */
+  feedCards?: Array<Record<string, string>>;
   [key: string]: unknown;
 }
 
@@ -70,6 +74,8 @@ export interface WsNewDataMessage extends WsMessageBase {
   query: string;
   relayVersion: string;
   extensionVersion: string | null;
+  sourceType?: 'serp' | 'feed';
+  feedCardCount?: number;
 }
 
 export interface WsQueueOverflowMessage extends WsMessageBase {

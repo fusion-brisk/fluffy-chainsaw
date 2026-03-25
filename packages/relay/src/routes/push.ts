@@ -45,13 +45,15 @@ router.post('/push', (req: Request, res: Response) => {
   // Validate payload size
   const MAX_PAYLOAD_SIZE = 1 * 1024 * 1024; // 1MB
   try {
-    const rawRowsSize = payload.rawRows ? JSON.stringify(payload.rawRows).length : 0;
-    if (rawRowsSize > MAX_PAYLOAD_SIZE) {
-      console.warn(`Push rejected: payload too large (${(rawRowsSize / 1024 / 1024).toFixed(2)}MB)`);
+    const dataSize = payload.feedCards
+      ? JSON.stringify(payload.feedCards).length
+      : payload.rawRows ? JSON.stringify(payload.rawRows).length : 0;
+    if (dataSize > MAX_PAYLOAD_SIZE) {
+      console.warn(`Push rejected: payload too large (${(dataSize / 1024 / 1024).toFixed(2)}MB)`);
       res.status(413).json({
         error: 'Payload too large',
         maxSizeMB: 1,
-        actualSizeMB: +(rawRowsSize / 1024 / 1024).toFixed(2)
+        actualSizeMB: +(dataSize / 1024 / 1024).toFixed(2)
       });
       return;
     }
@@ -86,11 +88,19 @@ router.post('/push', (req: Request, res: Response) => {
     acknowledged: false
   });
 
+  const sourceType = payload.sourceType || 'serp';
+  const isFeed = sourceType === 'feed';
+  const feedCardCount = isFeed ? (payload.feedCards || []).length : 0;
   const snippetCount = payload.rawRows?.length || 0;
   const wizardCount = payload.wizards?.length || 0;
   const hasProductCard = !!payload.productCard;
-  const itemCount = snippetCount + wizardCount;
-  console.log(`Push: ${snippetCount} snippets + ${wizardCount} wizards${hasProductCard ? ' + productCard' : ''} (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`);
+  const itemCount = isFeed ? feedCardCount : snippetCount + wizardCount;
+
+  if (isFeed) {
+    console.log(`Push [feed]: ${feedCardCount} cards (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`);
+  } else {
+    console.log(`Push: ${snippetCount} snippets + ${wizardCount} wizards${hasProductCard ? ' + productCard' : ''} (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`);
+  }
 
   // Store deep copy for reimport
   try {
@@ -98,7 +108,7 @@ router.post('/push', (req: Request, res: Response) => {
   } catch { /* ignore clone errors */ }
 
   // Broadcast to WebSocket clients
-  const query = payload.rawRows?.[0]?.['#query'] || '';
+  const query = isFeed ? '' : (payload.rawRows?.[0]?.['#query'] || '');
   broadcast({
     type: 'new-data',
     entryId,
@@ -108,6 +118,8 @@ router.post('/push', (req: Request, res: Response) => {
     query,
     relayVersion: pkg.version,
     extensionVersion: (meta as QueueEntryMeta | undefined)?.extensionVersion || null,
+    sourceType,
+    feedCardCount: isFeed ? feedCardCount : undefined,
     timestamp: Date.now()
   });
 
@@ -132,8 +144,11 @@ router.get('/peek', (_req: Request, res: Response) => {
 
   entry.lastPeekedAt = Date.now();
 
-  const itemCount = entry.payload?.rawRows?.length || 0;
-  console.log(`Peek: ${itemCount} items, id: ${entry.id}`);
+  const peekSourceType = entry.payload?.sourceType || 'serp';
+  const itemCount = peekSourceType === 'feed'
+    ? (entry.payload?.feedCards?.length || 0)
+    : (entry.payload?.rawRows?.length || 0);
+  console.log(`Peek [${peekSourceType}]: ${itemCount} items, id: ${entry.id}`);
 
   res.json({
     hasData: true,
@@ -277,20 +292,30 @@ router.post('/reimport', (_req: Request, res: Response) => {
     acknowledged: false
   });
 
+  const reimportSourceType = payload.sourceType || 'serp';
+  const reimportIsFeed = reimportSourceType === 'feed';
+  const reimportFeedCardCount = reimportIsFeed ? (payload.feedCards || []).length : 0;
   const snippetCount = payload.rawRows?.length || 0;
   const wizardCount = payload.wizards?.length || 0;
-  console.log(`Reimport: ${snippetCount} snippets + ${wizardCount} wizards, id: ${entryId}`);
 
-  const query = payload.rawRows?.[0]?.['#query'] || '';
+  if (reimportIsFeed) {
+    console.log(`Reimport [feed]: ${reimportFeedCardCount} cards, id: ${entryId}`);
+  } else {
+    console.log(`Reimport: ${snippetCount} snippets + ${wizardCount} wizards, id: ${entryId}`);
+  }
+
+  const query = reimportIsFeed ? '' : (payload.rawRows?.[0]?.['#query'] || '');
   broadcast({
     type: 'new-data',
     entryId,
-    itemCount: snippetCount + wizardCount,
+    itemCount: reimportIsFeed ? reimportFeedCardCount : snippetCount + wizardCount,
     snippetCount,
     wizardCount,
     query,
     relayVersion: pkg.version,
     extensionVersion: (meta as QueueEntryMeta).extensionVersion || null,
+    sourceType: reimportSourceType,
+    feedCardCount: reimportIsFeed ? reimportFeedCardCount : undefined,
     timestamp: Date.now()
   });
 

@@ -3285,7 +3285,26 @@ declare global {
     return { rows: finalResults, wizards: wizards, productCard: productCard };
   }
 
-  // Выполняем парсинг и возвращаем результат
+  // === Feed detection — ya.ru rhythm feed ===
+  // Must be checked BEFORE SERP parsing since ya.ru pages don't have SERP snippets
+  const isFeedPage = !!document.querySelector('[class*="masonry-feed--rythm-feed"]');
+  if (isFeedPage) {
+    // Dynamic import to avoid bundling feed parser when not needed
+    // Note: esbuild will bundle this statically, but the code path is only hit on feed pages
+    const { extractFeedCards } = require('./feed-parser') as { extractFeedCards: (root?: Document | Element) => Array<Record<string, string>> };
+    const feedCards = extractFeedCards(document);
+    const feedResult = {
+      sourceType: 'feed' as const,
+      feedCards,
+      rows: [],
+      wizards: [],
+      productCard: null,
+    };
+    window.__contentifyResult = feedResult;
+    return feedResult;
+  }
+
+  // === SERP parsing (existing path) ===
   // Shared parsing rules may have been injected by background.js
   const parsingRules = (typeof window !== 'undefined' && window.__contentifyParsingRules) || null;
   const __contentifyResult = extractSnippets(parsingRules);
