@@ -1345,6 +1345,7 @@ button:disabled {
   flex-direction: column;
   height: 100vh;
   padding: 0;
+  padding-bottom: 32px; /* space for fixed StatusBar */
   gap: 0;
   background: var(--figma-color-bg);
   overflow: hidden;
@@ -2160,110 +2161,179 @@ button:disabled {
 }
 
 /* ============================================
-   STATUS BAR — Connection indicators
+   STATUS BAR — Fixed bottom connection bar
    ============================================ */
 .status-bar {
-  position: absolute;
-  top: 12px;
-  right: 16px;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-  z-index: 50;
-  background: var(--figma-color-bg);
-  padding: 4px 8px;
-  border-radius: 6px;
-  max-width: calc(100% - 32px);
-}
-
-/* Compact "all OK" badge when all services connected */
-.status-bar-ok {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--figma-color-text-success);
-  padding: 4px 10px;
-  white-space: nowrap;
-  background: none;
-  border: none;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--figma-color-bg-secondary);
+  border-top: 1px solid var(--figma-color-border);
+  z-index: 100;
   font-family: inherit;
-  cursor: default;
 }
 
-.status-bar-ok--clickable {
-  cursor: pointer;
-}
-
-.status-bar-ok--clickable:hover {
-  opacity: 0.8;
-}
-
-/* Error state indicator */
-.status-bar-error {
+/* Status button — left side */
+.status-bar__status-btn {
   display: flex;
   align-items: center;
   gap: 6px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: background var(--transition-fast);
+}
+
+.status-bar__status-btn:hover {
+  background: var(--figma-color-bg-hover);
+}
+
+.status-bar__status-text {
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-secondary);
   white-space: nowrap;
 }
 
-.status-bar-error-text {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
+.status-bar__status-btn--error .status-bar__status-text {
   color: var(--figma-color-text-warning);
 }
 
-.status-pill {
+.status-bar__warning-icon {
+  font-size: 12px;
+  color: var(--figma-color-text-warning);
+  line-height: 1;
+}
+
+.status-bar__error-group {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  background: var(--figma-color-bg-secondary);
-  border: 1px solid var(--figma-color-border);
-  border-radius: 12px;
+}
+
+.status-bar__setup-btn {
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
   font-family: inherit;
-  color: var(--figma-color-text-secondary);
-  cursor: default;
+  font-weight: var(--font-weight-medium);
+  color: var(--figma-color-text-brand);
+  background: transparent;
+  border: 1px solid var(--figma-color-border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
   transition: all var(--transition-fast);
 }
 
-.status-pill:disabled {
-  opacity: 1;
-  cursor: default;
-}
-
-.status-pill--clickable {
-  cursor: pointer;
-}
-
-.status-pill--clickable:hover {
+.status-bar__setup-btn:hover {
   background: var(--figma-color-bg-hover);
   border-color: var(--figma-color-border-strong);
 }
 
-.status-pill-icon {
-  font-size: 8px;
-  line-height: 1;
+/* Status dot */
+.status-bar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
-.status-pill-label {
+.status-bar__dot--ok {
+  background: var(--figma-color-text-success);
+}
+
+.status-bar__dot--error {
+  background: var(--figma-color-text-danger);
+}
+
+/* Right-side icon buttons */
+.status-bar__actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+
+.status-bar__icon-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--figma-color-icon-secondary);
+  border-radius: 4px;
+  font-size: 14px;
+  transition: all var(--transition-fast);
+}
+
+.status-bar__icon-btn:hover {
+  background: var(--figma-color-bg-hover);
+  color: var(--figma-color-icon);
+}
+
+/* Detail popup — above the bar */
+.status-bar__popup {
+  position: absolute;
+  bottom: 32px;
+  left: 12px;
+  background: var(--figma-color-bg);
+  border: 1px solid var(--figma-color-border);
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-md);
+  padding: 8px 12px;
+  z-index: 101;
+  min-width: 180px;
+}
+
+.status-bar__popup-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
   font-size: var(--font-size-sm);
+}
+
+.status-bar__popup-label {
+  color: var(--figma-color-text);
+  flex: 1;
+}
+
+.status-bar__popup-value {
   color: var(--figma-color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
-/* Status variants */
-.status-pill--connected .status-pill-icon,
-.status-pill--active .status-pill-icon {
-  color: var(--figma-color-text-success);
+.status-bar__popup-divider {
+  height: 1px;
+  background: var(--figma-color-border);
+  margin: 4px -12px;
 }
 
-.status-pill--offline .status-pill-icon {
+.status-bar__popup-action {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: var(--font-size-sm);
+  font-family: inherit;
   color: var(--figma-color-text-danger);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: opacity var(--transition-fast);
 }
 
-.status-pill--setup .status-pill-icon {
-  color: var(--figma-color-text-warning);
+.status-bar__popup-action:hover {
+  opacity: 0.7;
 }
 
 /* ============================================
@@ -2271,7 +2341,7 @@ button:disabled {
    ============================================ */
 .update-banner-container {
   position: absolute;
-  top: 40px;
+  top: 12px;
   left: 12px;
   right: 12px;
   z-index: 60;
@@ -2702,42 +2772,7 @@ button:disabled {
   margin-left: auto;
 }
 
-/* Log button in StatusBar */
-.status-pill--log {
-  cursor: pointer;
-}
-
-.status-pill--log:hover {
-  background: var(--figma-color-bg-hover);
-  border-color: var(--figma-color-border-strong);
-}
-
-/* Clear queue (danger-subtle) pill in StatusBar */
-.status-pill--danger-subtle {
-  cursor: pointer;
-  color: var(--figma-color-text-danger);
-}
-
-.status-pill--danger-subtle:hover {
-  background: rgba(207, 34, 46, 0.08);
-  border-color: var(--figma-color-text-danger);
-}
-
-.status-pill--danger {
-  cursor: pointer;
-  background: var(--figma-color-text-danger);
-  color: var(--figma-color-text-onbrand);
-  border-color: var(--figma-color-text-danger);
-}
-
-.status-pill--danger:hover {
-  opacity: 0.9;
-}
-
-.status-bar-clear-confirm {
-  display: flex;
-  gap: 2px;
-}
+/* (Old status-pill styles removed — StatusBar redesigned in Phase 7) */
 
 /* ============================================
    COMPONENT INSPECTOR

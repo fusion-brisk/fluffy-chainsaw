@@ -285,26 +285,14 @@ const App: React.FC = () => {
 
   return (
     <div className="glass-app">
-      {/* StatusBar + banners — visible when main content is shown (not during setup or checking) */}
+      {/* Update banners — visible when main content is shown (not during setup or checking) */}
       {appState !== 'checking' && appState !== 'setup' && showMainContent && (
-        <>
-          <StatusBar
-            relayConnected={relayConnected}
-            extensionInstalled={extensionInstalled}
-            mcpConnected={mcpStatus.connected}
-            hasPendingData={importFlow.pending !== null}
-            onRelayClick={handleShowSetup}
-            onExtensionClick={handleShowSetup}
-            onInspectorClick={handleShowInspector}
-            onClearQueue={importFlow.clearQueue}
-          />
-          <UpdateBanner
-            relayUpdate={versionCheck.relayUpdate}
-            extensionUpdate={versionCheck.extensionUpdate}
-            onDismissRelay={versionCheck.dismissRelay}
-            onDismissExtension={versionCheck.dismissExtension}
-          />
-        </>
+        <UpdateBanner
+          relayUpdate={versionCheck.relayUpdate}
+          extensionUpdate={versionCheck.extensionUpdate}
+          onDismissRelay={versionCheck.dismissRelay}
+          onDismissExtension={versionCheck.dismissExtension}
+        />
       )}
 
       {/* Main content — mutually exclusive via appState */}
@@ -407,6 +395,21 @@ const App: React.FC = () => {
           messages={logMessages}
           onClose={handleCloseLogViewer}
           onClear={handleClearLogs}
+        />
+      )}
+
+      {/* StatusBar — fixed bottom, visible in all states except setup and checking */}
+      {appState !== 'checking' && appState !== 'setup' && (
+        <StatusBar
+          relayConnected={relayConnected}
+          extensionInstalled={extensionInstalled}
+          mcpConnected={mcpStatus.connected}
+          hasPendingData={importFlow.pending !== null}
+          onRelayClick={handleShowSetup}
+          onExtensionClick={handleShowSetup}
+          onInspectorClick={handleShowInspector}
+          onLogsClick={handleShowLogViewer}
+          onClearQueue={importFlow.clearQueue}
         />
       )}
     </div>
