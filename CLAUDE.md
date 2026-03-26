@@ -75,12 +75,25 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - For git merges: never checkout a different branch inside a worktree. Use `git merge` from the correct branch, or create a PR. If the user says 'merge', ask which strategy (merge commit, rebase, squash) only once, then proceed.
 - Default merge strategy: squash merge via PR to main. After merge — delete source branch locally and on remote, pull main, confirm clean state.
 - Before any git operation, run `git worktree list` and `git status` to understand current state. Never assume.
+- Before any destructive git operation (branch delete, force push, reset), create a backup tag: `git tag backup/<branch>-$(date +%s)`.
+- At session start, if branch state is unclear, run `git branch -a && git worktree list && git status` and show a compact summary before doing anything.
 
 ## Debugging
 
 - When debugging, do NOT assume the root cause. Always gather evidence first (logs, HTML output, actual vs expected) before proposing a fix.
 - If the first fix doesn't work, re-examine assumptions from scratch rather than iterating on the same theory.
 - For complex bugs: list 2-3 possible root causes with evidence for/against each. Present hypotheses BEFORE making any code changes. Only proceed after user confirms which to investigate.
+- For cross-system bugs (extension → relay → plugin), identify WHICH system the bug is in before changing code. Trace the data flow step by step.
+
+## Figma Plugin Development
+
+- Figma plugin iframe sandbox has strict constraints:
+  - No dynamic imports (causes SyntaxError in sandbox)
+  - No `new URL()` for validation (rejected in sandbox) — use regex or try/catch
+  - CSS class names may not match — always verify selector hierarchy against actual rendered DOM
+- Data flow: Chrome extension → relay server → Figma plugin. JSON only, no CSV, no CORS fetches from plugin.
+- Always test that changes actually render in the plugin iframe — don't assume DOM operations succeed.
+- Port conflicts: relay uses port 3847. Before starting relay, check `lsof -i :3847` and kill conflicting processes.
 
 ## Refactoring
 
