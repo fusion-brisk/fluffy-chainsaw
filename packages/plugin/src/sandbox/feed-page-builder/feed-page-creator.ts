@@ -10,6 +10,7 @@ import { FeedCardRow, FeedPlatform, FeedMasonryConfig, DEFAULT_MASONRY_CONFIG } 
 import { importFeedComponent, clearFeedComponentCache } from './feed-component-map';
 import { assignMasonryPositions, MasonryItem, MasonryConfig } from './feed-masonry-layout';
 import { createPlaceholder } from '../page-builder/component-import';
+import { applyFeedData } from './feed-data-applicator';
 
 // Re-export so barrel can re-export from a single module
 export { clearFeedComponentCache };
@@ -129,7 +130,9 @@ export function createFeedPage(
             if (component) {
               var instance = component.createInstance();
               resizeToColumnWidth(instance, config.columnWidth);
-              results.push({ instance: instance, index: idx });
+              return applyFeedData(instance, card).then(function() {
+                results.push({ instance: instance, index: idx });
+              });
             } else {
               return createPlaceholder(cardType, config.columnWidth, 200).then(function(placeholder) {
                 results.push({ instance: placeholder, index: idx });

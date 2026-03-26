@@ -163,23 +163,30 @@ function parseMarketCard(element: Element, index: number): FeedCardRow {
 
   row['#Feed_ImageUrl'] = getImageUrl(element, SEL.marketImage);
 
-  const titleEl = element.querySelector('.EcomFeedMarketCard h3 a, .EcomFeedMarketCard [class*="title"]');
+  var titleEl = element.querySelector('.EcomFeedMarketCard-Title') || element.querySelector('.EcomFeedMarketCard h3 a');
   row['#Feed_Title'] = titleEl?.textContent?.trim() || '';
 
   row['#Feed_SourceName'] = 'Яндекс Маркет';
   row['#Feed_SourceAvatarUrl'] = getImageUrl(element, '.EcomFeedCardSource img');
   row['#Feed_SourceDomain'] = 'market.yandex.ru';
 
-  const priceText = getText(element, SEL.marketPrice);
-  if (priceText) {
-    const prices = priceText.match(/[\d\s]+/g);
-    if (prices && prices.length >= 1) {
-      row['#Feed_Price'] = prices[0].trim();
+  // Green price (with Yandex Pay card) — e.g. "12 177"
+  var greenPrice = getText(element, '[data-test-id="green-price"]');
+  if (greenPrice) {
+    row['#Feed_Price'] = extractPrice(greenPrice);
+    row['#Feed_Currency'] = '₽';
+  } else {
+    // Fallback to generic price selector
+    var priceText = getText(element, SEL.marketPrice);
+    if (priceText) {
+      row['#Feed_Price'] = extractPrice(priceText);
       row['#Feed_Currency'] = '₽';
     }
-    if (prices && prices.length >= 2) {
-      row['#Feed_OldPrice'] = prices[1].trim();
-    }
+  }
+  // Old price (crossed out)
+  var oldPriceText = getText(element, '.EcomFeedPrice-Value:not([data-test-id="green-price"])');
+  if (oldPriceText && oldPriceText !== greenPrice) {
+    row['#Feed_OldPrice'] = extractPrice(oldPriceText);
   }
 
   const hasCashback = !!element.querySelector('[class*="cashback"], [class*="plus"]');
@@ -235,8 +242,15 @@ function parsePostCard(element: Element, index: number): FeedCardRow {
 
   const sourceEl = element.querySelector(SEL.source);
   if (sourceEl) {
-    row['#Feed_SourceName'] = getText(element, SEL.source + ' [class*="info"], ' + SEL.source + ' a');
-    row['#Feed_SourceAvatarUrl'] = getImageUrl(element, SEL.source + ' img');
+    row['#Feed_SourceName'] = getText(element, '.EcomFeedCardSource-Name') || getText(element, SEL.source + ' a');
+    row['#Feed_SourceAvatarUrl'] = getImageUrl(element, '.EcomFeedCardSource-Avatar, ' + SEL.source + ' img');
+    var sourceDomain = sourceEl.getAttribute('href') || '';
+    if (sourceDomain) {
+      var domainMatch = sourceDomain.match(/businesses\/@([^?]+)/);
+      if (domainMatch) {
+        row['#Feed_SourceDomain'] = domainMatch[1];
+      }
+    }
   }
 
   const hasAi = !!element.querySelector('[class*="ai-badge"], [class*="AI"]');
@@ -278,7 +292,9 @@ function parseAdvertCard(element: Element, index: number): FeedCardRow {
     row['#Feed_SourceName'] = lines[0] || '';
   }
 
-  row['#Feed_Description'] = getText(element, '[class*="card-actions__description"]');
+  var adDescription = getText(element, '[class*="card-actions__description"]');
+  row['#Feed_Description'] = adDescription;
+  row['#Feed_Title'] = adDescription; // applicator reads #Feed_Title
   row['#Feed_SourceAvatarUrl'] = getImageUrl(element, '[class*="card-actions__icon"] img');
 
   const adContent = element.querySelector('[class*="advert-card__content"]');
