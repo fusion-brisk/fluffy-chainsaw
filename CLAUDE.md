@@ -69,4 +69,27 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 Before implementing features, create a plan: `.claude/specs/in-progress/<name>.md`.
 On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.claude/specs/in-progress/`".
 
+## Git & Merges
+
+- Always run `npx prettier --write` on changed files before committing. If a commit fails due to formatting, fix and retry automatically.
+- For git merges: never checkout a different branch inside a worktree. Use `git merge` from the correct branch, or create a PR. If the user says 'merge', ask which strategy (merge commit, rebase, squash) only once, then proceed.
+- Default merge strategy: squash merge via PR to main. After merge — delete source branch locally and on remote, pull main, confirm clean state.
+- Before any git operation, run `git worktree list` and `git status` to understand current state. Never assume.
+
+## Debugging
+
+- When debugging, do NOT assume the root cause. Always gather evidence first (logs, HTML output, actual vs expected) before proposing a fix.
+- If the first fix doesn't work, re-examine assumptions from scratch rather than iterating on the same theory.
+- For complex bugs: list 2-3 possible root causes with evidence for/against each. Present hypotheses BEFORE making any code changes. Only proceed after user confirms which to investigate.
+
+## Refactoring
+
+- After any refactor, run lint/typecheck AND verify no unused props, imports, or dead references remain. Clean up in the same commit.
+- Before starting a refactor, enumerate ALL affected call sites and present the list. Don't start changing files until the scope is confirmed.
+
+## Code Style & Dependencies
+
+- Do NOT use libraries that aren't already in package.json. Check package.json before importing new dependencies.
+- Before implementing, review existing component patterns in the codebase and list any assumptions about available libraries or utilities.
+
 > **ES5 for sandbox. Build must pass. Tests must pass. Read files before answering.**
