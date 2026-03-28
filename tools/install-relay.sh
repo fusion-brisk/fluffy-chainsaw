@@ -3,7 +3,7 @@
 # Contentify Relay — One-Line Installer
 # 
 # Использование:
-#   curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/scripts/install-relay.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/tools/install-relay.sh | bash
 #
 
 set -e
@@ -182,6 +182,6 @@ echo "✅ Relay установлен!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "📌 Следующий шаг: установите расширение Chrome"
-echo "   Скачайте: $RELEASE_URL/extension.crx"
+echo "   Скачайте: $RELEASE_URL/contentify.crx"
 echo "   Перетащите в chrome://extensions (Developer mode ON)"
 echo ""

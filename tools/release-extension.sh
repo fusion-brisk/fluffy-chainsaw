@@ -35,7 +35,7 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-EXTENSION_DIR="$ROOT_DIR/extension"
+EXTENSION_DIR="$ROOT_DIR/packages/extension"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -113,9 +113,9 @@ echo "✅ Готово!"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "Файлы обновлены:"
-echo "  • extension/manifest.json (version: $VERSION)"
-echo "  • extension/updates.xml (version: $VERSION)"
-echo "  • extension/extension.crx ($CRX_SIZE)"
+echo "  • packages/extension/manifest.json (version: $VERSION)"
+echo "  • packages/extension/updates.xml (version: $VERSION)"
+echo "  • packages/extension/extension.crx ($CRX_SIZE)"
 echo ""
 
 if [ "$PUSH_FLAG" != "--push" ]; then
@@ -123,7 +123,7 @@ if [ "$PUSH_FLAG" != "--push" ]; then
   echo "  1. Проверьте изменения: git diff"
   echo "  2. Закоммитьте: git add -A && git commit -m 'chore(extension): bump version to $VERSION'"
   echo "  3. Запушьте: git push origin main"
-  echo "  4. Загрузите CRX: gh release upload v$VERSION extension/extension.crx --clobber"
+  echo "  4. Загрузите CRX: gh release upload v$VERSION packages/extension/extension.crx --clobber"
   echo ""
   echo "Или запустите с --push для автоматизации:"
   echo "  $0 $VERSION --push"

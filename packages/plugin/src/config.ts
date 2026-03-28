@@ -20,13 +20,13 @@ export const PORTS = {
 // Версия плагина для What's New экрана
 // Формат: MAJOR.MINOR.PATCH
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю
-export const PLUGIN_VERSION = '2.4.1';
+export const PLUGIN_VERSION = '2.5.0';
 
 // Сообщение о необходимости обновления библиотеки
 export const LIBRARY_UPDATE_NOTICE = {
   show: true,
   libraryName: 'DC • ECOM',
-  message: 'Для корректной работы плагина обновите библиотеку DC • ECOM до актуальной версии'
+  message: 'Для корректной работы плагина обновите библиотеку DC • ECOM до актуальной версии',
 };
 
 // Список изменений для What's New экрана
@@ -44,7 +44,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       '🛒 EShopItem: скрытие UgcLine без рейтинга, скрытие ButtonWrapper без checkout',
       '🔧 Улучшена обработка exposed properties в Figma',
     ],
-    type: 'feature'
+    type: 'feature',
   },
   {
     version: '2.3.0',
@@ -58,7 +58,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Поддержка base64 favicon и TTL кэша изображений (7 дней)',
       'Рефакторинг: handlers вынесены в отдельные модули',
     ],
-    type: 'feature'
+    type: 'feature',
   },
   {
     version: '2.2.0',
@@ -71,7 +71,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Dropzone: добавлен фокус и управление с клавиатуры',
       'Logs: улучшены стили поиска и футера со статистикой',
     ],
-    type: 'improvement'
+    type: 'improvement',
   },
   {
     version: '2.1.0',
@@ -83,7 +83,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Улучшенный парсинг EShopItem и EOfferItem',
       'Оптимизация DOM-обхода для больших файлов',
     ],
-    type: 'feature'
+    type: 'feature',
   },
   {
     version: '2.0.0',
@@ -95,8 +95,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Удалённые правила парсинга с автообновлением',
       'Продвинутый просмотр логов с фильтрацией',
     ],
-    type: 'major'
-  }
+    type: 'major',
+  },
 ];
 
 // Тип записи в changelog
@@ -112,32 +112,32 @@ export interface ChangelogEntry {
 // Главный критерий: наличие цены в сниппете
 export const SNIPPET_CONTAINER_NAMES = [
   // Основные типы карточек с ценой
-  'EShopItem',              // Карточки магазинов Яндекс.Маркета
-  'EProductSnippet2',       // Сниппеты товаров (новый формат)
-  'ESnippet',               // Общий сниппет
-  'EProductSnippet',        // Устаревший формат
-  'EOfferItem',             // Офер
-  'Snippet',                // Базовый сниппет
-  
+  'EShopItem', // Карточки магазинов Яндекс.Маркета
+  'EProductSnippet2', // Сниппеты товаров (новый формат)
+  'ESnippet', // Общий сниппет
+  'EProductSnippet', // Устаревший формат
+  'EOfferItem', // Офер
+  'Snippet', // Базовый сниппет
+
   // Organic сниппеты с ценой
-  'Organic_withOfferInfo',  // Органик с офером (цена, магазин, доставка)
-  
+  'Organic_withOfferInfo', // Органик с офером (цена, магазин, доставка)
+
   // ProductTile - карточки товаров в сетке
-  'ProductTile-Item',       // Карточка товара в плитке
+  'ProductTile-Item', // Карточка товара в плитке
 ];
 
 // Имена текстовых полей, которые могут быть внутри инстансов
 export const TEXT_FIELD_NAMES = [
-  '#organicTitle', 
-  '#shoptitle', 
-  '#shopname', 
-  '#brand', 
-  '#organicprice', 
-  '#oldprice', 
+  '#organicTitle',
+  '#shoptitle',
+  '#shopname',
+  '#brand',
+  '#organicprice',
+  '#oldprice',
   '#organictext',
   '#query',
   '#ProductRating',
-  '#EPriceBarometer_View'
+  '#EPriceBarometer_View',
 ];
 
 // COMPONENT_CONFIG удалён — значения инлайнены в handlers
@@ -150,9 +150,11 @@ export const TEXT_FIELD_NAMES = [
 // URL для установки расширения
 export const EXTENSION_URLS = {
   // GitHub Releases страница расширения
-  EXTENSION_DOWNLOAD: 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx',
-  // GitHub Releases страница установщика Relay
-  INSTALLER_DOWNLOAD: 'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/Contentify-Installer.zip',
+  EXTENSION_DOWNLOAD:
+    'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx',
+  // One-line installer для Relay
+  RELAY_INSTALL_SCRIPT:
+    'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/tools/install-relay.sh',
   // URL страницы расширений Chrome (для копирования в буфер)
   EXTENSIONS_PAGE: 'chrome://extensions',
 };
@@ -162,4 +164,3 @@ export const EXTENSION_URLS = {
 // ============================================
 
 // Метки этапов обработки
-

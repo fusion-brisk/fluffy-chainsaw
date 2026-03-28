@@ -1,13 +1,13 @@
 #!/bin/bash
 #
 # Собирает самодостаточный .app bundle с бинарниками внутри
-# Бинарники берутся из relay/dist/ (собираются из relay/server.js)
+# Бинарники берутся из packages/relay/pkg-dist/ (собираются через pkg)
 #
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RELAY_DIR="$(dirname "$SCRIPT_DIR")/relay"
+RELAY_DIR="$(dirname "$SCRIPT_DIR")/packages/relay"
 APP_NAME="Contentify Relay"
 APP_PATH="$SCRIPT_DIR/$APP_NAME.app"
 RESOURCES_DIR="$APP_PATH/Contents/Resources"
@@ -15,15 +15,15 @@ RESOURCES_DIR="$APP_PATH/Contents/Resources"
 echo "🔨 Сборка $APP_NAME.app..."
 echo ""
 
-# === 1. Собираем бинарники в relay/ ===
-echo "📦 Сборка бинарников из relay/server.js..."
+# === 1. Собираем бинарники в packages/relay/ ===
+echo "📦 Сборка бинарников..."
 
 if [ ! -d "$RELAY_DIR/node_modules" ]; then
   echo "   Установка зависимостей..."
   (cd "$RELAY_DIR" && npm install)
 fi
 
-(cd "$RELAY_DIR" && npm run build)
+(cd "$RELAY_DIR" && npm run build:pkg)
 echo ""
 
 # === 2. Создаём структуру .app ===
@@ -32,21 +32,26 @@ mkdir -p "$RESOURCES_DIR"
 # === 3. Копируем бинарники ===
 echo "📂 Копирование бинарников в .app..."
 
-ARM64_SRC="$RELAY_DIR/dist/contentify-relay-arm64"
-X64_SRC="$RELAY_DIR/dist/contentify-relay-x64"
+ARM64_SRC="$RELAY_DIR/pkg-dist/contentify-relay-macos-arm64"
+X64_SRC="$RELAY_DIR/pkg-dist/contentify-relay-macos-x64"
+
+# pkg может давать разные имена — пробуем оба варианта
+if [ ! -f "$ARM64_SRC" ]; then
+  ARM64_SRC="$RELAY_DIR/pkg-dist/contentify-relay"
+fi
 
 if [ -f "$ARM64_SRC" ]; then
   cp "$ARM64_SRC" "$RESOURCES_DIR/contentify-relay-host-arm64"
   echo "   ✅ contentify-relay-host-arm64 ($(du -h "$ARM64_SRC" | cut -f1))"
 else
-  echo "   ⚠️  arm64 бинарник не найден: $ARM64_SRC"
+  echo "   ⚠️  arm64 бинарник не найден"
 fi
 
 if [ -f "$X64_SRC" ]; then
   cp "$X64_SRC" "$RESOURCES_DIR/contentify-relay-host-x64"
   echo "   ✅ contentify-relay-host-x64 ($(du -h "$X64_SRC" | cut -f1))"
 else
-  echo "   ⚠️  x64 бинарник не найден: $X64_SRC"
+  echo "   ⚠️  x64 бинарник не найден"
 fi
 
 # Делаем исполняемыми

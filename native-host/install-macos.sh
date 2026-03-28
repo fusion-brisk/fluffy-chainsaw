@@ -22,12 +22,12 @@ else
   BINARY_NAME="contentify-relay-host-x64"
 fi
 
-# Ищем исполняемый файл (порядок: relay/dist, native-host/dist, native-host/, .app Resources)
-RELAY_DIR="$(dirname "$SCRIPT_DIR")/relay"
+# Ищем исполняемый файл (порядок: packages/relay/pkg-dist, native-host/dist, native-host/, .app Resources)
+RELAY_DIR="$(dirname "$SCRIPT_DIR")/packages/relay"
 APP_RESOURCES="$SCRIPT_DIR/Contentify Relay.app/Contents/Resources"
 
-if [ -f "$RELAY_DIR/dist/$BINARY_NAME" ]; then
-  HOST_PATH="$RELAY_DIR/dist/$BINARY_NAME"
+if [ -f "$RELAY_DIR/pkg-dist/$BINARY_NAME" ]; then
+  HOST_PATH="$RELAY_DIR/pkg-dist/$BINARY_NAME"
 elif [ -f "$SCRIPT_DIR/dist/$BINARY_NAME" ]; then
   HOST_PATH="$SCRIPT_DIR/dist/$BINARY_NAME"
 elif [ -f "$SCRIPT_DIR/$BINARY_NAME" ]; then
@@ -38,7 +38,7 @@ else
   echo "❌ Ошибка: бинарник не найден ($BINARY_NAME)"
   echo ""
   echo "   Попробуйте собрать бинарники:"
-  echo "   cd relay && npm install && npm run build"
+  echo "   cd packages/relay && npm install && npm run build:pkg"
   exit 1
 fi
 

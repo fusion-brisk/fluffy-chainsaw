@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-and-release:
     runs-on: macos-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,38 +19,32 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version-file: '.nvmrc'
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            relay/package-lock.json
 
-      - name: Install dependencies for relay
+      - name: Install dependencies
         run: npm ci
-        working-directory: relay
+
+      - name: Build extension
+        run: npm run build -w packages/extension
+
+      - name: Build extension CRX
+        if: ${{ env.EXTENSION_PEM != '' }}
+        env:
+          EXTENSION_PEM: ${{ secrets.EXTENSION_PEM }}
+        run: |
+          echo "$EXTENSION_PEM" > packages/extension/extension.pem
+          npx crx3 pack packages/extension -o contentify.crx -p packages/extension/extension.pem
+          rm packages/extension/extension.pem
+          ls -la contentify.crx
 
       - name: Build relay binary (arm64)
         run: |
-          npm run build:arm64
-          ls -la dist/
-          # Rename binary for clarity (pkg uses package name)
-          mv dist/contentify-relay dist/contentify-relay-host-arm64
-          chmod +x dist/contentify-relay-host-arm64
-          ls -la dist/
-        working-directory: relay
-
-      - name: Verify Chrome Extension (.crx)
-        run: |
-          # Проверяем наличие готового CRX файла
-          ls -la contentify.crx
-
-      - name: Package Contentify Installer (.zip)
-        run: |
-          # Создаём Contentify-Installer.zip с Installer.app внутри
-          cd scripts
-          zip -r ../Contentify-Installer.zip "Contentify Installer.app" -x "*.DS_Store" -x "__MACOSX/*"
-          cd ..
-          ls -la Contentify-Installer.zip
+          npm run build:pkg:arm64
+          mv pkg-dist/contentify-relay pkg-dist/contentify-relay-host-arm64
+          chmod +x pkg-dist/contentify-relay-host-arm64
+          ls -la pkg-dist/
+        working-directory: packages/relay
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -58,7 +52,7 @@ jobs:
           generate_release_notes: true
           files: |
             contentify.crx
-            Contentify-Installer.zip
-            relay/dist/contentify-relay-host-arm64
+            packages/relay/pkg-dist/contentify-relay-host-arm64
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
