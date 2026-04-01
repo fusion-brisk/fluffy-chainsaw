@@ -28,13 +28,21 @@ function compareSemver(a: string, b: string): number {
   return 0;
 }
 
+const VERSIONS_URL =
+  'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/versions.json';
+
+interface VersionsManifest {
+  relay: { latest: string; minimum: string; downloadUrl: string };
+  extension: { latest: string; minimum: string; downloadUrl: string };
+}
+
 interface GitHubRelease {
   tag_name: string;
   assets: Array<{ name: string; browser_download_url: string; size: number }>;
 }
 
-/** Check GitHub Releases for a newer relay version */
-async function checkForUpdate(): Promise<UpdateInfo | null> {
+/** Fallback: fetch download URL from GitHub Releases API */
+async function fetchDownloadUrlFromGitHub(version: string): Promise<UpdateInfo | null> {
   try {
     const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
       headers: { 'User-Agent': 'contentify-relay' },
@@ -43,22 +51,67 @@ async function checkForUpdate(): Promise<UpdateInfo | null> {
     if (!res.ok) return null;
 
     const release = (await res.json()) as GitHubRelease;
-    const latestTag = release.tag_name;
-    const latestVersion = latestTag.replace(/^v/, '');
+    const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+    const assetName = `contentify-relay-host-${arch}`;
+    const asset = release.assets.find((a) => a.name === assetName);
+    if (!asset) {
+      console.log(`[update] No ${assetName} asset in release`);
+      return null;
+    }
+    return { version, downloadUrl: asset.browser_download_url, size: asset.size };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`[update] GitHub API fallback failed: ${msg}`);
+    return null;
+  }
+}
+
+/** Check for update: versions.json first (lightweight), GitHub API for download URL */
+async function checkForUpdate(): Promise<UpdateInfo | null> {
+  const currentVersion = getPkgVersion();
+
+  // Step 1: Check versions.json — lightweight, no rate limit
+  try {
+    const res = await fetch(VERSIONS_URL, {
+      headers: { 'User-Agent': 'contentify-relay' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const manifest = (await res.json()) as VersionsManifest;
+      const latestVersion = manifest.relay?.latest;
+      if (latestVersion) {
+        latestVersionCache = latestVersion;
+        if (compareSemver(latestVersion, currentVersion) <= 0) {
+          return null; // Up to date
+        }
+        // Step 2: Update available — get download URL from GitHub Releases
+        console.log(
+          `[update] New version available: ${latestVersion} (current: ${currentVersion})`,
+        );
+        return await fetchDownloadUrlFromGitHub(latestVersion);
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`[update] versions.json check failed: ${msg}, trying GitHub API`);
+  }
+
+  // Fallback: check GitHub Releases directly
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { 'User-Agent': 'contentify-relay' },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+
+    const release = (await res.json()) as GitHubRelease;
+    const latestVersion = release.tag_name.replace(/^v/, '');
     latestVersionCache = latestVersion;
 
-    const currentVersion = getPkgVersion();
-    if (compareSemver(latestVersion, currentVersion) > 0) {
-      const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-      const assetName = `contentify-relay-host-${arch}`;
-      const asset = release.assets.find((a) => a.name === assetName);
-      if (!asset) {
-        console.log(`[update] New version ${latestVersion} found, but no ${assetName} asset`);
-        return null;
-      }
-      return { version: latestVersion, downloadUrl: asset.browser_download_url, size: asset.size };
-    }
-    return null;
+    if (compareSemver(latestVersion, currentVersion) <= 0) return null;
+
+    console.log(`[update] New version available: ${latestVersion} (current: ${currentVersion})`);
+    return await fetchDownloadUrlFromGitHub(latestVersion);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.log(`[update] Check failed: ${msg}`);
@@ -124,12 +177,30 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
 
     setTimeout(() => {
       const { execSync } = require('child_process') as typeof import('child_process');
+
+      // Strategy 1: launchctl kickstart (started via LaunchAgent plist)
       try {
-        execSync('launchctl kickstart -k gui/$(id -u)/com.contentify.relay', { stdio: 'ignore' });
+        execSync('launchctl kickstart -k gui/$(id -u)/com.contentify.relay', {
+          stdio: 'ignore',
+          timeout: 5000,
+        });
+        return;
       } catch {
-        console.log('[update] launchctl failed, exiting for KeepAlive restart');
-        process.exit(0);
+        console.log('[update] launchctl kickstart failed, trying stop/start...');
       }
+
+      // Strategy 2: launchctl stop + start
+      try {
+        execSync('launchctl stop com.contentify.relay', { stdio: 'ignore', timeout: 3000 });
+        execSync('launchctl start com.contentify.relay', { stdio: 'ignore', timeout: 3000 });
+        return;
+      } catch {
+        console.log('[update] launchctl stop/start failed');
+      }
+
+      // Strategy 3: exit 0 — KeepAlive in plist or process supervisor will restart
+      console.log('[update] Exiting for KeepAlive restart...');
+      process.exit(0);
     }, 2000);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -146,7 +217,6 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
 async function runUpdateCheck(): Promise<void> {
   const update = await checkForUpdate();
   if (update) {
-    console.log(`[update] New version available: ${update.version} (current: ${getPkgVersion()})`);
     await downloadAndReplace(update);
   }
 }

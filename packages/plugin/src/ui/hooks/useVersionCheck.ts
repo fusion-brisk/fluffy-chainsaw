@@ -1,13 +1,16 @@
 /**
  * useVersionCheck — checks relay/extension versions against remote manifest
  *
- * Fetches versions.json from GitHub on mount, then compares current
- * relay and extension versions to determine if updates are needed.
+ * Fetches versions.json via relay proxy first (avoids CORS in Figma iframe),
+ * falls back to GitHub raw URL if relay is unavailable.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const VERSIONS_URL = 'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/versions.json';
+// Try relay proxy first — avoids CORS issues in Figma plugin iframe
+const VERSIONS_URL_RELAY = 'http://localhost:3847/versions';
+const VERSIONS_URL_GITHUB =
+  'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/versions.json';
 const FETCH_TIMEOUT_MS = 5000;
 
 interface VersionRequirements {
@@ -48,7 +51,7 @@ function compareSemver(a: string, b: string): number {
 
 function checkVersion(
   current: string | null,
-  requirements: VersionRequirements | undefined
+  requirements: VersionRequirements | undefined,
 ): UpdateInfo | null {
   if (!current || !requirements) return null;
 
@@ -67,7 +70,7 @@ function checkVersion(
 
 export function useVersionCheck(
   relayVersion: string | null,
-  extensionVersion: string | null
+  extensionVersion: string | null,
 ): UseVersionCheckReturn {
   const [manifest, setManifest] = useState<VersionManifest | null>(null);
   const [relayDismissed, setRelayDismissed] = useState(false);
@@ -78,32 +81,38 @@ export function useVersionCheck(
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-    fetch(VERSIONS_URL, { signal: controller.signal })
-      .then(res => {
-        clearTimeout(timeoutId);
-        if (!res.ok) return null;
-        return res.json();
-      })
-      .then(data => {
-        if (data?.relay && data?.extension) {
-          setManifest(data as VersionManifest);
+    const fetchVersions = async () => {
+      // Try relay proxy first, then GitHub direct
+      for (const url of [VERSIONS_URL_RELAY, VERSIONS_URL_GITHUB]) {
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+          const res = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (data?.relay && data?.extension) {
+            setManifest(data as VersionManifest);
+            return;
+          }
+        } catch {
+          // Try next URL
         }
-      })
-      .catch(() => {
-        // Silently fail — version check is best-effort
-      });
-
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
+      }
     };
+
+    fetchVersions();
   }, []);
 
   const relayUpdate = relayDismissed ? null : checkVersion(relayVersion, manifest?.relay);
-  const extensionUpdate = extensionDismissed ? null : checkVersion(extensionVersion, manifest?.extension);
+
+  // Extension update: override downloadUrl to use local relay CRX cache
+  const extensionUpdateRaw = extensionDismissed
+    ? null
+    : checkVersion(extensionVersion, manifest?.extension);
+  const extensionUpdate = extensionUpdateRaw
+    ? { ...extensionUpdateRaw, downloadUrl: 'http://localhost:3847/extension.crx' }
+    : null;
 
   // Critical updates cannot be dismissed
   const dismissRelay = useCallback(() => {
