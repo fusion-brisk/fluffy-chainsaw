@@ -9,7 +9,7 @@ import {
   findFirstPending,
   removeEntryById,
   shiftEntry,
-  clearQueue
+  clearQueue,
 } from '../queue';
 import { broadcast } from '../websocket';
 import type { QueueEntryPayload, QueueEntryMeta, ScreenshotMeta } from '../types';
@@ -22,9 +22,15 @@ let screenshotMeta: ScreenshotMeta | null = null;
 let lastImportPayload: { payload?: QueueEntryPayload; meta?: QueueEntryMeta } | null = null;
 
 // Expose for other routes
-export function getScreenshotSegments(): string[] { return screenshotSegments; }
-export function getScreenshotMeta(): ScreenshotMeta | null { return screenshotMeta; }
-export function getLastImportPayload(): typeof lastImportPayload { return lastImportPayload; }
+export function getScreenshotSegments(): string[] {
+  return screenshotSegments;
+}
+export function getScreenshotMeta(): ScreenshotMeta | null {
+  return screenshotMeta;
+}
+export function getLastImportPayload(): typeof lastImportPayload {
+  return lastImportPayload;
+}
 export function clearResult(): void {
   // Called by reimport route
 }
@@ -43,21 +49,25 @@ router.post('/push', (req: Request, res: Response) => {
   }
 
   // Validate payload size
-  const MAX_PAYLOAD_SIZE = 1 * 1024 * 1024; // 1MB
+  const MAX_PAYLOAD_SIZE = 5 * 1024 * 1024; // 5MB
   try {
     const dataSize = payload.feedCards
       ? JSON.stringify(payload.feedCards).length
-      : payload.rawRows ? JSON.stringify(payload.rawRows).length : 0;
+      : payload.rawRows
+        ? JSON.stringify(payload.rawRows).length
+        : 0;
     if (dataSize > MAX_PAYLOAD_SIZE) {
       console.warn(`Push rejected: payload too large (${(dataSize / 1024 / 1024).toFixed(2)}MB)`);
       res.status(413).json({
         error: 'Payload too large',
         maxSizeMB: 1,
-        actualSizeMB: +(dataSize / 1024 / 1024).toFixed(2)
+        actualSizeMB: +(dataSize / 1024 / 1024).toFixed(2),
       });
       return;
     }
-  } catch { /* size check failed, allow through */ }
+  } catch {
+    /* size check failed, allow through */
+  }
 
   // Extract and store screenshot segments separately
   if (payload.screenshots && payload.screenshots.length > 0) {
@@ -68,10 +78,12 @@ router.post('/push', (req: Request, res: Response) => {
       capturedAt: payload.capturedAt || new Date().toISOString(),
       query,
       url: payload.source?.url || '',
-      count: payload.screenshots.length
+      count: payload.screenshots.length,
     };
     const totalKB = Math.round(screenshotSegments.reduce((sum, s) => sum + s.length, 0) / 1024);
-    console.log(`${screenshotSegments.length} screenshot segments stored: ${totalKB}KB, query: "${query}"`);
+    console.log(
+      `${screenshotSegments.length} screenshot segments stored: ${totalKB}KB, query: "${query}"`,
+    );
     delete payload.screenshots;
     delete payload.screenshotMeta;
   }
@@ -85,7 +97,7 @@ router.post('/push', (req: Request, res: Response) => {
     payload,
     meta: meta || {},
     pushedAt,
-    acknowledged: false
+    acknowledged: false,
   });
 
   const sourceType = payload.sourceType || 'serp';
@@ -97,18 +109,24 @@ router.post('/push', (req: Request, res: Response) => {
   const itemCount = isFeed ? feedCardCount : snippetCount + wizardCount;
 
   if (isFeed) {
-    console.log(`Push [feed]: ${feedCardCount} cards (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`);
+    console.log(
+      `Push [feed]: ${feedCardCount} cards (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`,
+    );
   } else {
-    console.log(`Push: ${snippetCount} snippets + ${wizardCount} wizards${hasProductCard ? ' + productCard' : ''} (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`);
+    console.log(
+      `Push: ${snippetCount} snippets + ${wizardCount} wizards${hasProductCard ? ' + productCard' : ''} (schema v${payload.schemaVersion || 1}), queue: ${getQueue().length}, id: ${entryId}`,
+    );
   }
 
   // Store deep copy for reimport
   try {
     lastImportPayload = JSON.parse(JSON.stringify(req.body));
-  } catch { /* ignore clone errors */ }
+  } catch {
+    /* ignore clone errors */
+  }
 
   // Broadcast to WebSocket clients
-  const query = isFeed ? '' : (payload.rawRows?.[0]?.['#query'] || '');
+  const query = isFeed ? '' : payload.rawRows?.[0]?.['#query'] || '';
   broadcast({
     type: 'new-data',
     entryId,
@@ -120,13 +138,13 @@ router.post('/push', (req: Request, res: Response) => {
     extensionVersion: (meta as QueueEntryMeta | undefined)?.extensionVersion || null,
     sourceType,
     feedCardCount: isFeed ? feedCardCount : undefined,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 
   res.json({
     success: true,
     queueSize: getQueue().length,
-    entryId
+    entryId,
   });
 });
 
@@ -137,7 +155,7 @@ router.get('/peek', (_req: Request, res: Response) => {
   if (!entry) {
     res.json({
       hasData: false,
-      queueSize: getQueue().length
+      queueSize: getQueue().length,
     });
     return;
   }
@@ -145,9 +163,10 @@ router.get('/peek', (_req: Request, res: Response) => {
   entry.lastPeekedAt = Date.now();
 
   const peekSourceType = entry.payload?.sourceType || 'serp';
-  const itemCount = peekSourceType === 'feed'
-    ? (entry.payload?.feedCards?.length || 0)
-    : (entry.payload?.rawRows?.length || 0);
+  const itemCount =
+    peekSourceType === 'feed'
+      ? entry.payload?.feedCards?.length || 0
+      : entry.payload?.rawRows?.length || 0;
   console.log(`Peek [${peekSourceType}]: ${itemCount} items, id: ${entry.id}`);
 
   res.json({
@@ -156,7 +175,7 @@ router.get('/peek', (_req: Request, res: Response) => {
     payload: entry.payload,
     meta: entry.meta,
     pushedAt: entry.pushedAt,
-    pendingCount: getPendingCount()
+    pendingCount: getPendingCount(),
   });
 });
 
@@ -183,7 +202,7 @@ router.get('/pull', (_req: Request, res: Response) => {
     payload: entry.payload,
     meta: entry.meta,
     pushedAt: entry.pushedAt,
-    remainingQueue: getQueue().length
+    remainingQueue: getQueue().length,
   });
 });
 
@@ -203,7 +222,7 @@ router.post('/ack', (req: Request, res: Response) => {
     res.json({
       success: true,
       alreadyRemoved: true,
-      queueSize: getQueue().length
+      queueSize: getQueue().length,
     });
     return;
   }
@@ -213,7 +232,7 @@ router.post('/ack', (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    queueSize: getQueue().length
+    queueSize: getQueue().length,
   });
 });
 
@@ -223,7 +242,7 @@ router.post('/reject', (req: Request, res: Response) => {
   console.log(`Reject: id ${entryId} (data stays in queue)`);
   res.json({
     success: true,
-    queueSize: getQueue().length
+    queueSize: getQueue().length,
   });
 });
 
@@ -240,7 +259,7 @@ router.get('/status', (_req: Request, res: Response) => {
       id: entry.id,
       itemCount: entry.payload?.rawRows?.length || 0,
       pushedAt: entry.pushedAt,
-      query: entry.payload?.rawRows?.[0]?.['#query'] || ''
+      query: entry.payload?.rawRows?.[0]?.['#query'] || '',
     };
   }
 
@@ -249,7 +268,7 @@ router.get('/status', (_req: Request, res: Response) => {
     queueSize: queue.length,
     pendingCount,
     hasData: pendingCount > 0,
-    firstEntry
+    firstEntry,
   });
 });
 
@@ -265,7 +284,9 @@ router.post('/reimport', (_req: Request, res: Response) => {
   const pkg = require('../../package.json') as { version: string };
 
   if (!lastImportPayload) {
-    res.status(404).json({ error: 'No previous import to replay. Send data via POST /push first.' });
+    res
+      .status(404)
+      .json({ error: 'No previous import to replay. Send data via POST /push first.' });
     return;
   }
 
@@ -289,7 +310,7 @@ router.post('/reimport', (_req: Request, res: Response) => {
     payload,
     meta,
     pushedAt,
-    acknowledged: false
+    acknowledged: false,
   });
 
   const reimportSourceType = payload.sourceType || 'serp';
@@ -304,7 +325,7 @@ router.post('/reimport', (_req: Request, res: Response) => {
     console.log(`Reimport: ${snippetCount} snippets + ${wizardCount} wizards, id: ${entryId}`);
   }
 
-  const query = reimportIsFeed ? '' : (payload.rawRows?.[0]?.['#query'] || '');
+  const query = reimportIsFeed ? '' : payload.rawRows?.[0]?.['#query'] || '';
   broadcast({
     type: 'new-data',
     entryId,
@@ -316,7 +337,7 @@ router.post('/reimport', (_req: Request, res: Response) => {
     extensionVersion: (meta as QueueEntryMeta).extensionVersion || null,
     sourceType: reimportSourceType,
     feedCardCount: reimportIsFeed ? reimportFeedCardCount : undefined,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
 
   res.json({ success: true, entryId, queueSize: getQueue().length });

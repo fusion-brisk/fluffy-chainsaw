@@ -101,7 +101,10 @@ function connectToNativeHost(): Promise<boolean> {
         relayStarted = false;
 
         // Если host не найден — помечаем как недоступный
-        if (error?.message?.includes('not found') || error?.message?.includes('Native host has exited')) {
+        if (
+          error?.message?.includes('not found') ||
+          error?.message?.includes('Native host has exited')
+        ) {
           nativeHostAvailable = false;
         }
       });
@@ -116,7 +119,6 @@ function connectToNativeHost(): Promise<boolean> {
           resolve(false);
         }
       }, 500);
-
     } catch (e: unknown) {
       console.log('[NativeHost] Connect error:', e);
       nativeHostAvailable = false;
@@ -132,7 +134,7 @@ async function checkRelayHealth(url: string): Promise<boolean> {
   try {
     const res = await fetch(`${url}/health`, {
       method: 'GET',
-      signal: AbortSignal.timeout(2000)
+      signal: AbortSignal.timeout(2000),
     });
     return res.ok;
   } catch {
@@ -157,7 +159,7 @@ async function ensureRelayRunning(): Promise<boolean> {
     const connected = await connectToNativeHost();
     if (connected) {
       // Ждём немного, пока relay запустится
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
       if (await checkRelayHealth(relayUrl)) {
         return true;
       }
@@ -193,7 +195,7 @@ function addToRetryQueue(item: { payload: unknown; meta: unknown }): void {
   retryQueue.push({
     ...item,
     retryCount: 0,
-    addedAt: Date.now()
+    addedAt: Date.now(),
   });
   updateRetryBadge();
   console.log(`[Retry] Added to queue, size: ${retryQueue.length}`);
@@ -216,8 +218,8 @@ async function savePendingDataToStorage(item: { payload: unknown; meta: unknown 
       pendingData: {
         payload: item.payload,
         meta: item.meta,
-        savedAt: Date.now()
-      }
+        savedAt: Date.now(),
+      },
     });
     console.log('[Fallback] Data saved to storage for retry');
   } catch (err: unknown) {
@@ -263,7 +265,7 @@ async function processRetryQueue(): Promise<void> {
     setBadge(`${retryQueue.length}↻`, '#D29922');
 
     // Wait before retry
-    await new Promise(r => setTimeout(r, delay));
+    await new Promise((r) => setTimeout(r, delay));
 
     // Try to send
     const success = await attemptPush(item);
@@ -293,7 +295,7 @@ async function processRetryQueue(): Promise<void> {
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
-              }
+              },
             });
           }
         } catch {
@@ -335,9 +337,9 @@ async function attemptPush(item: RetryQueueItem): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         payload: item.payload,
-        meta: item.meta
+        meta: item.meta,
       }),
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(5000),
     });
 
     return res.ok;
@@ -367,7 +369,7 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
 
   const [{ result: currentInnerWidth }] = await chrome.scripting.executeScript({
     target: { tabId },
-    func: () => window.innerWidth
+    func: () => window.innerWidth,
   });
   const chromeWidth = win.width! - (currentInnerWidth as number);
   const newWindowWidth = targetWidth + chromeWidth;
@@ -376,7 +378,7 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
   if (newWindowWidth !== win.width) {
     await chrome.windows.update(win.id!, { width: newWindowWidth });
     didResize = true;
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 300));
   }
 
   // --- Hide technical UI only (header + ProductsModePanel stay for first segment) ---
@@ -390,7 +392,7 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
         '.YndxBug { display: none !important; }',
       ].join('\n');
       document.head.appendChild(style);
-    }
+    },
   });
 
   // Read page dimensions (header still visible)
@@ -401,41 +403,53 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
       innerHeight: window.innerHeight,
       innerWidth: window.innerWidth,
       scrollY: window.scrollY,
-      devicePixelRatio: window.devicePixelRatio || 1
-    })
+      devicePixelRatio: window.devicePixelRatio || 1,
+    }),
   });
 
-  const { scrollHeight, innerHeight, innerWidth, scrollY: originalScrollY, devicePixelRatio } = dims as PageDimensions;
+  const {
+    scrollHeight,
+    innerHeight,
+    innerWidth,
+    scrollY: originalScrollY,
+    devicePixelRatio,
+  } = dims as PageDimensions;
   const screenshots: string[] = [];
 
   // --- Segment 0: capture WITH header (natural page top) ---
   await chrome.scripting.executeScript({
     target: { tabId },
-    func: () => window.scrollTo(0, 0)
+    func: () => window.scrollTo(0, 0),
   });
-  await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
-  screenshots.push(await chrome.tabs.captureVisibleTab(null as unknown as number, { format: 'jpeg', quality: 80 }));
+  await new Promise((r) => setTimeout(r, SCROLL_SETTLE_MS));
+  screenshots.push(
+    await chrome.tabs.captureVisibleTab(null as unknown as number, { format: 'jpeg', quality: 80 }),
+  );
 
   // --- Hide header + sticky ProductsModePanel for remaining segments ---
   await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
       const fix = document.getElementById('contentify-screenshot-fix');
-      if (fix) fix.textContent += '\n.HeaderDesktop, .HeaderPhone { display: none !important; }\n.ProductsModePanel { display: none !important; }';
-    }
+      if (fix)
+        fix.textContent +=
+          '\n.HeaderDesktop, .HeaderPhone { display: none !important; }\n.ProductsModePanel { display: none !important; }';
+    },
   });
 
   // Measure how much content shifted up after hiding header
   const [{ result: newScrollHeight }] = await chrome.scripting.executeScript({
     target: { tabId },
-    func: () => document.documentElement.scrollHeight
+    func: () => document.documentElement.scrollHeight,
   });
   const headerOffset = scrollHeight - (newScrollHeight as number);
 
   // Remaining segments: adjust scroll to account for hidden header
   const remainingCount = Math.min(
-    Math.ceil(Math.max(0, (newScrollHeight as number) - (innerHeight - headerOffset)) / innerHeight),
-    MAX_CAPTURES - 1
+    Math.ceil(
+      Math.max(0, (newScrollHeight as number) - (innerHeight - headerOffset)) / innerHeight,
+    ),
+    MAX_CAPTURES - 1,
   );
 
   for (let i = 0; i < remainingCount; i++) {
@@ -444,11 +458,16 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
     await chrome.scripting.executeScript({
       target: { tabId },
       func: (y: number) => window.scrollTo(0, y),
-      args: [scrollTo]
+      args: [scrollTo],
     });
 
-    await new Promise(r => setTimeout(r, SCROLL_SETTLE_MS));
-    screenshots.push(await chrome.tabs.captureVisibleTab(null as unknown as number, { format: 'jpeg', quality: 80 }));
+    await new Promise((r) => setTimeout(r, SCROLL_SETTLE_MS));
+    screenshots.push(
+      await chrome.tabs.captureVisibleTab(null as unknown as number, {
+        format: 'jpeg',
+        quality: 80,
+      }),
+    );
   }
 
   // Restore: scroll position, hidden elements, window size
@@ -459,7 +478,7 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
       const fix = document.getElementById('contentify-screenshot-fix');
       if (fix) fix.remove();
     },
-    args: [originalScrollY]
+    args: [originalScrollY],
   });
 
   if (didResize) {
@@ -471,7 +490,7 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
     totalHeight: scrollHeight,
     viewportHeight: innerHeight,
     viewportWidth: innerWidth,
-    devicePixelRatio
+    devicePixelRatio,
   };
 }
 
@@ -498,8 +517,10 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     if (rules) {
       await chrome.scripting.executeScript({
         target: { tabId: tab.id! },
-        func: (r: unknown) => { (window as Window).__contentifyParsingRules = r; },
-        args: [rules]
+        func: (r: unknown) => {
+          (window as Window).__contentifyParsingRules = r;
+        },
+        args: [rules],
       });
     }
 
@@ -508,13 +529,13 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     // Content script stores result in window.__contentifyResult as fallback.
     await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
-      files: ['dist/content.js']
+      files: ['dist/content.js'],
     });
 
     // Read result from page context (esbuild IIFE prevents direct return)
     const [{ result: pageResult }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
-      func: () => (window as Window).__contentifyResult
+      func: () => (window as Window).__contentifyResult,
     });
 
     parseResult = pageResult as ParseResult | null;
@@ -546,7 +567,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     let screenshots: string[] = [];
     let screenshotMeta: Record<string, unknown> | null = null;
     if (!isFeed) {
-      const platform = rows.find(r => r['#platform'])?.['#platform'] || 'desktop';
+      const platform = rows.find((r) => r['#platform'])?.['#platform'] || 'desktop';
       try {
         const result = await captureFullPage(tab.id!, platform);
         screenshots = result.screenshots;
@@ -555,10 +576,12 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
           viewportHeight: result.viewportHeight,
           viewportWidth: result.viewportWidth,
           devicePixelRatio: result.devicePixelRatio,
-          count: result.screenshots.length
+          count: result.screenshots.length,
         };
         const totalKB = screenshots.reduce((sum, s) => sum + s.length, 0);
-        console.log(`[Screenshot] Captured ${screenshots.length} segments, total: ${Math.round(totalKB / 1024)}KB`);
+        console.log(
+          `[Screenshot] Captured ${screenshots.length} segments, total: ${Math.round(totalKB / 1024)}KB`,
+        );
       } catch (screenshotErr: unknown) {
         console.log('[Screenshot] Failed:', (screenshotErr as Error).message);
       }
@@ -582,14 +605,14 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       if (screenshotMeta) payload.screenshotMeta = screenshotMeta;
     }
 
-    const itemCount = isFeed ? (parseResult.feedCards?.length || 0) : rows.length;
+    const itemCount = isFeed ? parseResult.feedCards?.length || 0 : rows.length;
     const meta = {
       url: tab.url,
       parsedAt: new Date().toISOString(),
       snippetCount: isFeed ? 0 : rows.length,
       wizardCount: isFeed ? 0 : wizards.length,
       feedCardCount: isFeed ? itemCount : undefined,
-      extensionVersion: chrome.runtime.getManifest().version
+      extensionVersion: chrome.runtime.getManifest().version,
     };
 
     // Send to relay
@@ -603,7 +626,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ payload, meta }),
-          signal: AbortSignal.timeout(3000)
+          signal: AbortSignal.timeout(5000),
         });
         relaySuccess = res.ok;
       }
@@ -633,12 +656,11 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-        }
+        },
       });
     } catch {
       // Deeplink failed, ignore
     }
-
   } catch (err: unknown) {
     console.error('Parse/copy error:', err);
     setBadge('!', '#E5534B');
@@ -659,11 +681,13 @@ chrome.tabs.onActivated.addListener(async ({ tabId }: { tabId: number }) => {
   }
 });
 
-chrome.tabs.onUpdated.addListener((_tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
-  if (changeInfo.status === 'complete') {
-    updateIconForTab(tab);
-  }
-});
+chrome.tabs.onUpdated.addListener(
+  (_tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+    if (changeInfo.status === 'complete') {
+      updateIconForTab(tab);
+    }
+  },
+);
 
 // Update icon appearance based on current tab
 // Uses chrome.runtime.getURL to avoid MV3 service worker "Failed to fetch" bug
@@ -674,15 +698,16 @@ function updateIconForTab(tab: chrome.tabs.Tab): void {
     path: {
       16: chrome.runtime.getURL(`icons/icon16-${variant}.png`),
       48: chrome.runtime.getURL(`icons/icon48-${variant}.png`),
-      128: chrome.runtime.getURL(`icons/icon128-${variant}.png`)
-    }
+      128: chrome.runtime.getURL(`icons/icon128-${variant}.png`),
+    },
   });
   chrome.action.setTitle({ title });
 }
 
 // === Parsing Rules (shared with plugin) ===
 
-const PARSING_RULES_URL = 'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json';
+const PARSING_RULES_URL =
+  'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json';
 const RULES_CACHE_KEY = 'parsingRulesCache';
 const RULES_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -695,22 +720,27 @@ async function loadParsingRules(): Promise<unknown> {
     // Try cache first
     const cached = await chrome.storage.local.get(RULES_CACHE_KEY);
     if (cached[RULES_CACHE_KEY]) {
-      const { rules, fetchedAt } = cached[RULES_CACHE_KEY] as { rules: RulesData; fetchedAt: number };
+      const { rules, fetchedAt } = cached[RULES_CACHE_KEY] as {
+        rules: RulesData;
+        fetchedAt: number;
+      };
       if (Date.now() - fetchedAt < RULES_CACHE_TTL && rules?.version) {
         console.log(`[Rules] Using cached rules v${rules.version}`);
         return rules;
       }
     }
-  } catch { /* cache miss */ }
+  } catch {
+    /* cache miss */
+  }
 
   // Fetch remote
   try {
     const res = await fetch(PARSING_RULES_URL, { signal: AbortSignal.timeout(5000) });
     if (res.ok) {
-      const rules = await res.json() as RulesData;
+      const rules = (await res.json()) as RulesData;
       if (rules?.version && rules?.rules) {
         await chrome.storage.local.set({
-          [RULES_CACHE_KEY]: { rules, fetchedAt: Date.now() }
+          [RULES_CACHE_KEY]: { rules, fetchedAt: Date.now() },
         });
         console.log(`[Rules] Fetched remote rules v${rules.version}`);
         return rules;
