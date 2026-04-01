@@ -33,6 +33,7 @@ import updateRoutes, { startUpdateSchedule } from './routes/update';
 import debugRoutes from './routes/debug';
 import debugLogRoutes from './routes/debug-log';
 import comparisonRoutes from './routes/comparison';
+import versionsRoutes from './routes/versions';
 import { getQueue } from './queue';
 
 const app = express();
@@ -64,6 +65,7 @@ app.use(updateRoutes);
 app.use(debugRoutes);
 app.use(debugLogRoutes);
 app.use(comparisonRoutes);
+app.use(versionsRoutes);
 
 // === Graceful shutdown ===
 process.on('SIGINT', () => {

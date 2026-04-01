@@ -36,10 +36,10 @@ interface GitHubRelease {
 /** Check GitHub Releases for a newer relay version */
 async function checkForUpdate(): Promise<UpdateInfo | null> {
   try {
-    const res = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      { headers: { 'User-Agent': 'contentify-relay' }, signal: AbortSignal.timeout(10000) }
-    );
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
+      headers: { 'User-Agent': 'contentify-relay' },
+      signal: AbortSignal.timeout(10000),
+    });
     if (!res.ok) return null;
 
     const release = (await res.json()) as GitHubRelease;
@@ -51,7 +51,7 @@ async function checkForUpdate(): Promise<UpdateInfo | null> {
     if (compareSemver(latestVersion, currentVersion) > 0) {
       const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
       const assetName = `contentify-relay-host-${arch}`;
-      const asset = release.assets.find(a => a.name === assetName);
+      const asset = release.assets.find((a) => a.name === assetName);
       if (!asset) {
         console.log(`[update] New version ${latestVersion} found, but no ${assetName} asset`);
         return null;
@@ -67,11 +67,7 @@ async function checkForUpdate(): Promise<UpdateInfo | null> {
 }
 
 // Hardcoded relay binary path — never use process.execPath to avoid replacing system node
-const RELAY_BINARY_PATH = path.join(
-  process.env.HOME || '/tmp',
-  '.contentify',
-  'relay-host'
-);
+const RELAY_BINARY_PATH = path.join(process.env.HOME || '/tmp', '.contentify', 'relay-host');
 
 /** Download new binary, replace current, and restart via launchctl */
 async function downloadAndReplace(update: UpdateInfo): Promise<void> {
@@ -84,7 +80,7 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
   try {
     const res = await fetch(update.downloadUrl, {
       headers: { 'User-Agent': 'contentify-relay' },
-      signal: AbortSignal.timeout(60000)
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) throw new Error(`Download failed: ${res.status}`);
 
@@ -97,11 +93,32 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
     await fs.writeFile(tempPath, buffer);
     await fs.chmod(tempPath, 0o755);
 
-    try { await fs.unlink(backupPath); } catch { /* no backup yet */ }
+    try {
+      await fs.unlink(backupPath);
+    } catch {
+      /* no backup yet */
+    }
     await fs.rename(binaryPath, backupPath);
     await fs.rename(tempPath, binaryPath);
 
     console.log('[update] Binary replaced. Restarting...');
+
+    // Also download latest CRX for local serving
+    try {
+      const crxUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download/contentify.crx`;
+      const crxRes = await fetch(crxUrl, {
+        headers: { 'User-Agent': 'contentify-relay' },
+        signal: AbortSignal.timeout(30000),
+      });
+      if (crxRes.ok) {
+        const crxBuffer = Buffer.from(await crxRes.arrayBuffer());
+        const crxPath = path.join(process.env.HOME || '/tmp', '.contentify', 'contentify.crx');
+        await fs.writeFile(crxPath, crxBuffer);
+        console.log(`[update] CRX cached: ${(crxBuffer.length / 1024).toFixed(0)}KB`);
+      }
+    } catch (crxErr) {
+      console.log('[update] CRX cache failed:', crxErr instanceof Error ? crxErr.message : crxErr);
+    }
 
     broadcast({ type: 'relay-updating', newVersion: update.version, timestamp: Date.now() });
 
@@ -117,7 +134,11 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`[update] Failed: ${msg}`);
-    try { await fs.unlink(tempPath); } catch { /* cleanup */ }
+    try {
+      await fs.unlink(tempPath);
+    } catch {
+      /* cleanup */
+    }
   }
 }
 
@@ -136,7 +157,9 @@ router.get('/version', (_req: Request, res: Response) => {
   res.json({
     version: currentVersion,
     latest: latestVersionCache,
-    updateAvailable: latestVersionCache ? compareSemver(latestVersionCache, currentVersion) > 0 : null
+    updateAvailable: latestVersionCache
+      ? compareSemver(latestVersionCache, currentVersion) > 0
+      : null,
   });
 });
 
@@ -148,6 +171,24 @@ router.post('/update', async (_req: Request, res: Response) => {
     downloadAndReplace(update);
   } else {
     res.json({ updateAvailable: false, version: getPkgVersion(), latest: latestVersionCache });
+  }
+});
+
+/** GET /extension.crx — serve cached CRX for local download */
+router.get('/extension.crx', async (_req: Request, res: Response) => {
+  const crxPath = path.join(process.env.HOME || '/tmp', '.contentify', 'contentify.crx');
+  try {
+    const stat = await fs.stat(crxPath);
+    res.set('Content-Type', 'application/x-chrome-extension');
+    res.set('Content-Disposition', 'attachment; filename="contentify.crx"');
+    res.set('Content-Length', String(stat.size));
+    const data = await fs.readFile(crxPath);
+    res.send(data);
+  } catch {
+    res.status(404).json({
+      error: 'CRX not cached. Will be available after next relay update.',
+      downloadUrl: `https://github.com/${GITHUB_REPO}/releases/latest/download/contentify.crx`,
+    });
   }
 });
 
