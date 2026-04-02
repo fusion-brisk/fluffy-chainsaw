@@ -31,9 +31,9 @@
   --radius-xl: 12px;
 
   /* Shadows (subtle, Figma-style) */
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
-  --shadow-lg: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
 
   /* Easing Curves (Figma UI3 motion) */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
@@ -56,14 +56,15 @@
 
   /* Component-specific tokens */
   --card-radius: 8px;
-  --card-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   --btn-radius: 6px;
   --step-number-size: 24px;
 }
 
-
 /* Reset & Base */
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 html {
   height: 100%;
@@ -73,7 +74,12 @@ body {
   margin: 0;
   padding: 0;
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: var(--font-size-base);
   background-color: var(--figma-color-bg);
   color: var(--figma-color-text);
@@ -95,10 +101,19 @@ body {
 }
 
 /* Typography */
-h1, h2, h3 { margin: 0; font-weight: var(--font-weight-semibold); color: var(--figma-color-text); }
-p { margin: 0; line-height: 1.5; }
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--figma-color-text);
+}
+p {
+  margin: 0;
+  line-height: 1.5;
+}
 
-   UNIVERSAL UI COMPONENTS (UI Consistency)
+UNIVERSAL UI COMPONENTS (UI Consistency)
    ============================================ */
 
 /* Card - universal card component */
@@ -184,8 +199,9 @@ p { margin: 0; line-height: 1.5; }
 .view-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity var(--duration-normal) var(--ease-out),
-              transform var(--duration-normal) var(--ease-out);
+  transition:
+    opacity var(--duration-normal) var(--ease-out),
+    transform var(--duration-normal) var(--ease-out);
 }
 
 /* Icon bounce animation */
@@ -249,7 +265,7 @@ p { margin: 0; line-height: 1.5; }
 }
 
 /* Inline hint */
-   TOGGLE / SWITCH - Figma UI3 style
+TOGGLE / SWITCH - Figma UI3 style
    ============================================ */
 /* Small text button - Figma UI3: no border by default, hover shows border */
 .btn-text-sm {
@@ -287,9 +303,7 @@ p { margin: 0; line-height: 1.5; }
 }
 
 /* Selection hint (no selection) */
-   BUTTONS - Global button styles
-   ============================================ */
-button {
+BUTTONS - Global button styles ============================================ */ button {
   background: transparent;
   border: 1px solid transparent;
   color: var(--figma-color-text);
@@ -302,11 +316,13 @@ button {
   transition: all var(--duration-micro) ease-out;
 }
 
-button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text):not(.confirm-dialog__btn-primary):not(.confirm-dialog__btn-secondary):not(.confirm-dialog__btn-danger) {
+button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text):not(
+    .confirm-dialog__btn-primary
+  ):not(.confirm-dialog__btn-secondary):not(.confirm-dialog__btn-danger) {
   background-color: var(--figma-color-bg-hover);
 }
 
-button:active:not(:disabled) { 
+button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
@@ -320,11 +336,13 @@ button:disabled {
   cursor: not-allowed;
 }
 
-   ANIMATIONS
-   ============================================ */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+ANIMATIONS ============================================ */ @keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes dialogIn {
@@ -338,9 +356,7 @@ button:disabled {
   }
 }
 
-   SCROLLBAR STYLING
-   ============================================ */
-::-webkit-scrollbar {
+SCROLLBAR STYLING ============================================ */ ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
@@ -513,7 +529,9 @@ button:disabled {
   height: 56px;
 }
 
-.compact-strip__spacer { flex: 1; }
+.compact-strip__spacer {
+  flex: 1;
+}
 
 /* Status icons */
 .compact-strip__spinner {
@@ -619,8 +637,12 @@ button:disabled {
 }
 
 @keyframes progressShrink {
-  from { width: 100%; }
-  to { width: 0%; }
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
 }
 
 /* Tooltip */
@@ -655,8 +677,14 @@ button:disabled {
 }
 
 @keyframes menuAppear {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .compact-strip__menu-item {
@@ -727,8 +755,12 @@ button:disabled {
 }
 
 @keyframes overlayFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .compact-strip__menu-sheet {
@@ -742,8 +774,12 @@ button:disabled {
 }
 
 @keyframes sheetSlideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 .compact-strip__menu-sheet-handle {
@@ -755,7 +791,7 @@ button:disabled {
 }
 
 .compact-strip__menu-item--touch {
-  padding: 14px 20px;  /* 48px touch target */
+  padding: 14px 20px; /* 48px touch target */
   font-size: var(--font-size-lg);
 }
 
@@ -851,7 +887,7 @@ button:disabled {
   margin-top: 4px;
 }
 
-.confirm-dialog__radio input[type="radio"] {
+.confirm-dialog__radio input[type='radio'] {
   width: 14px;
   height: 14px;
   margin: 0;
@@ -859,12 +895,12 @@ button:disabled {
   cursor: pointer;
 }
 
-.confirm-dialog__radio input[type="radio"]:disabled {
+.confirm-dialog__radio input[type='radio']:disabled {
   opacity: 0.35;
   cursor: not-allowed;
 }
 
-.confirm-dialog__radio input[type="radio"]:disabled + span {
+.confirm-dialog__radio input[type='radio']:disabled + span {
   opacity: 0.35;
   cursor: not-allowed;
 }
@@ -881,7 +917,7 @@ button:disabled {
   height: 24px;
 }
 
-.confirm-dialog__checkbox input[type="checkbox"] {
+.confirm-dialog__checkbox input[type='checkbox'] {
   width: 14px;
   height: 14px;
   margin: 0;
@@ -1015,8 +1051,13 @@ button:disabled {
 }
 
 @keyframes stepPulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 /* ============================================
@@ -1097,267 +1138,14 @@ button:disabled {
 }
 
 /* ============================================
-   ONBOARDING HINT — First-time user guide
-   ============================================ */
-.onboarding-hint {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-  margin-top: var(--space-sm);
-}
-
-.onboarding-hint-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.onboarding-hint-step {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
-  background: var(--figma-color-bg-secondary);
-  border-radius: var(--radius-md);
-}
-
-.onboarding-hint-text {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text);
-  line-height: 1.4;
-}
-
-.onboarding-hint-dismiss {
-  align-self: center;
-  margin-top: var(--space-xs);
-}
-
-/* ============================================
-   WHATS NEW BANNER — Inline changelog notice
-   ============================================ */
-.whats-new-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-left: 3px solid var(--figma-color-bg-brand);
-  margin: var(--space-sm) 0;
-}
-
-.whats-new-banner-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.whats-new-banner-text {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--figma-color-text);
-}
-
-.whats-new-banner-close {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-secondary);
-  cursor: pointer;
-  padding: 2px 4px;
-  font-family: inherit;
-}
-
-.whats-new-banner-close:hover {
-  color: var(--figma-color-text);
-}
-
-/* ============================================
-   STATUS BAR — Fixed bottom connection bar
-   ============================================ */
-.status-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  background: var(--figma-color-bg-secondary);
-  border-top: 1px solid var(--figma-color-border);
-  z-index: 100;
-  font-family: inherit;
-}
-
-/* Status button — left side */
-.status-bar__status-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-family: inherit;
-  transition: background var(--transition-fast);
-}
-
-.status-bar__status-btn:hover {
-  background: var(--figma-color-bg-hover);
-}
-
-.status-bar__status-text {
-  font-size: var(--font-size-sm);
-  color: var(--figma-color-text-secondary);
-  white-space: nowrap;
-}
-
-.status-bar__status-btn--error .status-bar__status-text {
-  color: var(--figma-color-text-warning);
-}
-
-.status-bar__warning-icon {
-  font-size: 12px;
-  color: var(--figma-color-text-warning);
-  line-height: 1;
-}
-
-.status-bar__error-group {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.status-bar__setup-btn {
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  font-weight: var(--font-weight-medium);
-  color: var(--figma-color-text-brand);
-  background: transparent;
-  border: 1px solid var(--figma-color-border);
-  border-radius: 4px;
-  padding: 2px 8px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.status-bar__setup-btn:hover {
-  background: var(--figma-color-bg-hover);
-  border-color: var(--figma-color-border-strong);
-}
-
-/* Status dot */
-.status-bar__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-  flex-shrink: 0;
-}
-
-.status-bar__dot--ok {
-  background: var(--figma-color-text-success);
-}
-
-.status-bar__dot--error {
-  background: var(--figma-color-text-danger);
-}
-
-/* Right-side icon buttons */
-.status-bar__actions {
-  margin-left: auto;
-  display: flex;
-  gap: 4px;
-}
-
-.status-bar__icon-btn {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--figma-color-icon-secondary);
-  border-radius: 4px;
-  font-size: 14px;
-  transition: all var(--transition-fast);
-}
-
-.status-bar__icon-btn:hover {
-  background: var(--figma-color-bg-hover);
-  color: var(--figma-color-icon);
-}
-
-/* Detail popup — above the bar */
-.status-bar__popup {
-  position: absolute;
-  bottom: 32px;
-  left: 12px;
-  background: var(--figma-color-bg);
-  border: 1px solid var(--figma-color-border);
-  border-radius: var(--radius-large);
-  box-shadow: var(--shadow-md);
-  padding: 8px 12px;
-  z-index: 101;
-  min-width: 180px;
-}
-
-.status-bar__popup-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: var(--font-size-sm);
-}
-
-.status-bar__popup-label {
-  color: var(--figma-color-text);
-  flex: 1;
-}
-
-.status-bar__popup-value {
-  color: var(--figma-color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.status-bar__popup-divider {
-  height: 1px;
-  background: var(--figma-color-border);
-  margin: 4px -12px;
-}
-
-.status-bar__popup-action {
-  display: block;
-  width: 100%;
-  text-align: left;
-  font-size: var(--font-size-sm);
-  font-family: inherit;
-  color: var(--figma-color-text-danger);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 4px 0;
-  transition: opacity var(--transition-fast);
-}
-
-.status-bar__popup-action:hover {
-  opacity: 0.7;
-}
-
-/* ============================================
    UPDATE BANNER — Version update notifications
    ============================================ */
 .update-banner-container {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  z-index: 60;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
 }
 
 .update-banner {

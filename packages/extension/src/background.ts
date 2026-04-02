@@ -770,7 +770,7 @@ async function loadParsingRules(): Promise<unknown> {
     console.log('[Contentify] Native Host connected, relay should be running');
   } else {
     console.log('[Contentify] Native Host not available, relay needs manual start');
-    console.log('[Contentify] Run: cd native-host && ./install-macos.sh (or .bat for Windows)');
+    console.log('[Contentify] Install Relay from GitHub Releases: Contentify-Installer.zip');
   }
 })();
 

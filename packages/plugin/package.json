@@ -15,9 +15,6 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "canvas": "^3.2.1",
-    "icojs": "^0.19.5",
-    "papaparse": "^5.4.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
