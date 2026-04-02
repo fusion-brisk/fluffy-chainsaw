@@ -13,6 +13,7 @@ import {
 } from '../queue';
 import { broadcast } from '../websocket';
 import type { QueueEntryPayload, QueueEntryMeta, ScreenshotMeta } from '../types';
+import { RELAY_VERSION } from '../version';
 
 const router = Router();
 
@@ -37,10 +38,6 @@ export function clearResult(): void {
 
 /** POST /push */
 router.post('/push', (req: Request, res: Response) => {
-  // Dynamically import version from package.json
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pkg = require('../../package.json') as { version: string };
-
   const { payload, meta } = req.body as { payload?: QueueEntryPayload; meta?: QueueEntryMeta };
 
   if (!payload) {
@@ -134,7 +131,7 @@ router.post('/push', (req: Request, res: Response) => {
     snippetCount,
     wizardCount,
     query,
-    relayVersion: pkg.version,
+    relayVersion: RELAY_VERSION,
     extensionVersion: (meta as QueueEntryMeta | undefined)?.extensionVersion || null,
     sourceType,
     feedCardCount: isFeed ? feedCardCount : undefined,
@@ -248,7 +245,6 @@ router.post('/reject', (req: Request, res: Response) => {
 
 /** GET /status */
 router.get('/status', (_req: Request, res: Response) => {
-  const pkg = require('../../package.json') as { version: string };
   const queue = getQueue();
   const pendingCount = getPendingCount();
 
@@ -264,7 +260,7 @@ router.get('/status', (_req: Request, res: Response) => {
   }
 
   res.json({
-    version: pkg.version,
+    version: RELAY_VERSION,
     queueSize: queue.length,
     pendingCount,
     hasData: pendingCount > 0,
@@ -281,8 +277,6 @@ router.delete('/clear', (_req: Request, res: Response) => {
 
 /** POST /reimport */
 router.post('/reimport', (_req: Request, res: Response) => {
-  const pkg = require('../../package.json') as { version: string };
-
   if (!lastImportPayload) {
     res
       .status(404)
@@ -333,7 +327,7 @@ router.post('/reimport', (_req: Request, res: Response) => {
     snippetCount,
     wizardCount,
     query,
-    relayVersion: pkg.version,
+    relayVersion: RELAY_VERSION,
     extensionVersion: (meta as QueueEntryMeta).extensionVersion || null,
     sourceType: reimportSourceType,
     feedCardCount: reimportIsFeed ? reimportFeedCardCount : undefined,
