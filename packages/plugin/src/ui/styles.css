@@ -113,7 +113,8 @@ p {
   line-height: 1.5;
 }
 
-UNIVERSAL UI COMPONENTS (UI Consistency)
+/* ============================================
+   UNIVERSAL UI COMPONENTS (UI Consistency)
    ============================================ */
 
 /* Card - universal card component */
@@ -265,7 +266,8 @@ UNIVERSAL UI COMPONENTS (UI Consistency)
 }
 
 /* Inline hint */
-TOGGLE / SWITCH - Figma UI3 style
+/* ============================================
+   TOGGLE / SWITCH — Figma UI3 style
    ============================================ */
 /* Small text button - Figma UI3: no border by default, hover shows border */
 .btn-text-sm {
@@ -303,7 +305,10 @@ TOGGLE / SWITCH - Figma UI3 style
 }
 
 /* Selection hint (no selection) */
-BUTTONS - Global button styles ============================================ */ button {
+/* ============================================
+   BUTTONS — Global button styles
+   ============================================ */
+button {
   background: transparent;
   border: 1px solid transparent;
   color: var(--figma-color-text);
@@ -318,7 +323,7 @@ BUTTONS - Global button styles ============================================ */ b
 
 button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text):not(
     .confirm-dialog__btn-primary
-  ):not(.confirm-dialog__btn-secondary):not(.confirm-dialog__btn-danger) {
+  ):not(.confirm-dialog__btn-secondary):not(.confirm-dialog__btn-danger):not(.update-banner-close) {
   background-color: var(--figma-color-bg-hover);
 }
 
@@ -336,7 +341,10 @@ button:disabled {
   cursor: not-allowed;
 }
 
-ANIMATIONS ============================================ */ @keyframes fadeIn {
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes fadeIn {
   from {
     opacity: 0;
   }
@@ -356,7 +364,10 @@ ANIMATIONS ============================================ */ @keyframes fadeIn {
   }
 }
 
-SCROLLBAR STYLING ============================================ */ ::-webkit-scrollbar {
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }

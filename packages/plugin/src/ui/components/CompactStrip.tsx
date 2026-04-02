@@ -119,13 +119,8 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     // Close menu helper
     const closeMenu = useCallback(() => {
       setMenuOpen(false);
-      if (platform === 'desktop') {
-        onRequestResize(baseHeight);
-      } else {
-        // Mobile: shrink back from extended
-        onRequestResize(baseHeight);
-      }
-    }, [platform, baseHeight, onRequestResize]);
+      onRequestResize(baseHeight);
+    }, [baseHeight, onRequestResize]);
 
     // Toggle menu
     const toggleMenu = useCallback(() => {
