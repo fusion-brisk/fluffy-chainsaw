@@ -7,11 +7,11 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "build": "tsc",
+    "build": "node scripts/generate-version.js && tsc",
     "typecheck": "tsc --noEmit",
-    "build:pkg": "tsc && pkg . --targets node18-macos-x64,node18-macos-arm64 --out-path pkg-dist",
-    "build:pkg:arm64": "tsc && pkg . --targets node18-macos-arm64 --out-path pkg-dist",
-    "build:pkg:x64": "tsc && pkg . --targets node18-macos-x64 --out-path pkg-dist"
+    "build:pkg": "node scripts/generate-version.js && tsc && pkg . --targets node18-macos-x64,node18-macos-arm64 --out-path pkg-dist",
+    "build:pkg:arm64": "node scripts/generate-version.js && tsc && pkg . --targets node18-macos-arm64 --out-path pkg-dist",
+    "build:pkg:x64": "node scripts/generate-version.js && tsc && pkg . --targets node18-macos-x64 --out-path pkg-dist"
   },
   "pkg": {
     "assets": [],

@@ -4,6 +4,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { broadcast } from '../websocket';
 import type { UpdateInfo } from '../types';
+import { RELAY_VERSION } from '../version';
 
 const router = Router();
 
@@ -11,11 +12,6 @@ const GITHUB_REPO = 'fusion-brisk/fluffy-chainsaw';
 const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 
 let latestVersionCache: string | null = null;
-
-function getPkgVersion(): string {
-  const pkg = require('../../package.json') as { version: string };
-  return pkg.version;
-}
 
 /** Compare semver strings: returns 1 if a > b, -1 if a < b, 0 if equal */
 function compareSemver(a: string, b: string): number {
@@ -68,7 +64,7 @@ async function fetchDownloadUrlFromGitHub(version: string): Promise<UpdateInfo |
 
 /** Check for update: versions.json first (lightweight), GitHub API for download URL */
 async function checkForUpdate(): Promise<UpdateInfo | null> {
-  const currentVersion = getPkgVersion();
+  const currentVersion = RELAY_VERSION;
 
   // Step 1: Check versions.json — lightweight, no rate limit
   try {
@@ -223,7 +219,7 @@ async function runUpdateCheck(): Promise<void> {
 
 /** GET /version */
 router.get('/version', (_req: Request, res: Response) => {
-  const currentVersion = getPkgVersion();
+  const currentVersion = RELAY_VERSION;
   res.json({
     version: currentVersion,
     latest: latestVersionCache,
@@ -240,7 +236,7 @@ router.post('/update', async (_req: Request, res: Response) => {
     res.json({ updateAvailable: true, version: update.version });
     downloadAndReplace(update);
   } else {
-    res.json({ updateAvailable: false, version: getPkgVersion(), latest: latestVersionCache });
+    res.json({ updateAvailable: false, version: RELAY_VERSION, latest: latestVersionCache });
   }
 });
 
