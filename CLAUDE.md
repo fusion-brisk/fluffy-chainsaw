@@ -57,7 +57,7 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 | Add handler | `docs/EXTENDING.md` §1 |
 | Add CSVRow field | `docs/EXTENDING.md` §2, `src/types/csv-fields.ts` |
 | Extension parsing | `docs/PARSING_ARCHITECTURE.md` |
-| MCP bridge setup | `docs/FIGMA_MCP_SETUP.md`, `docs/PORT_MAP.md` |
+| Figma MCP setup | `docs/FIGMA_MCP_SETUP.md`, `docs/PORT_MAP.md` |
 | Page builder | `docs/PAGE_BUILDER_SETUP.md` |
 | Release | `.claude/rules/release.md` |
 | Module internals | `docs/STRUCTURE.md`, `docs/GLOSSARY.md` |

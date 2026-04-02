@@ -14,7 +14,7 @@
   "networkAccess": {
     "allowedDomains": ["*","https://avatars.mds.yandex.net/","https://favicon.yandex.net/"],
     "devAllowedDomains": ["*"],
-    "reasoning": "Required to load images, content from external URLs, and MCP bridge WebSocket connections."
+    "reasoning": "Required to load images and content from external URLs."
   }
 }
 

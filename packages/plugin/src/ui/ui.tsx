@@ -9,21 +9,16 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
-import {
-  CSVRow,
-  AppState,
-} from '../types';
+import { CSVRow, AppState } from '../types';
 import type { RelayPayload, ProgressData } from '../types';
-import {
-  sendMessageToPlugin,
-} from '../utils/index';
+import { sendMessageToPlugin } from '../utils/index';
 import { buildImportSummary, buildImportSummaryData } from '../utils/format';
 
 // Hooks
 import { useRelayConnection } from './hooks/useRelayConnection';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
-import { useMcpStatus } from './hooks/useMcpStatus';
+
 import { usePanelManager } from './hooks/usePanelManager';
 import { useResizeUI } from './hooks/useResizeUI';
 import { useImportFlow } from './hooks/useImportFlow';
@@ -58,7 +53,9 @@ const App: React.FC = () => {
   });
   const [hasSelection, setHasSelection] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
-  const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>([]);
+  const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>(
+    [],
+  );
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [currentVersion, setCurrentVersion] = useState('');
   const [extensionInstalled, setExtensionInstalled] = useState(false);
@@ -91,54 +88,60 @@ const App: React.FC = () => {
   const relay = useRelayConnection({
     relayUrl,
     enabled: appState !== 'setup' && appState !== 'processing' && appState !== 'confirming',
-    onDataReceived: useCallback((data: RelayDataEvent) => {
-      if (!extensionInstalled) {
-        markExtensionInstalled();
-      }
-      const flow = importFlowRef.current;
+    onDataReceived: useCallback(
+      (data: RelayDataEvent) => {
+        if (!extensionInstalled) {
+          markExtensionInstalled();
+        }
+        const flow = importFlowRef.current;
 
-      const isFeed = data.sourceType === 'feed';
+        const isFeed = data.sourceType === 'feed';
 
-      if (isFeed) {
-        // Feed pipeline — no relay payload storage needed
-        const feedCardCount = data.feedCards?.length || 0;
-        flow.showConfirmation({
-          rows: [],
-          query: 'ya.ru фид',
-          source: 'ya.ru',
-          entryId: data.entryId,
-          sourceType: 'feed',
-          feedCards: data.feedCards,
-        });
-        flow.updateInfo({
-          itemCount: feedCardCount,
-          summary: `${feedCardCount} ${feedCardCount < 5 ? 'карточки' : 'карточек'} фида`,
-        });
-      } else {
-        // SERP pipeline (existing path)
-        flow.setRelayPayload(data.payload as RelayPayload | null);
+        if (isFeed) {
+          // Feed pipeline — no relay payload storage needed
+          const feedCardCount = data.feedCards?.length || 0;
+          flow.showConfirmation({
+            rows: [],
+            query: 'ya.ru фид',
+            source: 'ya.ru',
+            entryId: data.entryId,
+            sourceType: 'feed',
+            feedCards: data.feedCards,
+          });
+          flow.updateInfo({
+            itemCount: feedCardCount,
+            summary: `${feedCardCount} ${feedCardCount < 5 ? 'карточки' : 'карточек'} фида`,
+          });
+        } else {
+          // SERP pipeline (existing path)
+          flow.setRelayPayload(data.payload as RelayPayload | null);
 
-        const totalCount = data.rows.length + data.wizardCount;
-        const payloadTyped = data.payload as { productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null; rawRows?: CSVRow[] } | null;
-        const summary = buildImportSummary({
-          rows: data.rows,
-          wizardCount: data.wizardCount,
-          payload: payloadTyped,
-        });
-        const summaryData = buildImportSummaryData({
-          rows: data.rows,
-          wizardCount: data.wizardCount,
-          payload: payloadTyped,
-        });
-        flow.showConfirmation({
-          rows: data.rows,
-          query: data.query,
-          source: 'Яндекс',
-          entryId: data.entryId,
-        });
-        flow.updateInfo({ itemCount: totalCount, summary, summaryData });
-      }
-    }, [extensionInstalled, markExtensionInstalled]),
+          const totalCount = data.rows.length + data.wizardCount;
+          const payloadTyped = data.payload as {
+            productCard?: { offers?: unknown[]; defaultOffer?: unknown } | null;
+            rawRows?: CSVRow[];
+          } | null;
+          const summary = buildImportSummary({
+            rows: data.rows,
+            wizardCount: data.wizardCount,
+            payload: payloadTyped,
+          });
+          const summaryData = buildImportSummaryData({
+            rows: data.rows,
+            wizardCount: data.wizardCount,
+            payload: payloadTyped,
+          });
+          flow.showConfirmation({
+            rows: data.rows,
+            query: data.query,
+            source: 'Яндекс',
+            entryId: data.entryId,
+          });
+          flow.updateInfo({ itemCount: totalCount, summary, summaryData });
+        }
+      },
+      [extensionInstalled, markExtensionInstalled],
+    ),
     onConnectionChange: useCallback(() => {}, []),
   });
 
@@ -148,8 +151,6 @@ const App: React.FC = () => {
   const relayConnected = relay.connected;
 
   const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
-  const mcpStatus = useMcpStatus();
-
   const handleDismissOnboarding = useCallback(() => {
     setIsFirstRun(false);
     sendMessageToPlugin({ type: 'save-setup-skipped' });
@@ -179,7 +180,7 @@ const App: React.FC = () => {
           level = LogLevel.DEBUG;
         }
         const entry: LogMessage = { level, message, timestamp: Date.now() };
-        setLogMessages(prev => {
+        setLogMessages((prev) => {
           const next = [...prev, entry];
           return next.length > 500 ? next.slice(-500) : next;
         });
@@ -230,9 +231,11 @@ const App: React.FC = () => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(report || {}),
-            signal: AbortSignal.timeout(3000)
+            signal: AbortSignal.timeout(3000),
           }).catch(() => {});
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       },
       onComponentInfo: (components) => {
         setInspectorData(components);
@@ -291,34 +294,37 @@ const App: React.FC = () => {
   }, []);
 
   // === MENU ACTION HANDLER ===
-  const handleMenuAction = useCallback((action: string) => {
-    switch (action) {
-      case 'logs':
-        panels.openPanel('logs');
-        break;
-      case 'inspector':
-        panels.openPanel('inspector');
-        break;
-      case 'setup':
-        panels.openPanel('setup');
-        break;
-      case 'whatsNew':
-        setShowWhatsNew(true);
-        // TODO: could open whatsNew panel
-        break;
-      case 'clearQueue':
-        importFlow.clearQueue();
-        break;
-      case 'dismiss-success':
-        importFlow.completeSuccess();
-        break;
-      case 'dismiss-error':
-        setErrorMessage(undefined);
-        setAppState('ready');
-        resizeUI('ready');
-        break;
-    }
-  }, [panels, importFlow, setAppState, resizeUI]);
+  const handleMenuAction = useCallback(
+    (action: string) => {
+      switch (action) {
+        case 'logs':
+          panels.openPanel('logs');
+          break;
+        case 'inspector':
+          panels.openPanel('inspector');
+          break;
+        case 'setup':
+          panels.openPanel('setup');
+          break;
+        case 'whatsNew':
+          setShowWhatsNew(true);
+          // TODO: could open whatsNew panel
+          break;
+        case 'clearQueue':
+          importFlow.clearQueue();
+          break;
+        case 'dismiss-success':
+          importFlow.completeSuccess();
+          break;
+        case 'dismiss-error':
+          setErrorMessage(undefined);
+          setAppState('ready');
+          resizeUI('ready');
+          break;
+      }
+    },
+    [panels, importFlow, setAppState, resizeUI],
+  );
 
   // === KEYBOARD SHORTCUTS ===
   useEffect(() => {
@@ -337,11 +343,16 @@ const App: React.FC = () => {
   }, [panels]);
 
   // === COMPACT STRIP MODE ===
-  const compactStripMode = appState === 'error' ? 'error'
-    : appState === 'checking' ? 'checking'
-    : appState === 'processing' ? 'processing'
-    : appState === 'success' ? 'success'
-    : 'ready';
+  const compactStripMode =
+    appState === 'error'
+      ? 'error'
+      : appState === 'checking'
+        ? 'checking'
+        : appState === 'processing'
+          ? 'processing'
+          : appState === 'success'
+            ? 'success'
+            : 'ready';
 
   const isCompactState = ['checking', 'ready', 'processing', 'success', 'error'].includes(appState);
 
@@ -422,10 +433,7 @@ const App: React.FC = () => {
         />
       )}
       {panels.activePanel === 'inspector' && (
-        <ComponentInspector
-          components={inspectorData}
-          onClose={handleCloseInspector}
-        />
+        <ComponentInspector components={inspectorData} onClose={handleCloseInspector} />
       )}
       {panels.activePanel === 'logs' && (
         <LogViewer

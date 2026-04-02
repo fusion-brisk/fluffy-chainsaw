@@ -14,8 +14,6 @@ import { createSerpPage } from './page-builder';
 import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
-import { handleBridgeMessage, fetchAndSendVariablesData, debugLog } from './mcp-bridge/bridge-handlers';
-import { installConsoleCapture, registerDocumentChangeListener, forwardSelectionChange } from './mcp-bridge/bridge-events';
 import { PORTS } from '../config';
 
 const RELAY_URL = 'http://localhost:' + PORTS.RELAY;
@@ -35,10 +33,11 @@ function bytesToBase64(bytes: Uint8Array): string {
     const b0 = bytes[i];
     const b1 = bytes[i + 1];
     const b2 = bytes[i + 2];
-    result += chars[b0 >> 2]
-            + chars[((b0 & 3) << 4) | (b1 >> 4)]
-            + chars[((b1 & 15) << 2) | (b2 >> 6)]
-            + chars[b2 & 63];
+    result +=
+      chars[b0 >> 2] +
+      chars[((b0 & 3) << 4) | (b1 >> 4)] +
+      chars[((b1 & 15) << 2) | (b2 >> 6)] +
+      chars[b2 & 63];
   }
 
   if (rem === 1) {
@@ -47,10 +46,7 @@ function bytesToBase64(bytes: Uint8Array): string {
   } else if (rem === 2) {
     const b0 = bytes[mainLen];
     const b1 = bytes[mainLen + 1];
-    result += chars[b0 >> 2]
-            + chars[((b0 & 3) << 4) | (b1 >> 4)]
-            + chars[(b1 & 15) << 2]
-            + '=';
+    result += chars[b0 >> 2] + chars[((b0 & 3) << 4) | (b1 >> 4)] + chars[(b1 & 15) << 2] + '=';
   }
 
   return result;
@@ -63,7 +59,7 @@ async function exportResultToRelay(frame: FrameNode, query: string): Promise<voi
 
   const jpegBytes = await frame.exportAsync({
     format: 'JPG',
-    constraint: { type: 'SCALE', value: scale }
+    constraint: { type: 'SCALE', value: scale },
   });
 
   const base64 = bytesToBase64(jpegBytes);
@@ -78,16 +74,13 @@ async function exportResultToRelay(frame: FrameNode, query: string): Promise<voi
         width: frame.width,
         height: frame.height,
         query,
-        scale
-      }
-    })
+        scale,
+      },
+    }),
   });
 
   Logger.info(`🖼️ Result exported: ${Math.round(base64.length / 1024)}KB`);
 }
-
-// MCP Bridge: install console capture early (before any Logger calls)
-installConsoleCapture();
 
 Logger.info('Плагин Contentify загружен');
 
@@ -100,7 +93,7 @@ async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Pro
   const metaRes = await fetch(`${RELAY_URL}/screenshot`);
   if (!metaRes.ok) return;
 
-  const meta = await metaRes.json() as {
+  const meta = (await metaRes.json()) as {
     count: number;
     meta: { viewportWidth: number; viewportHeight: number };
   };
@@ -134,11 +127,13 @@ async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Pro
     rect.resize(viewportWidth, viewportHeight);
     rect.x = 0;
     rect.y = i * viewportHeight;
-    rect.fills = [{
-      type: 'IMAGE',
-      imageHash: imageHashes[i],
-      scaleMode: 'FILL',
-    }];
+    rect.fills = [
+      {
+        type: 'IMAGE',
+        imageHash: imageHashes[i],
+        scaleMode: 'FILL',
+      },
+    ];
     frame.appendChild(rect);
   }
 
@@ -148,65 +143,52 @@ async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Pro
 // Проверка обновлений правил парсинга
 async function checkRulesUpdates(): Promise<void> {
   const updateInfo = await rulesManager.checkForUpdates();
-  
+
   if (updateInfo && updateInfo.hasUpdate && updateInfo.newRules) {
     Logger.info('📢 Доступно обновление правил парсинга');
-    
+
     figma.ui.postMessage({
       type: 'rules-update-available',
       newVersion: updateInfo.newRules.version,
       currentVersion: rulesManager.getCurrentRules().version,
-      hash: updateInfo.hash || ''
+      hash: updateInfo.hash || '',
     });
   }
 }
-
-// Early message handler — handles MCP bridge messages before showUI loads the iframe.
-// bridge-ui.js sends GET_FILE_INFO immediately on WebSocket connect; if onmessage
-// isn't set yet, the message is lost and figma-console-mcp never identifies this plugin.
-// The full handler (below initPlugin) will override this.
-figma.ui.onmessage = async (msg) => {
-  const bridgeHandled = await handleBridgeMessage(msg);
-  if (bridgeHandled) return;
-  // Queue non-bridge messages? No — they arrive after init completes anyway.
-};
 
 // Инициализация плагина
 (async function initPlugin() {
   try {
     // Initial size matches 'checking' state
     figma.showUI(__html__, { width: 320, height: 56 });
-    
+
     // Отправляем начальное состояние выделения
     figma.ui.postMessage({
       type: 'selection-status',
-      hasSelection: figma.currentPage.selection.length > 0
+      hasSelection: figma.currentPage.selection.length > 0,
     });
-    
+
     // Загружаем сохранённый log-level
     try {
       const savedLevel = await figma.clientStorage.getAsync('contentify_log_level');
-      if (savedLevel !== undefined && savedLevel >= LogLevel.SILENT && savedLevel <= LogLevel.DEBUG) {
+      if (
+        savedLevel !== undefined &&
+        savedLevel >= LogLevel.SILENT &&
+        savedLevel <= LogLevel.DEBUG
+      ) {
         Logger.setLevel(savedLevel as LogLevel);
       }
     } catch {
       // Используем уровень по умолчанию (SUMMARY)
     }
-    
+
     // Загружаем правила парсинга
     await rulesManager.loadRules();
-    
+
     // Проверяем обновления в фоне
-    checkRulesUpdates().catch(function(err) {
+    checkRulesUpdates().catch(function (err) {
       Logger.error('Ошибка проверки обновлений правил:', err);
     });
-
-    // MCP Bridge: register document/page change listeners
-    registerDocumentChangeListener();
-
-    // MCP Bridge: variables data will be fetched when bridge-ui.js signals ready
-    // (see MCP_BRIDGE_READY handler below)
-
   } catch (error) {
     Logger.error('❌ Ошибка при инициализации плагина:', error);
     figma.notify('❌ Ошибка загрузки плагина');
@@ -215,16 +197,13 @@ figma.ui.onmessage = async (msg) => {
 
 // Обработка изменений выделения + дамп свойств компонента
 figma.on('selectionchange', () => {
-  // MCP Bridge: forward selection change to UI for WebSocket relay
-  forwardSelectionChange();
-
   const selection = figma.currentPage.selection;
   const hasSelection = selection.length > 0;
   figma.ui.postMessage({ type: 'selection-status', hasSelection });
 
   // Async: resolve component keys (getMainComponentAsync needed for library components)
   // Skip sublayer instances (compound IDs with ";") — they may become stale during processing
-  const instances = selection.filter(function(n) {
+  const instances = selection.filter(function (n) {
     return n.type === 'INSTANCE' && n.id.indexOf(';') === -1;
   }) as InstanceNode[];
   if (instances.length === 0) return;
@@ -242,74 +221,77 @@ figma.on('selectionchange', () => {
   for (var i = 0; i < instances.length; i++) {
     var inst = instances[i];
     promises.push(
-      (function(instance) {
-        return instance.getMainComponentAsync().then(function(mainComp) {
-          var info: {
-            name: string;
-            id: string;
-            componentKey: string;
-            componentName: string;
-            componentSetKey?: string;
-            componentSetName?: string;
-            properties: Record<string, { type: string; value: string | boolean }>;
-          } = {
-            name: instance.name,
-            id: instance.id,
-            componentKey: '',
-            componentName: '',
-            properties: {},
-          };
+      (function (instance) {
+        return instance
+          .getMainComponentAsync()
+          .then(function (mainComp) {
+            var info: {
+              name: string;
+              id: string;
+              componentKey: string;
+              componentName: string;
+              componentSetKey?: string;
+              componentSetName?: string;
+              properties: Record<string, { type: string; value: string | boolean }>;
+            } = {
+              name: instance.name,
+              id: instance.id,
+              componentKey: '',
+              componentName: '',
+              properties: {},
+            };
 
-          if (mainComp) {
-            info.componentKey = mainComp.key;
-            info.componentName = mainComp.name;
-            try {
-              if (mainComp.parent && mainComp.parent.type === 'COMPONENT_SET') {
-                info.componentSetKey = (mainComp.parent as ComponentSetNode).key;
-                info.componentSetName = mainComp.parent.name;
+            if (mainComp) {
+              info.componentKey = mainComp.key;
+              info.componentName = mainComp.name;
+              try {
+                if (mainComp.parent && mainComp.parent.type === 'COMPONENT_SET') {
+                  info.componentSetKey = (mainComp.parent as ComponentSetNode).key;
+                  info.componentSetName = mainComp.parent.name;
+                }
+              } catch (e) {
+                Logger.debug('[Selection] Could not read componentSet: ' + e);
               }
-            } catch (e) {
-              Logger.debug('[Selection] Could not read componentSet: ' + e);
             }
-          }
 
-          var props = instance.componentProperties;
-          for (var key in props) {
-            var p = props[key];
-            info.properties[key] = { type: p.type, value: p.value as string | boolean };
-          }
+            var props = instance.componentProperties;
+            for (var key in props) {
+              var p = props[key];
+              info.properties[key] = { type: p.type, value: p.value as string | boolean };
+            }
 
-          // Debug dump
-          var lines = ['[Selection] INSTANCE "' + instance.name + '" (id=' + instance.id + ')'];
-          lines.push('  componentKey: ' + info.componentKey);
-          lines.push('  componentName: ' + info.componentName);
-          if (info.componentSetKey) {
-            lines.push('  componentSetKey: ' + info.componentSetKey);
-            lines.push('  componentSetName: ' + (info.componentSetName || ''));
-          }
-          lines.push('  --- Properties ---');
-          for (var pk in props) {
-            var pp = props[pk];
-            lines.push('  ' + pk + ': ' + pp.type + ' = ' + JSON.stringify(pp.value));
-          }
-          Logger.debug(lines.join('\n'));
+            // Debug dump
+            var lines = ['[Selection] INSTANCE "' + instance.name + '" (id=' + instance.id + ')'];
+            lines.push('  componentKey: ' + info.componentKey);
+            lines.push('  componentName: ' + info.componentName);
+            if (info.componentSetKey) {
+              lines.push('  componentSetKey: ' + info.componentSetKey);
+              lines.push('  componentSetName: ' + (info.componentSetName || ''));
+            }
+            lines.push('  --- Properties ---');
+            for (var pk in props) {
+              var pp = props[pk];
+              lines.push('  ' + pk + ': ' + pp.type + ' = ' + JSON.stringify(pp.value));
+            }
+            Logger.debug(lines.join('\n'));
 
-          return info;
-        }).catch(function(e) {
-          Logger.debug('[Selection] getMainComponentAsync failed: ' + e);
-          return {
-            name: instance.name,
-            id: instance.id,
-            componentKey: '(error)',
-            componentName: '(error: ' + e + ')',
-            properties: {},
-          };
-        });
-      })(inst)
+            return info;
+          })
+          .catch(function (e) {
+            Logger.debug('[Selection] getMainComponentAsync failed: ' + e);
+            return {
+              name: instance.name,
+              id: instance.id,
+              componentKey: '(error)',
+              componentName: '(error: ' + e + ')',
+              properties: {},
+            };
+          });
+      })(inst),
     );
   }
 
-  Promise.all(promises).then(function(componentInfoList) {
+  Promise.all(promises).then(function (componentInfoList) {
     if (componentInfoList.length > 0) {
       figma.ui.postMessage({ type: 'component-info', components: componentInfoList });
     }
@@ -319,26 +301,6 @@ figma.on('selectionchange', () => {
 // Главный обработчик сообщений
 figma.ui.onmessage = async (msg) => {
   try {
-    // === MCP Bridge dispatcher (UPPERCASE messages) ===
-    const bridgeHandled = await handleBridgeMessage(msg);
-    if (bridgeHandled) return;
-
-    // === MCP Bridge Ready — triggered after first WebSocket connect ===
-    if (msg.type === 'MCP_BRIDGE_READY') {
-      fetchAndSendVariablesData().catch(function(err) {
-        Logger.debug('MCP Bridge: error fetching variables after ready: ' + err);
-      });
-      return;
-    }
-
-    // === Soft Reload request from bridge ===
-    if (msg.type === 'SOFT_RELOAD_REQUEST') {
-      fetchAndSendVariablesData().catch(function(err) {
-        Logger.debug('MCP Bridge: error refreshing variables on soft reload: ' + err);
-      });
-      return;
-    }
-
     // === Resize UI (silent) ===
     if (msg.type === 'resize-ui') {
       const { width, height } = msg;
@@ -355,18 +317,24 @@ figma.ui.onmessage = async (msg) => {
     }
 
     Logger.verbose('📨 Сообщение от UI:', msg.type);
-    
+
     // Пробуем обработать простые сообщения
     const handled = await handleSimpleMessage(msg, rulesManager, checkRulesUpdates);
     if (handled) return;
-    
+
     // === Apply Relay Payload (from Browser Extension) ===
     if (msg.type === 'apply-relay-payload') {
       const payload = msg.payload as {
         schemaVersion: number;
         source: { url: string; title: string };
         capturedAt: string;
-        items?: Array<{ title?: string; priceText?: string; imageUrl?: string; href?: string; _rawCSVRow?: CSVRow }>;
+        items?: Array<{
+          title?: string;
+          priceText?: string;
+          imageUrl?: string;
+          href?: string;
+          _rawCSVRow?: CSVRow;
+        }>;
         rawRows?: CSVRow[];
         wizards?: WizardPayload[];
         productCard?: import('../types/wizard-types').ProductCardPayload;
@@ -375,34 +343,36 @@ figma.ui.onmessage = async (msg) => {
 
       const wizardCount = payload.wizards?.length || 0;
       const hasProductCard = !!payload.productCard;
-      Logger.info(`📦 Payload: ${payload.rawRows?.length || payload.items?.length || 0} сниппетов, ${wizardCount} wizard${hasProductCard ? ', ProductCard' : ''} (${payload.source?.url || 'unknown'})`);
-      
+      Logger.info(
+        `📦 Payload: ${payload.rawRows?.length || payload.items?.length || 0} сниппетов, ${wizardCount} wizard${hasProductCard ? ', ProductCard' : ''} (${payload.source?.url || 'unknown'})`,
+      );
+
       if (payload._isMockData) {
         Logger.info('   ⚠️ Mock data');
       }
-      
+
       try {
         // SchemaVersion 2+: rawRows is the single source of truth
         // Backward compatible with v1 (items._rawCSVRow fallback)
         let rows: CSVRow[] = [];
-        
+
         if (payload.rawRows && payload.rawRows.length > 0) {
           rows = payload.rawRows;
         } else if ((payload.schemaVersion || 1) < 2 && payload.items && payload.items.length > 0) {
           // Legacy v1 fallback: extract from items._rawCSVRow
           rows = payload.items
-            .map(item => item._rawCSVRow)
+            .map((item) => item._rawCSVRow)
             .filter((row): row is CSVRow => row !== undefined && row !== null);
-          
+
           if (rows.length > 0) {
             Logger.verbose(`   [v1 compat] items._rawCSVRow: ${rows.length}`);
           }
         }
-        
+
         if (rows.length === 0) {
           throw new Error('Нет данных для импорта');
         }
-        
+
         // Извлекаем поисковый запрос из первой строки или URL
         let query = rows[0]?.['#query'] || '';
         if (!query && payload.source?.url) {
@@ -413,22 +383,26 @@ figma.ui.onmessage = async (msg) => {
             Logger.debug('Failed to parse query from URL', e);
           }
         }
-        
+
         const wizards = payload.wizards || [];
-        Logger.info(`🏗️ SERP: ${rows.length} сниппетов + ${wizards.length} wizard, query="${query}"`);
-        figma.ui.postMessage({ 
-          type: 'progress', 
-          current: 10, 
-          total: 100, 
-          message: 'Импорт компонентов...', 
-          operationType: 'relay-import' 
+        Logger.info(
+          `🏗️ SERP: ${rows.length} сниппетов + ${wizards.length} wizard, query="${query}"`,
+        );
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 10,
+          total: 100,
+          message: 'Импорт компонентов...',
+          operationType: 'relay-import',
         });
-        
+
         // Определяем платформу из данных (первая строка с #platform)
-        const firstRowPlatform = rows.find(r => r['#platform'])?.['#platform'];
+        const firstRowPlatform = rows.find((r) => r['#platform'])?.['#platform'];
         const platform: 'desktop' | 'touch' = firstRowPlatform === 'touch' ? 'touch' : 'desktop';
-        Logger.verbose(`[Relay] Определена платформа: ${platform} (из данных: ${firstRowPlatform || 'не указана'})`);
-        
+        Logger.verbose(
+          `[Relay] Определена платформа: ${platform} (из данных: ${firstRowPlatform || 'не указана'})`,
+        );
+
         // Создаём SERP страницу из библиотечных компонентов
         const result = await createSerpPage(rows, {
           query: query || undefined,
@@ -436,42 +410,42 @@ figma.ui.onmessage = async (msg) => {
           contentLeftWidth: platform === 'desktop' ? 792 : undefined,
           contentGap: 0,
           leftPadding: platform === 'desktop' ? 100 : 0,
-          wizards
+          wizards,
         });
-        
+
         // Отправляем progress: завершение
-        figma.ui.postMessage({ 
-          type: 'progress', 
-          current: 100, 
-          total: 100, 
-          message: 'Готово!', 
-          operationType: 'relay-import' 
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 100,
+          total: 100,
+          message: 'Готово!',
+          operationType: 'relay-import',
         });
-        
+
         if (result.success && result.frame) {
           // Выделяем и фокусируемся на созданном фрейме
           figma.currentPage.selection = [result.frame];
           figma.viewport.scrollAndZoomIntoView([result.frame]);
-          
+
           const count = result.createdCount || rows.length;
 
           figma.ui.postMessage({
             type: 'relay-payload-applied',
             success: true,
             itemCount: count,
-            frameName: result.frame.name
+            frameName: result.frame.name,
           });
-          
+
           Logger.info(`✅ SERP "${result.frame.name}": ${count} сниппетов`);
 
           if (msg.includeScreenshots !== false) {
-            placeScreenshotSegments(result.frame, query).catch(err =>
-              Logger.error('Screenshot placement failed:', err)
+            placeScreenshotSegments(result.frame, query).catch((err) =>
+              Logger.error('Screenshot placement failed:', err),
             );
           }
 
-          exportResultToRelay(result.frame, query).catch(err =>
-            Logger.error('Result export failed:', err)
+          exportResultToRelay(result.frame, query).catch((err) =>
+            Logger.error('Result export failed:', err),
           );
 
           // Render ProductCard sidebar if present
@@ -494,22 +468,21 @@ figma.ui.onmessage = async (msg) => {
               Logger.error('[ProductCard] render failed:', pcErr);
             }
           }
-
         } else {
-          const errorMsg = result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
+          const errorMsg =
+            result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
           throw new Error(errorMsg);
         }
-        
       } catch (error) {
         Logger.error('❌ Ошибка применения relay payload:', error);
         figma.ui.postMessage({
           type: 'relay-payload-applied',
           success: false,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
         figma.notify('❌ Ошибка импорта из браузера');
       }
-      
+
       return;
     }
 
@@ -525,25 +498,30 @@ figma.ui.onmessage = async (msg) => {
         figma.ui.postMessage({
           type: 'relay-payload-applied',
           success: false,
-          error: 'Нет карточек для импорта'
+          error: 'Нет карточек для импорта',
         });
         figma.notify('⚠️ Нет карточек для импорта');
         return;
       }
 
-      Logger.info('📦 Feed payload: ' + feedCards.length + ' карточек, platform=' + (feedPayload.platform || 'desktop'));
+      Logger.info(
+        '📦 Feed payload: ' +
+          feedCards.length +
+          ' карточек, platform=' +
+          (feedPayload.platform || 'desktop'),
+      );
 
       figma.ui.postMessage({
         type: 'progress',
         current: 10,
         total: 100,
         message: 'Импорт фид-карточек...',
-        operationType: 'feed-import'
+        operationType: 'feed-import',
       });
 
       try {
         var feedResult = await createFeedPage(feedCards, {
-          platform: feedPayload.platform || 'desktop'
+          platform: feedPayload.platform || 'desktop',
         });
 
         figma.ui.postMessage({
@@ -551,7 +529,7 @@ figma.ui.onmessage = async (msg) => {
           current: 100,
           total: 100,
           message: 'Готово!',
-          operationType: 'feed-import'
+          operationType: 'feed-import',
         });
 
         if (feedResult.success && feedResult.frame) {
@@ -562,14 +540,17 @@ figma.ui.onmessage = async (msg) => {
             type: 'relay-payload-applied',
             success: true,
             itemCount: feedResult.createdCount,
-            frameName: feedResult.frame.name
+            frameName: feedResult.frame.name,
           });
 
-          Logger.info('✅ Feed "' + feedResult.frame.name + '": ' + feedResult.createdCount + ' карточек');
+          Logger.info(
+            '✅ Feed "' + feedResult.frame.name + '": ' + feedResult.createdCount + ' карточек',
+          );
         } else {
-          var feedErrorMsg = feedResult.errors && feedResult.errors.length > 0
-            ? feedResult.errors.join('; ')
-            : 'Не удалось создать фид-страницу';
+          var feedErrorMsg =
+            feedResult.errors && feedResult.errors.length > 0
+              ? feedResult.errors.join('; ')
+              : 'Не удалось создать фид-страницу';
           throw new Error(feedErrorMsg);
         }
       } catch (error) {
@@ -577,22 +558,19 @@ figma.ui.onmessage = async (msg) => {
         figma.ui.postMessage({
           type: 'relay-payload-applied',
           success: false,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
         figma.notify('❌ Ошибка импорта фида');
       }
 
       return;
     }
-
   } catch (err) {
     Logger.error('CRITICAL PLUGIN ERROR:', err);
-    debugLog('error', 'sandbox', 'CRITICAL: ' + (err instanceof Error ? err.message : String(err)));
     figma.notify('❌ Критическая ошибка плагина. Проверьте консоль.');
     figma.ui.postMessage({
       type: 'error',
-      message: `Critical error: ${err instanceof Error ? err.message : String(err)}`
+      message: `Critical error: ${err instanceof Error ? err.message : String(err)}`,
     });
   }
 };
-

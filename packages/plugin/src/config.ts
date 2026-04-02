@@ -6,15 +6,6 @@
 export const PORTS = {
   /** Contentify relay server (HTTP + WebSocket) */
   RELAY: 3847,
-  /** Figma Local Dev Mode MCP (auto-started by Figma Desktop) */
-  FIGMA_DEV_MODE: 3845,
-  /** figma-console-mcp WebSocket range (bridge scans all 10) */
-  MCP_BRIDGE_WS_START: 9223,
-  MCP_BRIDGE_WS_END: 9232,
-  /** Heartbeat interval for MCP bridge WebSocket connections (ms) */
-  MCP_BRIDGE_HEARTBEAT_MS: 30000,
-  /** Stale connection timeout — no pong within this window means zombie (ms) */
-  MCP_BRIDGE_STALE_TIMEOUT_MS: 300000,
 };
 
 // Версия плагина для What's New экрана

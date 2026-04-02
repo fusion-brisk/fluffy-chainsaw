@@ -29,10 +29,10 @@
 
 | MCP Server | Инструментов | Тип | Описание |
 |------------|-------------|-----|----------|
-| **Figma** (официальный) | 10 | Read-only | `get_design_context`, `get_screenshot`, `get_metadata`, `get_variable_defs` — чтение дизайна, скриншоты, переменные |
-| **figma-console** | 57 | Read + Write | Создание/редактирование нод, инстанцирование компонентов, управление переменными, выполнение произвольного Figma Plugin API кода |
+| **figma-remote** (официальный) | 16 | Read + Write | Токены, компоненты, скриншоты, `use_figma` (создание/редактирование), `search_design_system` |
+| **figma-console** | 57 | Read + Write + Debug | Console logs плагина, `figma_execute`, инстанцирование компонентов, переменные |
 
-Официальный MCP уже настроен в проекте. Этот гайд про настройку **figma-console** (запись в Figma).
+Официальный MCP (`figma-remote`) настроен через OAuth. `figma-console` нужен для отладки плагина.
 
 ## Prerequisites
 
@@ -360,9 +360,8 @@ Cursor ◄────────────┤
 - Both can be used simultaneously — official for reading, figma-console for writing
 - Component keys from `component-map.ts` work with both REST API and `importComponentByKeyAsync`
 
-> **Contentify users:** The Contentify plugin **already embeds** the MCP bridge (`bridge-ui.js`).
-> You do NOT need to run the standalone Desktop Bridge plugin.
-> Running both causes WebSocket connection flapping — see [PORT_MAP.md](PORT_MAP.md) for details.
+> **Note:** The Contentify plugin no longer embeds an MCP bridge.
+> For figma-console access, run the standalone Desktop Bridge plugin in Figma Desktop.
 
 ---
 

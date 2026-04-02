@@ -11,14 +11,13 @@ function write(file, content) {
 
 function buildEmbeddedHtml() {
   console.log('🔨 Generating embedded UI...');
-  
+
   const template = read('src/ui/ui.html');
   const css = read('src/ui/styles.css');
-  const bridgeJs = read('src/sandbox/mcp-bridge/bridge-ui.js');
   const js = read('dist/ui.js').replace(/\/\/# sourceMappingURL=.*$/m, '');
-  
+
   const shim = 'window.process=window.process||{env:{}};';
-  
+
   const errorHandler = `
     window.onerror = function(msg, url, line, col, error) {
       console.error("UI Launch Error:", msg, error);
@@ -32,28 +31,22 @@ function buildEmbeddedHtml() {
       }
     };
   `;
-  
+
   // 1. Вставляем CSS. replace со строкой безопасен для CSS (обычно)
   // Но лучше использовать callback, чтобы $& не интерпретировались
   let html = template.replace(
-    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*>/, 
-    () => `<style>\n${css}\n</style>`
-  );
-  
-  // 2. Вставляем MCP Bridge JS (загружается ДО React)
-  html = html.replace(
-    /<script\s+src="bridge-ui\.js"\s*><\/script>/,
-    () => `<script>\n${bridgeJs}\n</script>`
+    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*>/,
+    () => `<style>\n${css}\n</style>`,
   );
 
-  // 3. Вставляем React JS.
+  // 2. Вставляем React JS.
   // КРИТИЧНО: Используем функцию-callback в replace, чтобы спецсимволы ($) в коде JS
   // не интерпретировались как подстановки regex.
   html = html.replace(
     /<script\s+src="ui\.js"\s*><\/script>/,
-    () => `<script>\n${errorHandler}\n(function(){\n${shim}\n${js}\n})();\n</script>`
+    () => `<script>\n${errorHandler}\n(function(){\n${shim}\n${js}\n})();\n</script>`,
   );
-  
+
   write('dist/ui-embedded.html', html);
   console.log('✅ ui-embedded.html generated successfully');
 }
