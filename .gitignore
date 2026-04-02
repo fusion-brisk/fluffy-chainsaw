@@ -58,3 +58,5 @@ skills-lock.json
 *.sw?
 .cursor
 .DS_Store
+tools/coverage-report.json
+docs/COVERAGE.md

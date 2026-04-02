@@ -50,19 +50,20 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 
 ## Navigator
 
-| Task | Read first |
-|------|-----------|
-| Architecture overview | `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md` |
-| Add container property | `docs/EXTENDING.md` §0 |
-| Add handler | `docs/EXTENDING.md` §1 |
-| Add CSVRow field | `docs/EXTENDING.md` §2, `src/types/csv-fields.ts` |
-| Extension parsing | `docs/PARSING_ARCHITECTURE.md` |
-| Figma MCP setup | `docs/FIGMA_MCP_SETUP.md`, `docs/PORT_MAP.md` |
-| Page builder | `docs/PAGE_BUILDER_SETUP.md` |
-| Release | `.claude/rules/release.md` |
-| Module internals | `docs/STRUCTURE.md`, `docs/GLOSSARY.md` |
-| UI hooks/state | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks |
-| UI CSS pitfalls | `.claude/rules/ui-css.md` |
+| Task                   | Read first                                        |
+| ---------------------- | ------------------------------------------------- |
+| Architecture overview  | `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`        |
+| Add container property | `docs/EXTENDING.md` §0                            |
+| Add handler            | `docs/EXTENDING.md` §1                            |
+| Add CSVRow field       | `docs/EXTENDING.md` §2, `src/types/csv-fields.ts` |
+| Extension parsing      | `docs/PARSING_ARCHITECTURE.md`                    |
+| Figma MCP setup        | `docs/FIGMA_MCP_SETUP.md`, `docs/PORT_MAP.md`     |
+| Page builder           | `docs/PAGE_BUILDER_SETUP.md`                      |
+| Release                | `.claude/rules/release.md`                        |
+| Module internals       | `docs/STRUCTURE.md`, `docs/GLOSSARY.md`           |
+| UI hooks/state         | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks    |
+| UI CSS pitfalls        | `.claude/rules/ui-css.md`                         |
+| Coverage & extend      | `tools/coverage-report.ts`, `/extend`             |
 
 ## Specs Workflow
 

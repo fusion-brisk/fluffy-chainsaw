@@ -21,6 +21,7 @@
     "relay": "npm start -w packages/relay",
     "dev": "concurrently -n build,relay -c blue,green \"npm run build:watch -w packages/plugin\" \"npm start -w packages/relay\"",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "coverage": "npx tsx tools/coverage-report.ts",
     "release": "bash scripts/release.sh"
   },
   "devDependencies": {
