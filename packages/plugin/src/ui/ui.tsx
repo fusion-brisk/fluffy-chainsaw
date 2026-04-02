@@ -281,9 +281,9 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'resize-ui', width: 320, height });
   }, []);
 
-  // Expand window when update banners are visible
+  // Resize window when update banners appear or are dismissed
   useEffect(() => {
-    if (appState === 'ready' && bannerCount > 0) {
+    if (appState === 'ready') {
       sendMessageToPlugin({ type: 'resize-ui', width: 320, height: compactBaseHeight });
     }
   }, [appState, bannerCount, compactBaseHeight]);

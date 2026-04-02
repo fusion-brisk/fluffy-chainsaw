@@ -54,6 +54,9 @@ jobs:
         working-directory: packages/relay
 
       - name: Build macOS Installer zip
+        if: ${{ env.EXTENSION_PEM != '' }}
+        env:
+          EXTENSION_PEM: ${{ secrets.EXTENSION_PEM }}
         run: |
           mkdir -p "tools/Contentify Installer.app/Contents/Resources"
           cp contentify.crx "tools/Contentify Installer.app/Contents/Resources/extension.crx"
