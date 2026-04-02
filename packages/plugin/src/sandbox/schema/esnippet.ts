@@ -25,151 +25,179 @@ import {
   computeSnippetWithMeta,
   computeSnippetWithData,
   computeSnippetWithPrice,
-  computeSnippetWithEcomMeta,
-  computeSnippetWithPromo
+  computeSnippetWithDeliveryBnpl,
+  computeSnippetWithPromo,
+  computeImageVariant,
 } from './transforms';
 
 export const ESNIPPET_SCHEMA: ComponentSchema = {
   containerNames: ['ESnippet', 'Snippet'],
 
   containerProperties: [
-    // withThumb (boolean) — показать картинку
+    // image (variant: none/single/group) — тип изображения
+    // Заменяет бывший boolean withThumb + imperative imageType switching
     {
-      propertyNames: ['withThumb'],
-      fieldName: '#withThumb',
-      equals: { field: '#withThumb', value: 'true' }
+      propertyNames: ['image'],
+      fieldName: '#imageType',
+      compute: function (row) {
+        return computeImageVariant(row);
+      },
     },
     // withReviews (boolean) — рейтинг / отзывы
     {
       propertyNames: ['withReviews'],
       fieldName: '#withReviews',
-      compute: function(row) { return computeWithReviews(row); }
+      compute: function (row) {
+        return computeWithReviews(row);
+      },
     },
     // withQuotes (boolean) — цитата из отзыва
     {
       propertyNames: ['withQuotes'],
       fieldName: '#withQuotes',
-      compute: function(row) { return computeWithQuotes(row); }
+      compute: function (row) {
+        return computeWithQuotes(row);
+      },
     },
     // withDelivery (boolean) — доставка
     {
       propertyNames: ['withDelivery'],
       fieldName: '#withDelivery',
-      compute: function(row) { return computeSnippetWithDelivery(row); }
+      compute: function (row) {
+        return computeSnippetWithDelivery(row);
+      },
     },
     // withFintech (boolean) — финтех
     {
       propertyNames: ['withFintech'],
       fieldName: '#withFintech',
-      compute: function(row) { return computeSnippetWithFintech(row); }
+      compute: function (row) {
+        return computeSnippetWithFintech(row);
+      },
     },
     // withAddress (boolean) — адрес магазина
     {
       propertyNames: ['withAddress'],
       fieldName: '#withAddress',
-      compute: function(row) { return computeWithAddress(row); }
+      compute: function (row) {
+        return computeWithAddress(row);
+      },
     },
     // withSitelinks (boolean) — сайтлинки
     {
       propertyNames: ['withSitelinks', 'SITELINKS', 'Sitelinks'],
       fieldName: '#withSitelinks',
-      equals: { field: '#Sitelinks', value: 'true' }
+      equals: { field: '#Sitelinks', value: 'true' },
     },
     // withPromo (boolean) — промо-блок
     {
       propertyNames: ['withPromo'],
       fieldName: '#withPromo',
-      compute: function(row) { return computeSnippetWithPromo(row); }
+      compute: function (row) {
+        return computeSnippetWithPromo(row);
+      },
     },
     // withButton (boolean) — кнопка: (BUTTON AND Desktop) OR checkout
     {
       propertyNames: ['withButton'],
       fieldName: '#withButton',
-      compute: function(row, container) { return computeSnippetWithButton(row, container); }
+      compute: function (row, container) {
+        return computeSnippetWithButton(row, container);
+      },
     },
     // withMeta (boolean) — доставка ИЛИ BNPL
     {
       propertyNames: ['withMeta'],
       fieldName: '#withMeta',
-      compute: function(row) { return computeSnippetWithMeta(row); }
+      compute: function (row) {
+        return computeSnippetWithMeta(row);
+      },
     },
     // withData (boolean) — отзывы ИЛИ доставка ИЛИ BNPL
     {
       propertyNames: ['withData'],
       fieldName: '#withData',
-      compute: function(row) { return computeSnippetWithData(row); }
+      compute: function (row) {
+        return computeSnippetWithData(row);
+      },
     },
     // withContacts (boolean) — контакты
     {
       propertyNames: ['withContacts'],
       fieldName: '#withContacts',
-      compute: function(row) { return computeWithContacts(row); }
+      compute: function (row) {
+        return computeWithContacts(row);
+      },
     },
     // withPrice (boolean) — блок цены
     {
       propertyNames: ['withPrice'],
       fieldName: '#withPrice',
-      compute: function(row) { return computeSnippetWithPrice(row); }
+      compute: function (row) {
+        return computeSnippetWithPrice(row);
+      },
     },
-    // withEcomMeta (boolean) — EcomMeta блок (рейтинг + цена + барометр)
+    // withDeliveryBnpl (boolean) — ShopInfo-DeliveryBnplContainer (delivery + fintech)
     {
-      propertyNames: ['withEcomMeta'],
-      fieldName: '#withEcomMeta',
-      compute: function(row) { return computeSnippetWithEcomMeta(row); }
+      propertyNames: ['withDeliveryBnpl'],
+      fieldName: '#withDeliveryBnpl',
+      compute: function (row) {
+        return computeSnippetWithDeliveryBnpl(row);
+      },
     },
     // showKebab (boolean) — меню
     {
       propertyNames: ['showKebab'],
       fieldName: '#showKebab',
-      equals: { field: '#showKebab', value: 'true' }
+      equals: { field: '#showKebab', value: 'true' },
     },
     // isOfficial (boolean) — официальный магазин
     {
       propertyNames: ['isOfficial', 'official', 'Official'],
       fieldName: '#isOfficial',
-      equals: { field: '#OfficialShop', value: 'true' }
+      equals: { field: '#OfficialShop', value: 'true' },
     },
     // isPromo (boolean) — промо-сниппет
     {
       propertyNames: ['isPromo', 'promo', 'isAdv'],
       fieldName: '#isPromo',
-      equals: { field: '#isPromo', value: 'true' }
+      equals: { field: '#isPromo', value: 'true' },
     },
     // organicTitle (string) — заголовок
     {
       propertyNames: ['organicTitle'],
       fieldName: '#OrganicTitle',
       stringValue: '#OrganicTitle',
-      skipIfEmpty: true
+      skipIfEmpty: true,
     },
     // organicText (string) — описание
     {
       propertyNames: ['organicText'],
       fieldName: '#OrganicText',
       stringValue: '#OrganicText',
-      skipIfEmpty: true
+      skipIfEmpty: true,
     },
     // organicHost (string) — хост/greenurl
     {
       propertyNames: ['organicHost'],
       fieldName: '#OrganicHost',
       stringValue: '#OrganicHost',
-      skipIfEmpty: true
+      skipIfEmpty: true,
     },
     // organicPath (string) — путь в greenurl
     {
       propertyNames: ['organicPath'],
       fieldName: '#OrganicPath',
       stringValue: '#OrganicPath',
-      skipIfEmpty: true
+      skipIfEmpty: true,
     },
     // promoText (string) — текст промо через property
     {
       propertyNames: ['promoText', 'promo'],
       fieldName: '#Promo',
       stringValue: '#Promo',
-      skipIfEmpty: true
-    }
+      skipIfEmpty: true,
+    },
   ],
 
   nestedInstances: [],
@@ -178,6 +206,6 @@ export const ESNIPPET_SCHEMA: ComponentSchema = {
     'MarketCheckoutButton',
     'OfficialShop',
     'ShopInfoDeliveryBnplContainer',
-    'ESnippetProps'
-  ]
+    'ESnippetProps',
+  ],
 };

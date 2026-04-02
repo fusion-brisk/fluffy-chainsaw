@@ -26,7 +26,8 @@ export {
  */
 export const CONTAINER_SELECTORS = [
   'li.serp-item',
-  'div.serp-item.serp-list__card'
+  'div.serp-item.serp-list__card',
+  '.main__carousel-item > .serp-item'
 ];
 
 /**

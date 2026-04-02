@@ -26,8 +26,20 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
       }
     }, ms);
     promise.then(
-      function (val) { if (!done) { done = true; clearTimeout(timer); resolve(val); } },
-      function (err) { if (!done) { done = true; clearTimeout(timer); reject(err); } }
+      function (val) {
+        if (!done) {
+          done = true;
+          clearTimeout(timer);
+          resolve(val);
+        }
+      },
+      function (err) {
+        if (!done) {
+          done = true;
+          clearTimeout(timer);
+          reject(err);
+        }
+      },
     );
   });
 }
@@ -73,7 +85,7 @@ export async function fetchAndApplyImage(
   layer: SceneNode,
   url: string,
   scaleMode?: 'FIT' | 'FILL' | 'CROP' | 'TILE',
-  logPrefix?: string
+  logPrefix?: string,
 ): Promise<boolean> {
   var mode = scaleMode || 'FIT';
   var prefix = logPrefix || '[fetchAndApplyImage]';
@@ -92,20 +104,28 @@ export async function fetchAndApplyImage(
         var dataImage = figma.createImage(bytes);
         Logger.debug(prefix + ' data: URI decoded, hash=' + dataImage.hash.substring(0, 8));
         if ('fills' in layer) {
-          (layer as GeometryMixin).fills = [{
-            type: 'IMAGE',
-            scaleMode: mode,
-            imageHash: dataImage.hash
-          }];
-        } else {
-          try {
-            (layer as GeometryMixin).fills = [{
+          (layer as GeometryMixin).fills = [
+            {
               type: 'IMAGE',
               scaleMode: mode,
-              imageHash: dataImage.hash
-            }];
+              imageHash: dataImage.hash,
+            },
+          ];
+        } else {
+          try {
+            (layer as unknown as GeometryMixin).fills = [
+              {
+                type: 'IMAGE',
+                scaleMode: mode,
+                imageHash: dataImage.hash,
+              },
+            ];
           } catch (fillErr) {
-            Logger.debug(prefix + ' fills failed: ' + (fillErr instanceof Error ? fillErr.message : String(fillErr)));
+            Logger.debug(
+              prefix +
+                ' fills failed: ' +
+                (fillErr instanceof Error ? fillErr.message : String(fillErr)),
+            );
             return false;
           }
         }
@@ -141,20 +161,28 @@ export async function fetchAndApplyImage(
 
     // Apply fills — try guard first, fallback to cast
     if ('fills' in layer) {
-      (layer as GeometryMixin).fills = [{
-        type: 'IMAGE',
-        scaleMode: mode,
-        imageHash: image.hash
-      }];
-    } else {
-      try {
-        (layer as GeometryMixin).fills = [{
+      (layer as GeometryMixin).fills = [
+        {
           type: 'IMAGE',
           scaleMode: mode,
-          imageHash: image.hash
-        }];
+          imageHash: image.hash,
+        },
+      ];
+    } else {
+      try {
+        (layer as unknown as GeometryMixin).fills = [
+          {
+            type: 'IMAGE',
+            scaleMode: mode,
+            imageHash: image.hash,
+          },
+        ];
       } catch (fillErr) {
-        Logger.debug(prefix + ' fills failed: ' + (fillErr instanceof Error ? fillErr.message : String(fillErr)));
+        Logger.debug(
+          prefix +
+            ' fills failed: ' +
+            (fillErr instanceof Error ? fillErr.message : String(fillErr)),
+        );
         return false;
       }
     }

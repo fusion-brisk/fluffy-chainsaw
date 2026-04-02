@@ -62,6 +62,16 @@ function setPropertyWithFallback(
 ): boolean {
   try {
     instance.setProperties({ [simpleKey]: value });
+
+    // Figma silently ignores boolean properties set via short name —
+    // no error thrown but value unchanged. Verify and fall through to fullKey.
+    if (typeof value === 'boolean' && fullKey !== simpleKey) {
+      const prop = instance.componentProperties[fullKey];
+      if (prop && typeof prop === 'object' && 'value' in prop && prop.value !== value) {
+        instance.setProperties({ [fullKey]: value });
+      }
+    }
+
     return true;
   } catch {
     if (fullKey !== simpleKey) {

@@ -304,6 +304,20 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
   if (!container || !row) return;
 
   const quoteText = (row['#QuoteText'] || row['#EQuote-Text'] || '').trim();
+  const hasQuote = row['#withQuotes'] === 'true' || !!quoteText;
+
+  // Workaround: withQuotes boolean не привязан к слою в touch-варианте ESnippet.
+  // Скрываем Line / EQuote вручную когда цитат нет.
+  if (!hasQuote) {
+    const eQuoteLayer = findFirstNodeByName(container, 'Line / EQuote');
+    if (eQuoteLayer && 'visible' in eQuoteLayer) {
+      try {
+        (eQuoteLayer as SceneNode).visible = false;
+        Logger.debug('   💬 [QuoteText] Line / EQuote hidden (no quote data, touch workaround)');
+      } catch (_e) { Logger.debug('[QuoteText] EQuote hide failed'); }
+    }
+    return;
+  }
 
   // Применяем текст цитаты, если он есть
   if (quoteText) {

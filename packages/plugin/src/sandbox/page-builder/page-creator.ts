@@ -16,7 +16,7 @@ import {
   PageCreationOptions,
   PageCreationResult,
   PageCreationError,
-  SnippetType
+  SnippetType,
 } from './types';
 import {
   getComponentConfig,
@@ -34,14 +34,25 @@ import { StructureNode, ContainerType, ContainerConfig } from './types';
 import { renderWizards } from '../plugin/wizard-processor';
 import { loadComponent, createPlaceholder } from './component-import';
 import { applyFill, applyFillStyle } from './fill-utils';
-import { createInstanceForElement, applyDataToInstance, createGroupWithChildren } from './instance-factory';
-import { preloadInstanceFonts, applySnippetImages, applyFavicon, applyQuoteAvatar } from './image-operations';
+import {
+  createInstanceForElement,
+  applyDataToInstance,
+  createGroupWithChildren,
+} from './instance-factory';
+import {
+  preloadInstanceFonts,
+  applySnippetImages,
+  applyFavicon,
+  applyQuoteAvatar,
+} from './image-operations';
 import {
   createEQuickFiltersPanel,
   createAsideFiltersPanel,
   createImagesGridPanel,
   createContainerFrame,
 } from './panel-builders';
+import { assignMasonryPositions } from '../feed-page-builder/feed-masonry-layout';
+import type { MasonryItem } from '../feed-page-builder/feed-masonry-layout';
 
 // Re-export clearComponentCache so index.ts can import from page-creator (backwards compat)
 export { clearComponentCache } from './component-import';
@@ -68,13 +79,17 @@ const DEFAULT_OPTIONS: Required<PageCreationOptions> = {
 async function createSnippetInstance(
   node: StructureNode,
   platform: 'desktop' | 'touch',
-  parentContainerType?: ContainerType
+  parentContainerType?: ContainerType,
 ): Promise<InstanceNode | FrameNode | null> {
   let config = getComponentConfig(node.type as SnippetType);
 
   // Fallback: если нет ключа — используем ESnippet для органических сниппетов
   if (!config || !config.key) {
-    if (node.type === 'Organic' || node.type === 'Organic_withOfferInfo' || node.type === 'Organic_Adv') {
+    if (
+      node.type === 'Organic' ||
+      node.type === 'Organic_withOfferInfo' ||
+      node.type === 'Organic_Adv'
+    ) {
       config = getComponentConfig('ESnippet');
       Logger.debug(`[PageCreator] Fallback: ${node.type} → ESnippet`);
     } else {
@@ -84,15 +99,17 @@ async function createSnippetInstance(
   }
 
   if (!config || !config.key) {
-    Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type + ' (fallback failed)');
+    Logger.warn(
+      '[PageCreator] Component not found, using placeholder: ' + node.type + ' (fallback failed)',
+    );
     return createPlaceholder(node.type, 360, 120);
   }
 
-  const componentKey = (platform === 'touch' && config.keyTouch)
-    ? config.keyTouch
-    : config.key;
+  const componentKey = platform === 'touch' && config.keyTouch ? config.keyTouch : config.key;
 
-  Logger.debug(`[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`);
+  Logger.debug(
+    `[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`,
+  );
 
   const component = await loadComponent(componentKey);
   if (!component) {
@@ -112,7 +129,10 @@ async function createSnippetInstance(
   if (config.defaultVariant) {
     try {
       // Копируем defaultVariant но без Platform (уже в компоненте правильный)
-      const { Platform: _platform, ...restProps } = config.defaultVariant as Record<string, unknown>;
+      const { Platform: _platform, ...restProps } = config.defaultVariant as Record<
+        string,
+        unknown
+      >;
 
       // Для EProductSnippet2 внутри AdvProductGallery — применяем type=advGallery
       if (node.type === 'EProductSnippet2' && parentContainerType === 'AdvProductGallery') {
@@ -157,20 +177,48 @@ async function createSnippetInstance(
   } else if (node.type === 'EProductSnippet2' && parentContainerType === 'AdvProductGallery') {
     // Даже если нет defaultVariant — устанавливаем type=advGallery
     try {
-      instance.setProperties({ 'type': 'advGallery' });
-      Logger.debug(`[PageCreator] ${node.type}: type=advGallery (родитель AdvProductGallery, no defaultVariant)`);
+      instance.setProperties({ type: 'advGallery' });
+      Logger.debug(
+        `[PageCreator] ${node.type}: type=advGallery (родитель AdvProductGallery, no defaultVariant)`,
+      );
     } catch (e) {
       Logger.debug(`[PageCreator] ${node.type} type=advGallery error: ${e}`);
     }
   }
 
+  // AdvProductGallery: EThumb Ratio → 1:1 (квадратные картинки)
+  if (parentContainerType === 'AdvProductGallery') {
+    try {
+      const eThumb = instance.findOne(
+        (n) => n.type === 'INSTANCE' && n.name === 'EThumb',
+      ) as InstanceNode | null;
+      if (eThumb) {
+        const thumbProps = eThumb.componentProperties;
+        for (const key in thumbProps) {
+          if (key.split('#')[0] === 'Ratio' && thumbProps[key].type === 'VARIANT') {
+            eThumb.setProperties({ [key]: '1:1' });
+            Logger.debug(`[PageCreator] AdvProductGallery: EThumb Ratio=1:1`);
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      Logger.debug(`[PageCreator] EThumb Ratio error: ${e}`);
+    }
+  }
+
   // Логируем данные для отладки
   if (node.data) {
-    const dataKeys = Object.keys(node.data).filter(k => node.data && (node.data as Record<string, string | undefined>)[k]);
+    const dataKeys = Object.keys(node.data).filter(
+      (k) => node.data && (node.data as Record<string, string | undefined>)[k],
+    );
     Logger.debug(`[PageCreator] ${node.type} данные: ${dataKeys.join(', ')}`);
     // Логируем URL изображения отдельно
-    const imgUrl = node.data['#OrganicImage'] || node.data['#ThumbImage'] || node.data['#Image1'] || '';
-    Logger.debug(`[PageCreator] ${node.type} изображение: "${imgUrl ? imgUrl.substring(0, 60) + '...' : '(пусто)'}"`);
+    const imgUrl =
+      node.data['#OrganicImage'] || node.data['#ThumbImage'] || node.data['#Image1'] || '';
+    Logger.debug(
+      `[PageCreator] ${node.type} изображение: "${imgUrl ? imgUrl.substring(0, 60) + '...' : '(пусто)'}"`,
+    );
   }
 
   // Применяем данные через handlers
@@ -209,7 +257,7 @@ async function createSnippetInstance(
  */
 export async function createPageFromStructure(
   structure: PageStructure,
-  options: PageCreationOptions = {}
+  options: PageCreationOptions = {},
 ): Promise<PageCreationResult> {
   const startTime = Date.now();
   const opts = { ...DEFAULT_OPTIONS, ...options };
@@ -256,7 +304,9 @@ export async function createPageFromStructure(
       if (instance) {
         pageFrame.appendChild(instance);
         createdCount++;
-        Logger.verbose(`[PageCreator] Создан ${element.type} (${createdCount}/${structure.elements.length})`);
+        Logger.verbose(
+          `[PageCreator] Создан ${element.type} (${createdCount}/${structure.elements.length})`,
+        );
       } else {
         errors.push({
           elementId: element.id,
@@ -291,7 +341,7 @@ export async function createPageFromStructure(
     success: errors.length === 0 || createdCount > 0,
     frame: pageFrame,
     createdCount,
-    errors: errors.map(e => `[${e.elementType}] ${e.message}`),
+    errors: errors.map((e) => `[${e.elementType}] ${e.message}`),
     creationTime,
   };
 }
@@ -302,7 +352,7 @@ export async function createPageFromStructure(
  */
 export async function createPageFromRows(
   rows: import('../../types').CSVRow[],
-  options: PageCreationOptions = {}
+  options: PageCreationOptions = {},
 ): Promise<PageCreationResult> {
   Logger.info(`[PageCreator] Создание страницы из ${rows.length} rows`);
 
@@ -328,10 +378,13 @@ export async function createPageFromRows(
     },
     stats: {
       totalElements: elements.length,
-      byType: elements.reduce((acc, el) => {
-        acc[el.type] = (acc[el.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>),
+      byType: elements.reduce(
+        (acc, el) => {
+          acc[el.type] = (acc[el.type] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>,
+      ),
       groupCount: 0,
       parseTime: 0,
     },
@@ -367,7 +420,7 @@ async function renderStructureNode(
   platform: 'desktop' | 'touch',
   errors: PageCreationError[],
   parentContainerType?: ContainerType,
-  query?: string
+  query?: string,
 ): Promise<{ element: SceneNode | null; count: number }> {
   let count = 0;
 
@@ -391,7 +444,9 @@ async function renderStructureNode(
 
   // Если это контейнер — создаём фрейм и рендерим детей
   if (isContainerType(node.type)) {
-    Logger.debug(`[PageCreator] Container: type=${node.type}, children=${node.children?.length || 0}`);
+    Logger.debug(
+      `[PageCreator] Container: type=${node.type}, children=${node.children?.length || 0}`,
+    );
     const containerConfig = getContainerConfig(node.type as ContainerType);
     if (!containerConfig) {
       Logger.warn(`[PageCreator] Нет конфигурации контейнера: ${node.type}`);
@@ -399,6 +454,155 @@ async function renderStructureNode(
     }
 
     const thisContainerType = node.type as ContainerType;
+
+    // === ProductsMixedGrid: masonry layout из EProductSnippet2 ===
+    if (thisContainerType === 'ProductsMixedGrid') {
+      const wrapper = figma.createFrame();
+      wrapper.name = 'productsMixedGridWrapper';
+      wrapper.layoutMode = 'VERTICAL';
+      wrapper.primaryAxisSizingMode = 'AUTO';
+      wrapper.counterAxisSizingMode = 'AUTO';
+      wrapper.itemSpacing = 0;
+      wrapper.paddingTop = 16;
+      wrapper.paddingBottom = 16;
+      wrapper.paddingLeft = 15;
+      wrapper.paddingRight = 15;
+      wrapper.cornerRadius = 16;
+      wrapper.clipsContent = true;
+      await applyFill(wrapper, 'Background/Primary');
+
+      // Добавляем Title
+      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+      if (titleConfig?.key) {
+        try {
+          const titleComponent = await loadComponent(titleConfig.key);
+          if (titleComponent) {
+            const titleInstance = titleComponent.createInstance();
+            if (titleConfig.defaultVariant) {
+              try {
+                titleInstance.setProperties(
+                  titleConfig.defaultVariant as Record<string, string | boolean>,
+                );
+              } catch (e) {
+                Logger.debug(`[PageCreator] MixedGrid Title setProperties: ${e}`);
+              }
+            }
+            wrapper.appendChild(titleInstance);
+            titleInstance.layoutSizingHorizontal = 'FILL';
+
+            const customTitle = node.children?.[0]?.data?.['#ProductsMixedGridTitle'];
+            const titleText =
+              customTitle ||
+              (query ? `Популярные товары по запросу «${query}»` : 'Популярные товары');
+            const textNode = findTextNode(titleInstance);
+            if (textNode) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+              textNode.characters = titleText;
+            }
+            Logger.debug(`[PageCreator] MixedGrid Title: "${titleText}"`);
+          }
+        } catch (e) {
+          Logger.warn(`[PageCreator] Не удалось создать MixedGrid Title: ${e}`);
+        }
+      }
+
+      // Создаём контейнер без auto-layout (masonry = ручное позиционирование)
+      const containerFrame = figma.createFrame();
+      containerFrame.name = 'ProductsMixedGrid';
+      containerFrame.resize(760, 10); // высота обновится после layout
+      containerFrame.fills = [];
+      containerFrame.clipsContent = true;
+      wrapper.appendChild(containerFrame);
+
+      // Рендерим дочерние узлы и собираем данные для masonry
+      const renderedItems: { element: SceneNode; height: number }[] = [];
+      if (node.children) {
+        for (const child of node.children) {
+          const result = await renderStructureNode(
+            child,
+            platform,
+            errors,
+            thisContainerType,
+            query,
+          );
+          if (result.element) {
+            containerFrame.appendChild(result.element);
+            const instance = result.element as InstanceNode;
+            instance.resize(184, instance.height);
+
+            // Вычисляем высоту карточки по aspect ratio
+            const aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
+            const thumbHeight = Math.round(184 / aspectRatio);
+            const isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
+            const contentHeight = isImageOnly ? 55 : 90;
+            const cardHeight = thumbHeight + contentHeight;
+
+            renderedItems.push({ element: result.element, height: cardHeight });
+            count += result.count;
+          }
+        }
+      }
+
+      // Применяем masonry layout
+      if (renderedItems.length > 0) {
+        const masonryItems: MasonryItem[] = renderedItems.map(function (item, i) {
+          return { id: String(i), width: 184, height: item.height };
+        });
+
+        const masonryResult = assignMasonryPositions(masonryItems, {
+          columns: 4,
+          columnWidth: 184,
+          gap: 8,
+        });
+
+        for (var i = 0; i < masonryResult.positions.length; i++) {
+          var pos = masonryResult.positions[i];
+          var el = renderedItems[parseInt(pos.id)].element;
+          el.x = pos.x;
+          el.y = pos.y;
+        }
+
+        containerFrame.resize(masonryResult.totalWidth, masonryResult.totalHeight);
+      }
+
+      // Кнопка «Показать ещё»
+      const showAllFlag = node.children?.[0]?.data?.['#ProductsMixedGridShowAll'];
+      if (showAllFlag === 'true') {
+        try {
+          const btnComponent = await loadComponent('d11550f55331ddcb57d6d8e566dc288de8c706d7');
+          if (btnComponent) {
+            const btnInstance = btnComponent.createInstance();
+            try {
+              btnInstance.setProperties({
+                View: 'Secondary',
+                Size: 'M',
+                Text: 'True',
+                Left: false,
+                Right: false,
+                Suffix: false,
+              } as Record<string, string | boolean>);
+            } catch (e) {
+              Logger.debug(`[PageCreator] MixedGrid ShowAll setProperties: ${e}`);
+            }
+            const showAllText =
+              node.children?.[0]?.data?.['#ProductsMixedGridShowAllText'] || 'Показать ещё';
+            const btnTextNode = findTextNode(btnInstance);
+            if (btnTextNode) {
+              await figma.loadFontAsync(btnTextNode.fontName as FontName);
+              btnTextNode.characters = showAllText;
+            }
+            wrapper.appendChild(btnInstance);
+            btnInstance.layoutSizingHorizontal = 'FILL';
+            Logger.debug(`[PageCreator] MixedGrid кнопка «${showAllText}» добавлена`);
+          }
+        } catch (e) {
+          Logger.debug(`[PageCreator] MixedGrid ShowAll кнопка: ${e}`);
+        }
+      }
+
+      Logger.debug(`[PageCreator] ProductsMixedGrid: ${renderedItems.length} элементов в masonry`);
+      return { element: wrapper, count };
+    }
 
     // === ProductsTiles: оборачиваем в productTilesWrapper с Title ===
     if (thisContainerType === 'ProductsTiles') {
@@ -427,7 +631,9 @@ async function renderStructureNode(
             // Применяем defaultVariant свойства (отключаем лишние элементы)
             if (titleConfig.defaultVariant) {
               try {
-                titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+                titleInstance.setProperties(
+                  titleConfig.defaultVariant as Record<string, string | boolean>,
+                );
               } catch (e) {
                 Logger.debug(`[PageCreator] Title setProperties: ${e}`);
               }
@@ -438,8 +644,9 @@ async function renderStructureNode(
 
             // Устанавливаем текст заголовка
             const customTitle = node.children?.[0]?.data?.['#ProductsTilesTitle'];
-            const titleText = customTitle
-              || (query ? `Популярные товары по запросу «${query}»` : 'Популярные товары');
+            const titleText =
+              customTitle ||
+              (query ? `Популярные товары по запросу «${query}»` : 'Популярные товары');
             const textNode = findTextNode(titleInstance);
             if (textNode) {
               await figma.loadFontAsync(textNode.fontName as FontName);
@@ -461,7 +668,13 @@ async function renderStructureNode(
       // Рендерим дочерние узлы
       if (node.children) {
         for (const child of node.children) {
-          const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
+          const result = await renderStructureNode(
+            child,
+            platform,
+            errors,
+            thisContainerType,
+            query,
+          );
           if (result.element) {
             containerFrame.appendChild(result.element);
 
@@ -472,7 +685,7 @@ async function renderStructureNode(
             } else if (typeof containerConfig.childWidth === 'number') {
               (result.element as InstanceNode).resize(
                 containerConfig.childWidth,
-                (result.element as InstanceNode).height
+                (result.element as InstanceNode).height,
               );
             }
 
@@ -491,19 +704,20 @@ async function renderStructureNode(
             // Устанавливаем пропсы: View=Secondary, Size=M, Text=True
             try {
               btnInstance.setProperties({
-                'View': 'Secondary',
-                'Size': 'M',
-                'Text': 'True',
-                'Left': false,
-                'Right': false,
-                'Suffix': false,
+                View: 'Secondary',
+                Size: 'M',
+                Text: 'True',
+                Left: false,
+                Right: false,
+                Suffix: false,
               } as Record<string, string | boolean>);
             } catch (e) {
               Logger.debug(`[PageCreator] ShowAll button setProperties: ${e}`);
             }
 
             // Устанавливаем текст кнопки
-            const showAllText = node.children?.[0]?.data?.['#ProductsTilesShowAllText'] || 'Показать все';
+            const showAllText =
+              node.children?.[0]?.data?.['#ProductsTilesShowAllText'] || 'Показать все';
             const textNode = findTextNode(btnInstance);
             if (textNode) {
               await figma.loadFontAsync(textNode.fontName as FontName);
@@ -564,7 +778,9 @@ async function renderStructureNode(
             // Применяем defaultVariant свойства (отключаем лишние элементы)
             if (titleConfig.defaultVariant) {
               try {
-                titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+                titleInstance.setProperties(
+                  titleConfig.defaultVariant as Record<string, string | boolean>,
+                );
               } catch (e) {
                 Logger.debug(`[PageCreator] Title setProperties: ${e}`);
               }
@@ -574,7 +790,8 @@ async function renderStructureNode(
             titleInstance.layoutSizingHorizontal = 'FILL';
 
             // Устанавливаем текст заголовка из данных первого ребёнка или дефолтный
-            const entityTitle = node.children?.[0]?.data?.['#EntityOffersTitle'] || 'Цены по вашему запросу';
+            const entityTitle =
+              node.children?.[0]?.data?.['#EntityOffersTitle'] || 'Цены по вашему запросу';
             const textNode = findTextNode(titleInstance);
             if (textNode) {
               await figma.loadFontAsync(textNode.fontName as FontName);
@@ -600,7 +817,13 @@ async function renderStructureNode(
       // Рендерим дочерние узлы (EShopItem)
       if (node.children) {
         for (const child of node.children) {
-          const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
+          const result = await renderStructureNode(
+            child,
+            platform,
+            errors,
+            thisContainerType,
+            query,
+          );
           if (result.element) {
             containerFrame.appendChild(result.element);
             (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
@@ -642,7 +865,9 @@ async function renderStructureNode(
             // Применяем defaultVariant свойства (отключаем лишние элементы)
             if (titleConfig.defaultVariant) {
               try {
-                titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+                titleInstance.setProperties(
+                  titleConfig.defaultVariant as Record<string, string | boolean>,
+                );
               } catch (e) {
                 Logger.debug(`[PageCreator] Title setProperties: ${e}`);
               }
@@ -652,7 +877,8 @@ async function renderStructureNode(
             titleInstance.layoutSizingHorizontal = 'FILL';
 
             // Устанавливаем текст заголовка из данных первого ребёнка или дефолтный
-            const shopListTitle = node.children?.[0]?.data?.['#EShopListTitle'] || 'Цены в магазинах';
+            const shopListTitle =
+              node.children?.[0]?.data?.['#EShopListTitle'] || 'Цены в магазинах';
             const textNode = findTextNode(titleInstance);
             if (textNode) {
               await figma.loadFontAsync(textNode.fontName as FontName);
@@ -674,7 +900,13 @@ async function renderStructureNode(
       // Рендерим дочерние узлы (EShopItem)
       if (node.children) {
         for (const child of node.children) {
-          const result = await renderStructureNode(child, platform, errors, thisContainerType, query);
+          const result = await renderStructureNode(
+            child,
+            platform,
+            errors,
+            thisContainerType,
+            query,
+          );
           if (result.element) {
             containerFrame.appendChild(result.element);
             (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
@@ -696,6 +928,85 @@ async function renderStructureNode(
       return { element: null, count: 0 };
     }
 
+    // === AdvProductGallery: wrapper с заголовком и белым фоном ===
+    if (thisContainerType === 'AdvProductGallery') {
+      const wrapper = figma.createFrame();
+      wrapper.name = 'advProductGalleryWrapper';
+      wrapper.layoutMode = 'VERTICAL';
+      wrapper.primaryAxisSizingMode = 'AUTO';
+      wrapper.counterAxisSizingMode = 'AUTO';
+      wrapper.itemSpacing = 12;
+      wrapper.paddingTop = 16;
+      wrapper.paddingBottom = 16;
+      wrapper.paddingLeft = 15;
+      wrapper.paddingRight = 15;
+      wrapper.cornerRadius = 16;
+      wrapper.clipsContent = true;
+      await applyFill(wrapper, 'Background/Primary');
+
+      // Заголовок галереи
+      const galleryTitle =
+        node.children?.[0]?.data?.['#AdvGalleryTitle'] || 'Предложения магазинов';
+      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+      if (titleConfig?.key) {
+        try {
+          const titleComponent = await loadComponent(titleConfig.key);
+          if (titleComponent) {
+            const titleInstance = titleComponent.createInstance();
+            if (titleConfig.defaultVariant) {
+              try {
+                titleInstance.setProperties(
+                  titleConfig.defaultVariant as Record<string, string | boolean>,
+                );
+              } catch (e) {
+                Logger.debug(`[PageCreator] AdvGallery Title setProperties: ${e}`);
+              }
+            }
+            wrapper.appendChild(titleInstance);
+            titleInstance.layoutSizingHorizontal = 'FILL';
+
+            const textNode = findTextNode(titleInstance);
+            if (textNode) {
+              await figma.loadFontAsync(textNode.fontName as FontName);
+              textNode.characters = galleryTitle;
+            }
+            Logger.debug(`[PageCreator] AdvGallery Title: "${galleryTitle}"`);
+          }
+        } catch (e) {
+          Logger.warn(`[PageCreator] AdvGallery Title error: ${e}`);
+        }
+      }
+
+      // Контейнер с карточками
+      const containerFrame = createContainerFrame(containerConfig);
+      wrapper.appendChild(containerFrame);
+
+      if (node.children) {
+        for (const child of node.children) {
+          const result = await renderStructureNode(
+            child,
+            platform,
+            errors,
+            thisContainerType,
+            query,
+          );
+          if (result.element) {
+            containerFrame.appendChild(result.element);
+            if (typeof containerConfig.childWidth === 'number') {
+              (result.element as InstanceNode).resize(
+                containerConfig.childWidth,
+                (result.element as InstanceNode).height,
+              );
+            }
+            count += result.count;
+          }
+        }
+      }
+
+      Logger.debug(`[PageCreator] AdvProductGallery: ${node.children?.length || 0} карточек`);
+      return { element: wrapper, count };
+    }
+
     // === Остальные контейнеры ===
     const containerFrame = createContainerFrame(containerConfig);
 
@@ -709,14 +1020,15 @@ async function renderStructureNode(
 
           // Потом устанавливаем ширину (FILL можно только после appendChild)
           // Touch: для ProductsTiles используем FILL вместо фиксированной ширины
-          const isProductsTilesOnTouch = platform === 'touch' && (thisContainerType as ContainerType) === 'ProductsTiles';
+          const isProductsTilesOnTouch =
+            platform === 'touch' && (thisContainerType as ContainerType) === 'ProductsTiles';
 
           if (containerConfig.childWidth === 'FILL' || isProductsTilesOnTouch) {
             (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
           } else if (typeof containerConfig.childWidth === 'number') {
             (result.element as InstanceNode).resize(
               containerConfig.childWidth,
-              (result.element as InstanceNode).height
+              (result.element as InstanceNode).height,
             );
           }
 
@@ -788,7 +1100,7 @@ export async function createSerpPage(
     contentGap?: number;
     leftPadding?: number;
     wizards?: import('../../types/wizard-types').WizardPayload[];
-  } = {}
+  } = {},
 ): Promise<PageCreationResult> {
   const startTime = Date.now();
   const errors: PageCreationError[] = [];
@@ -799,25 +1111,29 @@ export async function createSerpPage(
   const query = options.query || rows[0]?.['#query'] || rows[0]?.['#OrganicTitle'] || 'query';
   const contentLeftWidth = options.contentLeftWidth || 792;
   const contentGap = options.contentGap ?? 0;
-  const leftPadding = isTouch ? 0 : (options.leftPadding || 100);
+  const leftPadding = isTouch ? 0 : options.leftPadding || 100;
   const wizards = options.wizards || [];
 
   // Размеры для разных платформ
   const pageWidth = isTouch ? 393 : 1440;
 
-  Logger.info(`[PageCreator] Создание SERP страницы: "${query}", ${rows.length} сниппетов + ${wizards.length} wizard, platform=${platform}`);
+  Logger.info(
+    `[PageCreator] Создание SERP страницы: "${query}", ${rows.length} сниппетов + ${wizards.length} wizard, platform=${platform}`,
+  );
 
   // === 0. Построение структуры из rows ===
   const structure = buildPageStructure(rows, { query, platform });
   const sortedNodes = sortContentNodes(structure.contentLeft);
 
-  Logger.info(`[PageCreator] Структура: ${sortedNodes.length} узлов, ${structure.stats.containers} контейнеров`);
+  Logger.info(
+    `[PageCreator] Структура: ${sortedNodes.length} узлов, ${structure.stats.containers} контейнеров`,
+  );
 
   // === 1. Основной контейнер ===
   const pageFrame = figma.createFrame();
   pageFrame.name = String(query);
   pageFrame.layoutMode = 'VERTICAL';
-  pageFrame.primaryAxisSizingMode = 'AUTO';  // hug height
+  pageFrame.primaryAxisSizingMode = 'AUTO'; // hug height
   pageFrame.counterAxisSizingMode = 'FIXED';
   pageFrame.resize(pageWidth, 100);
   pageFrame.itemSpacing = 0;
@@ -895,16 +1211,22 @@ export async function createSerpPage(
         if (query && query !== 'query') {
           // Try exact names first, then find any text node with default placeholder
           const queryNode = headerInstance.findOne(
-            (n: SceneNode) => n.type === 'TEXT' && (
-              n.name === '#query' || n.name === 'query' || n.name === 'запрос' ||
-              n.name === 'Input' || n.name === 'input' ||
-              n.name.indexOf('earch') !== -1 || n.name.indexOf('nput') !== -1
-            )
+            (n: SceneNode) =>
+              n.type === 'TEXT' &&
+              (n.name === '#query' ||
+                n.name === 'query' ||
+                n.name === 'запрос' ||
+                n.name === 'Input' ||
+                n.name === 'input' ||
+                n.name.indexOf('earch') !== -1 ||
+                n.name.indexOf('nput') !== -1),
           ) as TextNode | null;
           // Fallback: find text node containing "запрос" placeholder text
-          const targetNode = queryNode || headerInstance.findOne(
-            (n: SceneNode) => n.type === 'TEXT' && (n as TextNode).characters === 'запрос'
-          ) as TextNode | null;
+          const targetNode =
+            queryNode ||
+            (headerInstance.findOne(
+              (n: SceneNode) => n.type === 'TEXT' && (n as TextNode).characters === 'запрос',
+            ) as TextNode | null);
           if (targetNode) {
             await figma.loadFontAsync(targetNode.fontName as FontName);
             targetNode.characters = query;
@@ -1006,7 +1328,9 @@ export async function createSerpPage(
         }
       }
 
-      Logger.debug('[PageCreator] content__aside добавлен с ' + structure.contentAside.length + ' элементами');
+      Logger.debug(
+        '[PageCreator] content__aside добавлен с ' + structure.contentAside.length + ' элементами',
+      );
     }
 
     // === 5. content__left ===
@@ -1058,7 +1382,7 @@ export async function createSerpPage(
       current: pct,
       total: 100,
       message: 'Сниппет ' + (ni + 1) + '/' + totalNodes + ' (' + node.type + ')',
-      operationType: 'relay-import'
+      operationType: 'relay-import',
     });
 
     const result = await renderStructureNode(node, platform, errors, undefined, String(query));
@@ -1152,7 +1476,9 @@ export async function createSerpPage(
           errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: err });
         }
       }
-      Logger.info(`[PageCreator] Wizard: ${wizardResult.wizardCount} блоков, ${wizardResult.componentCount} компонентов`);
+      Logger.info(
+        `[PageCreator] Wizard: ${wizardResult.wizardCount} блоков, ${wizardResult.componentCount} компонентов`,
+      );
     } catch (e) {
       errors.push({ elementId: 'wizard', elementType: 'FuturisSearch', message: String(e) });
       Logger.error(`[PageCreator] Ошибка рендеринга wizard: ${e}`);
@@ -1184,7 +1510,9 @@ export async function createSerpPage(
 
   const creationTime = Date.now() - startTime;
 
-  Logger.info(`[PageCreator] SERP страница создана: ${createdCount} элементов за ${creationTime}ms`);
+  Logger.info(
+    `[PageCreator] SERP страница создана: ${createdCount} элементов за ${creationTime}ms`,
+  );
   if (errors.length > 0) {
     Logger.warn(`[PageCreator] Ошибок: ${errors.length}`);
   }
@@ -1205,8 +1533,12 @@ export async function createSerpPage(
       'operation: build-page',
       'query: ' + (options.query || '?'),
       'platform: ' + platform,
-      'nodes: ' + structure.stats.totalSnippets + ' snippets, ' + structure.stats.containers + ' containers',
-      'created: ' + createdCount + ' elements in ' + creationTime + 'ms'
+      'nodes: ' +
+        structure.stats.totalSnippets +
+        ' snippets, ' +
+        structure.stats.containers +
+        ' containers',
+      'created: ' + createdCount + ' elements in ' + creationTime + 'ms',
     ];
     for (let ei = 0; ei < errors.length; ei++) {
       const err = errors[ei];
@@ -1256,14 +1588,18 @@ export async function createSerpPage(
     structure: {
       totalNodes: structure.stats.totalSnippets,
       containers: structure.stats.containers,
-      byType: structure.stats.byType || {}
+      byType: structure.stats.byType || {},
     },
     created: {
-      total: createdCount
+      total: createdCount,
     },
-    errors: Object.keys(errorsByType || {}).map(function(t) {
-      return { type: t, message: (errorsByType || {})[t].join('; '), count: ((errorsByType || {})[t] || []).length };
-    })
+    errors: Object.keys(errorsByType || {}).map(function (t) {
+      return {
+        type: t,
+        message: (errorsByType || {})[t].join('; '),
+        count: ((errorsByType || {})[t] || []).length,
+      };
+    }),
   };
 
   try {
@@ -1276,7 +1612,7 @@ export async function createSerpPage(
     success: errors.length === 0 || createdCount > 0,
     frame: pageFrame,
     createdCount,
-    errors: errors.map(e => `[${e.elementType}] ${e.message}`),
+    errors: errors.map((e) => `[${e.elementType}] ${e.message}`),
     creationTime,
   };
 }

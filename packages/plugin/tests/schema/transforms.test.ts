@@ -28,9 +28,10 @@ import {
   computeSnippetWithMeta,
   computeSnippetWithData,
   computeSnippetWithPrice,
-  computeSnippetWithEcomMeta,
+  computeSnippetWithDeliveryBnpl,
   computeSnippetWithFintech,
-  computeSnippetWithPromo
+  computeSnippetWithPromo,
+  computeImageVariant
 } from '../../src/sandbox/schema/transforms';
 
 // Helper: create mock instance with Platform property
@@ -295,9 +296,9 @@ describe('ESnippet transforms — Organic override', () => {
     expect(computeSnippetWithData({ ...shopRow, '#ReviewsNumber': '10' })).toBe(true);
   });
 
-  it('computeSnippetWithEcomMeta: false for Organic', () => {
-    expect(computeSnippetWithEcomMeta({ ...organicRow, '#OrganicPrice': '100' })).toBe(false);
-    expect(computeSnippetWithEcomMeta({ ...shopRow, '#OrganicPrice': '100' })).toBe(true);
+  it('computeSnippetWithDeliveryBnpl: false for Organic', () => {
+    expect(computeSnippetWithDeliveryBnpl({ ...organicRow, '#OrganicPrice': '100' })).toBe(false);
+    expect(computeSnippetWithDeliveryBnpl({ ...shopRow, '#OrganicPrice': '100' })).toBe(true);
   });
 
   it('computeSnippetWithPromo: false for Organic', () => {
@@ -360,41 +361,57 @@ describe('computeWithQuotes', () => {
   });
 });
 
-describe('computeSnippetWithEcomMeta', () => {
+describe('computeSnippetWithDeliveryBnpl', () => {
   it('returns true with ProductRating', () => {
-    expect(computeSnippetWithEcomMeta({ '#ProductRating': '4.5' })).toBe(true);
+    expect(computeSnippetWithDeliveryBnpl({ '#ProductRating': '4.5' })).toBe(true);
   });
 
   it('returns true with OrganicPrice', () => {
-    expect(computeSnippetWithEcomMeta({ '#OrganicPrice': '1990' })).toBe(true);
+    expect(computeSnippetWithDeliveryBnpl({ '#OrganicPrice': '1990' })).toBe(true);
   });
 
   it('returns true with OldPrice', () => {
-    expect(computeSnippetWithEcomMeta({ '#OldPrice': '2990' })).toBe(true);
+    expect(computeSnippetWithDeliveryBnpl({ '#OldPrice': '2990' })).toBe(true);
   });
 
   it('returns true with ReviewCount', () => {
-    expect(computeSnippetWithEcomMeta({ '#ReviewCount': '15' })).toBe(true);
+    expect(computeSnippetWithDeliveryBnpl({ '#ReviewCount': '15' })).toBe(true);
   });
 
   it('returns true with EPriceBarometer_View', () => {
-    expect(computeSnippetWithEcomMeta({ '#EPriceBarometer_View': 'good' })).toBe(true);
+    expect(computeSnippetWithDeliveryBnpl({ '#EPriceBarometer_View': 'good' })).toBe(true);
   });
 
   it('returns true with ELabelGroup', () => {
-    expect(computeSnippetWithEcomMeta({ '#ELabelGroup': 'true' })).toBe(true);
+    expect(computeSnippetWithDeliveryBnpl({ '#ELabelGroup': 'true' })).toBe(true);
   });
 
   it('returns false with false values', () => {
-    expect(computeSnippetWithEcomMeta({ '#ProductRating': 'false' })).toBe(false);
+    expect(computeSnippetWithDeliveryBnpl({ '#ProductRating': 'false' })).toBe(false);
   });
 
   it('returns false with empty values', () => {
-    expect(computeSnippetWithEcomMeta({ '#ProductRating': '' })).toBe(false);
+    expect(computeSnippetWithDeliveryBnpl({ '#ProductRating': '' })).toBe(false);
   });
 
   it('returns false with no fields', () => {
-    expect(computeSnippetWithEcomMeta({})).toBe(false);
+    expect(computeSnippetWithDeliveryBnpl({})).toBe(false);
+  });
+
+  it('returns true with EDeliveryGroup', () => {
+    expect(computeSnippetWithDeliveryBnpl({ '#EDeliveryGroup': 'true' })).toBe(true);
+  });
+
+  it('returns true with EDelivery_abroad', () => {
+    expect(computeSnippetWithDeliveryBnpl({ '#EDelivery_abroad': 'true' })).toBe(true);
+  });
+
+  it('returns true with ShopInfo-Bnpl', () => {
+    expect(computeSnippetWithDeliveryBnpl({ '#ShopInfo-Bnpl': 'true' })).toBe(true);
+  });
+
+  it('returns true with EPriceGroup_Fintech', () => {
+    expect(computeSnippetWithDeliveryBnpl({ '#EPriceGroup_Fintech': 'true' })).toBe(true);
   });
 });
 
@@ -567,5 +584,31 @@ describe('computeWithContacts (dedicated)', () => {
 
   it('returns false without contact fields', () => {
     expect(computeWithContacts(base)).toBe(false);
+  });
+});
+
+describe('computeImageVariant', () => {
+  it('returns "group" when #imageType is EThumbGroup', () => {
+    expect(computeImageVariant({ '#imageType': 'EThumbGroup' } as CSVRow)).toBe('group');
+  });
+
+  it('returns "single" when #withThumb is true', () => {
+    expect(computeImageVariant({ '#withThumb': 'true' } as CSVRow)).toBe('single');
+  });
+
+  it('returns "none" when no thumb data', () => {
+    expect(computeImageVariant({} as CSVRow)).toBe('none');
+  });
+
+  it('prefers group over single when both present', () => {
+    expect(computeImageVariant({ '#imageType': 'EThumbGroup', '#withThumb': 'true' } as CSVRow)).toBe('group');
+  });
+
+  it('returns "single" when #imageType is EThumb', () => {
+    expect(computeImageVariant({ '#imageType': 'EThumb', '#withThumb': 'true' } as CSVRow)).toBe('single');
+  });
+
+  it('returns "none" when #withThumb is false', () => {
+    expect(computeImageVariant({ '#withThumb': 'false' } as CSVRow)).toBe('none');
   });
 });

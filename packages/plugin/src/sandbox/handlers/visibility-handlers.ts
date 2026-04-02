@@ -13,10 +13,64 @@ import {
   getGroupsSortedByDepth,
   shouldProcessGroupForEmptyCheck,
   areAllChildrenHidden,
-  hasAnyVisibleChild
+  hasAnyVisibleChild,
 } from '../../utils/instance-cache';
 import { HandlerContext } from './types';
 import { CSVRow } from '../../types/csv-fields';
+
+/**
+ * Safely sets visibility on a frame, detecting and rolling back if it causes
+ * a boolean property sync on the container instance.
+ *
+ * Figma bidirectionally syncs boolean properties with layer visibility.
+ * Setting frame.visible directly can flip a boolean property on the parent,
+ * undoing schema engine work. This function detects the side effect and reverts.
+ *
+ * @returns true if visibility was set, false if rolled back due to boolean sync
+ */
+function safeSetVisible(frame: SceneNode, visible: boolean, container: BaseNode): boolean {
+  if (container.type !== 'INSTANCE') {
+    frame.visible = visible;
+    return true;
+  }
+  const inst = container as InstanceNode;
+
+  // Snapshot boolean property values before change
+  const boolsBefore: Record<string, boolean> = {};
+  const props = inst.componentProperties;
+  for (const key in props) {
+    if (props[key].type === 'BOOLEAN') {
+      boolsBefore[key] = props[key].value as boolean;
+    }
+  }
+
+  // Apply visibility change
+  frame.visible = visible;
+
+  // Check if any boolean property was affected
+  const propsAfter = inst.componentProperties;
+  for (const key in boolsBefore) {
+    if ((propsAfter[key].value as boolean) !== boolsBefore[key]) {
+      // Side effect detected — revert visibility and restore boolean
+      frame.visible = !visible;
+      try {
+        inst.setProperties({ [key]: boolsBefore[key] });
+      } catch (_e) {
+        /* best effort */
+      }
+      Logger.debug(
+        '[EmptyGroups] Skipped "' +
+          frame.name +
+          '": boolean sync detected (' +
+          key.split('#')[0] +
+          ')',
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
 
 /**
  * Обработка скрытия Price Block для страниц каталога (EThumbGroup)
@@ -30,7 +84,9 @@ export function handleHidePriceBlock(context: HandlerContext): void {
   const hasRow = row !== null && row !== undefined;
   const hidePriceBlockValue = row ? row['#hidePriceBlock'] : undefined;
 
-  Logger.debug(`💰 [hidePriceBlock] ВХОД: container="${containerName}", row=${hasRow ? 'да' : 'НЕТ'}, #hidePriceBlock=${hidePriceBlockValue || 'N/A'}`);
+  Logger.debug(
+    `💰 [hidePriceBlock] ВХОД: container="${containerName}", row=${hasRow ? 'да' : 'НЕТ'}, #hidePriceBlock=${hidePriceBlockValue || 'N/A'}`,
+  );
 
   if (!container || !row) return;
 
@@ -40,7 +96,12 @@ export function handleHidePriceBlock(context: HandlerContext): void {
   // Скрываем Price Block через withPrice property на контейнере
   const instance = container.type === 'INSTANCE' ? container : null;
   if (instance) {
-    const result = trySetProperty(instance, ['withPrice', 'PRICE', 'Price'], false, '#hidePriceBlock');
+    const result = trySetProperty(
+      instance,
+      ['withPrice', 'PRICE', 'Price'],
+      false,
+      '#hidePriceBlock',
+    );
     if (result) {
       Logger.debug(`   💰 [PriceBlock] Скрыт через withPrice (страница каталога)`);
     }
@@ -80,26 +141,28 @@ export function handleEcomMetaVisibility(context: HandlerContext): void {
   ];
 
   // Проверяем наличие хотя бы одного непустого поля
-  const hasData = ecomMetaFields.some(field => {
+  const hasData = ecomMetaFields.some((field) => {
     const value = row[field as keyof CSVRow];
     return value !== undefined && value !== null && value !== '' && value !== 'false';
   });
 
-  // Способ 1: через свойство withEcomMeta на контейнере (новые компоненты)
+  // withDeliveryBnpl управляет только ShopInfo-DeliveryBnplContainer,
+  // не всей группой EcomMeta — устанавливаем, но НЕ делаем return
   if (container.type === 'INSTANCE' && !container.removed) {
     const propSet = trySetProperty(
       container as InstanceNode,
-      ['withEcomMeta'],
+      ['withDeliveryBnpl', 'withEcomMeta'],
       hasData,
-      '#withEcomMeta'
+      '#withDeliveryBnpl',
     );
     if (propSet) {
-      Logger.debug(`📦 [EcomMetaVisibility] withEcomMeta=${hasData} via property on "${containerName}"`);
-      return; // Figma управляет видимостью через свойство — ничего больше не нужно
+      Logger.debug(
+        `📦 [EcomMetaVisibility] withDeliveryBnpl=${hasData} via property on "${containerName}"`,
+      );
     }
   }
 
-  // Способ 2: fallback — напрямую управляем visible (старые компоненты без withEcomMeta)
+  // Всегда проверяем EcomMeta напрямую — скрываем если все дети hidden
   const ecomMeta = instanceCache.groups.get('EcomMeta');
 
   if (!ecomMeta || ecomMeta.removed) {
@@ -107,21 +170,19 @@ export function handleEcomMetaVisibility(context: HandlerContext): void {
     return;
   }
 
-  Logger.debug(`📦 [EcomMetaVisibility] fallback: hasData=${hasData}, visible=${ecomMeta.visible}`);
+  // Проверяем фактическую видимость детей (а не только наличие данных)
+  const allChildrenHidden = areAllChildrenHidden(ecomMeta);
 
-  if (!hasData && ecomMeta.visible) {
-    ecomMeta.visible = false;
-    Logger.debug(`📦 [EcomMetaVisibility] Скрыт EcomMeta (нет данных)`);
+  Logger.debug(
+    `📦 [EcomMetaVisibility] hasData=${hasData}, allChildrenHidden=${allChildrenHidden}, visible=${ecomMeta.visible}`,
+  );
 
-    // Также скрываем всех детей, чтобы handleEmptyGroups потом не показал группу
-    for (const child of ecomMeta.children) {
-      if ('visible' in child && !child.removed) {
-        (child as SceneNode).visible = false;
-      }
-    }
-  } else if (hasData && !ecomMeta.visible) {
-    ecomMeta.visible = true;
-    Logger.debug(`📦 [EcomMetaVisibility] Показан EcomMeta (есть данные)`);
+  if (allChildrenHidden && ecomMeta.visible) {
+    safeSetVisible(ecomMeta, false, container);
+    Logger.debug(`📦 [EcomMetaVisibility] Скрыт EcomMeta (все дети скрыты)`);
+  } else if (!allChildrenHidden && !ecomMeta.visible) {
+    safeSetVisible(ecomMeta, true, container);
+    Logger.debug(`📦 [EcomMetaVisibility] Показан EcomMeta (есть видимые дети)`);
   }
 }
 
@@ -173,11 +234,13 @@ export function handleEmptyGroups(context: HandlerContext): void {
       const hasVisible = hasAnyVisibleChild(group);
 
       if (allHidden && group.visible) {
-        group.visible = false;
-        hiddenCount++;
+        if (safeSetVisible(group, false, container)) {
+          hiddenCount++;
+        }
       } else if (hasVisible && !group.visible) {
-        group.visible = true;
-        shownCount++;
+        if (safeSetVisible(group, true, container)) {
+          shownCount++;
+        }
       }
     } catch (_e) {
       Logger.debug('[EmptyGroups] Group visibility toggle failed: ' + group.name);

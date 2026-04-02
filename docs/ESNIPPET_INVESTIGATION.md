@@ -68,7 +68,7 @@
 Схема (`src/schema/esnippet.ts`) и handlers выставляют на **корневой инстанс** ESnippet:
 
 - organicTitle, organicText, organicHost, organicPath — из строки как есть.
-- withThumb, withReviews, withQuotes, withDelivery, withPrice, withEcomMeta, withButton и т.д. — по compute/equals из полей строки.
+- withThumb, withReviews, withQuotes, withDelivery, withPrice, withDeliveryBnpl, withButton и т.д. — по compute/equals из полей строки.
 
 Если в логах плагина видно «Свойства: установлено X, не применено Y» и в списке доступных свойств корня есть organicTitle, withDelivery и т.д., то эти свойства должны быть установлены. Если их не видно в Figma на корне — проверить выделение (должен быть выбран именно корневой инстанс ESnippet, а не слой внутри слота).
 

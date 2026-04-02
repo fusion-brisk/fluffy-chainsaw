@@ -32,7 +32,7 @@ npm run verify                       # typecheck + lint + test + build (before c
 2. **Schema-first** — new properties → `packages/plugin/src/sandbox/schema/*.ts`, not handlers. Use `PropertyMapping` modes: `hasValue`, `stringValue`, `equals`, `compute`.
 3. **Cache-first** — `buildInstanceCache()` once, then `getCachedInstance()`. Never traverse tree repeatedly.
 4. **CSVFields has NO index signature** — every field explicit in `packages/plugin/src/types/csv-fields.ts`.
-5. **Visibility via booleans** — `trySetProperty(instance, ['withDelivery'], value)`, NOT `instance.visible = false`.
+5. **Visibility via booleans, NEVER `.visible` on boolean-controlled frames** — `trySetProperty(instance, ['withDelivery'], value)`, NOT `instance.visible = false`. Figma bidirectionally syncs boolean properties with layer visibility: `frame.visible = true` silently flips the parent's boolean property back to `true`, undoing schema engine work. Use `safeSetVisible(frame, value, container)` from `visibility-handlers.ts` — it detects the side effect and auto-reverts.
 6. **Logger only** — never `console.log`. Use `Logger.debug()` / `Logger.verbose()`.
 7. **Pure transforms** — `transforms.ts` functions: no side effects, no Figma API.
 8. **CSS fallbacks** — always provide hardcoded fallback for `--figma-color-*` variables. New button classes must be added to the global `button:hover:not(...)` exclusion list in `styles.css`.
@@ -84,6 +84,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - If the first fix doesn't work, re-examine assumptions from scratch rather than iterating on the same theory.
 - For complex bugs: list 2-3 possible root causes with evidence for/against each. Present hypotheses BEFORE making any code changes. Only proceed after user confirms which to investigate.
 - For cross-system bugs (extension → relay → plugin), identify WHICH system the bug is in before changing code. Trace the data flow step by step.
+- **Build-vs-source mismatch**: When a bug defies code analysis, check `dist/` build dates vs source modification times. The running code is what's in `dist/`, not `src/`. Run `ls -la packages/*/dist/*.js | head` and compare with `git diff --stat HEAD` to detect stale builds.
 
 ## Figma Plugin Development
 
@@ -94,6 +95,17 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - Data flow: Chrome extension → relay server → Figma plugin. JSON only, no CSV, no CORS fetches from plugin.
 - Always test that changes actually render in the plugin iframe — don't assume DOM operations succeed.
 - Port conflicts: relay uses port 3847. Before starting relay, check `lsof -i :3847` and kill conflicting processes.
+- **Figma component key updates**: When the designer updates a published component (renames properties, restructures layers), the component key changes. Check `component-map.ts` keys against actual library keys. Boolean property names must match between schema code and Figma component (`withDeliveryBnpl` not `withEcomMeta`).
+- **DOM selectors must handle both LI and DIV serp-items**: Yandex wraps standard results in `li.serp-item` but carousel/gallery blocks in `div.serp-item` inside `.main__carousel-item`. All DOM-walking functions (like `getSerpItemId`) must check `.serp-item` class, not tag name.
+- **Boolean↔Visibility bidirectional sync**: Figma boolean properties (e.g., `withPromo`) are bidirectionally bound to the controlled layer's `.visible`. Setting `layer.visible = true` **silently flips** the boolean property to `true` on the parent instance. **NEVER** set `.visible` directly on a frame whose visibility is governed by a boolean property — always use `trySetProperty` on the parent instance, or `safeSetVisible()` which detects and auto-reverts boolean side effects. This applies to ALL handlers that toggle `.visible`, especially `EmptyGroups`.
+
+## Build Discipline
+
+- **After editing any source file, always rebuild that package** before testing or asking the user to test. Source edits without rebuild = stale runtime.
+- Extension: `npm run build -w packages/extension` after ANY change to `packages/extension/src/`.
+- Plugin: `npm run build -w packages/plugin` (or root `npm run build`) after sandbox/UI changes.
+- After rebuild, remind the user to **reload the extension** in Chrome (chrome://extensions → Reload) and **reopen the Figma plugin**.
+- `npm run verify` before commit — catches typecheck + lint + test + build in one pass.
 
 ## Refactoring
 

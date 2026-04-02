@@ -121,27 +121,27 @@ describe('handleHidePriceBlock', () => {
 describe('handleEcomMetaVisibility', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('sets withEcomMeta=true when ecom data present (ESnippet)', () => {
+  it('sets withDeliveryBnpl=true when ecom data present (ESnippet)', () => {
     const ctx = createContext('ESnippet', { '#ProductRating': '4.5' });
     handleEcomMetaVisibility(ctx);
 
     expect(mockTrySetProperty).toHaveBeenCalledWith(
       ctx.container,
-      ['withEcomMeta'],
+      ['withDeliveryBnpl', 'withEcomMeta'],
       true,
-      '#withEcomMeta'
+      '#withDeliveryBnpl'
     );
   });
 
-  it('sets withEcomMeta=false when no ecom data (ESnippet)', () => {
+  it('sets withDeliveryBnpl=false when no ecom data (ESnippet)', () => {
     const ctx = createContext('ESnippet', {});
     handleEcomMetaVisibility(ctx);
 
     expect(mockTrySetProperty).toHaveBeenCalledWith(
       ctx.container,
-      ['withEcomMeta'],
+      ['withDeliveryBnpl', 'withEcomMeta'],
       false,
-      '#withEcomMeta'
+      '#withDeliveryBnpl'
     );
   });
 
@@ -158,9 +158,9 @@ describe('handleEcomMetaVisibility', () => {
 
     expect(mockTrySetProperty).toHaveBeenCalledWith(
       ctx.container,
-      ['withEcomMeta'],
+      ['withDeliveryBnpl', 'withEcomMeta'],
       true,
-      '#withEcomMeta'
+      '#withDeliveryBnpl'
     );
   });
 
@@ -170,9 +170,9 @@ describe('handleEcomMetaVisibility', () => {
 
     expect(mockTrySetProperty).toHaveBeenCalledWith(
       ctx.container,
-      ['withEcomMeta'],
+      ['withDeliveryBnpl', 'withEcomMeta'],
       false,
-      '#withEcomMeta'
+      '#withDeliveryBnpl'
     );
   });
 
@@ -185,14 +185,15 @@ describe('handleEcomMetaVisibility', () => {
 
     expect(mockTrySetProperty).toHaveBeenCalledWith(
       ctx.container,
-      ['withEcomMeta'],
+      ['withDeliveryBnpl', 'withEcomMeta'],
       true,
-      '#withEcomMeta'
+      '#withDeliveryBnpl'
     );
   });
 
   it('falls back to group visibility when trySetProperty returns false', () => {
     mockTrySetProperty.mockReturnValueOnce(false);
+    mockAllHidden.mockReturnValueOnce(true);
     const cache = mockCache();
     const ecomGroup = {
       name: 'EcomMeta',

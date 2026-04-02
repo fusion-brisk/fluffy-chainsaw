@@ -54,11 +54,12 @@ export function handleESnippetStructural(context: HandlerContext): void {
 }
 
 /**
- * Если withThumb=false, принудительно скрываем EThumb-слой
+ * Если image=none, принудительно скрываем EThumb-слой
  * (серый placeholder может оставаться видимым даже после свойства)
  */
 function applyThumbFallback(instance: InstanceNode, row: CSVRow): void {
-  if (row['#withThumb'] === 'true') return;
+  const hasImage = row['#withThumb'] === 'true' || row['#imageType'] === 'EThumbGroup';
+  if (hasImage) return;
 
   const names = ['EThumb', 'Organic-OfferThumb', 'Thumb'];
   for (let i = 0; i < names.length; i++) {

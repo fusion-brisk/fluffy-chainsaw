@@ -36,7 +36,7 @@
 | #OfficialShop | .OfficialShop (отдельно от Verified_type_goods) → false для этого кейса |
 | #VerifiedType | 'goods' при .Verified_type_goods |
 | #ShopInfo-Ugc | рейтинг 4,8 |
-| #ProductRating | то же значение (добавлено для withEcomMeta) |
+| #ProductRating | то же значение (добавлено для withDeliveryBnpl) |
 | #ReviewsNumber | число из «52,4K отзывов» |
 | #EReviews_shopText | «52,4K отзывов на магазин» |
 | #EDeliveryGroup | 'true', #EDeliveryGroup-Item-1 = «Из аптеки» |
@@ -56,7 +56,7 @@
 | withReviews | #ReviewsNumber \|\| #ShopInfo-Ugc | true |
 | withDelivery | #EDeliveryGroup | true |
 | withPrice | #OrganicPrice | true |
-| withEcomMeta | рейтинг/цена/барометр/лейблы | true |
+| withDeliveryBnpl | доставка/финтех/рейтинг/цена | true |
 | withData | отзывы ИЛИ доставка ИЛИ BNPL | true |
 | withButton | Desktop по умолчанию (для Organic_withOfferInfo не plain) | по platform |
 | showKebab | #showKebab | true |
@@ -78,4 +78,4 @@
 
 ## Зависимость от типа сниппета
 
-Для `#SnippetType === 'Organic'` (простая органика без оффера) в трансформах используется `isPlainOrganic(row)` → все «with*» для оффера/доставки/цены/рейтинга дают false. Для `Organic_withOfferInfo` и других типов с оффером эти флаги считаются по данным (withDelivery, withPrice, withEcomMeta и т.д.).
+Для `#SnippetType === 'Organic'` (простая органика без оффера) в трансформах используется `isPlainOrganic(row)` → все «with*» для оффера/доставки/цены/рейтинга дают false. Для `Organic_withOfferInfo` и других типов с оффером эти флаги считаются по данным (withDelivery, withPrice, withDeliveryBnpl и т.д.).

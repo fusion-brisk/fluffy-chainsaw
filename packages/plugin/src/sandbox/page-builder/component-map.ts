@@ -1,16 +1,23 @@
 /**
  * Component Map — маппинг типов сниппетов на компоненты библиотеки DC • ECOM
- * 
+ *
  * ВАЖНО: Ключи компонентов нужно получить из библиотеки DC • ECOM
  * Используйте скрипт get-component-keys.js в Dev Console Figma
  */
 
-import { ComponentConfig, ContainerConfig, SnippetType, GroupType, LayoutElementType, ContainerType } from './types';
+import {
+  ComponentConfig,
+  ContainerConfig,
+  SnippetType,
+  GroupType,
+  LayoutElementType,
+  ContainerType,
+} from './types';
 
 /**
  * Стили заливки из библиотеки DC • ECOM
  * Используются для применения фона через figma.importStyleByKeyAsync()
- * 
+ *
  * DEPRECATED: Стили работают некорректно в некоторых случаях.
  * Используйте VARIABLE_KEYS для привязки переменных.
  */
@@ -22,7 +29,7 @@ export const PAINT_STYLE_KEYS = {
 /**
  * Ключи переменных из библиотеки DC • ECOM (Colors)
  * Используются для применения заливки через figma.variables.importVariableByKeyAsync()
- * 
+ *
  * Как получить ключи:
  * 1. Открыть Figma Dev Console (Plugins → Development → Open console)
  * 2. Выполнить:
@@ -44,7 +51,7 @@ export const VARIABLE_KEYS = {
   'Background/Always/White': '1c5f42b15f6eaab3056db20a1f5447ea5ec2f909',
   'Background/Always/Secondary Black': '6dd7f860c8087e14cf4e95feb8d149c0edec8afb',
   'Background/Always/Tertiary Black': '3177b962b0a36878d0064a0ba6fe3b3453b48a69',
-  
+
   // === Text and Icon ===
   'Text and Icon/Primary': '4ca8951655d30c2c1132997c7728945d96fb29a0',
   'Text and Icon/Secondary': 'ec2fbd56bb82a3b5915ed775be53facdbb0c0c45',
@@ -63,7 +70,7 @@ export const VARIABLE_KEYS = {
   'Text and Icon/Always/Quinary Black': '9690e949866ae76a13bf86ddce5d5eecd732e4bf',
   'Text and Icon/Always/Quinary White': 'ba9df011d67e3d3010283539429f327a78788679',
   'Text and Icon/Always/Primary White': '5269c3610687d855f9ca38381dbc0ce0e8e80167',
-  
+
   // === Fill ===
   'Fill/05': 'e6370efe7f6f4b4bb2bd5c003abff065b7d84cfb',
   'Fill/05 Solid': 'e63bc25803c802b5e4a4e5cae17d31bb43d8a754',
@@ -82,14 +89,14 @@ export const VARIABLE_KEYS = {
   'Fill/Always/70 Black': 'ab1e275a0a273713ca402014804bd196168ba74d',
   'Fill/Always/80 Black': 'b77227414e31faf03af1ff7116fba8dc1e27f862',
   'Fill/Always/80 White': 'e3bd1e8cddc0b155c694edf4e5301828badad470',
-  
+
   // === Accent ===
   'Accent/Blue': 'a8fd5158c722d04e4682227e01763cc45d065eda',
   'Accent/Green': '336310b6aaef4f9124ab3e4a169bf99389038728',
   'Accent/Red': 'c8fe0cc47fcc0b601de0cd3dfbb9df8d999ad523',
   'Accent/Yellow': '347b9c5686cea6dab8bb410ed0c038826c53f82a',
   'Accent/Light Red': 'c6d2b231b81a0ab6470fade60e05521b0ed42ea0',
-  
+
   // === Applied ===
   'Applied/Link': '6e8c75148d8882c824ff0c6d09e88a5d1604f2dd',
   'Applied/Link Hover': '3fad36593910d666dcc92fdd53d93c105d5d3a19',
@@ -112,21 +119,21 @@ export const VARIABLE_KEYS = {
   'Applied/Control White Beta': '55c8ce4bb5552c7e2a5dca59389773e5c5dd9756',
   'Applied/Control White Beta Hovered': '1b67ed760f6497f5bab9e1883cac95f1d455496f',
   'Applied/Always/Control Secondary White': '48a34aa5b58d151c3b8c61d9375187f909e18c04',
-  
+
   // === Rating ===
   'Applied/Always/Rating Good': '8389ae38865689cc23c7ba73e45f8724aac17e63',
   'Applied/Always/Rating Average': 'fef81d3af3316da07815b4edb0124d305b2b5057',
   'Applied/Always/Rating Not Good': '1fb011502ae729823bbd0588f47c88c1987c62f3',
   'Applied/Always/Rating Bad': 'aae759e5e161402e0bdbebbd144ce57c30d0936c',
   'Applied/Always/Rating Awful': 'b163681d7ee7768aa487286dbefb07d143025110',
-  
+
   // === Tech ===
   'Tech/Theme': '422975deaec659fbbe974b41eb37b17955fe3767',
 } as const;
 
 /**
  * Маппинг типов сниппетов на конфигурацию компонентов
- * 
+ *
  * TODO(2026-03): Fill with real component keys from DC • ECOM library
  * Ключи можно получить:
  * 1. Через Dev Console в Figma (см. scripts/get-component-keys.js)
@@ -138,113 +145,111 @@ export const VARIABLE_KEYS = {
  */
 export const COMPONENT_NODE_IDS = {
   // EOfferItem ComponentSet
-  'EOfferItem': {
+  EOfferItem: {
     desktop_btnRight: '22275:104394',
     desktop_btnDown: '22275:104613',
     touch_btnRight: '15029:574539',
     touch_btnDown: '22266:215796',
   },
   // EShopItem ComponentSet
-  'EShopItem': {
+  EShopItem: {
     desktop: '22266:253481',
     touch: '22266:253420',
   },
   // EProductSnippet2 ComponentSet
-  'EProductSnippet2': {
+  EProductSnippet2: {
     default: '22275:120573',
     withPadding: '22275:120677',
     withBtn: '23256:276424',
   },
   // ESnippet ComponentSet
-  'ESnippet': {
+  ESnippet: {
     desktop: '21938:180822',
     touch: '15390:158563',
   },
 } as const;
 
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
-  'ESnippet': {
-    // TODO(2026-03): Update key after withThumb variant published
-    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Platform=Desktop
-    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91', // Platform=Touch
+  ESnippet: {
+    key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Platform=Desktop
+    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91', // Platform=Touch — TODO: update key
     name: 'ESnippet',
     defaultVariant: {
-      'Platform': 'Desktop',
-      'withButton': true,
-      'withMeta': true,
-      'withReviews': true,
-      'withDelivery': true,
-      'withFintech': true,
-      'withPrice': true,
-      'withPromo': false,
-      // 'withThumb': true, // Добавить после публикации новой версии
+      Platform: 'Desktop',
+      withButton: true,
+      withDeliveryBnpl: true,
+      withReviews: true,
+      withDelivery: true,
+      withFintech: true,
+      withPrice: true,
+      withPromo: false,
     },
   },
-  
-  'EOfferItem': {
+
+  EOfferItem: {
     key: 'ad30904f3637a4c14779a366e56b8d6173bbd78b', // Platform=Desktop, View=Btn Right
     keyTouch: '09f5630474c44e6514735edd7202c35adcf27613', // Platform=Touch, View=Btn Right
     name: 'EOfferItem',
     defaultVariant: {
-      'Platform': 'Desktop',
-      'View': 'Btn Right',
-      'withButton': true,
-      'withMeta': true,
-      'withReviews': true,
-      'withDelivery': true,
-      'withFintech': true,
+      Platform: 'Desktop',
+      View: 'Btn Right',
+      withButton: true,
+      withMeta: true,
+      withReviews: true,
+      withDelivery: true,
+      withFintech: true,
     },
   },
-  
-  'EShopItem': {
+
+  EShopItem: {
     key: 'a209c6636b3fa7c279731ef02c78065632b535c6', // Platform=Desktop, View=Default
     keyTouch: 'b1c1848c5454036cc48fdfaea06fcc14cd400980', // Platform=Touch, View=Default
     name: 'EShopItem',
     defaultVariant: {
-      'Platform': 'Desktop',
-      'View': 'Default',
-      'withButton': true,
-      'withMeta': true,
-      'withDelivery': true,
-      'withFintech': true,
+      Platform: 'Desktop',
+      View: 'Default',
+      withButton: true,
+      withMeta: true,
+      withDelivery: true,
+      withFintech: true,
     },
   },
-  
-  'EProductSnippet2': {
+
+  EProductSnippet2: {
     key: 'f921fc66ed6f56cccf558f7bcacbebcaa97495b7', // type=organic (default)
     name: 'EProductSnippet',
     defaultVariant: {
-      'type': 'organic',
-    },
-  },
-  
-  'Organic': {
-    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Maps to ESnippet (Desktop)
-    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
-    name: 'ESnippet',
-    defaultVariant: {
-      'Platform': 'Desktop',
-      'withPromo': false,
+      type: 'organic',
     },
   },
 
-  'Organic_withOfferInfo': {
-    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Maps to ESnippet (Desktop)
+  Organic: {
+    key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Maps to ESnippet (Desktop)
     keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
     name: 'ESnippet',
     defaultVariant: {
-      'Platform': 'Desktop',
-      'withPromo': false,
+      Platform: 'Desktop',
+      withPromo: false,
     },
   },
 
-  'Organic_Adv': {
-    key: '9cc1db3b34bdd3cedf0a3a29c86884bc618f4fdf', // Maps to ESnippet (Desktop) — промо-сниппет
+  Organic_withOfferInfo: {
+    key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Maps to ESnippet (Desktop)
     keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
     name: 'ESnippet',
     defaultVariant: {
-      'Platform': 'Desktop',
-      'withPromo': false,
+      Platform: 'Desktop',
+      withPromo: false,
+    },
+  },
+
+  Organic_Adv: {
+    key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Maps to ESnippet (Desktop) — промо-сниппет
+    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
+    name: 'ESnippet',
+    defaultVariant: {
+      Platform: 'Desktop',
+      withPromo: false,
     },
   },
 
@@ -252,7 +257,7 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
     key: 'f921fc66ed6f56cccf558f7bcacbebcaa97495b7', // Maps to EProductSnippet2
     name: 'EProductSnippet',
     defaultVariant: {
-      'type': 'organic',
+      type: 'organic',
     },
   },
 };
@@ -261,55 +266,55 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
  * Маппинг элементов страницы (Header, Footer, Pager, Related)
  */
 export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = {
-  'Header': {
+  Header: {
     key: '6cea05769f0320a02cce6ce168573daa75395308',
     name: 'Header',
     defaultVariant: {
-      'Platform': 'Desktop',
+      Platform: 'Desktop',
     },
   },
-  
-  'Related': {
+
+  Related: {
     key: 'e8b88751731dfbe91a6951472ae0233f07c5c32a',
     name: 'Related',
     defaultVariant: {
-      'Platform': 'Desktop',
+      Platform: 'Desktop',
     },
   },
-  
-  'Pager': {
+
+  Pager: {
     key: '074d6f70fff0d97ec766385cf475ae43b70e9356',
     name: 'Pager',
     defaultVariant: {
-      'Platform': 'Desktop',
+      Platform: 'Desktop',
     },
   },
-  
-  'Footer': {
+
+  Footer: {
     key: '', // TODO(2026-03): Update Footer component key
     name: 'Footer',
     defaultVariant: {
-      'Platform': 'Desktop',
+      Platform: 'Desktop',
     },
   },
-  
-  'EQuickFilters': {
+
+  EQuickFilters: {
     key: '', // Это Auto Layout фрейм, создаётся вручную
     name: 'EQuickFilters',
     defaultVariant: {},
   },
 
-  'EAsideFilters': {
+  EAsideFilters: {
     key: '', // Auto Layout фрейм, создаётся вручную из ASIDE_FILTER_COMPONENTS
     name: 'EAsideFilters',
     defaultVariant: {},
   },
-  
-  'Title': {
+
+  Title: {
     key: 'b49cc069e0de9428bfa913fd9a504011fafca336', // Size=M variant
     name: 'Title',
     defaultVariant: {
-      'Size': 'M',
+      Size: 'M',
       // Boolean properties — все отключены для минимального варианта
       'Grid | List Control#23400:0': false,
       'ADV Text Label#23052:0': false,
@@ -322,8 +327,8 @@ export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = 
       'ACTION ICON#22448:0': false,
     },
   },
-  
-  'FuturisSearch': {
+
+  FuturisSearch: {
     key: '', // Wizard-блок создаётся программно через wizard-processor
     name: 'FuturisSearch',
     defaultVariant: {},
@@ -335,30 +340,30 @@ export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = 
  */
 export const FILTER_COMPONENTS = {
   // Кнопка "Все фильтры"
-  'FilterButton': {
+  FilterButton: {
     key: 'af9d11ebc792f3fb6cef88babe0f092c6b8fd589', // ComponentSet Key
     variantKey: 'c3162fdf2f6fc1fb2252d14d73288265151d5b51', // Selected=False, View=Rounded
     name: 'Filters / Refine Control / Filter Button',
     defaultVariant: {
-      'Selected': 'False',
-      'View': 'Rounded',
+      Selected: 'False',
+      View: 'Rounded',
       'With counter': 'False',
-      'Disabled': 'False',
+      Disabled: 'False',
     },
   },
 
   // Кнопки быстрых фильтров (Цена, Бренд и т.д.)
   // View=Secondary, Right=True (иконка-стрелка справа)
-  'QuickFilterButton': {
+  QuickFilterButton: {
     key: 'a7ca09ed0f1e27d8b6bb038d6f91fa100f40b1bf', // Control / Button ComponentSet Key
     variantKey: '3729962e75d05135920ef313930f59ecd45e8bd5', // Base variant
     name: 'Control / Button',
     defaultVariant: {
-      'View': 'Secondary',
-      'Size': 'M',
-      'Text': true,
-      'Right': true,   // Иконка-стрелка справа
-      'Left': false,   // Без иконки слева
+      View: 'Secondary',
+      Size: 'M',
+      Text: true,
+      Right: true, // Иконка-стрелка справа
+      Left: false, // Без иконки слева
     },
   },
 } as const;
@@ -370,52 +375,52 @@ export const FILTER_COMPONENTS = {
  */
 export const ASIDE_FILTER_COMPONENTS = {
   // Заголовок секции фильтра (Title, Size=XS)
-  'SectionTitle': {
+  SectionTitle: {
     setKey: 'cd47767eeadd916860f6c7c0222a63a8f4b3c5b9',
     name: 'Title',
-    variantProps: { 'Size': 'XS' },
+    variantProps: { Size: 'XS' },
     defaultBooleans: {
       'Grid | List Control': false,
       'ADV Text Label': false,
-      'Favicon': false,
+      Favicon: false,
       '2-Action': false,
-      'Subtitle': false,
+      Subtitle: false,
       '1-Action': false,
       '3-Action': false,
-      'Chevron': false,
+      Chevron: false,
       'ACTION ICON': false,
     },
   },
   // Чекбокс-элемент (Control / Input, Toggle=False)
-  'EnumFilterItem': {
+  EnumFilterItem: {
     setKey: '9a6666cffa6a4bd51a72be430526e517e33ef8fa',
     name: 'Control / Input',
     variantProps: {
-      'Type': 'Check',
-      'Size': 'Text 14px',
-      'Toggle': 'False',
-      'Hover': 'False',
-      'Disabled': 'False',
-      'Focused': 'False',
+      Type: 'Check',
+      Size: 'Text 14px',
+      Toggle: 'False',
+      Hover: 'False',
+      Disabled: 'False',
+      Focused: 'False',
     },
     defaultBooleans: { 'Show Sufix': false },
   },
   // Кнопка категории (Level)
-  'CategoryItem': {
+  CategoryItem: {
     setKey: '5da09ab6d1f513d699940e507379e254dbaf1ea7',
     name: 'Level',
     variantProps: { 'Property 1': 'Level 2' },
   },
   // Инпут от/до (Input / Text Input [Beta], Size=M)
-  'NumberInput': {
+  NumberInput: {
     setKey: 'c3a1d52c5f471c2b55307225ae4350953826c781',
     name: 'Input / Text Input [Beta]',
     variantProps: {
-      'Size': 'M',
-      'Type': 'Empty',
-      'Active': 'False',
-      'Disabled': 'False',
-      'Error': 'False',
+      Size: 'M',
+      Type: 'Empty',
+      Active: 'False',
+      Disabled: 'False',
+      Error: 'False',
     },
     defaultBooleans: {
       'Show Slider': false,
@@ -428,54 +433,54 @@ export const ASIDE_FILTER_COMPONENTS = {
 
 /**
  * Маппинг типов групп на конфигурацию компонентов
- * 
+ *
  * Группы — это компоненты с несколькими слотами для сниппетов
  * Количество видимых сниппетов регулируется через свойства
  */
 export const GROUP_COMPONENT_MAP: Record<GroupType, ComponentConfig> = {
-  'EShopGroup': {
+  EShopGroup: {
     key: '', // AutoLayout container — created programmatically
     name: 'EShopGroup',
     isGroup: true,
     maxItems: 6,
     itemCountProperty: 'itemsCount',
     defaultVariant: {
-      'Platform': 'desktop',
-      'itemsCount': '3',
+      Platform: 'desktop',
+      itemsCount: '3',
     },
   },
 
-  'EOfferGroup': {
+  EOfferGroup: {
     key: '', // AutoLayout container — created programmatically
     name: 'EOfferGroup',
     isGroup: true,
     maxItems: 10,
     itemCountProperty: 'itemsCount',
     defaultVariant: {
-      'Platform': 'desktop',
+      Platform: 'desktop',
     },
   },
 
-  'ProductTileRow': {
+  ProductTileRow: {
     key: '', // AutoLayout container — created programmatically
     name: 'ProductTileRow',
     isGroup: true,
     maxItems: 4,
     itemCountProperty: 'columns',
     defaultVariant: {
-      'Platform': 'desktop',
-      'columns': '4',
+      Platform: 'desktop',
+      columns: '4',
     },
   },
 
-  'OrganicBlock': {
+  OrganicBlock: {
     key: '', // AutoLayout container — created programmatically
     name: 'OrganicBlock',
     isGroup: true,
     maxItems: 5,
     itemCountProperty: 'resultsCount',
     defaultVariant: {
-      'Platform': 'desktop',
+      Platform: 'desktop',
     },
   },
 };
@@ -483,7 +488,9 @@ export const GROUP_COMPONENT_MAP: Record<GroupType, ComponentConfig> = {
 /**
  * Получить конфигурацию компонента по типу
  */
-export function getComponentConfig(type: SnippetType | GroupType | LayoutElementType): ComponentConfig | null {
+export function getComponentConfig(
+  type: SnippetType | GroupType | LayoutElementType,
+): ComponentConfig | null {
   if (type in SNIPPET_COMPONENT_MAP) {
     return SNIPPET_COMPONENT_MAP[type as SnippetType];
   }
@@ -519,17 +526,17 @@ export function isLayoutType(type: string): type is LayoutElementType {
 
 /**
  * Конфигурации контейнеров (Auto Layout фреймы)
- * 
+ *
  * Контейнеры — это фреймы, которые группируют сниппеты определённого типа
  */
 export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
-  'AdvProductGallery': {
+  AdvProductGallery: {
     name: 'AdvProductGallery',
-    layoutMode: 'HORIZONTAL',  // Горизонтальный layout без wrap
-    width: 'HUG',              // HUG — ширина по контенту (без обрезки)
+    layoutMode: 'HORIZONTAL', // Горизонтальный layout без wrap
+    width: 'HUG', // HUG — ширина по контенту (без обрезки)
     height: 'HUG',
-    itemSpacing: 8,            // gap между карточками
-    clipsContent: false,       // Без clip — контент может выходить за границы
+    itemSpacing: 8, // gap между карточками
+    clipsContent: false, // Без clip — контент может выходить за границы
     padding: {
       top: 0,
       right: 0,
@@ -537,30 +544,47 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
       left: 0,
     },
     childTypes: ['EProductSnippet2'],
-    childWidth: 186,  // Фиксированная ширина карточки
+    childWidth: 156, // Фиксированная ширина карточки (156px в продакшене)
     // Для дочерних EProductSnippet2 применяется View=AdvGallery
   },
 
-  'ProductsTiles': {
+  ProductsTiles: {
     name: 'ProductsTiles',
     layoutMode: 'WRAP',
     width: 'FILL',
     height: 'HUG',
-    itemSpacing: 8,          // gap между карточками по горизонтали
-    counterAxisSpacing: 8,   // gap между строками
-    clipsContent: true,      // overflow hidden
+    itemSpacing: 8, // gap между карточками по горизонтали
+    counterAxisSpacing: 8, // gap между строками
+    clipsContent: true, // overflow hidden
     padding: {
-      top: 16,   // верхний паддинг для отступа от Title
+      top: 16, // верхний паддинг для отступа от Title
       right: 0,
       bottom: 0,
       left: 0,
     },
     childTypes: ['EProductSnippet2'],
-    childWidth: 184,  // Фиксированная ширина карточки (desktop) — было 186
+    childWidth: 184, // Фиксированная ширина карточки (desktop) — было 186
     // Для дочерних EProductSnippet2 применяется View=Default
   },
-  
-  'EntityOffers': {
+
+  ProductsMixedGrid: {
+    name: 'ProductsMixedGrid',
+    layoutMode: 'VERTICAL', // wrapper only; inner container uses NONE for masonry
+    width: 'FILL',
+    height: 'HUG',
+    itemSpacing: 8,
+    clipsContent: true,
+    padding: {
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+    },
+    childTypes: ['EProductSnippet2'],
+    childWidth: 184, // 4 columns × 184px + 3 gaps × 8px = 760px
+  },
+
+  EntityOffers: {
     name: 'EntityOffers',
     layoutMode: 'VERTICAL',
     width: 'FILL',
@@ -579,7 +603,7 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
     childWidth: 'FILL',
   },
 
-  'EShopList': {
+  EShopList: {
     name: 'EShopList',
     layoutMode: 'VERTICAL',
     width: 'FILL',
@@ -594,8 +618,8 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
     childTypes: ['EShopItem'],
     childWidth: 'FILL',
   },
-  
-  'EOfferList': {
+
+  EOfferList: {
     name: 'EOfferList',
     layoutMode: 'VERTICAL',
     width: 'FILL',
@@ -610,8 +634,8 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
     childTypes: ['EOfferItem'],
     childWidth: 'FILL',
   },
-  
-  'OrganicList': {
+
+  OrganicList: {
     name: 'OrganicList',
     layoutMode: 'VERTICAL',
     width: 'FILL',
@@ -627,12 +651,12 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
     childWidth: 'FILL',
   },
 
-  'ImagesGrid': {
+  ImagesGrid: {
     name: 'ImagesGrid',
     layoutMode: 'VERTICAL',
     width: 'FILL',
     height: 'HUG',
-    itemSpacing: 6,        // gap между рядами
+    itemSpacing: 6, // gap между рядами
     clipsContent: true,
     padding: {
       top: 0,
@@ -640,7 +664,7 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
       bottom: 0,
       left: 0,
     },
-    childTypes: [],        // не содержит стандартные сниппеты
+    childTypes: [], // не содержит стандартные сниппеты
   },
 };
 
@@ -655,14 +679,14 @@ export const ETHUMB_CONFIG = {
   name: 'EThumb',
   /** Properties для чистого отображения в grid (имена с Figma hash suffixes) */
   gridDefaults: {
-    'Type': 'New; feb-26',
-    'Ratio': 'Manual',
+    Type: 'New; feb-26',
+    Ratio: 'Manual',
     'Label#6083:9': false,
     'Favorite#9399:7': false,
     'Dot indicator#6083:11': false,
     'White BG#6076:2': false,
-    'Image Fill#6076:0': true
-  } as Record<string, string | boolean>
+    'Image Fill#6076:0': true,
+  } as Record<string, string | boolean>,
 };
 
 /**
@@ -695,7 +719,7 @@ export function getContainerTypeForSnippet(snippetType: SnippetType): ContainerT
       // Organic_withOfferInfo с ценой группируются в EntityOffers
       return 'EntityOffers';
     default:
-      return null;  // ESnippet и другие не группируются автоматически
+      return null; // ESnippet и другие не группируются автоматически
   }
 }
 
@@ -703,14 +727,15 @@ export function getContainerTypeForSnippet(snippetType: SnippetType): ContainerT
  * Маппинг CSS классов контейнеров HTML на ContainerType
  */
 export const CSS_CLASS_TO_CONTAINER_TYPE: Record<string, ContainerType> = {
-  'AdvProductGallery': 'AdvProductGallery',
-  'ProductsTiles': 'ProductsTiles',
-  'EntityOffers': 'EntityOffers',
-  'EShopGroup': 'EShopList',
-  'EOfferGroup': 'EOfferList',
-  'EShopList': 'EShopList',
-  'EOfferList': 'EOfferList',
-  'OrganicList': 'OrganicList',
+  AdvProductGallery: 'AdvProductGallery',
+  ProductsTiles: 'ProductsTiles',
+  EntityOffers: 'EntityOffers',
+  EShopGroup: 'EShopList',
+  EOfferGroup: 'EOfferList',
+  EShopList: 'EShopList',
+  EOfferList: 'EOfferList',
+  OrganicList: 'OrganicList',
+  ProductsImagesMixedGrid: 'ProductsMixedGrid',
 };
 
 /**
@@ -718,12 +743,12 @@ export const CSS_CLASS_TO_CONTAINER_TYPE: Record<string, ContainerType> = {
  * Используется для определения типа элемента при парсинге HTML
  */
 export const CSS_CLASS_TO_SNIPPET_TYPE: Record<string, SnippetType> = {
-  'ESnippet': 'ESnippet',
-  'EOfferItem': 'EOfferItem',
-  'EShopItem': 'EShopItem',
-  'EProductSnippet2': 'EProductSnippet2',
-  'Organic': 'Organic',
-  'Organic_withOfferInfo': 'Organic_withOfferInfo',
+  ESnippet: 'ESnippet',
+  EOfferItem: 'EOfferItem',
+  EShopItem: 'EShopItem',
+  EProductSnippet2: 'EProductSnippet2',
+  Organic: 'Organic',
+  Organic_withOfferInfo: 'Organic_withOfferInfo',
   'ProductTile-Item': 'ProductTile-Item',
 };
 
@@ -731,10 +756,9 @@ export const CSS_CLASS_TO_SNIPPET_TYPE: Record<string, SnippetType> = {
  * Маппинг CSS классов HTML на типы групп
  */
 export const CSS_CLASS_TO_GROUP_TYPE: Record<string, GroupType> = {
-  'EShopGroup': 'EShopGroup',
-  'EOfferGroup': 'EOfferGroup',
-  'ProductTileRow': 'ProductTileRow',
-  'OrganicBlock': 'OrganicBlock',
+  EShopGroup: 'EShopGroup',
+  EOfferGroup: 'EOfferGroup',
+  ProductTileRow: 'ProductTileRow',
+  OrganicBlock: 'OrganicBlock',
   'serp-list': 'OrganicBlock', // Общий контейнер результатов
 };
-

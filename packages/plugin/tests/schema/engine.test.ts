@@ -700,7 +700,7 @@ describe('applySchema', () => {
 
       // Spot-check key properties
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withThumb'], true, '#withThumb'
+        container, ['image'], 'single', '#imageType'
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
         container, ['withReviews'], true, '#withReviews'

@@ -9,12 +9,7 @@
  */
 
 import { Logger } from '../../logger';
-import {
-  findFirstNodeByName,
-} from '../../utils/node-search';
-import {
-  getCachedInstance,
-} from '../../utils/instance-cache';
+import { findFirstNodeByName } from '../../utils/node-search';
 import { fetchAndApplyImage } from '../image-apply';
 import { HandlerContext } from './types';
 import { CSVRow } from '../../types/csv-fields';
@@ -39,14 +34,18 @@ function getCachedComponent(name: string): ComponentNode | undefined {
     componentsCache = new Map();
     componentsCachePageId = figma.currentPage.id;
 
-    const allComponents = figma.currentPage.findAll(n => n.type === 'COMPONENT') as ComponentNode[];
+    const allComponents = figma.currentPage.findAll(
+      (n) => n.type === 'COMPONENT',
+    ) as ComponentNode[];
     for (const comp of allComponents) {
       if (!comp.removed && !componentsCache.has(comp.name)) {
         componentsCache.set(comp.name, comp);
       }
     }
 
-    Logger.debug(`📦 [ComponentsCache] Построен: ${componentsCache.size} компонентов за ${Date.now() - startTime}ms`);
+    Logger.debug(
+      `📦 [ComponentsCache] Построен: ${componentsCache.size} компонентов за ${Date.now() - startTime}ms`,
+    );
   }
 
   return componentsCache.get(name);
@@ -85,11 +84,15 @@ async function applySingleImage(container: SceneNode, row: CSVRow): Promise<void
   }
 
   if (!layer) {
-    Logger.debug(`⚠️ [applySingleImage] Слой изображения не найден (пробовал: ${layerNames.join(', ')})`);
+    Logger.debug(
+      `⚠️ [applySingleImage] Слой изображения не найден (пробовал: ${layerNames.join(', ')})`,
+    );
     return;
   }
 
-  Logger.debug(`🖼️ [applySingleImage] Применяем к "${layer.name}", URL="${url.substring(0, 50)}..."`);
+  Logger.debug(
+    `🖼️ [applySingleImage] Применяем к "${layer.name}", URL="${url.substring(0, 50)}..."`,
+  );
   await fetchAndApplyImage(layer, url, 'FIT', '[applySingleImage]');
 }
 
@@ -132,13 +135,15 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
 
   const imageUrls = [image1, image2, image3];
 
-  Logger.debug(`🖼️ [applyThumbGroupImages] Начало для "${container.name}", URL: Image1="${image1.substring(0, 50)}...", Image2="${image2.substring(0, 50)}...", Image3="${image3.substring(0, 50)}..."`);
+  Logger.debug(
+    `🖼️ [applyThumbGroupImages] Начало для "${container.name}", URL: Image1="${image1.substring(0, 50)}...", Image2="${image2.substring(0, 50)}...", Image3="${image3.substring(0, 50)}..."`,
+  );
 
   // Стратегия 1: Ищем слои по точным именам
   const exactNames = [
     ['#Image1', 'Image1', 'EThumbGroup-Main'],
     ['#Image2', 'Image2', 'EThumbGroup-Item_topRight'],
-    ['#Image3', 'Image3', 'EThumbGroup-Item_bottomRight']
+    ['#Image3', 'Image3', 'EThumbGroup-Item_bottomRight'],
   ];
 
   const foundLayers: (SceneNode | null)[] = [null, null, null];
@@ -150,6 +155,29 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
         foundLayers[i] = layer;
         Logger.debug(`🖼️ [applyThumbGroupImages] Найден слой для Image${i + 1}: "${layer.name}"`);
         break;
+      }
+    }
+  }
+
+  // Стратегия 1.5: Несколько #OrganicImage (новая структура — nested EThumb внутри EThumbGroup)
+  if (!foundLayers[0] && !foundLayers[1] && !foundLayers[2]) {
+    if ('findAll' in container) {
+      const allOrganicImages: SceneNode[] = [];
+      (container as FrameNode).findAll((n) => {
+        if (n.name === '#OrganicImage' && 'fills' in n) {
+          allOrganicImages.push(n);
+        }
+        return false;
+      });
+      if (allOrganicImages.length >= 2) {
+        // Сортируем по площади (самый большой = главное изображение)
+        allOrganicImages.sort((a, b) => b.width * b.height - a.width * a.height);
+        for (let i = 0; i < Math.min(3, allOrganicImages.length); i++) {
+          foundLayers[i] = allOrganicImages[i];
+          Logger.debug(
+            `🖼️ [applyThumbGroupImages] Strategy 1.5: #OrganicImage "${allOrganicImages[i].name}" (${allOrganicImages[i].width}×${allOrganicImages[i].height}) для Image${i + 1}`,
+          );
+        }
       }
     }
   }
@@ -173,7 +201,7 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
     const allFillables = findAllFillableLayers(container);
 
     // Фильтруем только те, что похожи на слоты изображений (не слишком маленькие)
-    const imageLayers = allFillables.filter(l => {
+    const imageLayers = allFillables.filter((l) => {
       if (!('width' in l)) return false;
       const w = (l as SceneNode & { width: number }).width;
       const h = (l as SceneNode & { height: number }).height;
@@ -184,14 +212,20 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
 
     // Сортируем по размеру (самый большой = главное изображение)
     imageLayers.sort((a, b) => {
-      const areaA = ('width' in a ? (a as SceneNode & { width: number }).width : 0) * ('height' in a ? (a as SceneNode & { height: number }).height : 0);
-      const areaB = ('width' in b ? (b as SceneNode & { width: number }).width : 0) * ('height' in b ? (b as SceneNode & { height: number }).height : 0);
+      const areaA =
+        ('width' in a ? (a as SceneNode & { width: number }).width : 0) *
+        ('height' in a ? (a as SceneNode & { height: number }).height : 0);
+      const areaB =
+        ('width' in b ? (b as SceneNode & { width: number }).width : 0) *
+        ('height' in b ? (b as SceneNode & { height: number }).height : 0);
       return areaB - areaA;
     });
 
     for (let i = 0; i < Math.min(3, imageLayers.length); i++) {
       foundLayers[i] = imageLayers[i];
-      Logger.debug(`🖼️ [applyThumbGroupImages] Автоподбор: слой "${imageLayers[i].name}" для Image${i + 1}`);
+      Logger.debug(
+        `🖼️ [applyThumbGroupImages] Автоподбор: слой "${imageLayers[i].name}" для Image${i + 1}`,
+      );
     }
   }
 
@@ -230,282 +264,34 @@ export async function handleImageType(context: HandlerContext): Promise<void> {
   const imageType = row['#imageType'];
   Logger.debug(`🖼️ [imageType] container="${containerName}", imageType=${imageType || 'N/A'}`);
 
-  // ВАЖНО: Независимо от imageType, пробуем применить изображения к EThumbGroup
-  // Это нужно потому что в Figma может быть EThumbGroup по умолчанию
-  // Ищем слой #Image1 — если он есть и виден, применяем изображения
-  // Проверяем что container является SceneNode (имеет 'type')
-  if ('type' in container && container.type !== 'DOCUMENT' && container.type !== 'PAGE') {
+  // Применяем изображения к EThumbGroup если imageType указывает на коллаж
+  // Проверяем наличие слоёв #Image1 или #OrganicImage (новая структура: nested EThumb)
+  if (
+    'type' in container &&
+    container.type !== 'DOCUMENT' &&
+    container.type !== 'PAGE' &&
+    imageType === 'EThumbGroup'
+  ) {
     const sceneContainer = container as SceneNode;
-    const hasImage1Layer = findFirstNodeByName(sceneContainer, '#Image1') !== null;
+    const hasImageLayers =
+      findFirstNodeByName(sceneContainer, '#Image1') !== null ||
+      findFirstNodeByName(sceneContainer, '#OrganicImage') !== null;
 
-    if (hasImage1Layer) {
-      Logger.debug(`🖼️ [imageType] Найден слой #Image1 — применяем изображения к EThumbGroup`);
+    if (hasImageLayers) {
+      Logger.debug(`🖼️ [imageType] EThumbGroup — применяем изображения к коллажу`);
       await applyThumbGroupImages(sceneContainer, row);
     }
   }
 
-  // Определяем целевое состояние: EThumb (одна картинка) или EThumbGroup (коллаж)
-  const targetState = (!imageType || imageType === 'EThumb') ? 'Default' : 'EThumbGroup';
+  // Переключение image VARIANT теперь выполняется schema engine (esnippet.ts).
+  // Handler отвечает только за применение изображений.
 
-  Logger.debug(`🖼️ [imageType] Целевое состояние: ${targetState} (imageType=${imageType || 'N/A'})`);
-
-  // Ищем INSTANCE для изменения State property
-
-  // Нужен EThumbGroup — ищем instance на котором есть свойство imageType
-  // Контейнер может быть INSTANCE или FRAME (с INSTANCE внутри)
-  let targetInstance: InstanceNode | null = null;
-
-  if (container.type === 'INSTANCE') {
-    targetInstance = container as InstanceNode;
-  } else if ('findOne' in container) {
-    // Контейнер не INSTANCE — ищем внутри первый INSTANCE
-    const innerInstance = (container as FrameNode).findOne(n => n.type === 'INSTANCE');
-    if (innerInstance) {
-      targetInstance = innerInstance as InstanceNode;
-      Logger.debug(`🖼️ [imageType] Найден внутренний INSTANCE: ${innerInstance.name}`);
+  if (!imageType || imageType === 'EThumb') {
+    // Одиночное изображение
+    if ('type' in container && container.type !== 'DOCUMENT' && container.type !== 'PAGE') {
+      Logger.debug(`🖼️ [imageType] Применяем одиночное изображение`);
+      await applySingleImage(container as SceneNode, row);
     }
   }
-
-  if (!targetInstance) {
-    Logger.debug(`🖼️ [imageType] INSTANCE не найден (container.type=${container.type})`);
-    return;
-  }
-
-  const instance = targetInstance;
-
-  // Ищем вложенный EThumb instance — ОПТИМИЗИРОВАНО: instanceCache сначала
-  let eThumbInstance: InstanceNode | null = null;
-
-  if (instance.name.toLowerCase().includes('ethumb')) {
-    eThumbInstance = instance;
-  } else if (instanceCache) {
-    // Используем кэш для поиска EThumb вместо deep traversal
-    eThumbInstance = getCachedInstance(instanceCache, 'EThumb') ||
-                     getCachedInstance(instanceCache, 'Thumb') || null;
-  }
-
-  // Fallback: deep traversal только если кэш не помог
-  if (!eThumbInstance && 'findOne' in instance) {
-    const nodeWithFindOne = instance as unknown as { findOne: (callback: (node: SceneNode) => boolean) => SceneNode | null };
-    eThumbInstance = nodeWithFindOne.findOne(n => {
-      if (n.type !== 'INSTANCE') return false;
-      return n.name.toLowerCase().includes('ethumb') || n.name.toLowerCase().includes('thumb');
-    }) as InstanceNode | null;
-  }
-
-  // Пробуем установить State property
-  if (eThumbInstance) {
-    const eThumbProps = eThumbInstance.componentProperties;
-    Logger.debug(`🖼️ [imageType] EThumb найден: "${eThumbInstance.name}", свойства: ${Object.keys(eThumbProps).join(', ')}`);
-
-    // Ищем property State
-    for (const key in eThumbProps) {
-      const keyLower = key.toLowerCase();
-      if (keyLower === 'state' || keyLower.startsWith('state#')) {
-        const stateProp = eThumbProps[key];
-        if (stateProp && typeof stateProp === 'object' && 'type' in stateProp) {
-          Logger.debug(`🖼️ [imageType] Найдено State property: "${key}", type=${stateProp.type}, value="${(stateProp as { value: unknown }).value}"`);
-
-          if (stateProp.type === 'VARIANT') {
-            try {
-              eThumbInstance.setProperties({ [key]: targetState });
-              Logger.debug(`✅ [imageType] State установлен: ${targetState}`);
-
-              // Если переключили на Default — применяем одиночное изображение
-              if (targetState === 'Default') {
-                await applySingleImage(container as SceneNode, row);
-                return;
-              }
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : String(e);
-              Logger.warn(`⚠️ [imageType] Ошибка установки State: ${msg}`);
-            }
-          }
-        }
-        break;
-      }
-    }
-  }
-
-  // Если targetState = Default, применяем одиночное изображение и выходим
-  if (targetState === 'Default') {
-    Logger.debug(`🖼️ [imageType] Целевое состояние Default — применяем одиночное изображение`);
-    await applySingleImage(container as SceneNode, row);
-    return;
-  }
-
-  // Проверяем есть ли свойство imageType (для переключения через instance swap)
-  const props = instance.componentProperties;
-  let imageTypeKey: string | null = null;
-
-  Logger.debug(`🖼️ [imageType] Поиск свойства imageType на ${instance.name}`);
-  Logger.debug(`🖼️ [imageType] Доступные свойства: ${Object.keys(props).join(', ')}`);
-
-  for (const key in props) {
-    // Ищем свойство с именем imageType (может быть imageType#123:456, ImageType, Type и т.д.)
-    const keyLower = key.toLowerCase();
-    if (keyLower === 'imagetype' ||
-        keyLower.startsWith('imagetype#') ||
-        keyLower === 'type' ||
-        keyLower.startsWith('type#')) {
-      imageTypeKey = key;
-      break;
-    }
-  }
-
-  if (!imageTypeKey) {
-    Logger.debug(`🖼️ [imageType] Свойство imageType НЕ НАЙДЕНО`);
-    return;
-  }
-
-  const prop = props[imageTypeKey];
-  if (!prop || typeof prop !== 'object' || !('type' in prop)) return;
-
-  Logger.debug(`🖼️ [imageType] Найдено свойство "${imageTypeKey}", type=${prop.type}`);
-
-  // Instance swap property имеет type = 'INSTANCE_SWAP'
-  if (prop.type !== 'INSTANCE_SWAP') {
-    Logger.debug(`   🖼️ [imageType] Свойство "${imageTypeKey}" не является INSTANCE_SWAP (type=${prop.type})`);
-    return;
-  }
-
-  try {
-    // Для instance swap нужно найти компонент по имени и получить его key
-    const targetComponentName = imageType || ''; // 'EThumbGroup'
-    if (!targetComponentName) {
-      Logger.debug(`⚠️ [imageType] Пустое значение imageType`);
-      return;
-    }
-
-    // Ищем компонент в кэше (O(1) вместо findAll по всей странице)
-    const cachedComponent = getCachedComponent(targetComponentName);
-    const components = cachedComponent ? [cachedComponent] : [];
-
-    if (components.length === 0) {
-      // Пробуем найти среди published components — это может быть component set
-      // Для instance swap с exposed property можно использовать preferredValues
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const preferredValues = (prop as any).preferredValues as Array<{ type: string; key: string } | string> | undefined;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const currentValue = (prop as any).value as string | undefined;
-
-      if (preferredValues && Array.isArray(preferredValues)) {
-        Logger.debug(`🖼️ [imageType] preferredValues: ${JSON.stringify(preferredValues)}`);
-        Logger.debug(`🖼️ [imageType] currentValue: ${currentValue}`);
-
-        // preferredValues может быть массивом объектов {type, key} или просто строк
-        // Проверяем формат
-        const isObjectArray = preferredValues.length > 0 && typeof preferredValues[0] === 'object';
-
-        let targetKey: string | null = null;
-
-        if (isObjectArray) {
-          // Формат: [{type: 'COMPONENT', key: '...'}]
-          // Ищем альтернативный вариант (не текущий)
-          const alternative = preferredValues.find((v) => typeof v === 'object' && v.key !== currentValue);
-          if (alternative && typeof alternative === 'object') {
-            targetKey = alternative.key;
-            Logger.debug(`🖼️ [imageType] Найден альтернативный вариант (объект): key=${targetKey}`);
-          }
-        } else {
-          // Формат: ['key1', 'key2'] — массив строк-ключей
-          const alternative = preferredValues.find((v) => typeof v === 'string' && v !== currentValue);
-          if (alternative && typeof alternative === 'string') {
-            targetKey = alternative;
-            Logger.debug(`🖼️ [imageType] Найден альтернативный вариант (строка): key=${targetKey}`);
-          }
-        }
-
-        if (targetKey) {
-          Logger.debug(`🖼️ [imageType] Найден component key: ${targetKey}`);
-
-          // EThumbGroup теперь ВАРИАНТ внутри ComponentSet EThumb!
-          // Ищем вложенный instance EThumb и переключаем на нужный вариант
-          // Используем findOne вместо рекурсии для производительности
-
-          // Reuse eThumbInstance found above (line ~907)
-          if (eThumbInstance) {
-            Logger.debug(`🖼️ [imageType] Найден вложенный EThumb: "${eThumbInstance.name}" (id=${eThumbInstance.id})`);
-
-            const mainComp = await eThumbInstance.getMainComponentAsync();
-            if (mainComp && mainComp.parent && mainComp.parent.type === 'COMPONENT_SET') {
-              const componentSet = mainComp.parent as ComponentSetNode;
-              Logger.debug(`🖼️ [imageType] ComponentSet: "${componentSet.name}" с ${componentSet.children.length} вариантами`);
-
-              // Логируем ВСЕ варианты для диагностики
-              Logger.debug(`🖼️ [imageType] Все варианты:`);
-              componentSet.children.forEach((child, i) => {
-                if (child.type === 'COMPONENT') {
-                  const isCurrent = child.id === mainComp.id;
-                  Logger.debug(`   ${i + 1}. "${child.name}" (id=${child.id}, key=${child.key}) ${isCurrent ? '← ТЕКУЩИЙ' : ''}`);
-                }
-              });
-
-              // Ищем вариант с "group" в имени
-              const targetVariant = componentSet.children.find((child) => {
-                if (child.type !== 'COMPONENT') return false;
-                const nameLower = child.name.toLowerCase();
-                return nameLower.includes('group') || nameLower.includes('collage') || nameLower.includes('thumbgroup');
-              }) as ComponentNode | undefined;
-
-              if (targetVariant) {
-                Logger.debug(`🖼️ [imageType] Найден вариант "group": "${targetVariant.name}" (id=${targetVariant.id})`);
-                Logger.debug(`🖼️ [imageType] Устанавливаем ${imageTypeKey}=${targetVariant.id}`);
-
-                try {
-                  instance.setProperties({ [imageTypeKey]: targetVariant.id });
-                  Logger.debug(`✅ [imageType] Успешно установлен EThumbGroup!`);
-
-                  // После переключения применяем изображения к новым слоям
-                  await applyThumbGroupImages(instance, row);
-
-                  return;
-                } catch (setErr) {
-                  const msg = setErr instanceof Error ? setErr.message : String(setErr);
-                  Logger.warn(`⚠️ [imageType] Ошибка setProperties: ${msg}`);
-                }
-              } else {
-                Logger.debug(`⚠️ [imageType] Вариант с "group" не найден среди ${componentSet.children.length} вариантов`);
-                // Fallback: применяем изображения к текущему варианту
-                await applyThumbGroupImages(instance, row);
-              }
-            } else {
-              // ComponentSet не найден — применяем изображения к текущему instance
-              await applyThumbGroupImages(instance, row);
-            }
-          } else {
-            Logger.debug(`⚠️ [imageType] Вложенный EThumb instance не найден`);
-            // Fallback: применяем изображения напрямую к контейнеру
-            await applyThumbGroupImages(instance, row);
-          }
-
-          // Fallback: Попробуем импортировать как library компонент
-          try {
-            const importedComponent = await figma.importComponentByKeyAsync(targetKey);
-            Logger.debug(`🖼️ [imageType] Импортирован: "${importedComponent.name}" (id=${importedComponent.id})`);
-            instance.setProperties({ [imageTypeKey]: importedComponent.id });
-            Logger.debug(`✅ [imageType] Успешно установлен EThumbGroup!`);
-            return;
-          } catch (importErr) {
-            const msg = importErr instanceof Error ? importErr.message : String(importErr);
-            Logger.warn(`❌ [imageType] Ошибка импорта: ${msg}`);
-          }
-        }
-      }
-
-      Logger.debug(`⚠️ [imageType] Альтернативный вариант не найден в preferredValues`);
-      return;
-    }
-
-    const targetComponent = components[0];
-    const componentKey = targetComponent.key;
-
-    // ВАЖНО: используем ПОЛНЫЙ ключ свойства (с #ID)
-    Logger.debug(`🖼️ [imageType] Устанавливаем ${imageTypeKey}=${targetComponentName} (key=${componentKey})`);
-    instance.setProperties({ [imageTypeKey]: componentKey });
-
-    Logger.debug(`✅ [imageType] Установлен imageType="${imageType}"`);
-  } catch (e) {
-    Logger.error(`❌ [imageType] Ошибка установки imageType="${imageType}":`, e);
-  }
+  // EThumbGroup: изображения уже применены выше (applyThumbGroupImages)
 }

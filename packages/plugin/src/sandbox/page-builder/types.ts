@@ -1,6 +1,6 @@
 /**
  * Page Builder Types
- * 
+ *
  * Типы для модуля создания страниц из HTML
  */
 
@@ -69,49 +69,47 @@ export interface ContainerConfig {
 /**
  * Типы сниппетов (компоненты из библиотеки)
  */
-export type SnippetType = 
-  | 'ESnippet'           // Основной сниппет товара
-  | 'EOfferItem'         // Оффер в списке
-  | 'EShopItem'          // Магазин в списке
-  | 'EProductSnippet2'   // Карточка товара в галерее
-  | 'Organic'            // Органический результат
+export type SnippetType =
+  | 'ESnippet' // Основной сниппет товара
+  | 'EOfferItem' // Оффер в списке
+  | 'EShopItem' // Магазин в списке
+  | 'EProductSnippet2' // Карточка товара в галерее
+  | 'Organic' // Органический результат
   | 'Organic_withOfferInfo'
+  | 'Organic_Adv' // Рекламный органический сниппет
   | 'ProductTile-Item';
 
 /**
  * Типы элементов страницы (обрамление)
  */
 export type LayoutElementType =
-  | 'Header'           // Шапка страницы
-  | 'Footer'           // Подвал страницы
-  | 'Pager'            // Пагинация
-  | 'Related'          // Похожие запросы / Вместе с этим ищут
-  | 'EQuickFilters'    // Панель быстрых фильтров
-  | 'EAsideFilters'    // Боковые фильтры (категории, цена, бренд и т.д.)
-  | 'Title'            // Заголовок секции (для ProductsTiles и т.д.)
-  | 'FuturisSearch';   // Ответ Алисы (wizard-блок)
+  | 'Header' // Шапка страницы
+  | 'Footer' // Подвал страницы
+  | 'Pager' // Пагинация
+  | 'Related' // Похожие запросы / Вместе с этим ищут
+  | 'EQuickFilters' // Панель быстрых фильтров
+  | 'EAsideFilters' // Боковые фильтры (категории, цена, бренд и т.д.)
+  | 'Title' // Заголовок секции (для ProductsTiles и т.д.)
+  | 'FuturisSearch'; // Ответ Алисы (wizard-блок)
 
 /**
  * Типы контейнеров (Auto Layout фреймы для группировки)
  */
 export type ContainerType =
-  | 'AdvProductGallery'  // Рекламная галерея товаров (wrap, карточки с View=AdvGallery)
-  | 'ProductsTiles'      // Обычные товарные карточки (wrap, View=Default)
-  | 'EntityOffers'       // Группа офферов от разных магазинов (vertical, ESnippet)
-  | 'EShopList'          // Список магазинов (vertical)
-  | 'EOfferList'         // Список офферов (vertical)
-  | 'OrganicList'        // Список органики (vertical)
-  | 'ImagesGrid';        // Блок «Картинки» (justified grid из EThumb)
+  | 'AdvProductGallery' // Рекламная галерея товаров (wrap, карточки с View=AdvGallery)
+  | 'ProductsTiles' // Обычные товарные карточки (wrap, View=Default)
+  | 'EntityOffers' // Группа офферов от разных магазинов (vertical, ESnippet)
+  | 'EShopList' // Список магазинов (vertical)
+  | 'EOfferList' // Список офферов (vertical)
+  | 'OrganicList' // Список органики (vertical)
+  | 'ImagesGrid' // Блок «Картинки» (justified grid из EThumb)
+  | 'ProductsMixedGrid'; // Masonry grid из EProductSnippet2 (ideas)
 
 /**
  * Типы групп сниппетов (устаревшее, для совместимости)
  * @deprecated Use ContainerType instead
  */
-export type GroupType =
-  | 'EShopGroup'
-  | 'EOfferGroup'
-  | 'ProductTileRow'
-  | 'OrganicBlock';
+export type GroupType = 'EShopGroup' | 'EOfferGroup' | 'ProductTileRow' | 'OrganicBlock';
 
 // ============================================================================
 // PAGE STRUCTURE

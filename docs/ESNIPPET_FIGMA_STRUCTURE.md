@@ -8,7 +8,7 @@
 - `Body#31851:0` — SLOT
 - `EcomMeta#31851:3` — SLOT
 - Текст: `organicTitle#29154:0`, `organicText#29154:3`, `organicHost#29154:15`, `organicPath#29154:9`
-- Булевы: `withReviews`, `withDelivery`, `withThumb`, `withButton`, `withData`, `withEcomMeta`, `withPrice`, `withFintech`, `withPromo`, `showKebab`, `withQuotes`, `withSitelinks`, `withAddress`, `withOnboarding`, `isOfficial`
+- Булевы: `withReviews`, `withDelivery`, `withThumb`, `withButton`, `withData`, `withDeliveryBnpl`, `withPrice`, `withFintech`, `withPromo`, `showKebab`, `withQuotes`, `withSitelinks`, `withAddress`, `withOnboarding`, `isOfficial`
 - `imageType#28721:0` — INSTANCE_SWAP
 - `platform` — VARIANT (desktop)
 

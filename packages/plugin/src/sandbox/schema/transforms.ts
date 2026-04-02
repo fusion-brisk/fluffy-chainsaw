@@ -76,8 +76,9 @@ export function computeWithData(row: CSVRow): boolean {
  * EOfferItem withReviews: #EOfferItem_hasReviews ИЛИ #ReviewsNumber.
  */
 export function computeOfferWithReviews(row: CSVRow): boolean {
-  return row['#EOfferItem_hasReviews'] === 'true' ||
-    !!((row['#ReviewsNumber'] || '') as string).trim();
+  return (
+    row['#EOfferItem_hasReviews'] === 'true' || !!((row['#ReviewsNumber'] || '') as string).trim()
+  );
 }
 
 /**
@@ -146,8 +147,10 @@ function isPlainOrganic(row: CSVRow): boolean {
 
 /** ESnippet withQuotes: #withQuotes ИЛИ #QuoteText ИЛИ #EQuote-Text. */
 export function computeWithQuotes(row: CSVRow): boolean {
-  return row['#withQuotes'] === 'true' ||
-    !!((row['#QuoteText'] || row['#EQuote-Text'] || '') as string).trim();
+  return (
+    row['#withQuotes'] === 'true' ||
+    !!((row['#QuoteText'] || row['#EQuote-Text'] || '') as string).trim()
+  );
 }
 
 /** ESnippet withDelivery: #EDeliveryGroup ИЛИ #EDelivery_abroad. */
@@ -159,8 +162,9 @@ export function computeSnippetWithDelivery(row: CSVRow): boolean {
 /** ESnippet withAddress: #hasShopOfflineRegion ИЛИ #addressText. */
 export function computeWithAddress(row: CSVRow): boolean {
   if (isPlainOrganic(row)) return false;
-  return row['#hasShopOfflineRegion'] === 'true' ||
-    !!((row['#addressText'] || '') as string).trim();
+  return (
+    row['#hasShopOfflineRegion'] === 'true' || !!((row['#addressText'] || '') as string).trim()
+  );
 }
 
 /** ESnippet withContacts: #Phone ИЛИ #Contacts. */
@@ -198,12 +202,26 @@ export function computeSnippetWithPrice(row: CSVRow): boolean {
   return !!((row['#OrganicPrice'] || '') as string).trim();
 }
 
-/** ESnippet withEcomMeta: есть рейтинг/цена/барометр/лейблы. */
-export function computeSnippetWithEcomMeta(row: CSVRow): boolean {
+/** ESnippet withDeliveryBnpl: controls ShopInfo-DeliveryBnplContainer visibility. */
+export function computeSnippetWithDeliveryBnpl(row: CSVRow): boolean {
   if (isPlainOrganic(row)) return false;
+  // Delivery data
+  if (row['#EDeliveryGroup'] === 'true' || row['#EDelivery_abroad'] === 'true') return true;
+  // Fintech data
+  if (
+    row['#ShopInfo-Bnpl'] === 'true' ||
+    row['#EBnpl'] === 'true' ||
+    row['#EPriceGroup_Fintech'] === 'true'
+  )
+    return true;
+  // Price/rating data (original fields)
   const fields = [
-    row['#ProductRating'], row['#ReviewCount'], row['#OrganicPrice'],
-    row['#OldPrice'], row['#EPriceBarometer_View'], row['#ELabelGroup']
+    row['#ProductRating'],
+    row['#ReviewCount'],
+    row['#OrganicPrice'],
+    row['#OldPrice'],
+    row['#EPriceBarometer_View'],
+    row['#ELabelGroup'],
   ];
   for (let i = 0; i < fields.length; i++) {
     const v = fields[i];
@@ -222,4 +240,16 @@ export function computeSnippetWithFintech(row: CSVRow): boolean {
 export function computeSnippetWithPromo(row: CSVRow): boolean {
   if (isPlainOrganic(row)) return false;
   return !!((row['#Promo'] || '') as string).trim();
+}
+
+/**
+ * Вычисляет значение VARIANT-свойства `image` для ESnippet.
+ * Заменяет бывший boolean `withThumb` + imperative handler переключения imageType.
+ *
+ * @returns 'group' | 'single' | 'none'
+ */
+export function computeImageVariant(row: CSVRow): string {
+  if (row['#imageType'] === 'EThumbGroup') return 'group';
+  if (row['#withThumb'] === 'true') return 'single';
+  return 'none';
 }

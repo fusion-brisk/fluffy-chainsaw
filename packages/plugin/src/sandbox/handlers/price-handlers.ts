@@ -132,6 +132,24 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
       // Устанавливаем value
       if (priceValue) {
         setPriceToInstance(ep, priceValue, 'EPrice');
+      } else if (row['#ContentHeader']) {
+        // "Каталог товаров" и т.п. — текст вместо цены (не числовое значение)
+        try {
+          ep.setProperties({ value: row['#ContentHeader'] });
+          Logger.debug(`✅ [ContentHeader] EPrice.value="${row['#ContentHeader']}"`);
+        } catch (_e) {
+          Logger.debug('[ContentHeader] setProperties failed, trying full key');
+          const epProps = ep.componentProperties;
+          for (const key in epProps) {
+            if (key.split('#')[0] === 'value' && epProps[key].type === 'TEXT') {
+              try {
+                ep.setProperties({ [key]: row['#ContentHeader'] });
+                Logger.debug(`✅ [ContentHeader] EPrice.${key}="${row['#ContentHeader']}"`);
+              } catch (_e2) { Logger.debug('[ContentHeader] Full key failed'); }
+              break;
+            }
+          }
+        }
       }
       break; // Первый не-old EPrice — это текущая цена
     }

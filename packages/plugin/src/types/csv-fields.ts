@@ -1,6 +1,6 @@
 /**
  * Строго типизированные поля CSV/HTML данных
- * 
+ *
  * Этот файл определяет все известные поля данных, которые могут быть
  * извлечены из HTML-сниппетов и применены к Figma-компонентам.
  */
@@ -36,7 +36,7 @@ export interface CSVFields {
   '#query'?: string;
   /** Платформа источника (desktop/touch) */
   '#platform'?: 'desktop' | 'touch';
-  
+
   // === Основной контент ===
   /** Заголовок сниппета */
   '#OrganicTitle'?: string;
@@ -48,7 +48,7 @@ export interface CSVFields {
   '#OrganicPath'?: string;
   /** Изображение товара */
   '#OrganicImage'?: string;
-  
+
   // === Магазин ===
   /** Название магазина */
   '#ShopName'?: string;
@@ -62,7 +62,7 @@ export interface CSVFields {
   '#ShopRating'?: string;
   /** Текст отзывов магазина ("62,8K отзывов на магазин") */
   '#EReviews_shopText'?: string;
-  
+
   // === Рейтинг товара ===
   /** Рейтинг товара (0-5) */
   '#ProductRating'?: string;
@@ -70,7 +70,7 @@ export interface CSVFields {
   '#ReviewsNumber'?: string;
   /** Количество отзывов (альт.) */
   '#ReviewCount'?: string;
-  
+
   // === Цены ===
   /** Текущая цена */
   '#OrganicPrice'?: string;
@@ -84,7 +84,7 @@ export interface CSVFields {
   '#Discount'?: 'true' | 'false';
   /** Префикс скидки */
   '#DiscountPrefix'?: string;
-  
+
   // === EPriceGroup ===
   /** Есть ли скидка */
   '#EPriceGroup_Discount'?: 'true' | 'false';
@@ -104,21 +104,21 @@ export interface CSVFields {
   '#ExpCalculation'?: 'true' | 'false';
   /** Combining Elements variant (None, Discount, etc.) */
   '#CombiningElements'?: string;
-  
+
   // === EPrice ===
   /** View EPrice (default/special) */
   '#EPrice_View'?: 'default' | 'special';
-  
+
   // === Fintech ===
   /** Тип Fintech */
   '#Fintech_Type'?: string;
   /** View Fintech */
   '#Fintech_View'?: string;
-  
+
   // === LabelDiscount ===
   /** View LabelDiscount */
   '#LabelDiscount_View'?: string;
-  
+
   // === ELabelGroup ===
   /** Группа лейблов (рейтинг и т.д.) */
   '#ELabelGroup'?: 'true' | 'false';
@@ -128,11 +128,11 @@ export interface CSVFields {
   '#EPriceBarometer_View'?: string;
   /** isCompact барометра */
   '#EPriceBarometer_isCompact'?: 'true' | 'false';
-  
+
   // === Brand ===
   /** Бренд товара */
   '#Brand'?: string;
-  
+
   // === Кнопки ===
   /** Есть ли кнопка checkout */
   '#BUTTON'?: 'true' | 'false';
@@ -148,17 +148,21 @@ export interface CSVFields {
   '#isCheckout'?: 'true' | 'false';
   /** Кнопка Market Checkout */
   '#MarketCheckoutButton'?: 'true' | 'false';
+  /** Кнопка «Избранное» */
+  '#FavoriteBtn'?: 'true' | 'false';
+  /** Показать kebab-меню */
+  '#showKebab'?: 'true' | 'false';
 
   // === Доставка ===
   /** Есть ли группа доставки */
   '#EDeliveryGroup'?: 'true' | 'false';
   /** Список элементов доставки */
   '#DeliveryList'?: string;
-  
+
   // === BNPL ===
   /** Есть ли BNPL */
   '#EBnpl'?: 'true' | 'false';
-  
+
   // === EOfferItem специфичные ===
   /** Дефолтное предложение */
   '#EOfferItem_defaultOffer'?: 'true' | 'false';
@@ -168,7 +172,7 @@ export interface CSVFields {
   '#EOfferItem_hasReviews'?: 'true' | 'false';
   /** Есть ли доставка в EOfferItem */
   '#EOfferItem_hasDelivery'?: 'true' | 'false';
-  
+
   // === Изображения ===
   /** Thumbnail изображение */
   '#ThumbImage'?: string;
@@ -178,7 +182,7 @@ export interface CSVFields {
   '#Image2'?: string;
   /** Изображение 3 (EThumbGroup) */
   '#Image3'?: string;
-  
+
   // === Цитата из отзывов (EQuote) ===
   /** Текст цитаты ("«Отличный магазин...»") */
   '#EQuote-Text'?: string;
@@ -188,7 +192,7 @@ export interface CSVFields {
   '#QuoteText'?: string;
   /** URL изображения автора (legacy) */
   '#QuoteImage'?: string;
-  
+
   // === Промо-сниппеты (Organic_Adv / ESnippet) ===
   /** Это промо-сниппет */
   '#isPromo'?: 'true' | 'false';
@@ -196,6 +200,8 @@ export interface CSVFields {
   '#isAdv'?: 'true' | 'false';
   /** Заголовок рекламной галереи */
   '#AdvGalleryTitle'?: string;
+  /** Текст вместо цены (например "Каталог товаров") */
+  '#ContentHeader'?: string;
   /** ID родительского serp-item (<li data-cid="...">) для группировки */
   '#serpItemId'?: string;
   /** Тип контейнера (EntityOffers, ProductsTiles, AdvProductGallery) */
@@ -212,6 +218,16 @@ export interface CSVFields {
   '#ProductsTilesShowAllText'?: string;
   /** URL кнопки «Показать все» */
   '#ProductsTilesShowAllHref'?: string;
+  /** Заголовок ProductsMixedGrid блока */
+  '#ProductsMixedGridTitle'?: string;
+  /** Наличие кнопки «Показать ещё» в ProductsMixedGrid */
+  '#ProductsMixedGridShowAll'?: 'true' | 'false';
+  /** Текст кнопки «Показать ещё» в ProductsMixedGrid */
+  '#ProductsMixedGridShowAllText'?: string;
+  /** CSS aspect-ratio миниатюры (width/height) для расчёта высоты в masonry */
+  '#ThumbAspectRatio'?: string;
+  /** Флаг image-only карточки (без цены) в ProductsMixedGrid */
+  '#MixedGridImageOnly'?: string;
   /** Наличие картинки в сниппете */
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */
@@ -240,11 +256,11 @@ export interface CSVFields {
   '#VerifiedType'?: string;
   /** Сайт прошёл верификацию */
   '#isVerified'?: 'true' | 'false';
-  
+
   // === Валюта ===
   /** Символ валюты (₽, $, €) */
   '#Currency'?: string;
-  
+
   // === Изображения (доп.) ===
   /** Тип изображения (EThumb, EThumbGroup) */
   '#imageType'?: string;
@@ -254,7 +270,7 @@ export interface CSVFields {
   '#withQuotes'?: 'true' | 'false';
   /** Есть ли цена (для Organic_Adv) */
   '#withPrice'?: 'true' | 'false';
-  
+
   // === Каталожные страницы ===
   /** Это страница каталога (без цены) */
   '#isCatalogPage'?: 'true' | 'false';
@@ -262,7 +278,7 @@ export interface CSVFields {
   '#TargetSnippetType'?: string;
   /** Скрыть блок цены (каталожные страницы) */
   '#hidePriceBlock'?: 'true' | 'false';
-  
+
   // === Доставка (доп.) ===
   /** Количество вариантов доставки */
   '#EDeliveryGroup-Count'?: string;
@@ -274,7 +290,7 @@ export interface CSVFields {
   '#EDeliveryGroup-Item-3'?: string;
   /** Доставка из-за границы */
   '#EDelivery_abroad'?: 'true' | 'false';
-  
+
   // === BNPL (доп.) ===
   /** Количество BNPL опций (EBnpl) */
   '#EBnpl-Count'?: string;
@@ -294,7 +310,7 @@ export interface CSVFields {
   '#ShopInfo-Bnpl-Item-2'?: string;
   /** ShopInfo-Bnpl опция 3 */
   '#ShopInfo-Bnpl-Item-3'?: string;
-  
+
   // === Адрес и контакты ===
   /** Есть ли офлайн адрес магазина */
   '#hasShopOfflineRegion'?: 'true' | 'false';
@@ -308,7 +324,7 @@ export interface CSVFields {
   '#Phone'?: string;
   /** Контакты (альтернативное поле) */
   '#Contacts'?: string;
-  
+
   // === InfoIcon ===
   /** Наличие иконки "Инфо" в Fintech */
   '#InfoIcon'?: 'true' | 'false';
@@ -408,19 +424,19 @@ export type CSVRow = CSVFields;
  * Список обязательных полей для разных типов сниппетов
  */
 export const REQUIRED_FIELDS: Record<SnippetType, (keyof CSVFields)[]> = {
-  'EShopItem': ['#SnippetType', '#ShopName', '#OrganicPrice'],
-  'EOfferItem': ['#SnippetType', '#ShopName', '#OrganicPrice'],
-  'EProductSnippet2': ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
-  'EProductSnippet': ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
+  EShopItem: ['#SnippetType', '#ShopName', '#OrganicPrice'],
+  EOfferItem: ['#SnippetType', '#ShopName', '#OrganicPrice'],
+  EProductSnippet2: ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
+  EProductSnippet: ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
   'ProductTile-Item': ['#SnippetType', '#OrganicTitle'],
-  'Organic_withOfferInfo': ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
-  'Organic': ['#SnippetType', '#OrganicTitle'],
-  'Organic_Adv': ['#SnippetType', '#OrganicTitle'],
-  'ESnippet': ['#SnippetType'],
-  'Snippet': ['#SnippetType'],
-  'ImagesGrid': ['#SnippetType'],
-  'EQuickFilters': ['#SnippetType'],
-  'EAsideFilters': ['#SnippetType']
+  Organic_withOfferInfo: ['#SnippetType', '#OrganicTitle', '#OrganicPrice'],
+  Organic: ['#SnippetType', '#OrganicTitle'],
+  Organic_Adv: ['#SnippetType', '#OrganicTitle'],
+  ESnippet: ['#SnippetType'],
+  Snippet: ['#SnippetType'],
+  ImagesGrid: ['#SnippetType'],
+  EQuickFilters: ['#SnippetType'],
+  EAsideFilters: ['#SnippetType'],
 };
 
 /**
@@ -434,7 +450,7 @@ export const IMAGE_FIELDS: (keyof CSVFields)[] = [
   '#Image2',
   '#Image3',
   '#EQuote-AuthorAvatar',
-  '#QuoteImage'
+  '#QuoteImage',
 ];
 
 /**
@@ -478,13 +494,12 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#InfoIcon',
   '#ProductsTilesShowAll',
   '#ProductsTilesShowAllText',
-  '#ProductsTilesShowAllHref'
+  '#ProductsTilesShowAllHref',
+  '#ProductsMixedGridShowAll',
+  '#MixedGridImageOnly',
 ];
 
 /**
  * Числовые поля (рейтинги, цены)
  */
-export const NUMERIC_FIELDS: (keyof CSVFields)[] = [
-  '#ProductRating',
-  '#DiscountPercent'
-];
+export const NUMERIC_FIELDS: (keyof CSVFields)[] = ['#ProductRating', '#DiscountPercent'];

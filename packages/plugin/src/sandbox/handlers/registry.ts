@@ -170,7 +170,7 @@ class HandlerRegistry {
     // === CRITICAL (0) — влияют на структуру ===
     this.register('EPriceGroup', handleEPriceGroup, {
       priority: HandlerPriority.CRITICAL,
-      mode: 'async',
+      mode: 'sync',
       description: 'Обработка цен, скидок, Fintech'
     });
 
