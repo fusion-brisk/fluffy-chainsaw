@@ -325,6 +325,9 @@ const App: React.FC = () => {
         case 'clearQueue':
           importFlow.clearQueue();
           break;
+        case 'resetSnippets':
+          sendMessageToPlugin({ type: 'reset-snippets', scope: 'page' });
+          break;
         case 'dismiss-success':
           importFlow.completeSuccess();
           break;
@@ -399,7 +402,7 @@ const App: React.FC = () => {
           current={progressData.current}
           total={progressData.total}
           count={importFlow.lastStats?.processedInstances || importFlow.lastStats?.totalInstances}
-          duration={importFlow.lastStats ? undefined : undefined}
+          duration={undefined}
           errorMessage={errorMessage}
           lastQuery={importFlow.lastQuery}
           lastImportCount={lastImportCount}
