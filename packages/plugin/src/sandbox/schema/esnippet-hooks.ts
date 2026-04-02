@@ -6,11 +6,8 @@
  */
 
 import { Logger } from '../../logger';
-import {
-  findFirstNodeByName,
-  findTextLayerByName,
-  safeSetTextNode
-} from '../../utils/node-search';
+import { findFirstNodeByName, findTextLayerByName, safeSetTextNode } from '../../utils/node-search';
+import { safeSetVisible } from '../handlers/visibility-handlers';
 import type { HandlerContext } from '../handlers/types';
 import type { CSVRow } from '../../types/csv-fields';
 
@@ -22,7 +19,7 @@ export function handleESnippetStructural(context: HandlerContext): void {
   const row = context.row;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const containerName = container && 'name' in container ? String(container.name) : '';
   if (containerName !== 'ESnippet' && containerName !== 'Snippet') return;
   if (container.type !== 'INSTANCE' || container.removed) return;
 
@@ -65,10 +62,12 @@ function applyThumbFallback(instance: InstanceNode, row: CSVRow): void {
   for (let i = 0; i < names.length; i++) {
     const layer = findFirstNodeByName(instance, names[i]);
     if (layer && 'visible' in layer) {
-      try {
-        (layer as SceneNode & { visible: boolean }).visible = false;
-        Logger.debug('   [ESnippet-hook] EThumb hidden (fallback)');
-      } catch (_e) { Logger.debug('[ESnippet-hook] EThumb visibility toggle failed'); }
+      // Use safeSetVisible to avoid flipping the image variant property
+      // via Figma's boolean↔visibility bidirectional sync
+      const set = safeSetVisible(layer as SceneNode, false, instance);
+      if (set) {
+        Logger.debug('   [ESnippet-hook] EThumb hidden (fallback via safeSetVisible)');
+      }
       return;
     }
   }
@@ -89,16 +88,22 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
       try {
         (sitelinksContainer as SceneNode & { visible: boolean }).visible = false;
         Logger.debug('   [ESnippet-hook] Sitelinks hidden (#Sitelinks!=true)');
-      } catch (_e) { Logger.debug('[ESnippet-hook] Sitelinks container visibility toggle failed'); }
+      } catch (_e) {
+        Logger.debug('[ESnippet-hook] Sitelinks container visibility toggle failed');
+      }
     }
     // Broader search: hide any descendant frame/instance with 'Sitelink' or 'sitelink' in name
     if ('findAll' in instance) {
-      const sitelinkNodes = instance.findAll(function(n) {
+      const sitelinkNodes = instance.findAll(function (n) {
         return n.name.indexOf('itelink') !== -1 && n.type !== 'TEXT';
       });
       for (let si = 0; si < sitelinkNodes.length; si++) {
         if ('visible' in sitelinkNodes[si]) {
-          try { (sitelinkNodes[si] as SceneNode).visible = false; } catch (_e) { Logger.debug('[ESnippet-hook] Sitelink node visibility toggle failed'); }
+          try {
+            (sitelinkNodes[si] as SceneNode).visible = false;
+          } catch (_e) {
+            Logger.debug('[ESnippet-hook] Sitelink node visibility toggle failed');
+          }
         }
       }
     }
@@ -136,7 +141,11 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
 
     // 1. Hide the text node itself
     if ('visible' in unusedText) {
-      try { (unusedText as SceneNode).visible = false; } catch (_e) { /* skip */ }
+      try {
+        (unusedText as SceneNode).visible = false;
+      } catch (_e) {
+        /* skip */
+      }
     }
 
     // 2. Hide the parent Sitelink FRAME
@@ -144,7 +153,9 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
     if (parentFrame && parentFrame.name === 'Sitelink' && 'visible' in parentFrame) {
       try {
         (parentFrame as SceneNode).visible = false;
-      } catch (_e) { /* skip */ }
+      } catch (_e) {
+        /* skip */
+      }
 
       // 3. Hide the Dot preceding this Sitelink FRAME
       var grandParent = parentFrame.parent;
@@ -154,7 +165,11 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
         if (frameIndex > 0) {
           var prevSibling = siblings[frameIndex - 1];
           if (prevSibling.name === 'Dot' && 'visible' in prevSibling) {
-            try { (prevSibling as SceneNode).visible = false; } catch (_e) { /* skip */ }
+            try {
+              (prevSibling as SceneNode).visible = false;
+            } catch (_e) {
+              /* skip */
+            }
           }
         }
       }
@@ -177,7 +192,11 @@ function forceResetBooleans(instance: InstanceNode, row: CSVRow): void {
   const props = instance.componentProperties;
   let applied = false;
   for (const key in props) {
-    if (key.split('#')[0] === 'withPromo' && props[key].type === 'BOOLEAN' && props[key].value !== false) {
+    if (
+      key.split('#')[0] === 'withPromo' &&
+      props[key].type === 'BOOLEAN' &&
+      props[key].value !== false
+    ) {
       try {
         const obj: Record<string, boolean> = {};
         obj[key] = false;
@@ -195,13 +214,19 @@ function forceResetBooleans(instance: InstanceNode, row: CSVRow): void {
   // This is a Figma API workaround — setProperties silently fails on some variant combinations.
   if (!applied) {
     for (const vkey in props) {
-      if (vkey.split('#')[0] === 'withPromo' && props[vkey].type === 'BOOLEAN' && props[vkey].value !== false) {
+      if (
+        vkey.split('#')[0] === 'withPromo' &&
+        props[vkey].type === 'BOOLEAN' &&
+        props[vkey].value !== false
+      ) {
         const promoFrame = findFirstNodeByName(instance, 'Promo');
         if (promoFrame && 'visible' in promoFrame) {
           try {
             (promoFrame as SceneNode).visible = false;
             Logger.debug('   [ESnippet-hook] Promo frame hidden (setProperties workaround)');
-          } catch (_e2) { Logger.debug('   [ESnippet-hook] Promo frame hide FAILED'); }
+          } catch (_e2) {
+            Logger.debug('   [ESnippet-hook] Promo frame hide FAILED');
+          }
         }
         break;
       }
@@ -221,11 +246,12 @@ function applyPromoSection(instance: InstanceNode, row: CSVRow): void {
 
   // Try #PromoLabel first (current Figma naming), fallback to #PromoText (legacy)
   const labelLayer =
-    findTextLayerByName(instance, '#PromoLabel') ||
-    findTextLayerByName(instance, '#PromoText');
+    findTextLayerByName(instance, '#PromoLabel') || findTextLayerByName(instance, '#PromoText');
   if (labelLayer) {
     // Use #PromoLabel field if available, otherwise full #Promo text
-    const labelText = ((row as Record<string, string | undefined>)['#PromoLabel'] || promoText).trim();
+    const labelText = (
+      (row as Record<string, string | undefined>)['#PromoLabel'] || promoText
+    ).trim();
     safeSetTextNode(labelLayer, labelText);
     Logger.debug('   [ESnippet-hook] PromoLabel set: "' + labelText.substring(0, 40) + '"');
   }
@@ -259,7 +285,7 @@ function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
   // Fallback: Line instance inside Address container → set value property
   const addressContainer = findFirstNodeByName(instance, 'Address');
   if (addressContainer && 'findAll' in addressContainer) {
-    const lineInstances = (addressContainer as FrameNode).findAll(function(n) {
+    const lineInstances = (addressContainer as FrameNode).findAll(function (n) {
       return n.type === 'INSTANCE' && n.name === 'Line';
     }) as InstanceNode[];
 
@@ -268,7 +294,9 @@ function applyAddressLink(instance: InstanceNode, row: CSVRow): void {
         lineInstances[li].setProperties({ value: addressLink });
         Logger.debug('   [ESnippet-hook] addressLink set via Line.value: "' + addressLink + '"');
         return;
-      } catch (_e) { Logger.debug('[ESnippet-hook] addressLink Line.value set failed'); }
+      } catch (_e) {
+        Logger.debug('[ESnippet-hook] addressLink Line.value set failed');
+      }
     }
   }
 }
@@ -291,10 +319,14 @@ function applyTitleMaxLines(instance: InstanceNode): void {
  * Отключаем clipsContent для content__left
  */
 function applyClipsContentFix(instance: InstanceNode): void {
-  const contentLeft = instance.findOne(function(n) { return n.name === 'content__left'; });
+  const contentLeft = instance.findOne(function (n) {
+    return n.name === 'content__left';
+  });
   if (contentLeft && contentLeft.type === 'FRAME' && !contentLeft.removed) {
     try {
       (contentLeft as FrameNode).clipsContent = false;
-    } catch (_e) { Logger.debug('[ESnippet-hook] clipsContent toggle failed'); }
+    } catch (_e) {
+      Logger.debug('[ESnippet-hook] clipsContent toggle failed');
+    }
   }
 }

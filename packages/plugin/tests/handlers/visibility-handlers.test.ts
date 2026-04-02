@@ -11,32 +11,32 @@ vi.mock('../../src/logger', () => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
-  }
+    error: vi.fn(),
+  },
 }));
 
 vi.mock('../../src/sandbox/property-utils', () => ({
-  trySetProperty: vi.fn(() => true)
+  trySetProperty: vi.fn(() => true),
 }));
 
 vi.mock('../../src/utils/instance-cache', () => ({
   getGroupsSortedByDepth: vi.fn(() => []),
   shouldProcessGroupForEmptyCheck: vi.fn(() => true),
   areAllChildrenHidden: vi.fn(() => false),
-  hasAnyVisibleChild: vi.fn(() => true)
+  hasAnyVisibleChild: vi.fn(() => true),
 }));
 
 import {
   handleHidePriceBlock,
   handleEcomMetaVisibility,
-  handleEmptyGroups
+  handleEmptyGroups,
 } from '../../src/sandbox/handlers/visibility-handlers';
 import { trySetProperty } from '../../src/sandbox/property-utils';
 import {
   getGroupsSortedByDepth,
   shouldProcessGroupForEmptyCheck,
   areAllChildrenHidden,
-  hasAnyVisibleChild
+  hasAnyVisibleChild,
 } from '../../src/utils/instance-cache';
 import type { HandlerContext } from '../../src/sandbox/handlers/types';
 
@@ -52,7 +52,7 @@ function mockCache() {
     textNodes: new Map(),
     groups: new Map(),
     allTextNodes: [],
-    stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 }
+    stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
@@ -60,14 +60,14 @@ function mockCache() {
 function createContext(
   containerName: string,
   row: Record<string, string> | null,
-  cache?: ReturnType<typeof mockCache>
+  cache?: ReturnType<typeof mockCache>,
 ): HandlerContext {
   const container = createMockInstance(containerName);
   return {
     container,
     containerKey: container.id,
     row: row as HandlerContext['row'],
-    instanceCache: cache || mockCache()
+    instanceCache: cache || mockCache(),
   };
 }
 
@@ -82,7 +82,7 @@ describe('handleHidePriceBlock', () => {
       ctx.container,
       ['withPrice', 'PRICE', 'Price'],
       false,
-      '#hidePriceBlock'
+      '#hidePriceBlock',
     );
   });
 
@@ -121,92 +121,73 @@ describe('handleHidePriceBlock', () => {
 describe('handleEcomMetaVisibility', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('sets withDeliveryBnpl=true when ecom data present (ESnippet)', () => {
-    const ctx = createContext('ESnippet', { '#ProductRating': '4.5' });
+  it('hides EcomMeta when all children hidden (ESnippet)', () => {
+    mockAllHidden.mockReturnValueOnce(true);
+    const cache = mockCache();
+    const ecomGroup = { name: 'EcomMeta', visible: true, removed: false, children: [] };
+    cache.groups.set('EcomMeta', ecomGroup);
+
+    const ctx = createContext('ESnippet', { '#ProductRating': '4.5' }, cache);
     handleEcomMetaVisibility(ctx);
 
-    expect(mockTrySetProperty).toHaveBeenCalledWith(
-      ctx.container,
-      ['withDeliveryBnpl', 'withEcomMeta'],
-      true,
-      '#withDeliveryBnpl'
-    );
+    expect(ecomGroup.visible).toBe(false);
   });
 
-  it('sets withDeliveryBnpl=false when no ecom data (ESnippet)', () => {
-    const ctx = createContext('ESnippet', {});
+  it('shows EcomMeta when some children visible (ESnippet)', () => {
+    mockAllHidden.mockReturnValueOnce(false);
+    const cache = mockCache();
+    const ecomGroup = { name: 'EcomMeta', visible: false, removed: false, children: [] };
+    cache.groups.set('EcomMeta', ecomGroup);
+
+    const ctx = createContext('ESnippet', { '#OrganicPrice': '1990' }, cache);
     handleEcomMetaVisibility(ctx);
 
-    expect(mockTrySetProperty).toHaveBeenCalledWith(
-      ctx.container,
-      ['withDeliveryBnpl', 'withEcomMeta'],
-      false,
-      '#withDeliveryBnpl'
-    );
+    expect(ecomGroup.visible).toBe(true);
   });
 
   it('skips non-ESnippet containers', () => {
     const ctx = createContext('EShopItem', { '#ProductRating': '4.5' });
     handleEcomMetaVisibility(ctx);
 
+    // Should not touch trySetProperty or EcomMeta for non-ESnippet
     expect(mockTrySetProperty).not.toHaveBeenCalled();
   });
 
   it('works with Snippet container name', () => {
-    const ctx = createContext('Snippet', { '#OrganicPrice': '1990' });
-    handleEcomMetaVisibility(ctx);
-
-    expect(mockTrySetProperty).toHaveBeenCalledWith(
-      ctx.container,
-      ['withDeliveryBnpl', 'withEcomMeta'],
-      true,
-      '#withDeliveryBnpl'
-    );
-  });
-
-  it('ignores "false" field values', () => {
-    const ctx = createContext('ESnippet', { '#ProductRating': 'false' });
-    handleEcomMetaVisibility(ctx);
-
-    expect(mockTrySetProperty).toHaveBeenCalledWith(
-      ctx.container,
-      ['withDeliveryBnpl', 'withEcomMeta'],
-      false,
-      '#withDeliveryBnpl'
-    );
-  });
-
-  it('detects multiple ecom fields', () => {
-    const ctx = createContext('ESnippet', {
-      '#ReviewCount': '15',
-      '#EPriceBarometer_View': 'good',
-    });
-    handleEcomMetaVisibility(ctx);
-
-    expect(mockTrySetProperty).toHaveBeenCalledWith(
-      ctx.container,
-      ['withDeliveryBnpl', 'withEcomMeta'],
-      true,
-      '#withDeliveryBnpl'
-    );
-  });
-
-  it('falls back to group visibility when trySetProperty returns false', () => {
-    mockTrySetProperty.mockReturnValueOnce(false);
     mockAllHidden.mockReturnValueOnce(true);
     const cache = mockCache();
-    const ecomGroup = {
-      name: 'EcomMeta',
-      visible: true,
-      removed: false,
-      children: [],
-    };
+    const ecomGroup = { name: 'EcomMeta', visible: true, removed: false, children: [] };
     cache.groups.set('EcomMeta', ecomGroup);
 
-    const ctx = createContext('ESnippet', {}, cache);
+    const ctx = createContext('Snippet', { '#OrganicPrice': '1990' }, cache);
     handleEcomMetaVisibility(ctx);
 
     expect(ecomGroup.visible).toBe(false);
+  });
+
+  it('does not call trySetProperty for withDeliveryBnpl (schema-driven)', () => {
+    const cache = mockCache();
+    cache.groups.set('EcomMeta', { name: 'EcomMeta', visible: true, removed: false, children: [] });
+    mockAllHidden.mockReturnValueOnce(false);
+
+    const ctx = createContext('ESnippet', { '#EDeliveryGroup': 'true' }, cache);
+    handleEcomMetaVisibility(ctx);
+
+    // withDeliveryBnpl is handled by schema engine, not this handler
+    expect(mockTrySetProperty).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.arrayContaining(['withDeliveryBnpl']),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('leaves EcomMeta unchanged when not found in cache', () => {
+    const ctx = createContext('ESnippet', { '#ProductRating': '4.5' });
+    handleEcomMetaVisibility(ctx);
+
+    // No EcomMeta in cache — should return without error
+    expect(mockAllHidden).not.toHaveBeenCalled();
   });
 
   it('does nothing when row is null', () => {

@@ -28,7 +28,7 @@ import { CSVRow } from '../../types/csv-fields';
  *
  * @returns true if visibility was set, false if rolled back due to boolean sync
  */
-function safeSetVisible(frame: SceneNode, visible: boolean, container: BaseNode): boolean {
+export function safeSetVisible(frame: SceneNode, visible: boolean, container: BaseNode): boolean {
   if (container.type !== 'INSTANCE') {
     frame.visible = visible;
     return true;
@@ -146,23 +146,10 @@ export function handleEcomMetaVisibility(context: HandlerContext): void {
     return value !== undefined && value !== null && value !== '' && value !== 'false';
   });
 
-  // withDeliveryBnpl управляет только ShopInfo-DeliveryBnplContainer,
-  // не всей группой EcomMeta — устанавливаем, но НЕ делаем return
-  if (container.type === 'INSTANCE' && !container.removed) {
-    const propSet = trySetProperty(
-      container as InstanceNode,
-      ['withDeliveryBnpl', 'withEcomMeta'],
-      hasData,
-      '#withDeliveryBnpl',
-    );
-    if (propSet) {
-      Logger.debug(
-        `📦 [EcomMetaVisibility] withDeliveryBnpl=${hasData} via property on "${containerName}"`,
-      );
-    }
-  }
+  // withDeliveryBnpl управляется schema engine (computeSnippetWithDeliveryBnpl).
+  // Handler отвечает только за EcomMeta group visibility (скрываем если все дети hidden).
 
-  // Всегда проверяем EcomMeta напрямую — скрываем если все дети hidden
+  // Проверяем EcomMeta напрямую — скрываем если все дети hidden
   const ecomMeta = instanceCache.groups.get('EcomMeta');
 
   if (!ecomMeta || ecomMeta.removed) {
