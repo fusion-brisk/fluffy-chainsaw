@@ -150,6 +150,18 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
     await fs.rename(binaryPath, backupPath);
     await fs.rename(tempPath, binaryPath);
 
+    // Re-sign with ad-hoc signature — macOS kills unsigned/invalid-signed binaries
+    try {
+      const { execFileSync } = require('child_process') as typeof import('child_process');
+      execFileSync('codesign', ['--force', '--sign', '-', binaryPath], { timeout: 10000 });
+      console.log('[update] Binary re-signed (ad-hoc)');
+    } catch (signErr) {
+      console.log(
+        '[update] codesign failed (non-fatal):',
+        signErr instanceof Error ? signErr.message : signErr,
+      );
+    }
+
     console.log('[update] Binary replaced. Restarting...');
 
     // Also download latest CRX for local serving

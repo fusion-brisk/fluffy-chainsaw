@@ -44,6 +44,8 @@ echo "📦 Скачивание Relay..."
 echo -n "   $BINARY_NAME: "
 if curl -L -s -f -o relay-host "$RELEASE_URL/$BINARY_NAME" 2>/dev/null; then
   chmod +x relay-host
+  # Re-sign: macOS kills binaries with invalid code signatures after download
+  codesign --force --sign - relay-host 2>/dev/null || true
   echo "✓"
 else
   echo "✗"
