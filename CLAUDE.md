@@ -85,6 +85,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - For complex bugs: list 2-3 possible root causes with evidence for/against each. Present hypotheses BEFORE making any code changes. Only proceed after user confirms which to investigate.
 - For cross-system bugs (extension → relay → plugin), identify WHICH system the bug is in before changing code. Trace the data flow step by step.
 - **Build-vs-source mismatch**: When a bug defies code analysis, check `dist/` build dates vs source modification times. The running code is what's in `dist/`, not `src/`. Run `ls -la packages/*/dist/*.js | head` and compare with `git diff --stat HEAD` to detect stale builds.
+- **Parallel hypotheses for complex bugs**: When root cause is unclear after initial investigation, spawn 2-3 parallel Agent sub-tasks — each pursues a different hypothesis, reads relevant code, and reports evidence for/against. Present all hypotheses with evidence before proposing a fix. Do NOT serially guess-and-check.
 
 ## Figma Plugin Development
 

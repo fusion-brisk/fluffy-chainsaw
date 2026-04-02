@@ -77,12 +77,21 @@
       "Bash(pio:*)",
       "Bash(platformio:*)"
     ],
-    "deny": [
-      "Bash(rm -rf /*)",
-      "Bash(sudo:*)",
-      "Bash(su:*)",
-      "Bash(chmod 777:*)",
-      "Read(**/.env)"
+    "deny": ["Bash(rm -rf /*)", "Bash(sudo:*)", "Bash(su:*)", "Bash(chmod 777:*)", "Read(**/.env)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "if": "Bash(git commit *)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E \"\\.(ts|tsx|js|json|css)$\" | tr \"\\n\" \" \"); if [ -n \"$FILES\" ]; then npx prettier --write $FILES && git add $FILES; fi'",
+            "statusMessage": "Formatting staged files..."
+          }
+        ]
+      }
     ]
   }
 }
