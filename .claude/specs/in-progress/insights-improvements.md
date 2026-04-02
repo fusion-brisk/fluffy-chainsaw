@@ -112,10 +112,10 @@ Skill уже определён. Убедиться что он работает
 
 ## Приоритеты
 
-| # | Задача | Effort | Impact | Когда |
-|---|--------|--------|--------|-------|
-| 1 | Pre-commit hook (prettier) | 15 мин | Высокий | Сейчас |
-| 2 | /cleanup skill | 30 мин | Средний | Сейчас |
-| 3 | Parallel debugging в CLAUDE.md | 5 мин | Средний | Сейчас |
-| 4 | /status skill проверка | 10 мин | Низкий | Позже |
-| 5 | Autonomous refactors | — | Высокий | После роста тестов |
+| # | Задача | Effort | Impact | Статус |
+|---|--------|--------|--------|--------|
+| 1 | Pre-commit hook (prettier) | 15 мин | Высокий | ✅ Done |
+| 2 | /cleanup skill | 30 мин | Средний | ✅ Done |
+| 3 | Parallel debugging в CLAUDE.md | 5 мин | Средний | ✅ Done |
+| 4 | /status — stale build detection | 10 мин | Низкий | ✅ Done |
+| 5 | /refactor — autonomous phased refactors | 15 мин | Высокий | ✅ Done |
