@@ -12,6 +12,19 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
       - run: npm ci
+      - name: Check version consistency
+        run: |
+          ROOT_VER=$(node -p "require('./package.json').version")
+          PLUGIN_VER=$(node -p "require('fs').readFileSync('packages/plugin/src/config.ts','utf8').match(/PLUGIN_VERSION = '([^']+)'/)[1]")
+          EXT_VER=$(node -p "require('./packages/extension/manifest.json').version")
+          XML_VER=$(node -p "require('fs').readFileSync('packages/extension/updates.xml','utf8').match(/version='([^']+)'/)[1]")
+          RELAY_VER=$(node -p "require('./packages/relay/package.json').version")
+          echo "root=$ROOT_VER plugin=$PLUGIN_VER ext=$EXT_VER xml=$XML_VER relay=$RELAY_VER"
+          if [ "$ROOT_VER" != "$PLUGIN_VER" ] || [ "$ROOT_VER" != "$EXT_VER" ] || \
+             [ "$ROOT_VER" != "$XML_VER" ] || [ "$ROOT_VER" != "$RELAY_VER" ]; then
+            echo "::error::Version mismatch! All 5 files must have the same version."
+            exit 1
+          fi
       - run: npm run typecheck -w packages/plugin
       - run: npm run typecheck -w packages/relay
       - run: npm run lint -w packages/plugin
