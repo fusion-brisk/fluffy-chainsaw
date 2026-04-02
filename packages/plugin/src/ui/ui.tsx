@@ -272,9 +272,21 @@ const App: React.FC = () => {
   }, [appState, relay.connected, resizeUI]);
 
   // === COMPACT STRIP RESIZE (for menu) ===
+  const bannerCount = (versionCheck.relayUpdate ? 1 : 0) + (versionCheck.extensionUpdate ? 1 : 0);
+  // Each banner: ~30px (padding 6×2 + text ~18px) + 4px gap between banners + 8px container padding-top
+  const bannerHeight = bannerCount > 0 ? bannerCount * 30 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
+  const compactBaseHeight = 56 + bannerHeight;
+
   const handleRequestResize = useCallback((height: number) => {
     sendMessageToPlugin({ type: 'resize-ui', width: 320, height });
   }, []);
+
+  // Resize window when update banners appear or are dismissed
+  useEffect(() => {
+    if (appState === 'ready') {
+      sendMessageToPlugin({ type: 'resize-ui', width: 320, height: compactBaseHeight });
+    }
+  }, [appState, bannerCount, compactBaseHeight]);
 
   // Send platform info to sandbox (for future use)
   useEffect(() => {
@@ -369,6 +381,16 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* Update banners — only in compact ready state, BEFORE strip to stay in flow */}
+      {appState === 'ready' && !panels.isPanelOpen && (
+        <UpdateBanner
+          relayUpdate={versionCheck.relayUpdate}
+          extensionUpdate={versionCheck.extensionUpdate}
+          onDismissRelay={versionCheck.dismissRelay}
+          onDismissExtension={versionCheck.dismissExtension}
+        />
+      )}
+
       {/* Compact strip — checking, ready, processing, success, error */}
       {isCompactState && !panels.isPanelOpen && (
         <CompactStrip
@@ -384,6 +406,7 @@ const App: React.FC = () => {
           lastImportTime={lastImportTime}
           hasPendingData={importFlow.pending !== null}
           platform={platform}
+          baseHeight={compactBaseHeight}
           onRequestResize={handleRequestResize}
           onMenuAction={handleMenuAction}
         />
@@ -401,16 +424,6 @@ const App: React.FC = () => {
           onConfirm={importFlow.confirm}
           onCancel={importFlow.cancel}
           onClearQueue={importFlow.clearQueue}
-        />
-      )}
-
-      {/* Update banners — only in compact ready state */}
-      {appState === 'ready' && !panels.isPanelOpen && (
-        <UpdateBanner
-          relayUpdate={versionCheck.relayUpdate}
-          extensionUpdate={versionCheck.extensionUpdate}
-          onDismissRelay={versionCheck.dismissRelay}
-          onDismissExtension={versionCheck.dismissExtension}
         />
       )}
 
