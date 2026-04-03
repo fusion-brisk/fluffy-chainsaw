@@ -132,9 +132,9 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
   // Hide unused sitelink slots beyond the actual count.
   // Structure: Sitelink(FRAME) → #Sitelink_N(TEXT), preceded by Dot(ELLIPSE).
   // Must hide: the TEXT, its parent Sitelink FRAME, and the preceding Dot.
-  var MAX_SITELINK_SLOTS = 6;
-  for (var k = texts.length + 1; k <= MAX_SITELINK_SLOTS; k++) {
-    var unusedText =
+  const MAX_SITELINK_SLOTS = 6;
+  for (let k = texts.length + 1; k <= MAX_SITELINK_SLOTS; k++) {
+    const unusedText =
       findFirstNodeByName(sitelinksContainer, '#Sitelink_' + k) ||
       findFirstNodeByName(sitelinksContainer, 'Sitelink_' + k);
     if (!unusedText) continue;
@@ -149,7 +149,7 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
     }
 
     // 2. Hide the parent Sitelink FRAME
-    var parentFrame = unusedText.parent;
+    const parentFrame = unusedText.parent;
     if (parentFrame && parentFrame.name === 'Sitelink' && 'visible' in parentFrame) {
       try {
         (parentFrame as SceneNode).visible = false;
@@ -158,12 +158,12 @@ function applySitelinks(instance: InstanceNode, row: CSVRow): void {
       }
 
       // 3. Hide the Dot preceding this Sitelink FRAME
-      var grandParent = parentFrame.parent;
+      const grandParent = parentFrame.parent;
       if (grandParent && 'children' in grandParent) {
-        var siblings = (grandParent as FrameNode).children;
-        var frameIndex = siblings.indexOf(parentFrame as SceneNode);
+        const siblings = (grandParent as FrameNode).children;
+        const frameIndex = siblings.indexOf(parentFrame as SceneNode);
         if (frameIndex > 0) {
-          var prevSibling = siblings[frameIndex - 1];
+          const prevSibling = siblings[frameIndex - 1];
           if (prevSibling.name === 'Dot' && 'visible' in prevSibling) {
             try {
               (prevSibling as SceneNode).visible = false;

@@ -8,14 +8,14 @@ import type { HandlerContext } from '../handlers/types';
 import { buildInstanceCache } from '../../utils/instance-cache';
 import { getComponentConfig } from './component-map';
 import { loadComponent, createPlaceholder } from './component-import';
-import type { PageElement, SnippetType } from './types';
+import type { PageElement } from './types';
 
 /**
  * Создать инстанс компонента для элемента страницы
  */
 export async function createInstanceForElement(
   element: PageElement,
-  platform: 'desktop' | 'touch'
+  platform: 'desktop' | 'touch',
 ): Promise<InstanceNode | FrameNode | null> {
   const config = getComponentConfig(element.type);
 
@@ -29,9 +29,7 @@ export async function createInstanceForElement(
     return null;
   }
 
-  const componentKey = (platform === 'touch' && config.keyTouch)
-    ? config.keyTouch
-    : config.key;
+  const componentKey = platform === 'touch' && config.keyTouch ? config.keyTouch : config.key;
 
   // Импортируем компонент
   const component = await loadComponent(componentKey);
@@ -48,7 +46,10 @@ export async function createInstanceForElement(
     try {
       const platformValue = platform === 'desktop' ? 'Desktop' : 'Touch';
       // Копируем defaultVariant но без Platform
-      const { Platform: _platform, ...restProps } = config.defaultVariant as Record<string, unknown>;
+      const { Platform: _platform, ...restProps } = config.defaultVariant as Record<
+        string,
+        unknown
+      >;
       instance.setProperties(restProps as Record<string, string | boolean>);
       Logger.info(`[PageCreator] ${element.type}: Platform=${platformValue} (из компонента)`);
     } catch (e) {
@@ -64,7 +65,7 @@ export async function createInstanceForElement(
  */
 export async function applyDataToInstance(
   instance: InstanceNode,
-  element: PageElement
+  element: PageElement,
 ): Promise<void> {
   if (!element.data || Object.keys(element.data).length === 0) {
     Logger.debug(`[PageCreator] Нет данных для элемента ${element.id}`);
@@ -104,7 +105,7 @@ export async function applyDataToInstance(
  */
 export async function createGroupWithChildren(
   element: PageElement,
-  platform: 'desktop' | 'touch'
+  platform: 'desktop' | 'touch',
 ): Promise<InstanceNode | FrameNode | null> {
   const config = getComponentConfig(element.type);
 

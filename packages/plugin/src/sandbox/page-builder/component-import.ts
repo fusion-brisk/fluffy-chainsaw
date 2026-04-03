@@ -5,7 +5,7 @@
 import { Logger } from '../../logger';
 
 /** Timeout for component loading (ms) */
-var IMPORT_TIMEOUT = 15000;
+const IMPORT_TIMEOUT = 15000;
 
 /**
  * Кэш импортированных компонентов
@@ -38,8 +38,10 @@ export async function loadComponent(key: string): Promise<ComponentNode | null> 
     const component = await Promise.race([
       figma.importComponentByKeyAsync(key),
       new Promise<never>(function (_, reject) {
-        setTimeout(function () { reject(new Error('Import timeout after ' + IMPORT_TIMEOUT + 'ms')); }, IMPORT_TIMEOUT);
-      })
+        setTimeout(function () {
+          reject(new Error('Import timeout after ' + IMPORT_TIMEOUT + 'ms'));
+        }, IMPORT_TIMEOUT);
+      }),
     ]);
     componentCache.set(key, component);
     Logger.debug(`[PageCreator] Импортирован компонент: ${component.name} (key=${key})`);
@@ -52,7 +54,11 @@ export async function loadComponent(key: string): Promise<ComponentNode | null> 
 }
 
 /** Creates a placeholder frame when a library component is missing */
-export async function createPlaceholder(name: string, width: number, height: number): Promise<FrameNode> {
+export async function createPlaceholder(
+  name: string,
+  width: number,
+  height: number,
+): Promise<FrameNode> {
   const frame = figma.createFrame();
   frame.name = '\u26A0 ' + name + ' (component not found)';
   frame.resize(width, height);

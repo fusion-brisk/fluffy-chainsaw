@@ -21,8 +21,12 @@ const EOFFER_ITEM_KEY = 'ad30904f3637a4c14779a366e56b8d6173bbd78b';
 // Safe wrappers for findOne/findAll that handle stale sublayer nodes
 function safeFindOne(parent: InstanceNode, predicate: (n: SceneNode) => boolean): SceneNode | null {
   try {
-    return parent.findOne(function(n: SceneNode) {
-      try { return predicate(n); } catch (_e) { return false; }
+    return parent.findOne(function (n: SceneNode) {
+      try {
+        return predicate(n);
+      } catch (_e) {
+        return false;
+      }
     });
   } catch (_e) {
     return null;
@@ -31,8 +35,12 @@ function safeFindOne(parent: InstanceNode, predicate: (n: SceneNode) => boolean)
 
 function safeFindAll(parent: InstanceNode, predicate: (n: SceneNode) => boolean): SceneNode[] {
   try {
-    return parent.findAll(function(n: SceneNode) {
-      try { return predicate(n); } catch (_e) { return false; }
+    return parent.findAll(function (n: SceneNode) {
+      try {
+        return predicate(n);
+      } catch (_e) {
+        return false;
+      }
     });
   } catch (_e) {
     return [];
@@ -44,7 +52,7 @@ function safeFindAll(parent: InstanceNode, predicate: (n: SceneNode) => boolean)
  */
 export async function renderProductCard(
   data: ProductCardPayload,
-  platform: 'desktop' | 'touch'
+  platform: 'desktop' | 'touch',
 ): Promise<InstanceNode | null> {
   if (!data) {
     Logger.error('[ProductCard] No data provided, skipping');
@@ -174,12 +182,13 @@ async function fillPreviewGallery(gallery: SceneNode, images: string[]): Promise
   if (!thumbContainer) thumbContainer = gallery;
   if (!('findAll' in thumbContainer)) return;
 
-  const thumbInstances = safeFindAll(
-    thumbContainer as InstanceNode,
-    function(n) { return n.type === 'INSTANCE' && n.name === 'EThumb'; }
-  ) as InstanceNode[];
+  const thumbInstances = safeFindAll(thumbContainer as InstanceNode, function (n) {
+    return n.type === 'INSTANCE' && n.name === 'EThumb';
+  }) as InstanceNode[];
 
-  Logger.info('[ProductCard] Gallery: ' + thumbInstances.length + ' EThumb, ' + images.length + ' images');
+  Logger.info(
+    '[ProductCard] Gallery: ' + thumbInstances.length + ' EThumb, ' + images.length + ' images',
+  );
 
   const maxImages = Math.min(images.length, thumbInstances.length);
   let applied = 0;
@@ -200,7 +209,7 @@ async function fillPreviewGallery(gallery: SceneNode, images: string[]): Promise
 
 async function fillItemsList(
   rootInstance: InstanceNode,
-  offers: Array<Record<string, string>>
+  offers: Array<Record<string, string>>,
 ): Promise<void> {
   const slot = findDirectChild(rootInstance, 'ItemsList');
   if (!slot || !('children' in slot)) {
@@ -212,7 +221,11 @@ async function fillItemsList(
 
   // Read slot dimensions for sizing
   let slotWidth = 0;
-  try { slotWidth = slotFrame.width; } catch (_e) { /* fallback */ }
+  try {
+    slotWidth = slotFrame.width;
+  } catch (_e) {
+    /* fallback */
+  }
 
   // 1. Import EOfferItem from library
   let offerComponent: ComponentNode;
@@ -231,9 +244,17 @@ async function fillItemsList(
       slotFrame.appendChild(inst);
 
       if (slotWidth > 0) {
-        try { inst.resize(slotWidth, inst.height); } catch (_e) { /* skip */ }
+        try {
+          inst.resize(slotWidth, inst.height);
+        } catch (_e) {
+          /* skip */
+        }
       }
-      try { inst.layoutSizingHorizontal = 'FILL'; } catch (_e) { /* no auto-layout */ }
+      try {
+        inst.layoutSizingHorizontal = 'FILL';
+      } catch (_e) {
+        /* no auto-layout */
+      }
 
       await fillOfferDirect(inst, offers[i], false);
       newInstances.push(inst);
@@ -250,7 +271,9 @@ async function fillItemsList(
     try {
       slotFrame.insertChild(1, newInstances[i]);
       reordered++;
-    } catch (_e) { break; }
+    } catch (_e) {
+      break;
+    }
   }
 
   // 4. Hide old sublayer children: "list" and anything else before our offers
@@ -262,11 +285,21 @@ async function fillItemsList(
         child.visible = false;
         hidden++;
       }
-    } catch (_e) { /* sublayer invalidated */ }
+    } catch (_e) {
+      /* sublayer invalidated */
+    }
   }
 
-  Logger.info('[ProductCard] ItemsList: created=' + newInstances.length + '/' + offers.length
-    + ', reordered=' + reordered + ', listHidden=' + hidden);
+  Logger.info(
+    '[ProductCard] ItemsList: created=' +
+      newInstances.length +
+      '/' +
+      offers.length +
+      ', reordered=' +
+      reordered +
+      ', listHidden=' +
+      hidden,
+  );
 }
 
 // ============================================================================
@@ -275,7 +308,7 @@ async function fillItemsList(
 
 async function fillSpecs(
   specsInst: SceneNode,
-  specs: Array<{ name: string; value: string }>
+  specs: Array<{ name: string; value: string }>,
 ): Promise<void> {
   if (!('children' in specsInst)) return;
 
@@ -287,7 +320,9 @@ async function fillSpecs(
         parametersFrame = child as FrameNode;
         break;
       }
-    } catch (_e) { /* stale */ }
+    } catch (_e) {
+      /* stale */
+    }
   }
 
   if (!parametersFrame) {
@@ -302,7 +337,9 @@ async function fillSpecs(
       if (child.type === 'INSTANCE' && child.name.indexOf('-line') !== -1) {
         specLines.push(child);
       }
-    } catch (_e) { /* stale */ }
+    } catch (_e) {
+      /* stale */
+    }
   }
 
   const maxSpecs = Math.min(specs.length, specLines.length);
@@ -314,7 +351,11 @@ async function fillSpecs(
 
       // Make hidden lines visible
       if (!line.visible) {
-        try { line.visible = true; } catch (_e) { /* skip */ }
+        try {
+          line.visible = true;
+        } catch (_e) {
+          /* skip */
+        }
       }
 
       // Structure: Name(FRAME) > Row(FRAME) > Text(TEXT) and Value(TEXT)
@@ -338,14 +379,20 @@ async function fillSpecs(
                         nameSet = true;
                         break;
                       }
-                    } catch (_e) { /* stale */ }
+                    } catch (_e) {
+                      /* stale */
+                    }
                   }
                 }
-              } catch (_e) { /* stale */ }
+              } catch (_e) {
+                /* stale */
+              }
               if (nameSet) break;
             }
           }
-        } catch (_e) { /* stale */ }
+        } catch (_e) {
+          /* stale */
+        }
       }
 
       if (!nameSet || !valueSet) {
@@ -377,10 +424,9 @@ async function fillReviewTitle(reviewInst: SceneNode, reviewCount: string): Prom
   }
 
   // Fallback: find text nodes and fill directly
-  const textNodes = safeFindAll(
-    reviewInst as InstanceNode,
-    function(n) { return n.type === 'TEXT'; }
-  ) as TextNode[];
+  const textNodes = safeFindAll(reviewInst as InstanceNode, function (n) {
+    return n.type === 'TEXT';
+  }) as TextNode[];
 
   for (const tn of textNodes) {
     try {
@@ -390,7 +436,9 @@ async function fillReviewTitle(reviewInst: SceneNode, reviewCount: string): Prom
         Logger.info('[ProductCard] Reviews: set count "' + reviewCount + '" in "' + tn.name + '"');
         return;
       }
-    } catch (_e) { /* stale */ }
+    } catch (_e) {
+      /* stale */
+    }
   }
 
   Logger.info('[ProductCard] Reviews: ' + textNodes.length + ' text nodes, none matched for count');
@@ -402,7 +450,7 @@ async function fillReviewTitle(reviewInst: SceneNode, reviewCount: string): Prom
 
 async function fillAvgPrice(
   rootInstance: InstanceNode,
-  range: { from: string; to: string }
+  range: { from: string; to: string },
 ): Promise<void> {
   // EPriceBarometerLegend is inside a "Frame" direct child of rootInstance
   // Structure: Frame > EPriceBarometerLegend > ... > #OrganicPrice (TEXT) x2
@@ -420,22 +468,41 @@ async function fillAvgPrice(
           if (grandchild.name.indexOf('PriceBarometer') === -1) continue;
           if (!('findAll' in grandchild)) continue;
           // Found EPriceBarometerLegend — search for #OrganicPrice text nodes
-          const texts = (grandchild as InstanceNode).findAll(function(n) {
-            try { return n.type === 'TEXT' && n.name === '#OrganicPrice'; }
-            catch (_e) { return false; }
+          const texts = (grandchild as InstanceNode).findAll(function (n) {
+            try {
+              return n.type === 'TEXT' && n.name === '#OrganicPrice';
+            } catch (_e) {
+              return false;
+            }
           }) as TextNode[];
           for (const t of texts) priceNodes.push(t);
-        } catch (_e) { /* stale */ }
+        } catch (_e) {
+          /* stale */
+        }
       }
-    } catch (_e) { /* stale */ }
+    } catch (_e) {
+      /* stale */
+    }
   }
 
   if (priceNodes.length >= 2) {
-    try { await safeSetTextNode(priceNodes[0], range.from); } catch (_e) { /* stale */ }
-    try { await safeSetTextNode(priceNodes[1], range.to); } catch (_e) { /* stale */ }
+    try {
+      await safeSetTextNode(priceNodes[0], range.from);
+    } catch (_e) {
+      /* stale */
+    }
+    try {
+      await safeSetTextNode(priceNodes[1], range.to);
+    } catch (_e) {
+      /* stale */
+    }
     Logger.info('[ProductCard] AvgPrice: filled ' + range.from + ' — ' + range.to);
   } else if (priceNodes.length === 1) {
-    try { await safeSetTextNode(priceNodes[0], range.from + ' — ' + range.to); } catch (_e) { /* stale */ }
+    try {
+      await safeSetTextNode(priceNodes[0], range.from + ' — ' + range.to);
+    } catch (_e) {
+      /* stale */
+    }
     Logger.info('[ProductCard] AvgPrice: filled 1 node with range');
   } else {
     Logger.info('[ProductCard] AvgPrice: no #OrganicPrice nodes found');
@@ -478,7 +545,7 @@ function setBooleanProperties(instance: InstanceNode, data: ProductCardPayload):
 async function fillOfferDirect(
   offer: InstanceNode,
   row: Record<string, string>,
-  skipBooleans: boolean = false
+  skipBooleans: boolean = false,
 ): Promise<void> {
   const hasDiscount = !!(row['#OldPrice'] || row['#EPriceGroup_OldPrice'] === 'true');
 
@@ -488,53 +555,67 @@ async function fillOfferDirect(
   if (row['#OrganicTitle']) textMap['#OrganicTitle'] = row['#OrganicTitle'];
 
   // Always overwrite old price / discount — clear template values when no discount
-  textMap['#OldPrice'] = hasDiscount ? (row['#OldPrice'] || '') : ' ';
-  textMap['#discount'] = hasDiscount ? (row['#discount'] || '') : ' ';
+  textMap['#OldPrice'] = hasDiscount ? row['#OldPrice'] || '' : ' ';
+  textMap['#discount'] = hasDiscount ? row['#discount'] || '' : ' ';
 
   const names = Object.keys(textMap);
   if (names.length > 0) {
-    const textNodes = safeFindAll(offer, function(n) {
+    const textNodes = safeFindAll(offer, function (n) {
       return n.type === 'TEXT' && names.indexOf(n.name) !== -1;
     }) as TextNode[];
     for (const tn of textNodes) {
       try {
         await safeSetTextNode(tn, textMap[tn.name]);
-      } catch (_e) { /* stale node */ }
+      } catch (_e) {
+        /* stale node */
+      }
     }
   }
 
   // Hide discount container when no discount
   if (!hasDiscount) {
     try {
-      const discountFrame = safeFindOne(offer, function(n) {
+      const discountFrame = safeFindOne(offer, function (n) {
         return n.type === 'FRAME' && n.name === 'Discount + Old Price';
       });
       if (discountFrame) {
-        try { discountFrame.visible = false; } catch (_e) { /* sublayer */ }
+        try {
+          discountFrame.visible = false;
+        } catch (_e) {
+          /* sublayer */
+        }
       }
-    } catch (_e) { /* skip */ }
+    } catch (_e) {
+      /* skip */
+    }
   }
 
   // Hide fintech container when no fintech
-  const hasFintech = !!(row['#EPriceGroup_Fintech']);
+  const hasFintech = !!row['#EPriceGroup_Fintech'];
   if (!hasFintech) {
     try {
-      const fintechFrame = safeFindOne(offer, function(n) {
+      const fintechFrame = safeFindOne(offer, function (n) {
         return n.type === 'FRAME' && n.name === 'EPriceGroup-Fintech';
       });
       if (fintechFrame) {
-        try { fintechFrame.visible = false; } catch (_e) { /* sublayer */ }
+        try {
+          fintechFrame.visible = false;
+        } catch (_e) {
+          /* sublayer */
+        }
       }
-    } catch (_e) { /* skip */ }
+    } catch (_e) {
+      /* skip */
+    }
   }
 
   // Rating + review count
   try {
-    const reviewsLabel = safeFindOne(offer, function(n) {
+    const reviewsLabel = safeFindOne(offer, function (n) {
       return n.type === 'INSTANCE' && n.name === 'EReviewsLabel';
     });
     if (reviewsLabel && 'findAll' in reviewsLabel) {
-      const titles = safeFindAll(reviewsLabel as InstanceNode, function(n) {
+      const titles = safeFindAll(reviewsLabel as InstanceNode, function (n) {
         return n.type === 'TEXT' && n.name === 'Title';
       }) as TextNode[];
       if (titles.length >= 1 && (row['#ShopRating'] || row['#ShopInfo-Ugc'])) {
@@ -544,11 +625,13 @@ async function fillOfferDirect(
         await safeSetTextNode(titles[1], row['#EReviews_shopText']);
       }
     }
-  } catch (_e) { /* skip */ }
+  } catch (_e) {
+    /* skip */
+  }
 
   // Delivery items
   try {
-    const deliveryNodes = safeFindAll(offer, function(n) {
+    const deliveryNodes = safeFindAll(offer, function (n) {
       return n.type === 'TEXT' && n.name === '#EDeliveryGroup-Item';
     }) as TextNode[];
     for (let di = 0; di < deliveryNodes.length; di++) {
@@ -557,28 +640,39 @@ async function fillOfferDirect(
         await safeSetTextNode(deliveryNodes[di], row[fieldKey]);
       }
     }
-  } catch (_e) { /* skip */ }
+  } catch (_e) {
+    /* skip */
+  }
 
   // Boolean + variant properties
   if (!skipBooleans) {
-    const isCheckout = row['#ButtonType'] === 'checkout' ||
-                       row['#ButtonView'] === 'primaryShort' ||
-                       row['#ButtonView'] === 'primaryLong';
+    const isCheckout =
+      row['#ButtonType'] === 'checkout' ||
+      row['#ButtonView'] === 'primaryShort' ||
+      row['#ButtonView'] === 'primaryLong';
     const boolProps: Record<string, boolean | string> = {
       'withDelivery#22266:53': !!(row['#EDeliveryGroup'] || row['#DeliveryList']),
       'withButton#22266:51': !!(row['#BUTTON'] && row['#BUTTON'] !== 'false'),
-      'withReviews#22266:52': !!(row['#ShopRating'] || row['#ShopInfo-Ugc'] || row['#EReviews_shopText']),
+      'withReviews#22266:52': !!(
+        row['#ShopRating'] ||
+        row['#ShopInfo-Ugc'] ||
+        row['#EReviews_shopText']
+      ),
       'withFintech#22266:54': hasFintech,
-      'withTitle#22448:10': !!(row['#OrganicTitle']),
+      'withTitle#22448:10': !!row['#OrganicTitle'],
       'Brand#22092:0': false,
       'Price Disclaimer#22266:55': false,
-      'type': isCheckout ? 'offerMain' : 'offerPrices',
+      type: isCheckout ? 'offerMain' : 'offerPrices',
     };
     try {
       offer.setProperties(boolProps);
     } catch (_e) {
       for (const key of Object.keys(boolProps)) {
-        try { offer.setProperties({ [key]: boolProps[key] }); } catch (_) { /* skip */ }
+        try {
+          offer.setProperties({ [key]: boolProps[key] });
+        } catch (_) {
+          /* skip */
+        }
       }
     }
   }
@@ -586,27 +680,33 @@ async function fillOfferDirect(
   // Favicon image
   if (row['#FaviconImage']) {
     try {
-      const faviconNode = safeFindOne(offer, function(n) {
+      const faviconNode = safeFindOne(offer, function (n) {
         return n.name === '#FaviconImage' || n.name === 'Favicon';
       });
       if (faviconNode) {
         await applyImageToNode(faviconNode, row['#FaviconImage']);
       }
-    } catch (_e) { /* skip */ }
+    } catch (_e) {
+      /* skip */
+    }
   }
 
   // EPriceBarometer view variant
   if (row['#EPriceBarometer_View']) {
     try {
-      const baro = safeFindOne(offer, function(n) {
+      const baro = safeFindOne(offer, function (n) {
         return n.type === 'INSTANCE' && n.name === 'EPriceBarometer';
       }) as InstanceNode | null;
       if (baro) {
         try {
-          baro.setProperties({ 'view': row['#EPriceBarometer_View'] });
-        } catch (_e) { /* sublayer variant */ }
+          baro.setProperties({ view: row['#EPriceBarometer_View'] });
+        } catch (_e) {
+          /* sublayer variant */
+        }
       }
-    } catch (_e) { /* skip */ }
+    } catch (_e) {
+      /* skip */
+    }
   }
 }
 
@@ -615,9 +715,11 @@ async function fillOfferDirect(
 // ============================================================================
 
 async function applyImageToNode(node: SceneNode, url: string): Promise<void> {
-  var target = findFillableTarget(node);
+  const target = findFillableTarget(node);
   if (!target) {
-    Logger.info('[ProductCard] Image: no fillable target in ' + node.name + ' (type=' + node.type + ')');
+    Logger.info(
+      '[ProductCard] Image: no fillable target in ' + node.name + ' (type=' + node.type + ')',
+    );
     return;
   }
   await fetchAndApplyImage(target as unknown as SceneNode, url, 'FIT', '[ProductCard]');
@@ -645,7 +747,9 @@ function findFillableTarget(node: SceneNode): GeometryMixin | null {
     try {
       if (child.type === 'RECTANGLE') return child as unknown as GeometryMixin;
       if (child.type === 'ELLIPSE') return child as unknown as GeometryMixin;
-    } catch (_e) { /* stale sublayer */ }
+    } catch (_e) {
+      /* stale sublayer */
+    }
   }
 
   // Priority 3: deeper search (2 levels)
@@ -656,10 +760,14 @@ function findFillableTarget(node: SceneNode): GeometryMixin | null {
           try {
             if (grandchild.type === 'RECTANGLE') return grandchild as unknown as GeometryMixin;
             if (grandchild.type === 'ELLIPSE') return grandchild as unknown as GeometryMixin;
-          } catch (_e) { /* stale */ }
+          } catch (_e) {
+            /* stale */
+          }
         }
       }
-    } catch (_e) { /* stale */ }
+    } catch (_e) {
+      /* stale */
+    }
   }
 
   // Fallback: use the frame itself
@@ -676,7 +784,9 @@ function findNodeByName(parent: FrameNode, name: string, maxDepth: number): Scen
         const found = findNodeByName(child as FrameNode, name, maxDepth - 1);
         if (found) return found;
       }
-    } catch (_e) { /* stale */ }
+    } catch (_e) {
+      /* stale */
+    }
   }
   return null;
 }
@@ -690,20 +800,9 @@ function findDirectChild(parent: SceneNode, name: string): SceneNode | null {
   for (const child of (parent as FrameNode).children) {
     try {
       if (child.name === name) return child;
-    } catch (_e) { /* stale sublayer */ }
+    } catch (_e) {
+      /* stale sublayer */
+    }
   }
   return null;
-}
-
-function safeCollectTextNodes(node: BaseNode, result: TextNode[]): void {
-  try {
-    if (node.type === 'TEXT' && !(node as SceneNode).removed) {
-      result.push(node as TextNode);
-    }
-    if ('children' in node && node.children) {
-      for (const child of node.children) {
-        safeCollectTextNodes(child, result);
-      }
-    }
-  } catch (_e) { /* stale sublayer */ }
 }

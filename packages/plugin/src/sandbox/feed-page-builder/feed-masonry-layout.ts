@@ -34,8 +34,8 @@ export interface MasonryResult {
  * On tie, returns the first (leftmost) column.
  */
 function findShortestColumn(columnHeights: number[]): number {
-  var minIndex = 0;
-  for (var i = 1; i < columnHeights.length; i++) {
+  let minIndex = 0;
+  for (let i = 1; i < columnHeights.length; i++) {
     if (columnHeights[i] < columnHeights[minIndex]) {
       minIndex = i;
     }
@@ -53,15 +53,12 @@ function findShortestColumn(columnHeights: number[]): number {
  * 5. totalHeight = max(columnHeights) - gap
  * 6. totalWidth = columns * columnWidth + (columns - 1) * gap
  */
-export function assignMasonryPositions(
-  items: MasonryItem[],
-  config: MasonryConfig
-): MasonryResult {
-  var columns = config.columns;
-  var columnWidth = config.columnWidth;
-  var gap = config.gap;
+export function assignMasonryPositions(items: MasonryItem[], config: MasonryConfig): MasonryResult {
+  const columns = config.columns;
+  const columnWidth = config.columnWidth;
+  const gap = config.gap;
 
-  var totalWidth = columns * columnWidth + (columns - 1) * gap;
+  const totalWidth = columns * columnWidth + (columns - 1) * gap;
 
   if (items.length === 0) {
     return {
@@ -72,18 +69,18 @@ export function assignMasonryPositions(
   }
 
   // Initialize column heights to 0
-  var columnHeights: number[] = [];
-  for (var c = 0; c < columns; c++) {
+  const columnHeights: number[] = [];
+  for (let c = 0; c < columns; c++) {
     columnHeights.push(0);
   }
 
-  var positions: MasonryPosition[] = [];
+  const positions: MasonryPosition[] = [];
 
-  for (var i = 0; i < items.length; i++) {
-    var item = items[i];
-    var col = findShortestColumn(columnHeights);
-    var x = col * (columnWidth + gap);
-    var y = columnHeights[col];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const col = findShortestColumn(columnHeights);
+    const x = col * (columnWidth + gap);
+    const y = columnHeights[col];
 
     positions.push({
       id: item.id,
@@ -96,8 +93,8 @@ export function assignMasonryPositions(
   }
 
   // Total height = max column height minus trailing gap
-  var maxHeight = 0;
-  for (var h = 0; h < columnHeights.length; h++) {
+  let maxHeight = 0;
+  for (let h = 0; h < columnHeights.length; h++) {
     if (columnHeights[h] > maxHeight) {
       maxHeight = columnHeights[h];
     }

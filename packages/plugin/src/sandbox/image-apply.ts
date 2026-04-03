@@ -10,7 +10,7 @@
 import { Logger } from '../logger';
 
 /** Timeout for image fetch operations (ms) */
-var IMAGE_FETCH_TIMEOUT = 10000;
+const IMAGE_FETCH_TIMEOUT = 10000;
 
 /**
  * Race a promise against a timeout. Rejects with 'Timeout' if deadline exceeded.
@@ -18,8 +18,8 @@ var IMAGE_FETCH_TIMEOUT = 10000;
  */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise(function (resolve, reject) {
-    var done = false;
-    var timer = setTimeout(function () {
+    let done = false;
+    const timer = setTimeout(function () {
       if (!done) {
         done = true;
         reject(new Error('Timeout after ' + ms + 'ms'));
@@ -51,7 +51,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export function normalizeImageUrl(url: string): string | null {
   if (!url || url.trim() === '') return null;
 
-  var normalized = url;
+  let normalized = url;
   if (url.startsWith('//')) {
     normalized = 'https:' + url;
   }
@@ -87,8 +87,8 @@ export async function fetchAndApplyImage(
   scaleMode?: 'FIT' | 'FILL' | 'CROP' | 'TILE',
   logPrefix?: string,
 ): Promise<boolean> {
-  var mode = scaleMode || 'FIT';
-  var prefix = logPrefix || '[fetchAndApplyImage]';
+  const mode = scaleMode || 'FIT';
+  const prefix = logPrefix || '[fetchAndApplyImage]';
 
   if (!url || url.trim() === '') {
     Logger.debug(prefix + ' Empty URL, skip');
@@ -98,10 +98,10 @@ export async function fetchAndApplyImage(
   try {
     // Handle data: URIs (base64-encoded images)
     if (url.startsWith('data:')) {
-      var match = url.match(/^data:[^;]+;base64,(.+)$/);
+      const match = url.match(/^data:[^;]+;base64,(.+)$/);
       if (match && match[1]) {
-        var bytes = figma.base64Decode(match[1]);
-        var dataImage = figma.createImage(bytes);
+        const bytes = figma.base64Decode(match[1]);
+        const dataImage = figma.createImage(bytes);
         Logger.debug(prefix + ' data: URI decoded, hash=' + dataImage.hash.substring(0, 8));
         if ('fills' in layer) {
           (layer as GeometryMixin).fills = [
@@ -137,27 +137,27 @@ export async function fetchAndApplyImage(
     }
 
     // Normalize and validate URL
-    var normalizedUrl = normalizeImageUrl(url);
+    const normalizedUrl = normalizeImageUrl(url);
     if (!normalizedUrl) {
       Logger.debug(prefix + ' Invalid URL: ' + url.substring(0, 60));
       return false;
     }
 
     // Fetch image (with timeout to prevent pipeline stalls)
-    var response = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
+    const response = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
     if (!response.ok) {
       Logger.debug(prefix + ' HTTP ' + response.status + ' for ' + normalizedUrl.substring(0, 60));
       return false;
     }
 
-    var arrayBuffer = await response.arrayBuffer();
+    const arrayBuffer = await response.arrayBuffer();
     if (arrayBuffer.byteLength === 0) {
       Logger.debug(prefix + ' Empty response for ' + normalizedUrl.substring(0, 60));
       return false;
     }
 
-    var uint8Array = new Uint8Array(arrayBuffer);
-    var image = figma.createImage(uint8Array);
+    const uint8Array = new Uint8Array(arrayBuffer);
+    const image = figma.createImage(uint8Array);
 
     // Apply fills — try guard first, fallback to cast
     if ('fills' in layer) {
@@ -189,7 +189,7 @@ export async function fetchAndApplyImage(
     Logger.debug(prefix + ' Image applied to "' + layer.name + '"');
     return true;
   } catch (e) {
-    var msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : String(e);
     Logger.debug(prefix + ' Error: ' + msg);
     return false;
   }

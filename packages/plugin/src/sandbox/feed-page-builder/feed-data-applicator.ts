@@ -22,28 +22,19 @@ function findChildInstance(node: SceneNode, name: string, maxDepth: number): Ins
   if (maxDepth <= 0) return null;
   if (!('children' in node)) return null;
 
-  var children = (node as ChildrenMixin).children;
-  for (var i = 0; i < children.length; i++) {
-    var child = children[i];
+  const children = (node as ChildrenMixin).children;
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
     if (child.type === 'INSTANCE' && child.name === name) {
       return child;
     }
   }
   // Recurse
-  for (var j = 0; j < children.length; j++) {
-    var found = findChildInstance(children[j], name, maxDepth - 1);
+  for (let j = 0; j < children.length; j++) {
+    const found = findChildInstance(children[j], name, maxDepth - 1);
     if (found) return found;
   }
   return null;
-}
-
-/**
- * Find first RECTANGLE named "Img" inside a named container (for image fills).
- */
-function findImgRect(node: SceneNode, containerName: string, maxDepth: number): RectangleNode | null {
-  var container = findChildByName(node, containerName, maxDepth);
-  if (!container) return null;
-  return findRectByName(container, 'Img', 4);
 }
 
 /**
@@ -53,12 +44,12 @@ function findChildByName(node: SceneNode, name: string, maxDepth: number): Scene
   if (maxDepth <= 0) return null;
   if (!('children' in node)) return null;
 
-  var children = (node as ChildrenMixin).children;
-  for (var i = 0; i < children.length; i++) {
+  const children = (node as ChildrenMixin).children;
+  for (let i = 0; i < children.length; i++) {
     if (children[i].name === name) return children[i];
   }
-  for (var j = 0; j < children.length; j++) {
-    var found = findChildByName(children[j], name, maxDepth - 1);
+  for (let j = 0; j < children.length; j++) {
+    const found = findChildByName(children[j], name, maxDepth - 1);
     if (found) return found;
   }
   return null;
@@ -72,9 +63,9 @@ function findRectByName(node: SceneNode, name: string, maxDepth: number): Rectan
   if (node.type === 'RECTANGLE' && node.name === name) return node as RectangleNode;
   if (!('children' in node)) return null;
 
-  var children = (node as ChildrenMixin).children;
-  for (var i = 0; i < children.length; i++) {
-    var found = findRectByName(children[i], name, maxDepth - 1);
+  const children = (node as ChildrenMixin).children;
+  for (let i = 0; i < children.length; i++) {
+    const found = findRectByName(children[i], name, maxDepth - 1);
     if (found) return found;
   }
   return null;
@@ -91,9 +82,9 @@ function setPropsOnChild(
   parent: SceneNode,
   childName: string,
   props: Record<string, string | boolean>,
-  label: string
+  label: string,
 ): void {
-  var inst = findChildInstance(parent, childName, 6);
+  const inst = findChildInstance(parent, childName, 6);
   if (!inst) {
     Logger.debug('[FeedApplicator] ' + label + ': child "' + childName + '" not found');
     return;
@@ -101,8 +92,10 @@ function setPropsOnChild(
   try {
     inst.setProperties(props);
   } catch (e) {
-    var msg = e instanceof Error ? e.message : String(e);
-    Logger.debug('[FeedApplicator] ' + label + ': setProperties failed on "' + childName + '": ' + msg);
+    const msg = e instanceof Error ? e.message : String(e);
+    Logger.debug(
+      '[FeedApplicator] ' + label + ': setProperties failed on "' + childName + '": ' + msg,
+    );
   }
 }
 
@@ -114,10 +107,10 @@ function setPropsOnChild(
  * Apply source info (Source Feed instance) — shared across all card types.
  */
 function applySource(instance: InstanceNode, card: FeedCardRow): void {
-  var sourceName = card['#Feed_SourceName'] || '';
-  var sourceDomain = card['#Feed_SourceDomain'] || '';
+  const sourceName = card['#Feed_SourceName'] || '';
+  const sourceDomain = card['#Feed_SourceDomain'] || '';
 
-  var props: Record<string, string | boolean> = {};
+  const props: Record<string, string | boolean> = {};
   if (sourceName) {
     props['Source Name#3435:2'] = sourceName;
   }
@@ -135,12 +128,12 @@ function applySource(instance: InstanceNode, card: FeedCardRow): void {
  * Apply price info — shared Price instance pattern.
  */
 function applyPrice(parent: SceneNode, card: FeedCardRow, label: string): void {
-  var price = card['#Feed_Price'] || '';
-  var oldPrice = card['#Feed_OldPrice'] || '';
+  const price = card['#Feed_Price'] || '';
+  const oldPrice = card['#Feed_OldPrice'] || '';
 
   if (!price) return;
 
-  var props: Record<string, string | boolean> = {};
+  const props: Record<string, string | boolean> = {};
   props['Price#6097:0'] = price;
   if (oldPrice) {
     props['Old Price#6127:0'] = true;
@@ -158,7 +151,7 @@ function applyMarketData(instance: InstanceNode, card: FeedCardRow): void {
   applyPrice(instance, card, 'market');
 
   // Placeholder off when image is available
-  var hasImage = !!card['#Feed_ImageUrl'];
+  const hasImage = !!card['#Feed_ImageUrl'];
   if (hasImage) {
     setPropsOnChild(instance, 'Image', { 'Placeholder#4004:1': false }, 'market/thumb');
   }
@@ -168,29 +161,33 @@ function applyVideoData(instance: InstanceNode, card: FeedCardRow): void {
   applySource(instance, card);
 
   // Description text
-  var description = card['#Feed_Title'] || '';
+  const description = card['#Feed_Title'] || '';
   if (description) {
     // Description is on Media Meta, which is deep — search for any instance with this prop
     applyPropToAnyChild(instance, 'Description#2984:0', description);
   }
 
   // Product info
-  var productTitle = card['#Feed_Title'] || '';
-  var hasProduct = !!(card['#Feed_Price'] || productTitle);
+  const productTitle = card['#Feed_Title'] || '';
+  const hasProduct = !!(card['#Feed_Price'] || productTitle);
 
   // Find Tile / Media Content for Product toggle
-  var tile = findChildInstance(instance, 'Tile / Media Content', 4);
+  const tile = findChildInstance(instance, 'Tile / Media Content', 4);
   if (tile) {
     try {
       tile.setProperties({ 'Product#2773:26': hasProduct });
-    } catch (e) { /* prop may not exist */ }
+    } catch (e) {
+      /* prop may not exist */
+    }
 
     // Product title
-    var product = findChildInstance(tile, 'Product', 4);
+    const product = findChildInstance(tile, 'Product', 4);
     if (product && productTitle) {
       try {
         product.setProperties({ 'Product Title#2773:20': productTitle });
-      } catch (e) { /* */ }
+      } catch (e) {
+        /* */
+      }
     }
 
     // Price inside Product
@@ -200,7 +197,7 @@ function applyVideoData(instance: InstanceNode, card: FeedCardRow): void {
   }
 
   // Placeholder off when image is available
-  var hasImage = !!card['#Feed_ImageUrl'];
+  const hasImage = !!card['#Feed_ImageUrl'];
   if (hasImage) {
     setPropsOnChild(instance, 'Image', { 'Placeholder#4004:1': false }, 'video/thumb');
   }
@@ -213,13 +210,13 @@ function applyPostData(instance: InstanceNode, card: FeedCardRow): void {
 
 function applyAdsData(instance: InstanceNode, card: FeedCardRow): void {
   // Description
-  var title = card['#Feed_Title'] || '';
+  const title = card['#Feed_Title'] || '';
   if (title) {
     applyPropToAnyChild(instance, 'Description#2984:0', title);
   }
 
   // Placeholder
-  var hasImage = !!card['#Feed_ImageUrl'];
+  const hasImage = !!card['#Feed_ImageUrl'];
   if (hasImage) {
     setPropsOnChild(instance, 'Image', { 'Placeholder#4004:1': false }, 'ads/thumb');
   }
@@ -231,19 +228,21 @@ function applyAdsData(instance: InstanceNode, card: FeedCardRow): void {
  */
 function applyPropToAnyChild(node: SceneNode, propKey: string, value: string): void {
   if (node.type === 'INSTANCE') {
-    var props = node.componentProperties;
+    const props = node.componentProperties;
     if (props && props[propKey] !== undefined) {
       try {
-        var patch: Record<string, string> = {};
+        const patch: Record<string, string> = {};
         patch[propKey] = value;
         node.setProperties(patch);
         return;
-      } catch (e) { /* continue searching */ }
+      } catch (e) {
+        /* continue searching */
+      }
     }
   }
   if (!('children' in node)) return;
-  var children = (node as ChildrenMixin).children;
-  for (var i = 0; i < children.length; i++) {
+  const children = (node as ChildrenMixin).children;
+  for (let i = 0; i < children.length; i++) {
     applyPropToAnyChild(children[i], propKey, value);
   }
 }
@@ -257,35 +256,35 @@ function applyPropToAnyChild(node: SceneNode, propKey: string, value: string): v
  * Returns a Promise chain (ES5-safe).
  */
 function applyImages(instance: InstanceNode, card: FeedCardRow): Promise<void> {
-  var imageUrl = card['#Feed_ImageUrl'] || '';
-  var avatarUrl = card['#Feed_SourceAvatarUrl'] || '';
-  var chain = Promise.resolve();
+  const imageUrl = card['#Feed_ImageUrl'] || '';
+  const avatarUrl = card['#Feed_SourceAvatarUrl'] || '';
+  let chain = Promise.resolve();
 
   // Main image — find "Img" RECTANGLE inside "Thumb"
   if (imageUrl) {
-    chain = chain.then(function() {
-      var thumbFrame = findChildByName(instance, 'Thumb', 4);
+    chain = chain.then(function () {
+      const thumbFrame = findChildByName(instance, 'Thumb', 4);
       if (!thumbFrame) {
         Logger.debug('[FeedApplicator] Thumb not found');
         return;
       }
-      var imgRect = findRectByName(thumbFrame, 'Img', 4);
+      const imgRect = findRectByName(thumbFrame, 'Img', 4);
       if (!imgRect) {
         Logger.debug('[FeedApplicator] Img rect not found in Thumb');
         return;
       }
-      return fetchAndApplyImage(imgRect, imageUrl, 'FILL', '[Feed/thumb]').then(function() {});
+      return fetchAndApplyImage(imgRect, imageUrl, 'FILL', '[Feed/thumb]').then(function () {});
     });
   }
 
   // Source avatar — find "Img" RECTANGLE inside "Source Feed / Icon"
   if (avatarUrl) {
-    chain = chain.then(function() {
-      var sourceIcon = findChildByName(instance, 'Source Feed / Icon', 6);
+    chain = chain.then(function () {
+      const sourceIcon = findChildByName(instance, 'Source Feed / Icon', 6);
       if (!sourceIcon) return;
-      var imgRect = findRectByName(sourceIcon, 'Img', 3);
+      const imgRect = findRectByName(sourceIcon, 'Img', 3);
       if (!imgRect) return;
-      return fetchAndApplyImage(imgRect, avatarUrl, 'FILL', '[Feed/avatar]').then(function() {});
+      return fetchAndApplyImage(imgRect, avatarUrl, 'FILL', '[Feed/avatar]').then(function () {});
     });
   }
 
@@ -301,16 +300,16 @@ function applyImages(instance: InstanceNode, card: FeedCardRow): Promise<void> {
  * We need loadFontAsync + characters = value.
  */
 function applyMarketDescription(instance: InstanceNode, card: FeedCardRow): Promise<void> {
-  var title = card['#Feed_Title'] || '';
+  const title = card['#Feed_Title'] || '';
   if (!title) return Promise.resolve();
 
-  var descFrame = findChildByName(instance, 'Description', 6);
+  const descFrame = findChildByName(instance, 'Description', 6);
   if (!descFrame || !('children' in descFrame)) return Promise.resolve();
 
   // Find first TEXT child in Description
-  var textNode: TextNode | null = null;
-  var children = (descFrame as ChildrenMixin).children;
-  for (var i = 0; i < children.length; i++) {
+  let textNode: TextNode | null = null;
+  const children = (descFrame as ChildrenMixin).children;
+  for (let i = 0; i < children.length; i++) {
     if (children[i].type === 'TEXT') {
       textNode = children[i] as TextNode;
       break;
@@ -318,16 +317,22 @@ function applyMarketDescription(instance: InstanceNode, card: FeedCardRow): Prom
   }
   if (!textNode) return Promise.resolve();
 
-  var fn = textNode.fontName;
+  const fn = textNode.fontName;
   if (!fn || fn === figma.mixed) return Promise.resolve();
 
-  return figma.loadFontAsync(fn as FontName).then(function() {
-    if (textNode) {
-      textNode.characters = title;
-    }
-  }).catch(function(e) {
-    Logger.debug('[FeedApplicator] Market description font load failed: ' + (e instanceof Error ? e.message : String(e)));
-  });
+  return figma
+    .loadFontAsync(fn as FontName)
+    .then(function () {
+      if (textNode) {
+        textNode.characters = title;
+      }
+    })
+    .catch(function (e) {
+      Logger.debug(
+        '[FeedApplicator] Market description font load failed: ' +
+          (e instanceof Error ? e.message : String(e)),
+      );
+    });
 }
 
 // ============================================================================
@@ -344,8 +349,14 @@ function applyMarketDescription(instance: InstanceNode, card: FeedCardRow): Prom
  * @param card      Parsed feed card data from extension
  */
 export function applyFeedData(instance: InstanceNode, card: FeedCardRow): Promise<void> {
-  var cardType = card['#Feed_CardType'] || '';
-  Logger.debug('[FeedApplicator] Applying data: type=' + cardType + ', title="' + (card['#Feed_Title'] || '').substring(0, 30) + '"');
+  const cardType = card['#Feed_CardType'] || '';
+  Logger.debug(
+    '[FeedApplicator] Applying data: type=' +
+      cardType +
+      ', title="' +
+      (card['#Feed_Title'] || '').substring(0, 30) +
+      '"',
+  );
 
   // Step 1: Apply text/boolean properties by card type
   switch (cardType) {
@@ -366,11 +377,11 @@ export function applyFeedData(instance: InstanceNode, card: FeedCardRow): Promis
   }
 
   // Step 2: Apply images (async)
-  var chain = applyImages(instance, card);
+  let chain = applyImages(instance, card);
 
   // Step 3: Market description (direct text edit, needs font loading)
   if (cardType === 'market') {
-    chain = chain.then(function() {
+    chain = chain.then(function () {
       return applyMarketDescription(instance, card);
     });
   }

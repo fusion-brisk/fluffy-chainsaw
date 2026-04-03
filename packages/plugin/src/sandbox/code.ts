@@ -19,7 +19,7 @@ import { PORTS } from '../config';
 const RELAY_URL = 'http://localhost:' + PORTS.RELAY;
 
 /** Platform detected from UI (desktop or mobile/iPad) */
-let clientPlatform: 'desktop' | 'mobile' = 'desktop';
+let _clientPlatform: 'desktop' | 'mobile' = 'desktop';
 
 /** Pure JS base64 encoder — no btoa dependency, safe for Figma sandbox */
 function bytesToBase64(bytes: Uint8Array): string {
@@ -208,7 +208,7 @@ figma.on('selectionchange', () => {
   }) as InstanceNode[];
   if (instances.length === 0) return;
 
-  var promises: Promise<{
+  const promises: Promise<{
     name: string;
     id: string;
     componentKey: string;
@@ -218,14 +218,14 @@ figma.on('selectionchange', () => {
     properties: Record<string, { type: string; value: string | boolean }>;
   }>[] = [];
 
-  for (var i = 0; i < instances.length; i++) {
-    var inst = instances[i];
+  for (let i = 0; i < instances.length; i++) {
+    const inst = instances[i];
     promises.push(
       (function (instance) {
         return instance
           .getMainComponentAsync()
           .then(function (mainComp) {
-            var info: {
+            const info: {
               name: string;
               id: string;
               componentKey: string;
@@ -254,14 +254,14 @@ figma.on('selectionchange', () => {
               }
             }
 
-            var props = instance.componentProperties;
-            for (var key in props) {
-              var p = props[key];
+            const props = instance.componentProperties;
+            for (const key in props) {
+              const p = props[key];
               info.properties[key] = { type: p.type, value: p.value as string | boolean };
             }
 
             // Debug dump
-            var lines = ['[Selection] INSTANCE "' + instance.name + '" (id=' + instance.id + ')'];
+            const lines = ['[Selection] INSTANCE "' + instance.name + '" (id=' + instance.id + ')'];
             lines.push('  componentKey: ' + info.componentKey);
             lines.push('  componentName: ' + info.componentName);
             if (info.componentSetKey) {
@@ -269,8 +269,8 @@ figma.on('selectionchange', () => {
               lines.push('  componentSetName: ' + (info.componentSetName || ''));
             }
             lines.push('  --- Properties ---');
-            for (var pk in props) {
-              var pp = props[pk];
+            for (const pk in props) {
+              const pp = props[pk];
               lines.push('  ' + pk + ': ' + pp.type + ' = ' + JSON.stringify(pp.value));
             }
             Logger.debug(lines.join('\n'));
@@ -312,7 +312,7 @@ figma.ui.onmessage = async (msg) => {
 
     // === Platform info from UI (stored for future use) ===
     if (msg.type === 'set-platform') {
-      clientPlatform = msg.platform;
+      _clientPlatform = msg.platform;
       return;
     }
 
@@ -486,12 +486,12 @@ figma.ui.onmessage = async (msg) => {
 
     // === Apply Feed Payload (ya.ru rhythm feed) ===
     if (msg.type === 'apply-feed-payload') {
-      var feedPayload = msg.payload as {
+      const feedPayload = msg.payload as {
         cards: import('../types/feed-card-types').FeedCardRow[];
         platform?: import('../types/feed-card-types').FeedPlatform;
       };
 
-      var feedCards = feedPayload.cards;
+      const feedCards = feedPayload.cards;
       if (!feedCards || feedCards.length === 0) {
         figma.ui.postMessage({
           type: 'relay-payload-applied',
@@ -518,7 +518,7 @@ figma.ui.onmessage = async (msg) => {
       });
 
       try {
-        var feedResult = await createFeedPage(feedCards, {
+        const feedResult = await createFeedPage(feedCards, {
           platform: feedPayload.platform || 'desktop',
         });
 
@@ -545,7 +545,7 @@ figma.ui.onmessage = async (msg) => {
             '✅ Feed "' + feedResult.frame.name + '": ' + feedResult.createdCount + ' карточек',
           );
         } else {
-          var feedErrorMsg =
+          const feedErrorMsg =
             feedResult.errors && feedResult.errors.length > 0
               ? feedResult.errors.join('; ')
               : 'Не удалось создать фид-страницу';

@@ -56,8 +56,8 @@ const App: React.FC = () => {
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>(
     [],
   );
-  const [showWhatsNew, setShowWhatsNew] = useState(false);
-  const [currentVersion, setCurrentVersion] = useState('');
+  const [, setShowWhatsNew] = useState(false);
+  const [, setCurrentVersion] = useState('');
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
   const [lastImportCount, setLastImportCount] = useState<number | undefined>();
@@ -151,7 +151,7 @@ const App: React.FC = () => {
   const relayConnected = relay.connected;
 
   const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
-  const handleDismissOnboarding = useCallback(() => {
+  const _handleDismissOnboarding = useCallback(() => {
     setIsFirstRun(false);
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
@@ -294,11 +294,8 @@ const App: React.FC = () => {
   }, [platform]);
 
   // === PANEL HANDLERS ===
-  const handleShowSetup = useCallback(() => panels.openPanel('setup'), [panels]);
   const handleCloseSetup = useCallback(() => panels.closePanel(), [panels]);
-  const handleShowLogViewer = useCallback(() => panels.openPanel('logs'), [panels]);
   const handleCloseLogViewer = useCallback(() => panels.closePanel(), [panels]);
-  const handleShowInspector = useCallback(() => panels.openPanel('inspector'), [panels]);
   const handleCloseInspector = useCallback(() => panels.closePanel(), [panels]);
 
   const handleClearLogs = useCallback(() => {
