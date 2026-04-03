@@ -228,6 +228,8 @@ export interface CSVFields {
   '#ThumbAspectRatio'?: string;
   /** Флаг image-only карточки (без цены) в ProductsMixedGrid */
   '#MixedGridImageOnly'?: string;
+  /** Количество колонок в grid/masonry layout (из DOM getBoundingClientRect) */
+  '#gridColumns'?: string;
   /** Наличие картинки в сниппете */
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */

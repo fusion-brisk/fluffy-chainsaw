@@ -581,7 +581,7 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
       left: 0,
     },
     childTypes: ['EProductSnippet2'],
-    childWidth: 184, // 4 columns × 184px + 3 gaps × 8px = 760px
+    childWidth: 248, // default for 2-col masonry; overridden by #gridColumns
   },
 
   EntityOffers: {

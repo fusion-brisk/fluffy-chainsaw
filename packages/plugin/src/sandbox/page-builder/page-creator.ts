@@ -506,16 +506,49 @@ async function renderStructureNode(
         }
       }
 
-      // Создаём контейнер без auto-layout (masonry = ручное позиционирование)
+      // Determine column count from data or default to 3
+      const gridColumnsStr = node.children?.[0]?.data?.['#gridColumns'];
+      const masonryCols = gridColumnsStr ? parseInt(gridColumnsStr, 10) || 3 : 3;
+      const masonryGap = 8;
+      // Calculate card width: fill container evenly
+      const containerW = 760;
+      const cardW = Math.floor((containerW - (masonryCols - 1) * masonryGap) / masonryCols);
+
+      // Auto-layout: horizontal container with N vertical column frames
       const containerFrame = figma.createFrame();
       containerFrame.name = 'ProductsMixedGrid';
-      containerFrame.resize(760, 10); // высота обновится после layout
+      containerFrame.layoutMode = 'HORIZONTAL';
+      containerFrame.primaryAxisSizingMode = 'FIXED';
+      containerFrame.counterAxisSizingMode = 'AUTO';
+      containerFrame.resize(containerW, 10);
+      containerFrame.itemSpacing = masonryGap;
       containerFrame.fills = [];
-      containerFrame.clipsContent = true;
       wrapper.appendChild(containerFrame);
+      containerFrame.layoutSizingHorizontal = 'FILL';
 
-      // Рендерим дочерние узлы и собираем данные для masonry
-      const renderedItems: { element: SceneNode; height: number }[] = [];
+      // Create column frames
+      const columnFrames: FrameNode[] = [];
+      for (var ci = 0; ci < masonryCols; ci++) {
+        var colFrame = figma.createFrame();
+        colFrame.name = 'Column ' + (ci + 1);
+        colFrame.layoutMode = 'VERTICAL';
+        colFrame.primaryAxisSizingMode = 'AUTO';
+        colFrame.counterAxisSizingMode = 'FIXED';
+        colFrame.resize(cardW, 10);
+        colFrame.itemSpacing = masonryGap;
+        colFrame.fills = [];
+        containerFrame.appendChild(colFrame);
+        colFrame.layoutSizingHorizontal = 'FILL';
+        columnFrames.push(colFrame);
+      }
+
+      // Track column heights for greedy shortest-column distribution
+      var colHeights: number[] = [];
+      for (var ch = 0; ch < masonryCols; ch++) {
+        colHeights.push(0);
+      }
+
+      // Render children and distribute into shortest column
       if (node.children) {
         for (const child of node.children) {
           const result = await renderStructureNode(
@@ -526,43 +559,26 @@ async function renderStructureNode(
             query,
           );
           if (result.element) {
-            containerFrame.appendChild(result.element);
-            const instance = result.element as InstanceNode;
-            instance.resize(184, instance.height);
+            // Find shortest column
+            var shortestCol = 0;
+            for (var sc = 1; sc < colHeights.length; sc++) {
+              if (colHeights[sc] < colHeights[shortestCol]) shortestCol = sc;
+            }
 
-            // Вычисляем высоту карточки по aspect ratio
-            const aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
-            const thumbHeight = Math.round(184 / aspectRatio);
-            const isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
-            const contentHeight = isImageOnly ? 55 : 90;
-            const cardHeight = thumbHeight + contentHeight;
+            columnFrames[shortestCol].appendChild(result.element);
+            var instance = result.element as InstanceNode;
+            instance.layoutSizingHorizontal = 'FILL';
 
-            renderedItems.push({ element: result.element, height: cardHeight });
+            // Estimate card height for column balancing
+            var aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
+            var thumbHeight = Math.round(cardW / aspectRatio);
+            var isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
+            var contentHeight = isImageOnly ? 55 : 90;
+            colHeights[shortestCol] += thumbHeight + contentHeight + masonryGap;
+
             count += result.count;
           }
         }
-      }
-
-      // Применяем masonry layout
-      if (renderedItems.length > 0) {
-        const masonryItems: MasonryItem[] = renderedItems.map(function (item, i) {
-          return { id: String(i), width: 184, height: item.height };
-        });
-
-        const masonryResult = assignMasonryPositions(masonryItems, {
-          columns: 4,
-          columnWidth: 184,
-          gap: 8,
-        });
-
-        for (var i = 0; i < masonryResult.positions.length; i++) {
-          var pos = masonryResult.positions[i];
-          var el = renderedItems[parseInt(pos.id)].element;
-          el.x = pos.x;
-          el.y = pos.y;
-        }
-
-        containerFrame.resize(masonryResult.totalWidth, masonryResult.totalHeight);
       }
 
       // Кнопка «Показать ещё»
@@ -600,7 +616,9 @@ async function renderStructureNode(
         }
       }
 
-      Logger.debug(`[PageCreator] ProductsMixedGrid: ${renderedItems.length} элементов в masonry`);
+      Logger.debug(
+        `[PageCreator] ProductsMixedGrid: ${node.children?.length || 0} элементов, ${masonryCols} колонок`,
+      );
       return { element: wrapper, count };
     }
 

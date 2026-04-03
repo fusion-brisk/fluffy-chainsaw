@@ -1,23 +1,21 @@
 /**
  * Structure Builder — построение структуры страницы из массива rows
- * 
+ *
  * Анализирует типы сниппетов и группирует последовательные элементы
  * одного типа в контейнеры
  */
 
 import { CSVRow } from '../../types';
 import { Logger } from '../../logger';
-import { 
-  SnippetType, 
-  ContainerType, 
-  LayoutElementType,
-  StructureNode, 
-  SerpPageStructure,
-  PageMeta 
-} from './types';
 import {
-  getContainerTypeForSnippet
-} from './component-map';
+  SnippetType,
+  ContainerType,
+  LayoutElementType,
+  StructureNode,
+  SerpPageStructure,
+  PageMeta,
+} from './types';
+import { getContainerTypeForSnippet } from './component-map';
 
 /**
  * Генератор уникальных ID
@@ -40,7 +38,7 @@ export function resetNodeIdCounter(): void {
  */
 export function detectSnippetType(row: CSVRow): SnippetType {
   const type = row['#SnippetType'] || '';
-  
+
   // Прямое совпадение
   if (type === 'EOfferItem') return 'EOfferItem';
   if (type === 'EProductSnippet2') return 'EProductSnippet2';
@@ -49,13 +47,13 @@ export function detectSnippetType(row: CSVRow): SnippetType {
   if (type === 'Organic_withOfferInfo') return 'Organic_withOfferInfo';
   if (type === 'ESnippet') return 'ESnippet';
   if (type === 'ProductTile-Item') return 'EProductSnippet2'; // ProductTile → EProductSnippet2
-  
+
   // Fallback по подстроке
   if (type.includes('Offer')) return 'EOfferItem';
   if (type.includes('Shop')) return 'EShopItem';
   if (type.includes('Product') || type.includes('Tile')) return 'EProductSnippet2';
   if (type.includes('Organic')) return 'Organic';
-  
+
   // По умолчанию — ESnippet
   return 'ESnippet';
 }
@@ -104,7 +102,9 @@ function groupBySerpItemId(rows: CSVRow[]): SerpItemGroup[] {
     }
   }
 
-  Logger.debug(`[StructureBuilder] Группировка по serpItemId: ${groups.length} групп из ${rows.length} rows`);
+  Logger.debug(
+    `[StructureBuilder] Группировка по serpItemId: ${groups.length} групп из ${rows.length} rows`,
+  );
 
   return groups;
 }
@@ -114,7 +114,7 @@ function groupBySerpItemId(rows: CSVRow[]): SerpItemGroup[] {
  */
 function buildSnippetNode(row: CSVRow, order: number): StructureNode {
   const snippetType = detectSnippetType(row);
-  
+
   return {
     id: generateNodeId(),
     type: snippetType,
@@ -129,12 +129,10 @@ function buildSnippetNode(row: CSVRow, order: number): StructureNode {
 function buildContainerNode(
   containerType: ContainerType,
   rows: CSVRow[],
-  order: number
+  order: number,
 ): StructureNode {
-  const children: StructureNode[] = rows.map((row, idx) => 
-    buildSnippetNode(row, idx)
-  );
-  
+  const children: StructureNode[] = rows.map((row, idx) => buildSnippetNode(row, idx));
+
   return {
     id: generateNodeId(),
     type: containerType,
@@ -151,18 +149,18 @@ export function buildPageStructure(
   options: {
     query?: string;
     platform?: 'desktop' | 'touch';
-  } = {}
+  } = {},
 ): SerpPageStructure {
   const startTime = Date.now();
   resetNodeIdCounter();
-  
+
   Logger.info(`[StructureBuilder] Построение структуры из ${rows.length} rows`);
-  
+
   // Отделяем специальные элементы (EQuickFilters, EAsideFilters и т.д.) от сниппетов
   const specialElements: CSVRow[] = [];
   const asideElements: CSVRow[] = [];
   const snippetRows: CSVRow[] = [];
-  
+
   for (const row of rows) {
     const type = row['#SnippetType'] || '';
     if (type === 'EQuickFilters') {
@@ -173,18 +171,20 @@ export function buildPageStructure(
       snippetRows.push(row);
     }
   }
-  
-  Logger.debug(`[StructureBuilder] Специальные элементы: ${specialElements.length}, aside: ${asideElements.length}, сниппеты: ${snippetRows.length}`);
-  
+
+  Logger.debug(
+    `[StructureBuilder] Специальные элементы: ${specialElements.length}, aside: ${asideElements.length}, сниппеты: ${snippetRows.length}`,
+  );
+
   // Группируем элементы по serpItemId (соответствует HTML <li>)
   const serpItemGroups = groupBySerpItemId(snippetRows);
-  
+
   Logger.debug(`[StructureBuilder] Найдено ${serpItemGroups.length} serp-item групп`);
-  
+
   // Строим узлы для content__left
   const contentLeft: StructureNode[] = [];
   let order = 0;
-  
+
   // Сначала добавляем специальные элементы (EQuickFilters)
   for (const row of specialElements) {
     const type = row['#SnippetType'] as string;
@@ -196,19 +196,19 @@ export function buildPageStructure(
     });
     Logger.debug(`[StructureBuilder] Добавлен специальный элемент: ${type}`);
   }
-  
+
   for (const serpGroup of serpItemGroups) {
     if (serpGroup.rows.length > 1) {
       // Несколько элементов в одном <li> — создаём группу-контейнер
       const firstRow = serpGroup.rows[0];
       const firstSnippetType = detectSnippetType(firstRow);
       const isAdv = firstRow['#isAdv'] === 'true';
-      
+
       // Используем #containerType из данных если есть
       const containerTypeFromData = firstRow['#containerType'] as string;
-      
+
       let containerType: ContainerType;
-      
+
       if (containerTypeFromData === 'ImagesGrid') {
         containerType = 'ImagesGrid';
       } else if (containerTypeFromData === 'EntityOffers') {
@@ -217,6 +217,8 @@ export function buildPageStructure(
         containerType = 'EShopList';
       } else if (containerTypeFromData === 'ProductsTiles') {
         containerType = 'ProductsTiles';
+      } else if (containerTypeFromData === 'ProductsMixedGrid') {
+        containerType = 'ProductsMixedGrid';
       } else if (containerTypeFromData === 'AdvProductGallery' || isAdv) {
         containerType = 'AdvProductGallery';
       } else if (firstSnippetType === 'EProductSnippet2') {
@@ -228,16 +230,12 @@ export function buildPageStructure(
       } else {
         containerType = getContainerTypeForSnippet(firstSnippetType) || 'ProductsTiles';
       }
-      
-      const containerNode = buildContainerNode(
-        containerType,
-        serpGroup.rows,
-        order++
-      );
+
+      const containerNode = buildContainerNode(containerType, serpGroup.rows, order++);
       contentLeft.push(containerNode);
-      
+
       Logger.debug(
-        `[StructureBuilder] Группа serpItemId=${serpGroup.serpItemId}: ${serpGroup.rows.length} элементов → контейнер ${containerType}`
+        `[StructureBuilder] Группа serpItemId=${serpGroup.serpItemId}: ${serpGroup.rows.length} элементов → контейнер ${containerType}`,
       );
     } else {
       // Один элемент в <li> — без контейнера
@@ -249,7 +247,7 @@ export function buildPageStructure(
             type: 'ImagesGrid' as ContainerType,
             data: row,
             children: [],
-            order: order++
+            order: order++,
           };
           contentLeft.push(imagesNode);
           Logger.debug('[StructureBuilder] ImagesGrid node создан');
@@ -260,7 +258,7 @@ export function buildPageStructure(
       }
     }
   }
-  
+
   // Строим узлы для content__aside (боковые фильтры)
   const contentAside: StructureNode[] = [];
   for (const row of asideElements) {
@@ -277,7 +275,7 @@ export function buildPageStructure(
   const byType: Record<string, number> = {};
   let totalSnippets = 0;
   let containers = 0;
-  
+
   function countNodes(nodes: StructureNode[]): void {
     for (const node of nodes) {
       if (node.children) {
@@ -291,7 +289,7 @@ export function buildPageStructure(
     }
   }
   countNodes(contentLeft);
-  
+
   // Метаданные
   const meta: PageMeta = {
     query: options.query || rows[0]?.['#query'],
@@ -299,14 +297,14 @@ export function buildPageStructure(
     totalResults: rows.length,
     source: 'rows',
   };
-  
+
   const parseTime = Date.now() - startTime;
-  
+
   Logger.info(
     `[StructureBuilder] Структура построена: ${contentLeft.length} узлов, ` +
-    `${containers} контейнеров, ${totalSnippets} сниппетов за ${parseTime}ms`
+      `${containers} контейнеров, ${totalSnippets} сниппетов за ${parseTime}ms`,
   );
-  
+
   return {
     meta,
     contentLeft,
@@ -329,9 +327,8 @@ export function sortContentNodes(nodes: StructureNode[]): StructureNode[] {
     // EQuickFilters всегда первым
     if (a.type === 'EQuickFilters' && b.type !== 'EQuickFilters') return -1;
     if (b.type === 'EQuickFilters' && a.type !== 'EQuickFilters') return 1;
-    
+
     // Остальные — по порядку появления (order)
     return a.order - b.order;
   });
 }
-

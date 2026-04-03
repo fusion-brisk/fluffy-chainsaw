@@ -2597,8 +2597,10 @@ declare global {
         }
       }
 
-      // Заголовок блока
-      const headerEl = serpItem.querySelector('.ProductsImagesMixedGrid-Header, .Title');
+      // Заголовок блока (DebrandingTitle в новом формате, Header в старом)
+      const headerEl = serpItem.querySelector(
+        '.DebrandingTitle-Text, .ProductsImagesMixedGrid-Header, .Title',
+      );
       if (headerEl && results.length > 0) {
         const headerText = (headerEl.textContent || '').trim();
         if (headerText) {
@@ -2606,14 +2608,36 @@ declare global {
         }
       }
 
-      // Кнопка «Показать ещё»
-      const showAllLink = serpItem.querySelector('a.Button[class*="Button_width_max"]');
+      // Кнопка «Показать ещё» — новый формат использует .ProductMoreButton
+      const showAllLink = serpItem.querySelector(
+        '.ProductMoreButton, a.Button[class*="Button_width_max"]',
+      );
       if (showAllLink && results.length > 0) {
         const showAllText = (showAllLink.textContent || '').trim();
         if (showAllText) {
           results[0]['#ProductsMixedGridShowAll'] = 'true';
           results[0]['#ProductsMixedGridShowAllText'] = showAllText;
           console.log(`[ProductsMixedGrid] Button «${showAllText}» found`);
+        }
+      }
+
+      // Detect column count from container/card widths (not positions — JustifierColumnLayout is lazy)
+      if (results.length > 0) {
+        const gridContainer = serpItem.querySelector(
+          '.ProductsImagesMixedGrid-ItemsContainer, .JustifierColumnLayout',
+        );
+        const firstCard = serpItem.querySelector('.ProductsImagesMixedGrid-ProductCard');
+        if (gridContainer && firstCard) {
+          const containerW = gridContainer.getBoundingClientRect().width;
+          const cardW = firstCard.getBoundingClientRect().width;
+          const gap = 8;
+          const cols = Math.floor((containerW + gap) / (cardW + gap));
+          if (cols > 0) {
+            results[0]['#gridColumns'] = String(cols);
+            console.log(
+              `[ProductsMixedGrid] Columns: ${cols} (container=${Math.round(containerW)}, card=${Math.round(cardW)})`,
+            );
+          }
         }
       }
 
