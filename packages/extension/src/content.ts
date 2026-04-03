@@ -2621,15 +2621,23 @@ declare global {
         }
       }
 
-      // Detect column count from card positions
+      // Detect column count from container/card widths (not positions — JustifierColumnLayout is lazy)
       if (results.length > 0) {
-        const cards = serpItem.querySelectorAll('.ProductsImagesMixedGrid-ProductCard');
-        const uniqueX = new Set();
-        for (let ci = 0; ci < Math.min(cards.length, 8); ci++) {
-          uniqueX.add(Math.round(cards[ci].getBoundingClientRect().x));
-        }
-        if (uniqueX.size > 0) {
-          results[0]['#gridColumns'] = String(uniqueX.size);
+        const gridContainer = serpItem.querySelector(
+          '.ProductsImagesMixedGrid-ItemsContainer, .JustifierColumnLayout',
+        );
+        const firstCard = serpItem.querySelector('.ProductsImagesMixedGrid-ProductCard');
+        if (gridContainer && firstCard) {
+          const containerW = gridContainer.getBoundingClientRect().width;
+          const cardW = firstCard.getBoundingClientRect().width;
+          const gap = 8;
+          const cols = Math.floor((containerW + gap) / (cardW + gap));
+          if (cols > 0) {
+            results[0]['#gridColumns'] = String(cols);
+            console.log(
+              `[ProductsMixedGrid] Columns: ${cols} (container=${Math.round(containerW)}, card=${Math.round(cardW)})`,
+            );
+          }
         }
       }
 

@@ -506,9 +506,9 @@ async function renderStructureNode(
         }
       }
 
-      // Determine column count from data or default to 2
+      // Determine column count from data or default to 3
       const gridColumnsStr = node.children?.[0]?.data?.['#gridColumns'];
-      const masonryCols = gridColumnsStr ? parseInt(gridColumnsStr, 10) || 2 : 2;
+      const masonryCols = gridColumnsStr ? parseInt(gridColumnsStr, 10) || 3 : 3;
       const masonryGap = 8;
       // Calculate card width: fill container evenly
       const containerW = 760;
