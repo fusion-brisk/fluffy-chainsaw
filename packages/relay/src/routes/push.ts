@@ -7,34 +7,19 @@ import {
   getQueue,
   getPendingCount,
   findFirstPending,
+  findEntryById,
   removeEntryById,
   shiftEntry,
   clearQueue,
 } from '../queue';
 import { broadcast } from '../websocket';
+import { setScreenshots, setLastImport, getLastImport, clearResultStorage } from '../storage';
 import type { QueueEntryPayload, QueueEntryMeta, ScreenshotMeta } from '../types';
 import { RELAY_VERSION } from '../version';
 
 const router = Router();
 
-// === In-memory storage for screenshots & reimport ===
-let screenshotSegments: string[] = [];
-let screenshotMeta: ScreenshotMeta | null = null;
-let lastImportPayload: { payload?: QueueEntryPayload; meta?: QueueEntryMeta } | null = null;
-
-// Expose for other routes
-export function getScreenshotSegments(): string[] {
-  return screenshotSegments;
-}
-export function getScreenshotMeta(): ScreenshotMeta | null {
-  return screenshotMeta;
-}
-export function getLastImportPayload(): typeof lastImportPayload {
-  return lastImportPayload;
-}
-export function clearResult(): void {
-  // Called by reimport route
-}
+const MAX_DATA_PAYLOAD_SIZE = 5 * 1024 * 1024; // 5MB for data fields (rawRows/feedCards/wizards)
 
 /** POST /push */
 router.post('/push', (req: Request, res: Response) => {
@@ -45,41 +30,44 @@ router.post('/push', (req: Request, res: Response) => {
     return;
   }
 
-  // Validate payload size
-  const MAX_PAYLOAD_SIZE = 5 * 1024 * 1024; // 5MB
+  // Validate payload size (data fields only, not screenshots)
   try {
-    const dataSize = payload.feedCards
-      ? JSON.stringify(payload.feedCards).length
-      : payload.rawRows
-        ? JSON.stringify(payload.rawRows).length
-        : 0;
-    if (dataSize > MAX_PAYLOAD_SIZE) {
+    let dataSize = 0;
+    if (payload.feedCards) dataSize += JSON.stringify(payload.feedCards).length;
+    if (payload.rawRows) dataSize += JSON.stringify(payload.rawRows).length;
+    if (payload.wizards) dataSize += JSON.stringify(payload.wizards).length;
+    if (payload.productCard) dataSize += JSON.stringify(payload.productCard).length;
+
+    if (dataSize > MAX_DATA_PAYLOAD_SIZE) {
       console.warn(`Push rejected: payload too large (${(dataSize / 1024 / 1024).toFixed(2)}MB)`);
       res.status(413).json({
         error: 'Payload too large',
-        maxSizeMB: 1,
+        maxSizeMB: MAX_DATA_PAYLOAD_SIZE / 1024 / 1024,
         actualSizeMB: +(dataSize / 1024 / 1024).toFixed(2),
       });
       return;
     }
-  } catch {
-    /* size check failed, allow through */
+  } catch (e) {
+    console.warn(
+      'Payload size check failed, allowing through:',
+      e instanceof Error ? e.message : e,
+    );
   }
 
   // Extract and store screenshot segments separately
   if (payload.screenshots && payload.screenshots.length > 0) {
     const query = payload.rawRows?.[0]?.['#query'] || '';
-    screenshotSegments = payload.screenshots;
-    screenshotMeta = {
+    const meta: ScreenshotMeta = {
       ...(payload.screenshotMeta || {}),
       capturedAt: payload.capturedAt || new Date().toISOString(),
       query,
       url: payload.source?.url || '',
       count: payload.screenshots.length,
     };
-    const totalKB = Math.round(screenshotSegments.reduce((sum, s) => sum + s.length, 0) / 1024);
+    const totalKB = Math.round(payload.screenshots.reduce((sum, s) => sum + s.length, 0) / 1024);
+    setScreenshots(payload.screenshots, meta);
     console.log(
-      `${screenshotSegments.length} screenshot segments stored: ${totalKB}KB, query: "${query}"`,
+      `${payload.screenshots.length} screenshot segments stored: ${totalKB}KB, query: "${query}"`,
     );
     delete payload.screenshots;
     delete payload.screenshotMeta;
@@ -116,11 +104,7 @@ router.post('/push', (req: Request, res: Response) => {
   }
 
   // Store deep copy for reimport
-  try {
-    lastImportPayload = JSON.parse(JSON.stringify(req.body));
-  } catch {
-    /* ignore clone errors */
-  }
+  setLastImport(req.body as { payload?: QueueEntryPayload; meta?: QueueEntryMeta });
 
   // Broadcast to WebSocket clients
   const query = isFeed ? '' : payload.rawRows?.[0]?.['#query'] || '';
@@ -176,8 +160,11 @@ router.get('/peek', (_req: Request, res: Response) => {
   });
 });
 
-/** GET /pull (deprecated) */
+/** GET /pull (deprecated — use /peek + /ack instead) */
 router.get('/pull', (_req: Request, res: Response) => {
+  res.setHeader('Deprecation', 'true');
+  res.setHeader('Link', '</peek>; rel="successor-version"');
+
   const queue = getQueue();
   if (queue.length === 0) {
     res.json({ hasData: false, queueSize: 0 });
@@ -236,7 +223,15 @@ router.post('/ack', (req: Request, res: Response) => {
 /** POST /reject */
 router.post('/reject', (req: Request, res: Response) => {
   const { entryId } = req.body as { entryId?: string };
-  console.log(`Reject: id ${entryId} (data stays in queue)`);
+
+  if (entryId) {
+    const entry = findEntryById(entryId);
+    if (entry) {
+      entry.lastPeekedAt = null;
+    }
+  }
+
+  console.log(`Reject: id ${entryId} (returned to queue)`);
   res.json({
     success: true,
     queueSize: getQueue().length,
@@ -277,18 +272,17 @@ router.delete('/clear', (_req: Request, res: Response) => {
 
 /** POST /reimport */
 router.post('/reimport', (_req: Request, res: Response) => {
-  if (!lastImportPayload) {
+  const lastImport = getLastImport();
+  if (!lastImport) {
     res
       .status(404)
       .json({ error: 'No previous import to replay. Send data via POST /push first.' });
     return;
   }
 
-  // Clear previous result (import from result.ts storage)
-  const { clearResultStorage } = require('./result') as { clearResultStorage: () => void };
   clearResultStorage();
 
-  const cloned = JSON.parse(JSON.stringify(lastImportPayload)) as {
+  const cloned = JSON.parse(JSON.stringify(lastImport)) as {
     payload?: QueueEntryPayload;
     meta?: QueueEntryMeta;
   };

@@ -92,111 +92,119 @@ export function useImportFlow(
   // We rely on the setTimeout guard; if component unmounts mid-timeout,
   // React state setters become no-ops anyway. So isMountedRef is a safety net.
 
-  const finishProcessing = useCallback((type: 'success' | 'error' | 'cancel') => {
-    const elapsed = processingStartTimeRef.current
-      ? Date.now() - processingStartTimeRef.current
-      : MIN_PROCESSING_TIME;
-    const remainingDelay = Math.max(0, MIN_PROCESSING_TIME - elapsed);
+  const finishProcessing = useCallback(
+    (type: 'success' | 'error' | 'cancel') => {
+      const elapsed = processingStartTimeRef.current
+        ? Date.now() - processingStartTimeRef.current
+        : MIN_PROCESSING_TIME;
+      const remainingDelay = Math.max(0, MIN_PROCESSING_TIME - elapsed);
 
-    setTimeout(() => {
-      if (!isMountedRef.current) return;
-
-      processingStartTimeRef.current = null;
-
-      if (type === 'success') {
-        setConfettiActive(true);
-        setAppState('success');
-        resizeUI('success');
-      } else {
-        setAppState('ready');
-        resizeUI('ready');
-      }
-    }, remainingDelay);
-  }, [setAppState, resizeUI]);
-
-  const showConfirmation = useCallback((data: {
-    rows: CSVRow[];
-    query: string;
-    source: string;
-    entryId?: string;
-    sourceType?: 'serp' | 'feed';
-    feedCards?: Array<Record<string, string>>;
-  }) => {
-    const isFeed = data.sourceType === 'feed';
-    const totalCount = isFeed ? (data.feedCards?.length || 0) : data.rows.length;
-    setPending({
-      rows: data.rows,
-      query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
-      source: data.source,
-      entryId: data.entryId,
-      sourceType: data.sourceType,
-      feedCards: data.feedCards,
-    });
-    setInfo({
-      query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
-      itemCount: totalCount,
-      source: data.source,
-    });
-    setAppState('confirming');
-    resizeUI('confirming');
-  }, [setAppState, resizeUI]);
-
-  const confirm = useCallback((options: ImportOptions) => {
-    if (!pending) return;
-
-    const { mode, includeScreenshots } = options;
-    const { rows, query, entryId, sourceType, feedCards } = pending;
-    const scope = mode === 'selection' ? 'selection' : 'page';
-    const isFeed = sourceType === 'feed';
-    const itemCount = isFeed ? (feedCards?.length || 0) : rows.length;
-
-    // Store entryId for acknowledgment after successful load
-    if (entryId) {
-      pendingEntryIdRef.current = entryId;
-
-      // Safety timeout: if code.ts never sends 'done' within 30s, ack
-      const safetyEntryId = entryId;
       setTimeout(() => {
-        if (pendingEntryIdRef.current === safetyEntryId) {
-          pendingEntryIdRef.current = null;
-          relay.ackData(safetyEntryId);
+        if (!isMountedRef.current) return;
+
+        processingStartTimeRef.current = null;
+
+        if (type === 'success') {
+          setConfettiActive(true);
+          setAppState('success');
+          resizeUI('success');
+        } else {
+          setAppState('ready');
+          resizeUI('ready');
         }
-      }, 30000);
-    }
+      }, remainingDelay);
+    },
+    [setAppState, resizeUI],
+  );
 
-    setLastQuery(query);
-    setInfo({
-      query,
-      itemCount,
-      source: pending.source,
-      stage: 'components'
-    });
-    setAppState('processing');
-    resizeUI('processing');
-    processingStartTimeRef.current = Date.now();
-
-    if (isFeed && feedCards) {
-      // Feed pipeline — send to apply-feed-payload handler
-      sendMessageToPlugin({
-        type: 'apply-feed-payload',
-        payload: {
-          cards: feedCards,
-          platform: 'desktop',
-        },
+  const showConfirmation = useCallback(
+    (data: {
+      rows: CSVRow[];
+      query: string;
+      source: string;
+      entryId?: string;
+      sourceType?: 'serp' | 'feed';
+      feedCards?: Array<Record<string, string>>;
+    }) => {
+      const isFeed = data.sourceType === 'feed';
+      const totalCount = isFeed ? data.feedCards?.length || 0 : data.rows.length;
+      setPending({
+        rows: data.rows,
+        query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
+        source: data.source,
+        entryId: data.entryId,
+        sourceType: data.sourceType,
+        feedCards: data.feedCards,
       });
-    } else if (relayPayloadRef.current) {
-      // SERP pipeline (existing path)
-      sendMessageToPlugin({
-        type: 'apply-relay-payload',
-        payload: relayPayloadRef.current,
-        scope,
-        includeScreenshots
+      setInfo({
+        query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
+        itemCount: totalCount,
+        source: data.source,
       });
-      relayPayloadRef.current = null;
-    }
+      setAppState('confirming');
+      resizeUI('confirming');
+    },
+    [setAppState, resizeUI],
+  );
 
-    setPending(null);
-  }, [pending, setAppState, resizeUI, relay]);
+  const confirm = useCallback(
+    (options: ImportOptions) => {
+      if (!pending) return;
+
+      const { mode } = options;
+      const { rows, query, entryId, sourceType, feedCards } = pending;
+      const scope = mode === 'selection' ? 'selection' : 'page';
+      const isFeed = sourceType === 'feed';
+      const itemCount = isFeed ? feedCards?.length || 0 : rows.length;
+
+      // Store entryId for acknowledgment after successful load
+      if (entryId) {
+        pendingEntryIdRef.current = entryId;
+
+        // Safety timeout: if code.ts never sends 'done' within 30s, ack
+        const safetyEntryId = entryId;
+        setTimeout(() => {
+          if (pendingEntryIdRef.current === safetyEntryId) {
+            pendingEntryIdRef.current = null;
+            relay.ackData(safetyEntryId);
+          }
+        }, 30000);
+      }
+
+      setLastQuery(query);
+      setInfo({
+        query,
+        itemCount,
+        source: pending.source,
+        stage: 'components',
+      });
+      setAppState('processing');
+      resizeUI('processing');
+      processingStartTimeRef.current = Date.now();
+
+      if (isFeed && feedCards) {
+        // Feed pipeline — send to apply-feed-payload handler
+        sendMessageToPlugin({
+          type: 'apply-feed-payload',
+          payload: {
+            cards: feedCards,
+            platform: 'desktop',
+          },
+        });
+      } else if (relayPayloadRef.current) {
+        // SERP pipeline (existing path)
+        sendMessageToPlugin({
+          type: 'apply-relay-payload',
+          payload: relayPayloadRef.current,
+          scope,
+        });
+        relayPayloadRef.current = null;
+      }
+
+      setPending(null);
+    },
+    [pending, setAppState, resizeUI, relay],
+  );
 
   const cancel = useCallback(() => {
     const cancelledEntryId = pending?.entryId;
@@ -226,7 +234,7 @@ export function useImportFlow(
   }, [setAppState, resizeUI]);
 
   const updateStage = useCallback((stage: string) => {
-    setInfo(prev => ({ ...prev, stage }));
+    setInfo((prev) => ({ ...prev, stage }));
   }, []);
 
   const setStats = useCallback((stats: ProcessingStats) => {
@@ -258,7 +266,7 @@ export function useImportFlow(
   }, []);
 
   const updateInfo = useCallback((update: Partial<ImportInfo>) => {
-    setInfo(prev => ({ ...prev, ...update }));
+    setInfo((prev) => ({ ...prev, ...update }));
   }, []);
 
   return {

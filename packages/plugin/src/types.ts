@@ -11,7 +11,12 @@ export { REQUIRED_FIELDS, IMAGE_FIELDS, BOOLEAN_FIELDS, NUMERIC_FIELDS } from '.
 
 // Реэкспорт валидации
 export type { ValidationResult, ValidationError, ValidationWarning } from './types/validation';
-export { validateRow, validateRows, hasRequiredFields, getMissingRequiredFields } from './types/validation';
+export {
+  validateRow,
+  validateRows,
+  hasRequiredFields,
+  getMissingRequiredFields,
+} from './types/validation';
 
 export interface LayerDataItem {
   layer: SceneNode;
@@ -77,7 +82,7 @@ export interface UserSettings {
   scope?: 'selection' | 'page';
   remoteConfigUrl?: string;
   resetBeforeImport?: boolean;
-  logLevel?: number;             // default 2 (SUMMARY)
+  logLevel?: number; // default 2 (SUMMARY)
 }
 
 export interface PluginSettings {
@@ -132,57 +137,60 @@ export interface ParsingRulesMetadata {
 
 /**
  * Messages sent from UI → Code (via parent.postMessage)
- * 
+ *
  * Categories:
  * - IMPORT: apply-relay-payload (from browser extension)
  * - LIFECYCLE: close, get-theme, test
  * - SELECTION: check-selection, get-pages
  * - SETTINGS: get-settings, save-settings, get-remote-url, set-remote-url
- * - PARSING RULES: get-parsing-rules, check-remote-rules-update, apply-remote-rules, 
+ * - PARSING RULES: get-parsing-rules, check-remote-rules-update, apply-remote-rules,
  *                  dismiss-rules-update, reset-rules-cache
  * - WHATS NEW: check-whats-new, mark-whats-new-seen
  */
 export type UIMessage =
   // === BROWSER RELAY ===
-  | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string; includeScreenshots?: boolean }  // Apply data from browser extension via relay
-  | { type: 'apply-feed-payload'; payload: { cards: Array<Record<string, string>>; platform: string } }  // Apply ya.ru feed cards
+  | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string } // Apply data from browser extension via relay
+  | {
+      type: 'apply-feed-payload';
+      payload: { cards: Array<Record<string, string>>; platform: string };
+    } // Apply ya.ru feed cards
   // === RESET ===
-  | { type: 'reset-snippets'; scope: string }  // Reset all snippets to default state
+  | { type: 'reset-snippets'; scope: string } // Reset all snippets to default state
   // === LIFECYCLE ===
   | { type: 'test'; message: string }
-  | { type: 'get-theme' }  // Theme detected via prefers-color-scheme, handler is no-op
+  | { type: 'get-theme' } // Theme detected via prefers-color-scheme, handler is no-op
   | { type: 'close' }
   // === SELECTION ===
-  | { type: 'get-pages' }  // Response: 'pages'
-  | { type: 'check-selection' }  // Response: 'selection-status'
+  | { type: 'get-pages' } // Response: 'pages'
+  | { type: 'check-selection' } // Response: 'selection-status'
   // === SETTINGS ===
   | { type: 'save-settings'; settings: UserSettings }
-  | { type: 'get-settings' }  // Response: 'settings-loaded'
-  | { type: 'get-remote-url' }  // Response: 'remote-url-loaded'
+  | { type: 'get-settings' } // Response: 'settings-loaded'
+  | { type: 'get-remote-url' } // Response: 'remote-url-loaded'
   | { type: 'set-remote-url'; url: string }
   // === SETUP WIZARD ===
-  | { type: 'get-setup-skipped' }  // Response: 'setup-skipped-loaded'
-  | { type: 'save-setup-skipped' }  // Persist that user skipped setup
+  | { type: 'get-setup-skipped' } // Response: 'setup-skipped-loaded'
+  | { type: 'save-setup-skipped' } // Persist that user skipped setup
   // === PARSING RULES ===
-  | { type: 'get-parsing-rules' }  // Response: 'parsing-rules-loaded'
-  | { type: 'check-remote-rules-update' }  // Response: 'rules-update-available' (if update exists)
+  | { type: 'get-parsing-rules' } // Response: 'parsing-rules-loaded'
+  | { type: 'check-remote-rules-update' } // Response: 'rules-update-available' (if update exists)
   | { type: 'apply-remote-rules'; hash: string }
   | { type: 'dismiss-rules-update' }
   | { type: 'reset-rules-cache' }
   // === WHATS NEW ===
-  | { type: 'check-whats-new' }  // Response: 'whats-new-status'
+  | { type: 'check-whats-new' } // Response: 'whats-new-status'
   | { type: 'mark-whats-new-seen'; version: string }
   // === LOGGING ===
-  | { type: 'set-log-level'; level: number }  // 0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG
-  | { type: 'get-log-level' }  // Response: 'log-level-loaded'
+  | { type: 'set-log-level'; level: number } // 0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG
+  | { type: 'get-log-level' } // Response: 'log-level-loaded'
   // === UI RESIZE ===
-  | { type: 'resize-ui'; width: number; height: number }  // Resize plugin window
+  | { type: 'resize-ui'; width: number; height: number } // Resize plugin window
   // === PLATFORM ===
-  | { type: 'set-platform'; platform: 'desktop' | 'mobile' };  // UI platform info
+  | { type: 'set-platform'; platform: 'desktop' | 'mobile' }; // UI platform info
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
- * 
+ *
  * Categories:
  * - LOGGING: log, error
  * - PROGRESS: progress, stats, done
@@ -191,7 +199,7 @@ export type UIMessage =
  * - PARSING RULES: parsing-rules-loaded, rules-update-available
  * - WHATS NEW: whats-new-status
  */
-export type CodeMessage = 
+export type CodeMessage =
   // === LOGGING ===
   | { type: 'log'; message: string }
   | { type: 'error'; message: string }
@@ -202,11 +210,17 @@ export type CodeMessage =
   | { type: 'progress'; current: number; total: number; message?: string; operationType?: string }
   | { type: 'stats'; stats: ProcessingStats }
   | { type: 'done'; count: number }
-  | { type: 'import-cancelled' }  // Response to cancel-import
+  | { type: 'import-cancelled' } // Response to cancel-import
   // === BROWSER RELAY ===
-  | { type: 'relay-payload-applied'; success: boolean; itemCount?: number; frameName?: string; error?: string }  // Response to apply-relay-payload
+  | {
+      type: 'relay-payload-applied';
+      success: boolean;
+      itemCount?: number;
+      frameName?: string;
+      error?: string;
+    } // Response to apply-relay-payload
   // === RESET ===
-  | { type: 'reset-done'; count: number }  // Response to reset-snippets
+  | { type: 'reset-done'; count: number } // Response to reset-snippets
   // === SETTINGS ===
   | { type: 'settings-loaded'; settings: UserSettings }
   | { type: 'remote-url-loaded'; url: string }
@@ -216,13 +230,13 @@ export type CodeMessage =
   // === WHATS NEW ===
   | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string }
   // === LOGGING ===
-  | { type: 'log-level-loaded'; level: number }  // Current log level
+  | { type: 'log-level-loaded'; level: number } // Current log level
   // === SETUP WIZARD ===
-  | { type: 'setup-skipped-loaded'; skipped: boolean }  // Response to get-setup-skipped
+  | { type: 'setup-skipped-loaded'; skipped: boolean } // Response to get-setup-skipped
   // === DEBUG ===
-  | { type: 'debug-report'; report: unknown }  // Debug report from page-creator
+  | { type: 'debug-report'; report: unknown } // Debug report from page-creator
   // === COMPONENT INSPECTOR ===
-  | { type: 'component-info'; components: ComponentInspectorData[] };  // Selected component info
+  | { type: 'component-info'; components: ComponentInspectorData[] }; // Selected component info
 
 /** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;
@@ -256,7 +270,14 @@ export interface RelayPayload {
  * - 'processing': обработка данных
  * - 'success': импорт успешно завершён
  */
-export type AppState = 'setup' | 'checking' | 'ready' | 'confirming' | 'processing' | 'success' | 'error';
+export type AppState =
+  | 'setup'
+  | 'checking'
+  | 'ready'
+  | 'confirming'
+  | 'processing'
+  | 'success'
+  | 'error';
 
 /**
  * Events that trigger state transitions in the FSM.
@@ -280,13 +301,13 @@ export type AppEvent =
  * Undefined entries mean the event is not valid in that state (no-op).
  */
 export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState>>> = {
-  setup:      { SETUP_COMPLETE: 'checking' },
-  checking:   { CONNECTION_SUCCESS: 'ready', CONNECTION_FAILURE: 'ready' },
-  ready:      { DATA_RECEIVED: 'confirming', OPEN_PANEL: 'ready', CLOSE_PANEL: 'ready' },
+  setup: { SETUP_COMPLETE: 'checking' },
+  checking: { CONNECTION_SUCCESS: 'ready', CONNECTION_FAILURE: 'ready' },
+  ready: { DATA_RECEIVED: 'confirming', OPEN_PANEL: 'ready', CLOSE_PANEL: 'ready' },
   confirming: { CONFIRM_IMPORT: 'processing', CANCEL_IMPORT: 'ready' },
   processing: { IMPORT_COMPLETE: 'success', IMPORT_FAILURE: 'error' },
-  success:    { DISMISS_SUCCESS: 'ready' },
-  error:      { DISMISS_SUCCESS: 'ready' },
+  success: { DISMISS_SUCCESS: 'ready' },
+  error: { DISMISS_SUCCESS: 'ready' },
 };
 
 /**
@@ -296,8 +317,8 @@ export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState
  * extended: onboarding, logs, inspector, settings, what's new
  */
 export const UI_SIZES = {
-  compact:  { width: 320, height: 56 },
-  standard: { width: 320, height: 320 },
+  compact: { width: 320, height: 56 },
+  standard: { width: 320, height: 220 },
   extended: { width: 420, height: 520 },
 } as const;
 

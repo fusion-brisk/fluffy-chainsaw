@@ -807,7 +807,7 @@ button:disabled {
 }
 
 /* ============================================
-   CONFIRM DIALOG — 320 × 320
+   CONFIRM DIALOG — 320 × 220
    ============================================ */
 
 /* Fixed to viewport */
@@ -826,25 +826,25 @@ button:disabled {
 
 .confirm-dialog__content {
   flex: 1 1 auto;
-  padding: 16px;
+  padding: 12px 16px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
 }
 
-/* Header: title + query */
+/* Header: title + query + summary — compact block */
 .confirm-dialog__header {
   display: flex;
   flex-direction: column;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .confirm-dialog__title {
-  font-size: var(--font-size-xlarge, 16px);
-  font-weight: 550;
+  font-size: var(--font-size-large, 13px);
+  font-weight: 600;
   color: var(--figma-color-text);
-  margin: 0 0 4px;
-  line-height: 1.375;
+  margin: 0 0 2px;
+  line-height: 1.4;
 }
 
 .confirm-dialog__query {
@@ -853,54 +853,54 @@ button:disabled {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
-/* Summary list — one line per entity type */
+/* Summary list — compact, secondary color */
 .confirm-dialog__summary-list {
   display: flex;
   flex-direction: column;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .confirm-dialog__summary-item {
   font-size: var(--font-size-base, 11px);
-  color: var(--figma-color-text);
-  line-height: 20px;
+  color: var(--figma-color-text-secondary);
+  line-height: 18px;
 }
 
 /* Mode: native radio group */
 .confirm-dialog__mode {
   border: none;
-  margin: 0 0 12px;
+  margin: 0;
   padding: 0;
 }
 
 .confirm-dialog__mode-label {
   font-size: var(--font-size-small, 11px);
-  color: var(--figma-color-text-secondary);
-  margin-bottom: 8px;
+  color: var(--figma-color-text-tertiary, #999);
+  margin-bottom: 6px;
   display: block;
 }
 
 .confirm-dialog__radio {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: var(--font-size-base, 11px);
   color: var(--figma-color-text);
   cursor: pointer;
   user-select: none;
-  height: 24px;
+  height: 22px;
 }
 
 .confirm-dialog__radio + .confirm-dialog__radio {
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .confirm-dialog__radio input[type='radio'] {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   margin: 0;
   accent-color: var(--figma-color-bg-brand);
   cursor: pointer;
@@ -916,33 +916,13 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Checkbox — separate row */
-.confirm-dialog__checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-base, 11px);
-  color: var(--figma-color-text);
-  cursor: pointer;
-  user-select: none;
-  height: 24px;
-}
-
-.confirm-dialog__checkbox input[type='checkbox'] {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  accent-color: var(--figma-color-bg-brand);
-  cursor: pointer;
-}
-
 /* Footer — pinned to bottom */
 .confirm-dialog__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: 10px 16px;
   border-top: 1px solid var(--figma-color-border);
   margin-top: auto;
 }
@@ -962,8 +942,8 @@ button:disabled {
   font-family: inherit;
   cursor: pointer;
   transition: opacity 0.15s;
-  height: 32px;
-  line-height: 32px;
+  height: 28px;
+  line-height: 28px;
 }
 
 .confirm-dialog__btn-danger:hover {
@@ -980,8 +960,8 @@ button:disabled {
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s;
-  height: 32px;
-  line-height: 32px;
+  height: 28px;
+  line-height: 28px;
 }
 
 .confirm-dialog__btn-secondary:hover {
@@ -990,7 +970,7 @@ button:disabled {
 
 /* Button: Primary (Импорт) */
 .confirm-dialog__btn-primary {
-  padding: 0 12px;
+  padding: 0 14px;
   background: var(--figma-color-bg-brand, #0d99ff);
   border: none;
   border-radius: 6px;
@@ -1000,8 +980,8 @@ button:disabled {
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
-  height: 32px;
-  line-height: 32px;
+  height: 28px;
+  line-height: 28px;
 }
 
 .confirm-dialog__btn-primary:hover {

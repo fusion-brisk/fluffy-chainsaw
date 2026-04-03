@@ -563,10 +563,11 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     const productCard = parseResult.productCard || null;
 
     // Capture full-page screenshot (scroll + capture loop)
-    // Skip screenshots for feed pages (masonry layout not suitable for scroll capture)
+    // Skip for feed pages (masonry layout) and when user disabled screenshots
     let screenshots: string[] = [];
     let screenshotMeta: Record<string, unknown> | null = null;
-    if (!isFeed) {
+    const { captureScreenshots = true } = await chrome.storage.local.get('captureScreenshots');
+    if (!isFeed && captureScreenshots) {
       const platform = rows.find((r) => r['#platform'])?.['#platform'] || 'desktop';
       try {
         const result = await captureFullPage(tab.id!, platform);
@@ -668,6 +669,35 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
   }
 }
 
+// === Context Menu (screenshot toggle) ===
+
+const MENU_ID_SCREENSHOTS = 'toggle-screenshots';
+
+/**
+ * Create context menu on every SW startup.
+ * onInstalled only fires on install/update, but SW restarts on every wake.
+ * removeAll + create ensures no stale/duplicate entries.
+ */
+async function createContextMenu(): Promise<void> {
+  const { captureScreenshots = true } = await chrome.storage.local.get('captureScreenshots');
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({
+      id: MENU_ID_SCREENSHOTS,
+      title: 'Захватывать скриншоты',
+      type: 'checkbox',
+      checked: captureScreenshots,
+      contexts: ['action'],
+    });
+  });
+}
+
+chrome.contextMenus.onClicked.addListener(async (info) => {
+  if (info.menuItemId === MENU_ID_SCREENSHOTS) {
+    await chrome.storage.local.set({ captureScreenshots: !!info.checked });
+    console.log(`[Settings] Screenshots ${info.checked ? 'enabled' : 'disabled'}`);
+  }
+});
+
 // Listen for icon clicks
 chrome.action.onClicked.addListener(handleIconClick);
 
@@ -760,6 +790,9 @@ async function loadParsingRules(): Promise<unknown> {
 // Это запустит relay автоматически, если host установлен
 (async () => {
   console.log('[Contentify] Background service worker loaded');
+
+  // Create context menu on every SW startup (not just onInstalled)
+  createContextMenu();
 
   // Загружаем parsing rules в фоне
   loadParsingRules().catch((e: unknown) => console.log('[Rules] Background load failed:', e));

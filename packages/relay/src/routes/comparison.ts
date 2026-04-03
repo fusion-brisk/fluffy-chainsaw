@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { getQueue, getPendingCount } from '../queue';
-import { getScreenshotSegments, getScreenshotMeta, getLastImportPayload } from './push';
-import { getResultSegments, getResultMeta } from './result';
+import {
+  getScreenshotSegments,
+  getScreenshotMeta,
+  getLastImport,
+  getResultSegments,
+  getResultMeta,
+} from '../storage';
 import type { QueueEntryPayload } from '../types';
 
 const router = Router();
@@ -15,25 +20,25 @@ router.get('/comparison', (_req: Request, res: Response) => {
     screenshot: {
       available: getScreenshotSegments().length > 0,
       count: getScreenshotSegments().length,
-      meta: getScreenshotMeta()
+      meta: getScreenshotMeta(),
     },
     result: {
       available: getResultSegments().length > 0,
       count: getResultSegments().length,
-      meta: getResultMeta()
+      meta: getResultMeta(),
     },
     sourceData: {
       available: pendingCount > 0,
       queueSize: getQueue().length,
-      pendingCount
+      pendingCount,
     },
-    canReimport: getLastImportPayload() !== null
+    canReimport: getLastImport() !== null,
   });
 });
 
 /** GET /source-data */
 router.get('/source-data', (req: Request, res: Response) => {
-  const lastImport = getLastImportPayload();
+  const lastImport = getLastImport();
   if (!lastImport) {
     res.status(404).json({ error: 'No import data available. Send data via POST /push first.' });
     return;
@@ -58,7 +63,7 @@ router.get('/source-data', (req: Request, res: Response) => {
     query: rows[0]?.['#query'] || '',
     capturedAt: payload.capturedAt || null,
     rows,
-    productCard: payload.productCard || null
+    productCard: payload.productCard || null,
   });
 });
 

@@ -1,20 +1,9 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type { ResultMeta } from '../types';
+import { setResult, getResultSegments, getResultMeta } from '../storage';
 
 const router = Router();
-
-// === Result Export Storage ===
-let resultSegments: string[] = [];
-let resultMeta: ResultMeta | null = null;
-
-export function clearResultStorage(): void {
-  resultSegments = [];
-  resultMeta = null;
-}
-
-export function getResultSegments(): string[] { return resultSegments; }
-export function getResultMeta(): ResultMeta | null { return resultMeta; }
 
 /** POST /result */
 router.post('/result', (req: Request, res: Response) => {
@@ -25,13 +14,12 @@ router.post('/result', (req: Request, res: Response) => {
     return;
   }
 
-  resultSegments = [dataUrl];
-  resultMeta = {
+  setResult(dataUrl, {
     ...(meta || {}),
-    receivedAt: new Date().toISOString()
-  };
+    receivedAt: new Date().toISOString(),
+  });
 
-  const sizeKB = Math.round(dataUrl.length * 3 / 4 / 1024);
+  const sizeKB = Math.round((dataUrl.length * 3) / 4 / 1024);
   console.log(`Result export stored: ~${sizeKB}KB, query: "${meta?.query || ''}"`);
 
   res.json({ success: true, sizeKB });
@@ -39,6 +27,8 @@ router.post('/result', (req: Request, res: Response) => {
 
 /** GET /result */
 router.get('/result', (req: Request, res: Response) => {
+  const resultSegments = getResultSegments();
+
   if (resultSegments.length === 0) {
     res.status(404).json({ error: 'No result export available. Run an import in Figma first.' });
     return;
@@ -49,7 +39,9 @@ router.get('/result', (req: Request, res: Response) => {
   if (index !== undefined) {
     const i = parseInt(index, 10);
     if (isNaN(i) || i < 0 || i >= resultSegments.length) {
-      res.status(400).json({ error: `Invalid index. Valid range: 0..${resultSegments.length - 1}` });
+      res
+        .status(400)
+        .json({ error: `Invalid index. Valid range: 0..${resultSegments.length - 1}` });
       return;
     }
 
@@ -70,7 +62,7 @@ router.get('/result', (req: Request, res: Response) => {
   }
 
   // No params -- return metadata
-  const segmentSizes = resultSegments.map(s => {
+  const segmentSizes = resultSegments.map((s) => {
     const matches = s.match(/^data:image\/[\w+]+;base64,(.+)$/);
     return matches ? Math.round(Buffer.from(matches[1], 'base64').length / 1024) : 0;
   });
@@ -78,8 +70,8 @@ router.get('/result', (req: Request, res: Response) => {
   res.json({
     hasResult: true,
     count: resultSegments.length,
-    meta: resultMeta,
-    segments: segmentSizes.map((sizeKB, i) => ({ index: i, sizeKB }))
+    meta: getResultMeta(),
+    segments: segmentSizes.map((sizeKB, i) => ({ index: i, sizeKB })),
   });
 });
 

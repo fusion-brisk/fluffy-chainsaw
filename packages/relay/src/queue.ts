@@ -14,6 +14,7 @@ let lastPushTimestamp: string | null = null;
 // === Persistence state ===
 let saveQueueTimer: ReturnType<typeof setTimeout> | null = null;
 let isSaving = false;
+let pendingSave = false;
 
 // === Broadcast callback (set by index.ts after WebSocket init) ===
 let broadcastFn: ((message: Record<string, unknown>) => void) | null = null;
@@ -28,7 +29,7 @@ function broadcast(message: Record<string, unknown>): void {
 
 // === Queue accessors ===
 
-export function getQueue(): QueueEntry[] {
+export function getQueue(): readonly QueueEntry[] {
   return dataQueue;
 }
 
@@ -41,7 +42,7 @@ export function setLastPushTimestamp(ts: string): void {
 }
 
 export function getPendingCount(): number {
-  return dataQueue.filter(e => !e.acknowledged).length;
+  return dataQueue.filter((e) => !e.acknowledged).length;
 }
 
 // === Queue operations ===
@@ -63,11 +64,11 @@ export function addEntry(entry: QueueEntry): { dropped: number } {
 }
 
 export function findEntryById(entryId: string): QueueEntry | undefined {
-  return dataQueue.find(e => e.id === entryId);
+  return dataQueue.find((e) => e.id === entryId);
 }
 
 export function removeEntryById(entryId: string): QueueEntry | null {
-  const index = dataQueue.findIndex(e => e.id === entryId);
+  const index = dataQueue.findIndex((e) => e.id === entryId);
   if (index === -1) return null;
   const removed = dataQueue.splice(index, 1)[0];
   saveQueue();
@@ -89,13 +90,15 @@ export function clearQueue(): number {
 
 export function findFirstPending(peekStaleMs: number = 60000): QueueEntry | undefined {
   const now = Date.now();
-  return dataQueue.find(e => {
-    if (e.acknowledged) return false;
-    if (e.lastPeekedAt && (now - e.lastPeekedAt) > peekStaleMs) {
+
+  // Reset stale peek markers (separate pass — no side effects inside find)
+  for (const e of dataQueue) {
+    if (e.lastPeekedAt && now - e.lastPeekedAt > peekStaleMs) {
       e.lastPeekedAt = null;
     }
-    return true;
-  });
+  }
+
+  return dataQueue.find((e) => !e.acknowledged);
 }
 
 // === Persistence ===
@@ -106,9 +109,9 @@ export function loadQueue(): void {
       const data: PersistedQueueData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
       const now = Date.now();
 
-      dataQueue = (data.queue || []).filter(entry => {
+      dataQueue = (data.queue || []).filter((entry) => {
         const pushedAt = new Date(entry.pushedAt).getTime();
-        return (now - pushedAt) < MAX_AGE_MS;
+        return now - pushedAt < MAX_AGE_MS;
       });
 
       lastPushTimestamp = data.lastPushTimestamp || null;
@@ -125,15 +128,19 @@ export function loadQueue(): void {
 }
 
 async function saveQueueAsync(): Promise<void> {
-  if (isSaving) return;
+  if (isSaving) {
+    pendingSave = true;
+    return;
+  }
   isSaving = true;
+  pendingSave = false;
 
   try {
     const tmpFile = DATA_FILE + '.tmp';
     const data = JSON.stringify({
       queue: dataQueue,
       lastPushTimestamp,
-      savedAt: new Date().toISOString()
+      savedAt: new Date().toISOString(),
     });
 
     await fsPromises.writeFile(tmpFile, data, 'utf8');
@@ -144,6 +151,10 @@ async function saveQueueAsync(): Promise<void> {
     broadcast({ type: 'queue-save-error', error: msg });
   } finally {
     isSaving = false;
+    if (pendingSave) {
+      pendingSave = false;
+      saveQueue();
+    }
   }
 }
 
@@ -157,11 +168,14 @@ function saveQueue(): void {
 
 export function saveQueueImmediate(): void {
   try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({
-      queue: dataQueue,
-      lastPushTimestamp,
-      savedAt: new Date().toISOString()
-    }));
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify({
+        queue: dataQueue,
+        lastPushTimestamp,
+        savedAt: new Date().toISOString(),
+      }),
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error('Error saving queue:', msg);
@@ -169,5 +183,5 @@ export function saveQueueImmediate(): void {
 }
 
 export function generateEntryId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
 }

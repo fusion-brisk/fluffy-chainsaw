@@ -1,15 +1,13 @@
 /**
- * ImportConfirmDialog — confirmation screen (320 × 320)
+ * ImportConfirmDialog — confirmation screen (320 × 220)
  *
  * Layout:
- *   Импорт данных                         — title, 16px semibold
+ *   Импорт данных                         — title, 13px semibold
  *   «query»                               — secondary, ellipsis
- *   43 сниппета                           — summary list (only non-zero)
- *   5 фильтров
+ *   43 сниппета · 5 фильтров              — summary, secondary
  *   Режим
  *   ◉ Новый артборд                       — native radio
  *   ○ Заполнить выделение                 — disabled if !hasSelection
- *   ☐ Включить скриншоты                  — native checkbox
  *   ─────────────────────────────────────
  *   Очистить        [Отмена] [Импортировать]
  */
@@ -22,7 +20,6 @@ export type ImportMode = 'artboard' | 'selection';
 
 export interface ImportOptions {
   mode: ImportMode;
-  includeScreenshots: boolean;
 }
 
 interface Props {
@@ -38,150 +35,145 @@ interface Props {
   onClearQueue?: () => void;
 }
 
-export const ImportConfirmDialog: React.FC<Props> = memo(({
-  query,
-  itemCount,
-  hasSelection,
-  summaryData,
-  sourceType,
-  onConfirm,
-  onCancel,
-  onClearQueue,
-}) => {
-  const isFeed = sourceType === 'feed';
-  const [mode, setMode] = useState<ImportMode>('artboard');
-  const [includeScreenshots, setIncludeScreenshots] = useState(!isFeed);
+export const ImportConfirmDialog: React.FC<Props> = memo(
+  ({
+    query,
+    itemCount,
+    hasSelection,
+    summaryData,
+    sourceType,
+    onConfirm,
+    onCancel,
+    onClearQueue,
+  }) => {
+    const isFeed = sourceType === 'feed';
+    const [mode, setMode] = useState<ImportMode>('artboard');
 
-  const handleConfirm = useCallback(() => {
-    onConfirm({ mode, includeScreenshots });
-  }, [onConfirm, mode, includeScreenshots]);
+    const handleConfirm = useCallback(() => {
+      onConfirm({ mode });
+    }, [onConfirm, mode]);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-      } else if (e.key === 'Enter') {
-        handleConfirm();
+    // Keyboard shortcuts
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onCancel();
+        } else if (e.key === 'Enter') {
+          handleConfirm();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onCancel, handleConfirm]);
+
+    // Build summary lines from structured data
+    const summaryLines: string[] = [];
+    if (isFeed) {
+      summaryLines.push(
+        `${itemCount} ${pluralize(itemCount, 'карточка', 'карточки', 'карточек')} фида`,
+      );
+    } else if (summaryData) {
+      if (summaryData.snippetCount > 0) {
+        summaryLines.push(
+          `${summaryData.snippetCount} ${pluralize(summaryData.snippetCount, 'сниппет', 'сниппета', 'сниппетов')}`,
+        );
       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel, handleConfirm]);
+      if (summaryData.wizardCount > 0) {
+        summaryLines.push(
+          `${summaryData.wizardCount} ${pluralize(summaryData.wizardCount, 'wizard', 'wizard', 'wizard')}`,
+        );
+      }
+      if (summaryData.filterCount > 0) {
+        summaryLines.push(
+          `${summaryData.filterCount} ${pluralize(summaryData.filterCount, 'фильтр', 'фильтра', 'фильтров')}`,
+        );
+      }
+      if (summaryData.offerCount > 0) {
+        summaryLines.push(
+          `${summaryData.offerCount} ${pluralize(summaryData.offerCount, 'оффер', 'оффера', 'офферов')}`,
+        );
+      }
+    } else {
+      const word = pluralize(itemCount, 'элемент', 'элемента', 'элементов');
+      summaryLines.push(`${itemCount} ${word}`);
+    }
 
-  // Build summary lines from structured data
-  const summaryLines: string[] = [];
-  if (isFeed) {
-    summaryLines.push(`${itemCount} ${pluralize(itemCount, 'карточка', 'карточки', 'карточек')} фида`);
-  } else if (summaryData) {
-    if (summaryData.snippetCount > 0) {
-      summaryLines.push(`${summaryData.snippetCount} ${pluralize(summaryData.snippetCount, 'сниппет', 'сниппета', 'сниппетов')}`);
-    }
-    if (summaryData.wizardCount > 0) {
-      summaryLines.push(`${summaryData.wizardCount} ${pluralize(summaryData.wizardCount, 'wizard', 'wizard', 'wizard')}`);
-    }
-    if (summaryData.filterCount > 0) {
-      summaryLines.push(`${summaryData.filterCount} ${pluralize(summaryData.filterCount, 'фильтр', 'фильтра', 'фильтров')}`);
-    }
-    if (summaryData.offerCount > 0) {
-      summaryLines.push(`${summaryData.offerCount} ${pluralize(summaryData.offerCount, 'оффер', 'оффера', 'офферов')}`);
-    }
-  } else {
-    const word = pluralize(itemCount, 'элемент', 'элемента', 'элементов');
-    summaryLines.push(`${itemCount} ${word}`);
-  }
+    return (
+      <div className="confirm-dialog">
+        {/* Content */}
+        <div className="confirm-dialog__content">
+          {/* Title + Query */}
+          <div className="confirm-dialog__header">
+            <h2 className="confirm-dialog__title">Импорт данных</h2>
+            {query && (
+              <div className="confirm-dialog__query" title={query}>
+                {`\u00AB${query}\u00BB`}
+              </div>
+            )}
+          </div>
 
-  return (
-    <div className="confirm-dialog">
-      {/* Content */}
-      <div className="confirm-dialog__content">
-        {/* Title + Query */}
-        <div className="confirm-dialog__header">
-          <h2 className="confirm-dialog__title">Импорт данных</h2>
-          {query && (
-            <div className="confirm-dialog__query" title={query}>
-              {`\u00AB${query}\u00BB`}
-            </div>
+          {/* Summary list */}
+          <div className="confirm-dialog__summary-list">
+            {summaryLines.map((line, i) => (
+              <div key={i} className="confirm-dialog__summary-item">
+                {line}
+              </div>
+            ))}
+          </div>
+
+          {/* Mode: native radio */}
+          <fieldset className="confirm-dialog__mode">
+            <legend className="confirm-dialog__mode-label">Режим</legend>
+            <label className="confirm-dialog__radio">
+              <input
+                type="radio"
+                name="importMode"
+                value="artboard"
+                checked={mode === 'artboard'}
+                onChange={() => setMode('artboard')}
+              />
+              <span>Новый артборд</span>
+            </label>
+            <label className="confirm-dialog__radio">
+              <input
+                type="radio"
+                name="importMode"
+                value="selection"
+                checked={mode === 'selection'}
+                onChange={() => setMode('selection')}
+                disabled={!hasSelection}
+              />
+              <span>Заполнить выделение</span>
+            </label>
+          </fieldset>
+        </div>
+
+        {/* Footer */}
+        <div className="confirm-dialog__footer">
+          {onClearQueue && (
+            <button type="button" className="confirm-dialog__btn-danger" onClick={onClearQueue}>
+              Очистить
+            </button>
           )}
-        </div>
 
-        {/* Summary list */}
-        <div className="confirm-dialog__summary-list">
-          {summaryLines.map((line, i) => (
-            <div key={i} className="confirm-dialog__summary-item">{line}</div>
-          ))}
-        </div>
-
-        {/* Mode: native radio */}
-        <fieldset className="confirm-dialog__mode">
-          <legend className="confirm-dialog__mode-label">Режим</legend>
-          <label className="confirm-dialog__radio">
-            <input
-              type="radio"
-              name="importMode"
-              value="artboard"
-              checked={mode === 'artboard'}
-              onChange={() => setMode('artboard')}
-            />
-            <span>Новый артборд</span>
-          </label>
-          <label className="confirm-dialog__radio">
-            <input
-              type="radio"
-              name="importMode"
-              value="selection"
-              checked={mode === 'selection'}
-              onChange={() => setMode('selection')}
-              disabled={!hasSelection}
-            />
-            <span>Заполнить выделение</span>
-          </label>
-        </fieldset>
-
-        {/* Screenshot checkbox */}
-        <label className="confirm-dialog__checkbox">
-          <input
-            type="checkbox"
-            checked={includeScreenshots}
-            onChange={(e) => setIncludeScreenshots(e.target.checked)}
-          />
-          <span>Включить скриншоты</span>
-        </label>
-      </div>
-
-      {/* Footer */}
-      <div className="confirm-dialog__footer">
-        {onClearQueue && (
-          <button
-            type="button"
-            className="confirm-dialog__btn-danger"
-            onClick={onClearQueue}
-          >
-            Очистить
-          </button>
-        )}
-
-        <div className="confirm-dialog__footer-right">
-          <button
-            type="button"
-            className="confirm-dialog__btn-secondary"
-            onClick={onCancel}
-          >
-            Отмена
-          </button>
-          <button
-            type="button"
-            className="confirm-dialog__btn-primary"
-            onClick={handleConfirm}
-            autoFocus
-          >
-            Импорт
-          </button>
+          <div className="confirm-dialog__footer-right">
+            <button type="button" className="confirm-dialog__btn-secondary" onClick={onCancel}>
+              Отмена
+            </button>
+            <button
+              type="button"
+              className="confirm-dialog__btn-primary"
+              onClick={handleConfirm}
+              autoFocus
+            >
+              Импорт
+            </button>
+          </div>
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 ImportConfirmDialog.displayName = 'ImportConfirmDialog';
 

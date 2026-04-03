@@ -9,15 +9,22 @@ const saveBtn = document.getElementById('saveBtn');
 const resetBtn = document.getElementById('resetBtn');
 const testBtn = document.getElementById('testBtn');
 const testResult = document.getElementById('testResult');
+const screenshotCheckbox = document.getElementById('captureScreenshots') as HTMLInputElement | null;
 const statusEl = document.getElementById('status');
 const statusIcon = document.getElementById('statusIcon');
 const statusText = document.getElementById('statusText');
 
 // Load saved settings
 async function loadSettings(): Promise<void> {
-  const { relayUrl } = await chrome.storage.local.get('relayUrl');
+  const { relayUrl, captureScreenshots = true } = await chrome.storage.local.get([
+    'relayUrl',
+    'captureScreenshots',
+  ]);
   if (relayUrlInput) {
     relayUrlInput.value = (relayUrl as string) || DEFAULT_RELAY_URL;
+  }
+  if (screenshotCheckbox) {
+    screenshotCheckbox.checked = captureScreenshots as boolean;
   }
 }
 
@@ -51,7 +58,7 @@ async function testConnection(): Promise<void> {
   try {
     const startTime = Date.now();
     const res = await fetch(`${url}/status`, {
-      signal: AbortSignal.timeout(5000)
+      signal: AbortSignal.timeout(5000),
     });
     const elapsed = Date.now() - startTime;
 
@@ -59,13 +66,12 @@ async function testConnection(): Promise<void> {
       throw new Error(`HTTP ${res.status}`);
     }
 
-    const data = await res.json() as Record<string, unknown>;
+    const data = (await res.json()) as Record<string, unknown>;
 
     if (testResult) {
       testResult.className = 'test-result visible success';
       testResult.textContent = `✅ Подключено (${elapsed}ms)\nОчередь: ${data.queueSize || 0} элементов`;
     }
-
   } catch (err: unknown) {
     if (testResult) {
       testResult.className = 'test-result visible error';
@@ -73,8 +79,12 @@ async function testConnection(): Promise<void> {
       const error = err as Error;
       if (error.name === 'AbortError') {
         testResult.textContent = '❌ Таймаут: сервер не отвечает';
-      } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        testResult.textContent = '❌ Сервер недоступен\n\nЗапустите relay:\n  cd relay && npm start';
+      } else if (
+        error.message.includes('Failed to fetch') ||
+        error.message.includes('NetworkError')
+      ) {
+        testResult.textContent =
+          '❌ Сервер недоступен\n\nЗапустите relay:\n  cd relay && npm start';
       } else {
         testResult.textContent = `❌ Ошибка: ${error.message}`;
       }
@@ -106,6 +116,15 @@ function showStatus(type: string, icon: string, message: string): void {
 saveBtn?.addEventListener('click', saveSettings);
 resetBtn?.addEventListener('click', resetSettings);
 testBtn?.addEventListener('click', testConnection);
+screenshotCheckbox?.addEventListener('change', async () => {
+  const enabled = screenshotCheckbox.checked;
+  await chrome.storage.local.set({ captureScreenshots: enabled });
+  showStatus(
+    'success',
+    enabled ? '📷' : '⚡',
+    enabled ? 'Скриншоты включены' : 'Быстрый режим (без скриншотов)',
+  );
+});
 
 // Enter key to save
 relayUrlInput?.addEventListener('keydown', (e: KeyboardEvent) => {

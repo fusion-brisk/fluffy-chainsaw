@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, Response } from 'express';
-import { getScreenshotSegments, getScreenshotMeta } from './push';
+import { getScreenshotSegments, getScreenshotMeta } from '../storage';
 
 const router = Router();
 
@@ -10,7 +10,9 @@ router.get('/screenshot', (req: Request, res: Response) => {
   const screenshotMeta = getScreenshotMeta();
 
   if (screenshotSegments.length === 0) {
-    res.status(404).json({ error: 'No screenshot available. Click the extension icon on a Yandex page.' });
+    res
+      .status(404)
+      .json({ error: 'No screenshot available. Click the extension icon on a Yandex page.' });
     return;
   }
 
@@ -20,7 +22,7 @@ router.get('/screenshot', (req: Request, res: Response) => {
   if (index === 'all') {
     res.json({
       segments: screenshotSegments,
-      meta: screenshotMeta
+      meta: screenshotMeta,
     });
     return;
   }
@@ -30,7 +32,7 @@ router.get('/screenshot', (req: Request, res: Response) => {
     const i = parseInt(index, 10);
     if (isNaN(i) || i < 0 || i >= screenshotSegments.length) {
       res.status(400).json({
-        error: `Invalid index. Valid range: 0..${screenshotSegments.length - 1}`
+        error: `Invalid index. Valid range: 0..${screenshotSegments.length - 1}`,
       });
       return;
     }
@@ -54,7 +56,7 @@ router.get('/screenshot', (req: Request, res: Response) => {
   }
 
   // No params -- metadata
-  const segmentSizes = screenshotSegments.map(s => {
+  const segmentSizes = screenshotSegments.map((s) => {
     const matches = s.match(/^data:image\/[\w+]+;base64,(.+)$/);
     return matches ? Math.round(Buffer.from(matches[1], 'base64').length / 1024) : 0;
   });
@@ -63,7 +65,7 @@ router.get('/screenshot', (req: Request, res: Response) => {
     hasScreenshot: true,
     count: screenshotSegments.length,
     meta: screenshotMeta,
-    segments: segmentSizes.map((sizeKB, i) => ({ index: i, sizeKB }))
+    segments: segmentSizes.map((sizeKB, i) => ({ index: i, sizeKB })),
   });
 });
 

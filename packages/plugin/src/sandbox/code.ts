@@ -438,11 +438,9 @@ figma.ui.onmessage = async (msg) => {
 
           Logger.info(`✅ SERP "${result.frame.name}": ${count} сниппетов`);
 
-          if (msg.includeScreenshots !== false) {
-            placeScreenshotSegments(result.frame, query).catch((err) =>
-              Logger.error('Screenshot placement failed:', err),
-            );
-          }
+          placeScreenshotSegments(result.frame, query).catch((err) =>
+            Logger.error('Screenshot placement failed:', err),
+          );
 
           exportResultToRelay(result.frame, query).catch((err) =>
             Logger.error('Result export failed:', err),
