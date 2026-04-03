@@ -6,7 +6,12 @@
  */
 
 import { Logger } from '../../logger';
-import { FeedCardRow, FeedPlatform, FeedMasonryConfig, DEFAULT_MASONRY_CONFIG } from '../../types/feed-card-types';
+import {
+  FeedCardRow,
+  FeedPlatform,
+  FeedMasonryConfig,
+  DEFAULT_MASONRY_CONFIG,
+} from '../../types/feed-card-types';
 import { importFeedComponent, clearFeedComponentCache } from './feed-component-map';
 import { assignMasonryPositions, MasonryItem, MasonryConfig } from './feed-masonry-layout';
 import { createPlaceholder } from '../page-builder/component-import';
@@ -41,9 +46,9 @@ export interface FeedPageResult {
  */
 function buildMasonryConfig(
   platform: FeedPlatform,
-  overrides: Partial<FeedMasonryConfig> | undefined
+  overrides: Partial<FeedMasonryConfig> | undefined,
 ): FeedMasonryConfig {
-  var defaults = DEFAULT_MASONRY_CONFIG[platform];
+  const defaults = DEFAULT_MASONRY_CONFIG[platform];
   if (!overrides) {
     return defaults;
   }
@@ -60,15 +65,15 @@ function buildMasonryConfig(
  * Returns the new height after resizing.
  */
 function resizeToColumnWidth(instance: SceneNode, columnWidth: number): number {
-  var currentWidth = instance.width;
-  var currentHeight = instance.height;
+  const currentWidth = instance.width;
+  const currentHeight = instance.height;
 
   if (currentWidth <= 0 || currentHeight <= 0) {
     return 200; // fallback height
   }
 
-  var scale = columnWidth / currentWidth;
-  var newHeight = Math.round(currentHeight * scale);
+  const scale = columnWidth / currentWidth;
+  const newHeight = Math.round(currentHeight * scale);
 
   (instance as InstanceNode | FrameNode).resize(columnWidth, newHeight);
   return newHeight;
@@ -102,64 +107,76 @@ function postProgress(current: number, total: number, message: string): void {
  */
 export function createFeedPage(
   cards: FeedCardRow[],
-  options?: FeedPageOptions
+  options?: FeedPageOptions,
 ): Promise<FeedPageResult> {
-  var platform: FeedPlatform = (options && options.platform) ? options.platform : 'desktop';
-  var frameName: string = (options && options.frameName) ? options.frameName : 'Feed Page';
-  var masonryOverrides = options && options.masonry;
-  var config = buildMasonryConfig(platform, masonryOverrides);
+  const platform: FeedPlatform = options && options.platform ? options.platform : 'desktop';
+  const frameName: string = options && options.frameName ? options.frameName : 'Feed Page';
+  const masonryOverrides = options && options.masonry;
+  const config = buildMasonryConfig(platform, masonryOverrides);
 
-  var errors: string[] = [];
-  var total = cards.length;
+  const errors: string[] = [];
+  const total = cards.length;
 
   /**
    * Step 1: Import components and create instances
    */
   function importAllCards(): Promise<Array<{ instance: InstanceNode | FrameNode; index: number }>> {
-    var results: Array<{ instance: InstanceNode | FrameNode; index: number }> = [];
-    var chain = Promise.resolve();
+    const results: Array<{ instance: InstanceNode | FrameNode; index: number }> = [];
+    let chain = Promise.resolve();
 
-    for (var i = 0; i < cards.length; i++) {
-      (function(idx) {
-        chain = chain.then(function() {
-          var card = cards[idx];
-          var cardType = card['#Feed_CardType'] || 'unknown';
-          postProgress(idx + 1, total, 'Importing ' + cardType + ' (' + (idx + 1) + '/' + total + ')');
+    for (let i = 0; i < cards.length; i++) {
+      (function (idx) {
+        chain = chain.then(function () {
+          const card = cards[idx];
+          const cardType = card['#Feed_CardType'] || 'unknown';
+          postProgress(
+            idx + 1,
+            total,
+            'Importing ' + cardType + ' (' + (idx + 1) + '/' + total + ')',
+          );
 
-          return importFeedComponent(card).then(function(component) {
-            if (component) {
-              var instance = component.createInstance();
-              resizeToColumnWidth(instance, config.columnWidth);
-              return applyFeedData(instance, card).then(function() {
-                results.push({ instance: instance, index: idx });
-              });
-            } else {
-              return createPlaceholder(cardType, config.columnWidth, 200).then(function(placeholder) {
-                results.push({ instance: placeholder, index: idx });
-                errors.push('Card ' + idx + ' (' + cardType + '): component not found, using placeholder');
-              });
-            }
-          }).catch(function(e) {
-            var msg = e instanceof Error ? e.message : String(e);
-            errors.push('Card ' + idx + ' (' + cardType + '): ' + msg);
+          return importFeedComponent(card)
+            .then(function (component) {
+              if (component) {
+                const instance = component.createInstance();
+                resizeToColumnWidth(instance, config.columnWidth);
+                return applyFeedData(instance, card).then(function () {
+                  results.push({ instance: instance, index: idx });
+                });
+              } else {
+                return createPlaceholder(cardType, config.columnWidth, 200).then(
+                  function (placeholder) {
+                    results.push({ instance: placeholder, index: idx });
+                    errors.push(
+                      'Card ' + idx + ' (' + cardType + '): component not found, using placeholder',
+                    );
+                  },
+                );
+              }
+            })
+            .catch(function (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              errors.push('Card ' + idx + ' (' + cardType + '): ' + msg);
 
-            return createPlaceholder(cardType, config.columnWidth, 200).then(function(placeholder) {
-              results.push({ instance: placeholder, index: idx });
-            }).catch(function() {
-              // Even placeholder failed — skip this card entirely
-              errors.push('Card ' + idx + ': placeholder creation also failed');
+              return createPlaceholder(cardType, config.columnWidth, 200)
+                .then(function (placeholder) {
+                  results.push({ instance: placeholder, index: idx });
+                })
+                .catch(function () {
+                  // Even placeholder failed — skip this card entirely
+                  errors.push('Card ' + idx + ': placeholder creation also failed');
+                });
             });
-          });
         });
       })(i);
     }
 
-    return chain.then(function() {
+    return chain.then(function () {
       return results;
     });
   }
 
-  return importAllCards().then(function(items) {
+  return importAllCards().then(function (items) {
     if (items.length === 0) {
       return {
         success: false,
@@ -172,8 +189,8 @@ export function createFeedPage(
     /**
      * Step 2: Build MasonryItem[] from collected instances
      */
-    var masonryItems: MasonryItem[] = [];
-    for (var i = 0; i < items.length; i++) {
+    const masonryItems: MasonryItem[] = [];
+    for (let i = 0; i < items.length; i++) {
       masonryItems.push({
         id: String(i),
         width: items[i].instance.width,
@@ -184,17 +201,17 @@ export function createFeedPage(
     /**
      * Step 3: Compute masonry positions
      */
-    var layoutConfig: MasonryConfig = {
+    const layoutConfig: MasonryConfig = {
       columns: config.columns,
       columnWidth: config.columnWidth,
       gap: config.gap,
     };
-    var layout = assignMasonryPositions(masonryItems, layoutConfig);
+    const layout = assignMasonryPositions(masonryItems, layoutConfig);
 
     /**
      * Step 4: Create parent frame (no auto-layout — manual positioning)
      */
-    var frame = figma.createFrame();
+    const frame = figma.createFrame();
     frame.name = frameName;
     frame.resize(config.feedWidth, Math.max(layout.totalHeight, 1));
     frame.clipsContent = true;
@@ -203,10 +220,10 @@ export function createFeedPage(
     /**
      * Step 5: Place instances at their masonry positions
      */
-    for (var p = 0; p < layout.positions.length; p++) {
-      var pos = layout.positions[p];
-      var itemIndex = parseInt(pos.id, 10);
-      var item = items[itemIndex];
+    for (let p = 0; p < layout.positions.length; p++) {
+      const pos = layout.positions[p];
+      const itemIndex = parseInt(pos.id, 10);
+      const item = items[itemIndex];
       if (!item) continue;
 
       item.instance.x = pos.x;
@@ -217,15 +234,20 @@ export function createFeedPage(
     /**
      * Step 6: Position at viewport center
      */
-    var viewport = figma.viewport.center;
+    const viewport = figma.viewport.center;
     frame.x = Math.round(viewport.x - config.feedWidth / 2);
     frame.y = Math.round(viewport.y - layout.totalHeight / 2);
 
     Logger.debug(
-      '[FeedPageCreator] Created feed page: ' + frameName +
-      ' (' + items.length + ' cards, ' +
-      config.columns + ' columns, ' +
-      Math.round(layout.totalHeight) + 'px tall)'
+      '[FeedPageCreator] Created feed page: ' +
+        frameName +
+        ' (' +
+        items.length +
+        ' cards, ' +
+        config.columns +
+        ' columns, ' +
+        Math.round(layout.totalHeight) +
+        'px tall)',
     );
 
     if (errors.length > 0) {

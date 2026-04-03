@@ -27,10 +27,9 @@ import {
   GROUP_COMPONENT_MAP,
   LAYOUT_COMPONENT_MAP,
   PAINT_STYLE_KEYS,
-  VARIABLE_KEYS,
 } from './component-map';
 import { buildPageStructure, sortContentNodes, detectSnippetType } from './structure-builder';
-import { StructureNode, ContainerType, ContainerConfig } from './types';
+import { StructureNode, ContainerType } from './types';
 import { renderWizards } from '../plugin/wizard-processor';
 import { loadComponent, createPlaceholder } from './component-import';
 import { applyFill, applyFillStyle } from './fill-utils';
@@ -51,8 +50,6 @@ import {
   createImagesGridPanel,
   createContainerFrame,
 } from './panel-builders';
-import { assignMasonryPositions } from '../feed-page-builder/feed-masonry-layout';
-import type { MasonryItem } from '../feed-page-builder/feed-masonry-layout';
 
 // Re-export clearComponentCache so index.ts can import from page-creator (backwards compat)
 export { clearComponentCache } from './component-import';
@@ -147,11 +144,11 @@ async function createSnippetInstance(
       const resolvedProps: Record<string, string | boolean> = {};
       const instanceProps = instance.componentProperties;
       for (const shortName in restProps) {
-        var val = restProps[shortName];
+        const val = restProps[shortName];
         if (typeof val === 'boolean') {
           // Find full key for this boolean property
-          var fullKey: string | null = null;
-          for (var pk in instanceProps) {
+          let fullKey: string | null = null;
+          for (const pk in instanceProps) {
             if (pk.split('#')[0] === shortName && instanceProps[pk].type === 'BOOLEAN') {
               fullKey = pk;
               break;
@@ -528,8 +525,8 @@ async function renderStructureNode(
 
       // Create column frames
       const columnFrames: FrameNode[] = [];
-      for (var ci = 0; ci < masonryCols; ci++) {
-        var colFrame = figma.createFrame();
+      for (let ci = 0; ci < masonryCols; ci++) {
+        const colFrame = figma.createFrame();
         colFrame.name = 'Column ' + (ci + 1);
         colFrame.layoutMode = 'VERTICAL';
         colFrame.primaryAxisSizingMode = 'AUTO';
@@ -543,8 +540,8 @@ async function renderStructureNode(
       }
 
       // Track column heights for greedy shortest-column distribution
-      var colHeights: number[] = [];
-      for (var ch = 0; ch < masonryCols; ch++) {
+      const colHeights: number[] = [];
+      for (let ch = 0; ch < masonryCols; ch++) {
         colHeights.push(0);
       }
 
@@ -560,20 +557,20 @@ async function renderStructureNode(
           );
           if (result.element) {
             // Find shortest column
-            var shortestCol = 0;
-            for (var sc = 1; sc < colHeights.length; sc++) {
+            let shortestCol = 0;
+            for (let sc = 1; sc < colHeights.length; sc++) {
               if (colHeights[sc] < colHeights[shortestCol]) shortestCol = sc;
             }
 
             columnFrames[shortestCol].appendChild(result.element);
-            var instance = result.element as InstanceNode;
+            const instance = result.element as InstanceNode;
             instance.layoutSizingHorizontal = 'FILL';
 
             // Estimate card height for column balancing
-            var aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
-            var thumbHeight = Math.round(cardW / aspectRatio);
-            var isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
-            var contentHeight = isImageOnly ? 55 : 90;
+            const aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
+            const thumbHeight = Math.round(cardW / aspectRatio);
+            const isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
+            const contentHeight = isImageOnly ? 55 : 90;
             colHeights[shortestCol] += thumbHeight + contentHeight + masonryGap;
 
             count += result.count;
@@ -1334,9 +1331,9 @@ export async function createSerpPage(
       contentAsideFrame.fills = [];
       mainContent.appendChild(contentAsideFrame);
 
-      for (var ai = 0; ai < structure.contentAside.length; ai++) {
-        var asideNode = structure.contentAside[ai];
-        var asideResult = await renderStructureNode(asideNode, platform, errors);
+      for (let ai = 0; ai < structure.contentAside.length; ai++) {
+        const asideNode = structure.contentAside[ai];
+        const asideResult = await renderStructureNode(asideNode, platform, errors);
         if (asideResult.element) {
           contentAsideFrame.appendChild(asideResult.element);
           if (asideResult.element.type === 'FRAME' || asideResult.element.type === 'INSTANCE') {
@@ -1390,11 +1387,11 @@ export async function createSerpPage(
   const childSerpItemIds: string[] = [];
   const totalNodes = sortedNodes.length;
 
-  for (var ni = 0; ni < sortedNodes.length; ni++) {
-    var node = sortedNodes[ni];
+  for (let ni = 0; ni < sortedNodes.length; ni++) {
+    const node = sortedNodes[ni];
 
     // Progress: 10–90% proportional to node index
-    var pct = 10 + Math.round((ni / Math.max(totalNodes, 1)) * 80);
+    const pct = 10 + Math.round((ni / Math.max(totalNodes, 1)) * 80);
     figma.ui.postMessage({
       type: 'progress',
       current: pct,

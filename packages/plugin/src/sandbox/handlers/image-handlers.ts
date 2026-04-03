@@ -14,51 +14,6 @@ import { fetchAndApplyImage } from '../image-apply';
 import { HandlerContext } from './types';
 import { CSVRow } from '../../types/csv-fields';
 
-// Кэш компонентов страницы (построается один раз при первом вызове)
-let componentsCache: Map<string, ComponentNode> | null = null;
-let componentsCachePageId: string | null = null;
-
-/**
- * Получить компонент по имени из кэша (O(1) вместо findAll)
- */
-function getCachedComponent(name: string): ComponentNode | undefined {
-  // Проверяем актуальность кэша (страница не изменилась)
-  if (componentsCachePageId !== figma.currentPage.id) {
-    componentsCache = null;
-    componentsCachePageId = null;
-  }
-
-  // Лениво строим кэш при первом обращении
-  if (!componentsCache) {
-    const startTime = Date.now();
-    componentsCache = new Map();
-    componentsCachePageId = figma.currentPage.id;
-
-    const allComponents = figma.currentPage.findAll(
-      (n) => n.type === 'COMPONENT',
-    ) as ComponentNode[];
-    for (const comp of allComponents) {
-      if (!comp.removed && !componentsCache.has(comp.name)) {
-        componentsCache.set(comp.name, comp);
-      }
-    }
-
-    Logger.debug(
-      `📦 [ComponentsCache] Построен: ${componentsCache.size} компонентов за ${Date.now() - startTime}ms`,
-    );
-  }
-
-  return componentsCache.get(name);
-}
-
-/**
- * Очистка кэша компонентов (вызывается при необходимости)
- */
-export function clearComponentsCache(): void {
-  componentsCache = null;
-  componentsCachePageId = null;
-}
-
 /**
  * Применяет одиночное изображение к слою #OrganicImage / #ThumbImage / Image Ratio
  * Вызывается для State=Default (одна картинка)
@@ -256,7 +211,7 @@ async function applyThumbGroupImages(container: SceneNode, row: CSVRow): Promise
  * Instance swap property для отображения одной картинки или коллажа
  */
 export async function handleImageType(context: HandlerContext): Promise<void> {
-  const { container, row, instanceCache } = context;
+  const { container, row } = context;
 
   if (!container || !row) return;
 

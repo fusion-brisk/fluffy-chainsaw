@@ -179,8 +179,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         setMenuOpen(false);
         // Don't call onRequestResize here — ui.tsx will resize for the new state
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mode]);
+    }, [mode]); // intentionally omit menuOpen/setMenuOpen — only react to mode changes
 
     // Auto-dismiss for success and error
     useEffect(() => {

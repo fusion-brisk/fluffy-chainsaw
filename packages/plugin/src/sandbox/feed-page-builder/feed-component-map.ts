@@ -8,7 +8,13 @@
  */
 
 import { Logger } from '../../logger';
-import { FeedCardRow, FeedCardSize, FeedCardType, FeedPlatform, FeedComponentVariant } from '../../types/feed-card-types';
+import {
+  FeedCardRow,
+  FeedCardSize,
+  FeedCardType,
+  FeedPlatform,
+  FeedComponentVariant,
+} from '../../types/feed-card-types';
 
 // ============================================================================
 // COMPONENT SET KEYS — DC Feed library
@@ -18,14 +24,14 @@ import { FeedCardRow, FeedCardSize, FeedCardType, FeedPlatform, FeedComponentVar
  * Component SET keys (parent containers).
  * Individual variants are children with properties like Variant=N, Platform=Desktop|Mobile.
  */
-var FEED_COMPONENT_SET_KEYS: Record<string, string> = {
-  'post':            '0fdaa4594724de9e5aca70b24697acfe99c47069',
-  'video':           '012cb3e9e93ac64676b2ba3e5f33ff3ac9b99061',
-  'market':          '3b7e0b1f54a2cc8843efb69597158fd1ba0a1858',
-  'advert_prod':     '66df545c9090c6776444d39306af1e3b34e7da41',
-  'advert_examples': 'fa33e1ca52751009197bba25340780694e977cdf',
-  'product':         '862ed09175edc1b277dd67b9686e753e5c51212d',
-  'collection':      '0a973790f90a010df34a9f6509256b176bd611b3',
+const FEED_COMPONENT_SET_KEYS: Record<string, string> = {
+  post: '0fdaa4594724de9e5aca70b24697acfe99c47069',
+  video: '012cb3e9e93ac64676b2ba3e5f33ff3ac9b99061',
+  market: '3b7e0b1f54a2cc8843efb69597158fd1ba0a1858',
+  advert_prod: '66df545c9090c6776444d39306af1e3b34e7da41',
+  advert_examples: 'fa33e1ca52751009197bba25340780694e977cdf',
+  product: '862ed09175edc1b277dd67b9686e753e5c51212d',
+  collection: '0a973790f90a010df34a9f6509256b176bd611b3',
 };
 
 // ============================================================================
@@ -60,7 +66,7 @@ function getMarketVariantRange(size: FeedCardSize): VariantRange {
  *   without carousel -> 5-14
  */
 function getPostVariantRange(row: FeedCardRow): VariantRange {
-  var hasCarousel = row['#Feed_CarouselImages'] && row['#Feed_CarouselImages'] !== '[]';
+  const hasCarousel = row['#Feed_CarouselImages'] && row['#Feed_CarouselImages'] !== '[]';
   if (hasCarousel) {
     return { min: 1, max: 4 };
   }
@@ -80,7 +86,7 @@ function getVideoVariantRange(): VariantRange {
  *   market      -> 8-21
  */
 function getProductVariantRange(row: FeedCardRow): VariantRange {
-  var productType = row['#Feed_ProductType'];
+  const productType = row['#Feed_ProductType'];
   if (productType === 'market') {
     return { min: 8, max: 21 };
   }
@@ -102,7 +108,7 @@ function getCollectionVariantRange(): VariantRange {
  * Returns { setKey, range }
  */
 function getAdvertConfig(row: FeedCardRow): { setKey: string; range: VariantRange } {
-  var adStyle = row['#Feed_AdStyle'];
+  const adStyle = row['#Feed_AdStyle'];
   if (adStyle === 'branded') {
     return {
       setKey: FEED_COMPONENT_SET_KEYS['advert_examples'],
@@ -127,12 +133,12 @@ function getAdvertConfig(row: FeedCardRow): { setKey: string; range: VariantRang
  * This is a pure function — no Figma API calls, safe for unit testing.
  */
 export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null {
-  var cardType: FeedCardType = row['#Feed_CardType'];
-  var size: FeedCardSize = row['#Feed_CardSize'];
-  var platform: FeedPlatform = row['#Feed_Platform'] || 'desktop';
+  const cardType: FeedCardType = row['#Feed_CardType'];
+  const size: FeedCardSize = row['#Feed_CardSize'];
+  const platform: FeedPlatform = row['#Feed_Platform'] || 'desktop';
 
-  var setKey: string;
-  var range: VariantRange;
+  let setKey: string;
+  let range: VariantRange;
 
   switch (cardType) {
     case 'market': {
@@ -151,7 +157,7 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
       break;
     }
     case 'advert': {
-      var advertCfg = getAdvertConfig(row);
+      const advertCfg = getAdvertConfig(row);
       setKey = advertCfg.setKey;
       range = advertCfg.range;
       break;
@@ -172,7 +178,7 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
   }
 
   // Deterministic: always pick the first variant in range
-  var variant = range.min;
+  const variant = range.min;
 
   return {
     key: setKey,
@@ -187,10 +193,10 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
 // ============================================================================
 
 /** Cache for imported component sets (setKey -> ComponentSetNode) */
-var componentSetCache = new Map<string, ComponentSetNode>();
+const componentSetCache = new Map<string, ComponentSetNode>();
 
 /** Timeout for component set loading (ms) */
-var IMPORT_TIMEOUT = 15000;
+const IMPORT_TIMEOUT = 15000;
 
 /**
  * Clear the feed component cache.
@@ -209,20 +215,24 @@ function importComponentSet(setKey: string): Promise<ComponentSetNode | null> {
 
   return Promise.race([
     figma.importComponentSetByKeyAsync(setKey),
-    new Promise<never>(function(_, reject) {
-      setTimeout(function() {
+    new Promise<never>(function (_, reject) {
+      setTimeout(function () {
         reject(new Error('Import timeout after ' + IMPORT_TIMEOUT + 'ms'));
       }, IMPORT_TIMEOUT);
     }),
-  ]).then(function(componentSet) {
-    componentSetCache.set(setKey, componentSet);
-    Logger.debug('[FeedComponentMap] Imported set: ' + componentSet.name + ' (key=' + setKey + ')');
-    return componentSet;
-  }).catch(function(e) {
-    var msg = e instanceof Error ? e.message : String(e);
-    Logger.error('[FeedComponentMap] Failed to import set (key=' + setKey + '): ' + msg);
-    return null;
-  });
+  ])
+    .then(function (componentSet) {
+      componentSetCache.set(setKey, componentSet);
+      Logger.debug(
+        '[FeedComponentMap] Imported set: ' + componentSet.name + ' (key=' + setKey + ')',
+      );
+      return componentSet;
+    })
+    .catch(function (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      Logger.error('[FeedComponentMap] Failed to import set (key=' + setKey + '): ' + msg);
+      return null;
+    });
 }
 
 /**
@@ -231,20 +241,20 @@ function importComponentSet(setKey: string): Promise<ComponentSetNode | null> {
 function findVariantChild(
   componentSet: ComponentSetNode,
   variantNum: number,
-  platform: FeedPlatform
+  platform: FeedPlatform,
 ): ComponentNode | null {
-  var platformValue = platform === 'desktop' ? 'Desktop' : 'Mobile';
-  var children = componentSet.children;
+  const platformValue = platform === 'desktop' ? 'Desktop' : 'Mobile';
+  const children = componentSet.children;
 
-  for (var i = 0; i < children.length; i++) {
-    var child = children[i];
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
     if (child.type !== 'COMPONENT') continue;
 
-    var props = (child as ComponentNode).variantProperties;
+    const props = (child as ComponentNode).variantProperties;
     if (!props) continue;
 
-    var variantMatch = props['Variant'] === String(variantNum);
-    var platformMatch = props['Platform'] === platformValue;
+    const variantMatch = props['Variant'] === String(variantNum);
+    const platformMatch = props['Platform'] === platformValue;
 
     if (variantMatch && platformMatch) {
       return child as ComponentNode;
@@ -252,9 +262,12 @@ function findVariantChild(
   }
 
   Logger.debug(
-    '[FeedComponentMap] Variant not found: Variant=' + variantNum +
-    ', Platform=' + platformValue +
-    ' in set ' + componentSet.name
+    '[FeedComponentMap] Variant not found: Variant=' +
+      variantNum +
+      ', Platform=' +
+      platformValue +
+      ' in set ' +
+      componentSet.name,
   );
   return null;
 }
@@ -269,17 +282,17 @@ function findVariantChild(
  * Returns null if selection fails or component is unavailable.
  */
 export function importFeedComponent(row: FeedCardRow): Promise<ComponentNode | null> {
-  var selection = selectFeedVariant(row);
+  const selection = selectFeedVariant(row);
   if (!selection) {
     return Promise.resolve(null);
   }
 
   // Capture values before closure to satisfy TypeScript narrowing
-  var selKey = selection.key;
-  var selVariant = selection.variant;
-  var selPlatform = selection.platform;
+  const selKey = selection.key;
+  const selVariant = selection.variant;
+  const selPlatform = selection.platform;
 
-  return importComponentSet(selKey).then(function(componentSet) {
+  return importComponentSet(selKey).then(function (componentSet) {
     if (!componentSet) return null;
     return findVariantChild(componentSet, selVariant, selPlatform);
   });

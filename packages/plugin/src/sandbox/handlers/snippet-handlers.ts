@@ -11,7 +11,7 @@
  */
 
 // Image handlers
-export { clearComponentsCache, handleImageType } from './image-handlers';
+export { handleImageType } from './image-handlers';
 
 // Text content handlers
 export {

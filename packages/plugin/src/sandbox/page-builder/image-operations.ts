@@ -10,7 +10,7 @@ import { fetchAndApplyImage } from '../image-apply';
  * Avoids per-handler font loading failures and speeds up text operations.
  */
 export async function preloadInstanceFonts(instance: InstanceNode): Promise<void> {
-  const textNodes = instance.findAll(n => n.type === 'TEXT') as TextNode[];
+  const textNodes = instance.findAll((n) => n.type === 'TEXT') as TextNode[];
   const loaded = new Set<string>();
   for (const textNode of textNodes) {
     if (textNode.hasMissingFont) continue;
@@ -54,7 +54,7 @@ export function findImageLayer(container: SceneNode, names: string[]): SceneNode
  */
 function findLayerByPartialName(node: SceneNode, patterns: string[]): SceneNode | null {
   // Проверяем текущий узел — ищем только слои с fills (Rectangle, Frame)
-  if ('fills' in node && patterns.some(p => node.name.includes(p))) {
+  if ('fills' in node && patterns.some((p) => node.name.includes(p))) {
     return node;
   }
 
@@ -81,7 +81,11 @@ function findLayerRecursive(node: SceneNode, name: string): SceneNode | null {
 /**
  * Загружает изображение по URL и применяет к слою
  */
-export async function loadAndApplyImage(layer: SceneNode, url: string, logPrefix: string): Promise<boolean> {
+export async function loadAndApplyImage(
+  layer: SceneNode,
+  url: string,
+  logPrefix: string,
+): Promise<boolean> {
   return fetchAndApplyImage(layer, url, 'FIT', logPrefix);
 }
 
@@ -89,7 +93,10 @@ export async function loadAndApplyImage(layer: SceneNode, url: string, logPrefix
  * Применить изображения к сниппету
  * Поддерживает как одиночное изображение, так и EThumbGroup (3 картинки)
  */
-export async function applySnippetImages(instance: InstanceNode, row: Record<string, string | undefined>): Promise<void> {
+export async function applySnippetImages(
+  instance: InstanceNode,
+  row: Record<string, string | undefined>,
+): Promise<void> {
   const imageType = row['#imageType'] || '';
   const image1 = row['#Image1'] || '';
   const image2 = row['#Image2'] || '';
@@ -97,26 +104,30 @@ export async function applySnippetImages(instance: InstanceNode, row: Record<str
 
   // Если есть EThumbGroup с несколькими картинками
   if (imageType === 'EThumbGroup' && image2) {
-    Logger.debug(`[applySnippetImages] EThumbGroup: применяем ${image1 ? '1' : '0'}+${image2 ? '1' : '0'}+${image3 ? '1' : '0'} картинок`);
+    Logger.debug(
+      `[applySnippetImages] EThumbGroup: применяем ${image1 ? '1' : '0'}+${image2 ? '1' : '0'}+${image3 ? '1' : '0'} картинок`,
+    );
 
     const imageSlots = [
       { names: ['#Image1', 'Image1', 'EThumbGroup-Main'], url: image1 },
       { names: ['#Image2', 'Image2', 'EThumbGroup-Item_topRight'], url: image2 },
-      { names: ['#Image3', 'Image3', 'EThumbGroup-Item_bottomRight'], url: image3 }
+      { names: ['#Image3', 'Image3', 'EThumbGroup-Item_bottomRight'], url: image3 },
     ];
 
     // Параллельная загрузка всех изображений
     const promises = imageSlots.map(async (slot, idx) => {
       if (!slot.url || slot.url.trim() === '') return;
 
-      var layer: SceneNode | null = null;
+      let layer: SceneNode | null = null;
       for (const name of slot.names) {
         layer = findImageLayer(instance, [name]);
         if (layer) break;
       }
 
       if (!layer) {
-        Logger.warn(`[applySnippetImages] Image${idx + 1}: слой не найден (пробовал: ${slot.names.join(', ')})`);
+        Logger.warn(
+          `[applySnippetImages] Image${idx + 1}: слой не найден (пробовал: ${slot.names.join(', ')})`,
+        );
         return;
       }
 
@@ -141,14 +152,23 @@ export async function applySnippetImages(instance: InstanceNode, row: Record<str
   // Ищем слой изображения
   // Добавлены имена для AdvGallery и других вариантов компонентов
   const layerNames = [
-    '#OrganicImage', '#ThumbImage',
-    'Image Ratio', 'EThumb-Image',
-    '#Image', '#Image1',
+    '#OrganicImage',
+    '#ThumbImage',
+    'Image Ratio',
+    'EThumb-Image',
+    '#Image',
+    '#Image1',
     // Дополнительные имена для AdvGallery и других вариантов
-    'Image', 'Thumb', 'image',
-    'EProductSnippet2-Image', 'EProductSnippet2-Thumb',
-    'AdvGallery-Image', 'Card-Image',
-    'EThumb', 'Photo', 'Picture'
+    'Image',
+    'Thumb',
+    'image',
+    'EProductSnippet2-Image',
+    'EProductSnippet2-Thumb',
+    'AdvGallery-Image',
+    'Card-Image',
+    'EThumb',
+    'Photo',
+    'Picture',
   ];
   const layer = findImageLayer(instance, layerNames);
 
@@ -156,7 +176,9 @@ export async function applySnippetImages(instance: InstanceNode, row: Record<str
     Logger.warn(`[applySnippetImages] Слой НЕ найден (пробовал: ${layerNames.join(', ')})`);
     // Логируем все дочерние элементы для отладки
     if ('children' in instance) {
-      const childNames = (instance.children as readonly SceneNode[]).slice(0, 10).map(c => c.name);
+      const childNames = (instance.children as readonly SceneNode[])
+        .slice(0, 10)
+        .map((c) => c.name);
       Logger.debug(`[applySnippetImages] Дочерние: ${childNames.join(', ')}`);
     }
     return;
@@ -169,7 +191,10 @@ export async function applySnippetImages(instance: InstanceNode, row: Record<str
 /**
  * Применить favicon к инстансу сниппета
  */
-export async function applyFavicon(instance: InstanceNode, row: Record<string, string | undefined>): Promise<void> {
+export async function applyFavicon(
+  instance: InstanceNode,
+  row: Record<string, string | undefined>,
+): Promise<void> {
   const faviconUrl = row['#FaviconImage'] || '';
 
   if (!faviconUrl || faviconUrl.trim() === '') {
@@ -180,7 +205,14 @@ export async function applyFavicon(instance: InstanceNode, row: Record<string, s
   Logger.debug(`[applyFavicon] URL: "${faviconUrl.substring(0, 60)}..."`);
 
   // Ищем слой фавиконки
-  const layerNames = ['#FaviconImage', '#Favicon', 'Favicon', 'favicon', 'EFavicon', 'EShopName/#Favicon'];
+  const layerNames = [
+    '#FaviconImage',
+    '#Favicon',
+    'Favicon',
+    'favicon',
+    'EFavicon',
+    'EShopName/#Favicon',
+  ];
   const layer = findImageLayer(instance, layerNames);
 
   if (!layer) {
@@ -195,7 +227,10 @@ export async function applyFavicon(instance: InstanceNode, row: Record<string, s
 /**
  * Применить аватар автора цитаты к инстансу сниппета
  */
-export async function applyQuoteAvatar(instance: InstanceNode, row: Record<string, string | undefined>): Promise<void> {
+export async function applyQuoteAvatar(
+  instance: InstanceNode,
+  row: Record<string, string | undefined>,
+): Promise<void> {
   const avatarUrl = row['#EQuote-AuthorAvatar'] || row['#QuoteImage'] || '';
 
   if (!avatarUrl || avatarUrl.trim() === '') {
@@ -205,7 +240,12 @@ export async function applyQuoteAvatar(instance: InstanceNode, row: Record<strin
   Logger.debug(`[applyQuoteAvatar] URL: "${avatarUrl.substring(0, 60)}..."`);
 
   // Ищем слой аватара
-  const layerNames = ['#EQuote-AuthorAvatar', 'EQuote-AuthorAvatar', '#QuoteImage', 'EQuote-AvatarWrapper'];
+  const layerNames = [
+    '#EQuote-AuthorAvatar',
+    'EQuote-AuthorAvatar',
+    '#QuoteImage',
+    'EQuote-AvatarWrapper',
+  ];
   const layer = findImageLayer(instance, layerNames);
 
   if (!layer) {

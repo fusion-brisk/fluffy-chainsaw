@@ -1,6 +1,6 @@
 /**
  * Data Assignment — маппинг строк данных на контейнеры Figma
- * 
+ *
  * Оптимизация: Single-pass группировка — один findAll по странице
  */
 
@@ -8,19 +8,33 @@ import { Logger } from '../../logger';
 import { TEXT_FIELD_NAMES } from '../../config';
 import { LayerDataItem, IMAGE_FIELDS } from '../../types';
 import { safeGetLayerName, safeGetLayerType } from '../../utils/node-search';
-import { findContainerForLayers, getContainerName, normalizeContainerName } from '../../utils/container-search';
+import {
+  findContainerForLayers,
+  getContainerName,
+  normalizeContainerName,
+} from '../../utils/container-search';
 import { CSVRow, ContainerRowAssignment, ProgressCallback } from './types';
 
 /** Список полей данных для поиска в ESnippet-формате */
 const DATA_FIELD_PATTERNS = [
-  'OrganicTitle', 'OrganicText', 'OrganicHost', 'OrganicPath', 'OrganicImage',
-  'OrganicPrice', 'OldPrice', 'ShopName', 'FaviconImage', 'Favicon', 'ThumbImage',
-  'discount', 'ProductRating', 'ReviewCount', 'ProductURL'
+  'OrganicTitle',
+  'OrganicText',
+  'OrganicHost',
+  'OrganicPath',
+  'OrganicImage',
+  'OrganicPrice',
+  'OldPrice',
+  'ShopName',
+  'FaviconImage',
+  'Favicon',
+  'ThumbImage',
+  'discount',
+  'ProductRating',
+  'ReviewCount',
+  'ProductURL',
 ];
 
-const DATA_FIELD_NAMES_SET = new Set(
-  DATA_FIELD_PATTERNS.map(p => p.toLowerCase())
-);
+const DATA_FIELD_NAMES_SET = new Set(DATA_FIELD_PATTERNS.map((p) => p.toLowerCase()));
 
 /** Контейнеры, которые должны обрабатываться даже без data-layers */
 const ALWAYS_PROCESS_CONTAINERS = new Set(['EShopItem', 'EOfferItem']);
@@ -31,7 +45,7 @@ const ALWAYS_PROCESS_CONTAINERS = new Set(['EShopItem', 'EOfferItem']);
  */
 function isAlwaysProcessContainer(name: string): boolean {
   if (ALWAYS_PROCESS_CONTAINERS.has(name)) return true;
-  
+
   // Проверяем паттерн "BaseName N"
   const baseNameMatch = name.match(/^(.+?)\s+\d+$/);
   if (baseNameMatch && baseNameMatch[1]) {
@@ -66,8 +80,10 @@ function normalizeFieldName(name: string): string {
 /** Проверка, является ли поле изображением */
 function isImageField(fieldName: string): boolean {
   const normalized = normalizeFieldName(fieldName);
-  return IMAGE_FIELDS.some(f => normalizeFieldName(f as string) === normalized) ||
-         normalized.endsWith('image');
+  return (
+    IMAGE_FIELDS.some((f) => normalizeFieldName(f as string) === normalized) ||
+    normalized.endsWith('image')
+  );
 }
 
 /**
@@ -78,9 +94,9 @@ function isImageField(fieldName: string): boolean {
 const FIELD_ALIASES: Record<string, string> = {
   '#Favicon': '#FaviconImage',
   '#favicon': '#FaviconImage',
-  'Favicon': '#FaviconImage',
-  'favicon': '#FaviconImage',
-  'EFavicon': '#FaviconImage',
+  Favicon: '#FaviconImage',
+  favicon: '#FaviconImage',
+  EFavicon: '#FaviconImage',
 };
 
 /** Извлечение имени поля данных из имени слоя */
@@ -101,33 +117,9 @@ function extractDataFieldName(layerName: string): string {
 }
 
 /**
- * Проверка, является ли узел data-слоем
- * ОПТИМИЗАЦИЯ: Минимальная работа в предикате
- */
-function isDataLayer(node: SceneNode): boolean {
-  // Быстрый выход для удалённых нод
-  if (node.removed) return false;
-  
-  const name = node.name;
-  // Быстрая проверка # (самый частый случай)
-  if (name.charCodeAt(0) === 35) return true; // '#' = 35
-  
-  // Пропускаем явно не-data слои по первому символу
-  // Data fields начинаются с заглавной буквы (Organic, Old, Shop, etc.)
-  const firstChar = name.charCodeAt(0);
-  if (firstChar < 65 || firstChar > 90) return false; // Не A-Z
-  
-  // Проверяем паттерны только для потенциальных кандидатов
-  for (let i = 0; i < DATA_FIELD_PATTERNS.length; i++) {
-    if (name.indexOf(DATA_FIELD_PATTERNS[i]) !== -1) return true;
-  }
-  return false;
-}
-
-/**
  * Найти ID контейнера-предка для слоя с кэшированием
  * Кэширует промежуточные узлы для ускорения поиска siblings
- * 
+ *
  * @param node - слой для поиска
  * @param containerIds - Set с ID контейнеров
  * @param ancestorCache - кэш nodeId → containerId (или null если не найден)
@@ -136,16 +128,16 @@ function isDataLayer(node: SceneNode): boolean {
 function findAncestorContainerIdCached(
   node: SceneNode,
   containerIds: Set<string>,
-  ancestorCache: Map<string, string | null>
+  ancestorCache: Map<string, string | null>,
 ): [string | null, number] {
   const pathStack: string[] = [];
   let current: BaseNode | null = node.parent;
   let depth = 0;
-  
+
   while (current) {
     depth++;
     const currentId = current.id;
-    
+
     // Проверяем кэш — если уже видели этот узел, используем результат
     if (ancestorCache.has(currentId)) {
       const cachedResult = ancestorCache.get(currentId)!;
@@ -155,9 +147,9 @@ function findAncestorContainerIdCached(
       }
       return [cachedResult, depth];
     }
-    
+
     pathStack.push(currentId);
-    
+
     // Проверяем, является ли текущий узел контейнером
     if (containerIds.has(currentId)) {
       // Кэшируем весь путь как ведущий к этому контейнеру
@@ -166,10 +158,10 @@ function findAncestorContainerIdCached(
       }
       return [currentId, depth];
     }
-    
+
     current = current.parent;
   }
-  
+
   // Не нашли контейнер — кэшируем весь путь как null
   for (const pathId of pathStack) {
     ancestorCache.set(pathId, null);
@@ -180,18 +172,18 @@ function findAncestorContainerIdCached(
 /**
  * Группировка контейнеров и поиск data-слоёв
  * ОПТИМИЗАЦИЯ v3: Single-pass — один findAll по области поиска
- * 
+ *
  * Было: 79 × findAll (по каждому контейнеру) = 19 секунд
  * Стало: 1 × findAll + группировка = ~2-3 секунды
  */
 export function groupContainersWithDataLayers(
   allContainers: SceneNode[],
   onProgress?: ProgressCallback,
-  searchRoot?: BaseNode
+  searchRoot?: BaseNode,
 ): Map<string, SceneNode[]> {
   const snippetGroups = new Map<string, SceneNode[]>();
   const overallStart = Date.now();
-  
+
   // ОПТИМИЗАЦИЯ: Один проход для создания Set + кэширования имён
   // Было: 2 прохода (map + for loop) = 11.7s
   // Стало: 1 проход = ~6s
@@ -206,37 +198,37 @@ export function groupContainersWithDataLayers(
     }
   }
   const cacheTime = Date.now() - cacheStart;
-  
+
   // Прогресс: начало
   if (onProgress) {
     onProgress(20, 100, `Поиск data-слоёв...`, 'grouping');
   }
-  
+
   // ОПТИМИЗАЦИЯ v5: Один проход с оптимизированным предикатом
   // Ключ: минимизировать обращения к свойствам node (каждое = API call)
   const findAllStart = Date.now();
   let allDataLayers: SceneNode[] = [];
-  
+
   // Определяем область поиска
   const root = searchRoot || figma.currentPage;
   const rootName = 'name' in root ? root.name : 'Page';
-  
+
   if ('findAll' in root) {
     // Один проход с оптимизированным предикатом
     // Читаем node.name ОДИН раз и делаем все проверки
     allDataLayers = (root as PageNode | FrameNode).findAll((node) => {
       if (node.removed) return false;
-      
+
       // Читаем имя ОДИН раз
       const name = node.name;
-      
+
       // Быстрая проверка # (самый частый data-layer)
       if (name.charCodeAt(0) === 35) return true;
-      
+
       // Early exit для не-A-Z (большинство нод)
       const firstChar = name.charCodeAt(0);
       if (firstChar < 65 || firstChar > 90) return false;
-      
+
       // Проверка известных паттернов
       // Используем indexOf вместо includes (чуть быстрее)
       for (let i = 0; i < DATA_FIELD_PATTERNS.length; i++) {
@@ -245,21 +237,23 @@ export function groupContainersWithDataLayers(
       return false;
     });
   }
-  
+
   const findAllTime = Date.now() - findAllStart;
-  
+
   // === ДИАГНОСТИКА: findAll ===
-  Logger.info(`📊 [Grouping] findAll на "${rootName}": ${allDataLayers.length} data-слоёв за ${findAllTime}ms`);
-  
+  Logger.info(
+    `📊 [Grouping] findAll на "${rootName}": ${allDataLayers.length} data-слоёв за ${findAllTime}ms`,
+  );
+
   // Прогресс: findAll завершён
   if (onProgress) {
     onProgress(30, 100, `Найдено ${allDataLayers.length} data-слоёв, группировка...`, 'grouping');
   }
-  
+
   // ОПТИМИЗАЦИЯ: Ancestor cache — кэширует промежуточные узлы
   // Siblings часто имеют общих предков → повторное использование
   const ancestorCache = new Map<string, string | null>();
-  
+
   // Группируем слои по контейнерам-предкам
   const groupStart = Date.now();
   let assignedCount = 0;
@@ -267,20 +261,20 @@ export function groupContainersWithDataLayers(
   let totalDepth = 0;
   let maxDepth = 0;
   let cacheHits = 0;
-  
+
   for (const layer of allDataLayers) {
     const cacheSize = ancestorCache.size;
     const [containerId, depth] = findAncestorContainerIdCached(layer, containerIds, ancestorCache);
-    
+
     // Если кэш вырос меньше чем на depth, значит были cache hits
     const newEntries = ancestorCache.size - cacheSize;
     if (newEntries < depth) {
-      cacheHits += (depth - newEntries);
+      cacheHits += depth - newEntries;
     }
-    
+
     totalDepth += depth;
     if (depth > maxDepth) maxDepth = depth;
-    
+
     if (containerId) {
       let layers = snippetGroups.get(containerId);
       if (!layers) {
@@ -293,16 +287,22 @@ export function groupContainersWithDataLayers(
       orphanCount++;
     }
   }
-  
+
   const groupTime = Date.now() - groupStart;
   const avgDepth = allDataLayers.length > 0 ? (totalDepth / allDataLayers.length).toFixed(1) : '0';
   const hitRate = totalDepth > 0 ? ((cacheHits / totalDepth) * 100).toFixed(0) : '0';
-  
+
   // === ДИАГНОСТИКА: Группировка ===
-  Logger.info(`📊 [Grouping] Ancestor traversal: ${assignedCount} слоёв → ${snippetGroups.size} контейнеров за ${groupTime}ms`);
-  Logger.info(`📊 [Grouping] Depth stats: avg=${avgDepth}, max=${maxDepth}, orphans=${orphanCount}`);
-  Logger.info(`📊 [Grouping] Ancestor cache: ${ancestorCache.size} entries, ${cacheHits} hits (${hitRate}% hit rate)`);
-  
+  Logger.info(
+    `📊 [Grouping] Ancestor traversal: ${assignedCount} слоёв → ${snippetGroups.size} контейнеров за ${groupTime}ms`,
+  );
+  Logger.info(
+    `📊 [Grouping] Depth stats: avg=${avgDepth}, max=${maxDepth}, orphans=${orphanCount}`,
+  );
+  Logger.info(
+    `📊 [Grouping] Ancestor cache: ${ancestorCache.size} entries, ${cacheHits} hits (${hitRate}% hit rate)`,
+  );
+
   // Добавляем контейнеры без data-layers (EShopItem, EOfferItem и их копии)
   let addedEmpty = 0;
   for (const container of allContainers) {
@@ -311,18 +311,22 @@ export function groupContainersWithDataLayers(
       addedEmpty++;
     }
   }
-  
+
   // Прогресс: завершено
   if (onProgress) {
     onProgress(40, 100, `Группировка завершена: ${snippetGroups.size} контейнеров`, 'grouping');
   }
-  
+
   const totalTime = Date.now() - overallStart;
-  
+
   // === ДИАГНОСТИКА: Итог ===
-  Logger.info(`📊 [Grouping] ИТОГО: ${totalTime}ms (cache: ${cacheTime}ms, findAll: ${findAllTime}ms, group: ${groupTime}ms)`);
-  Logger.info(`📊 [Grouping] Результат: ${snippetGroups.size} групп (${assignedCount} с данными, ${addedEmpty} пустых)`);
-  
+  Logger.info(
+    `📊 [Grouping] ИТОГО: ${totalTime}ms (cache: ${cacheTime}ms, findAll: ${findAllTime}ms, group: ${groupTime}ms)`,
+  );
+  Logger.info(
+    `📊 [Grouping] Результат: ${snippetGroups.size} групп (${assignedCount} с данными, ${addedEmpty} пустых)`,
+  );
+
   return snippetGroups;
 }
 
@@ -333,52 +337,56 @@ export function groupContainersWithDataLayers(
 function getContainerType(containerKey: string): string {
   // Используем кэш имён — он заполняется при группировке контейнеров
   const cachedName = containerNamesCache.get(containerKey);
-  
+
   if (cachedName) {
     const normalized = normalizeContainerName(cachedName);
-    Logger.debug(`🔍 [getContainerType] key="${containerKey}" → cachedName="${cachedName}" → "${normalized}"`);
+    Logger.debug(
+      `🔍 [getContainerType] key="${containerKey}" → cachedName="${cachedName}" → "${normalized}"`,
+    );
     return normalized;
   }
-  
+
   Logger.warn(`⚠️ [getContainerType] Имя не найдено в кэше: key="${containerKey}"`);
   return 'Unknown';
 }
 
 /**
  * Распределение строк по контейнерам — ДВЕ ОЧЕРЕДИ
- * 
+ *
  * Логика:
  * 1. Каталожные данные (#isCatalogPage=true) — отдельная очередь ТОЛЬКО для ESnippet
  * 2. Товарные данные — общая очередь для ВСЕХ типов контейнеров
- * 
+ *
  * Порядок заполнения ESnippet:
  * - Сначала берём из каталожной очереди (пока не закончится)
  * - Потом переключаемся на общую очередь (циклически)
- * 
+ *
  * Порядок заполнения других контейнеров:
  * - Только общая очередь (циклически)
  */
 export function assignRowsToContainers(
   rows: CSVRow[],
-  snippetGroups: Map<string, SceneNode[]>
+  snippetGroups: Map<string, SceneNode[]>,
 ): Map<string, ContainerRowAssignment> {
   const containerRowAssignments = new Map<string, ContainerRowAssignment>();
-  
+
   if (rows.length === 0) {
     Logger.info(`📊 [data-assignment] Нет данных для распределения`);
     return containerRowAssignments;
   }
-  
+
   // Разделяем rows на каталожные (EThumbGroup) и товарные
-  const catalogQueue = rows.filter(r => r['#isCatalogPage'] === 'true');
-  const productQueue = rows.filter(r => r['#isCatalogPage'] !== 'true');
-  
+  const catalogQueue = rows.filter((r) => r['#isCatalogPage'] === 'true');
+  const productQueue = rows.filter((r) => r['#isCatalogPage'] !== 'true');
+
   // Собираем контейнеры в порядке появления
   const containerKeys = Array.from(snippetGroups.keys());
-  
+
   // ДИАГНОСТИКА: первые 3 ключа
-  Logger.debug(`🔍 [data-assignment] Первые 3 ключа контейнеров: ${containerKeys.slice(0, 3).join(', ')}`);
-  
+  Logger.debug(
+    `🔍 [data-assignment] Первые 3 ключа контейнеров: ${containerKeys.slice(0, 3).join(', ')}`,
+  );
+
   // Считаем типы контейнеров для логирования
   let eSnippetCount = 0;
   let otherCount = 0;
@@ -394,43 +402,45 @@ export function assignRowsToContainers(
       otherCount++;
     }
   }
-  
+
   // Статистика по imageType
-  const thumbGroupCount = rows.filter(r => r['#imageType'] === 'EThumbGroup').length;
-  const thumbGroupWithPrice = productQueue.filter(r => r['#imageType'] === 'EThumbGroup').length;
-  
+  const thumbGroupCount = rows.filter((r) => r['#imageType'] === 'EThumbGroup').length;
+  const thumbGroupWithPrice = productQueue.filter((r) => r['#imageType'] === 'EThumbGroup').length;
+
   // ДИАГНОСТИКА: EShopItem/EOfferItem в очередях
-  const eShopItemInQueue = productQueue.filter(r => r['#SnippetType'] === 'EShopItem');
-  const eOfferItemInQueue = productQueue.filter(r => r['#SnippetType'] === 'EOfferItem');
-  
+  const eShopItemInQueue = productQueue.filter((r) => r['#SnippetType'] === 'EShopItem');
+  const eOfferItemInQueue = productQueue.filter((r) => r['#SnippetType'] === 'EOfferItem');
+
   Logger.info(`📊 [data-assignment] Две очереди:`);
   Logger.info(`   📄 Каталожная очередь: ${catalogQueue.length} (только для ESnippet)`);
   Logger.info(`   📄 Общая очередь: ${productQueue.length} (для всех)`);
   Logger.info(`   🛒 EShopItem в очереди: ${eShopItemInQueue.length}`);
   Logger.info(`   💳 EOfferItem в очереди: ${eOfferItemInQueue.length}`);
-  Logger.info(`   🖼️ EThumbGroup всего: ${thumbGroupCount} (каталог: ${catalogQueue.length}, товар: ${thumbGroupWithPrice})`);
+  Logger.info(
+    `   🖼️ EThumbGroup всего: ${thumbGroupCount} (каталог: ${catalogQueue.length}, товар: ${thumbGroupWithPrice})`,
+  );
   Logger.info(`   📦 ESnippet контейнеров: ${eSnippetCount}`);
   Logger.info(`   📦 Других контейнеров: ${otherCount}`);
-  
+
   // ДИАГНОСТИКА: Если есть EShopItem, показать магазины
   if (eShopItemInQueue.length > 0) {
-    const shopNames = eShopItemInQueue.map(r => r['#ShopName'] || 'N/A').join(', ');
+    const shopNames = eShopItemInQueue.map((r) => r['#ShopName'] || 'N/A').join(', ');
     Logger.debug(`   🛒 EShopItem магазины: ${shopNames}`);
   }
-  
+
   // Индексы для очередей
-  let catalogUsed = 0;  // Сколько каталожных уже использовано (НЕ циклически!)
+  let catalogUsed = 0; // Сколько каталожных уже использовано (НЕ циклически!)
   let productIndex = 0; // Индекс в общей очереди (циклически)
-  
+
   // Назначаем данные контейнерам в порядке появления
   for (const containerKey of containerKeys) {
     const containerType = getContainerType(containerKey);
     const isESnippet = containerType === 'ESnippet' || containerType === 'Snippet';
-    
+
     let row: CSVRow | null = null;
     let rowIndex = 0;
     let source = '';
-    
+
     if (isESnippet) {
       // ESnippet: сначала каталожная очередь, потом общая
       if (catalogUsed < catalogQueue.length) {
@@ -457,28 +467,33 @@ export function assignRowsToContainers(
         source = 'товар';
       }
     }
-    
+
     if (row) {
       containerRowAssignments.set(containerKey, { row, rowIndex });
       const title = (row['#Title'] || row['#OrganicTitle'] || '').substring(0, 35);
-      const queueInfo = source === 'каталог' ? `каталог ${catalogUsed}/${catalogQueue.length}` : `товар`;
+      const queueInfo =
+        source === 'каталог' ? `каталог ${catalogUsed}/${catalogQueue.length}` : `товар`;
       const imageType = row['#imageType'] || 'N/A';
       const isCatalogPage = row['#isCatalogPage'] || 'N/A';
-      Logger.info(`   ✅ ${containerType} ← [${queueInfo}] "${title}..." (imageType=${imageType}, catalog=${isCatalogPage})`);
+      Logger.info(
+        `   ✅ ${containerType} ← [${queueInfo}] "${title}..." (imageType=${imageType}, catalog=${isCatalogPage})`,
+      );
     } else {
       Logger.warn(`   ⚠️ ${containerType} — нет подходящих данных`);
     }
   }
-  
+
   // Итоговая статистика
   if (catalogQueue.length > 0) {
     Logger.info(`   📊 Использовано каталожных: ${catalogUsed}/${catalogQueue.length}`);
   }
   if (productQueue.length > 0 && productIndex > 0) {
     const cycles = Math.ceil(productIndex / productQueue.length);
-    Logger.info(`   📊 Общая очередь: ${productIndex} назначений (${cycles} цикл${cycles > 1 ? 'а/ов' : ''})`);
+    Logger.info(
+      `   📊 Общая очередь: ${productIndex} назначений (${cycles} цикл${cycles > 1 ? 'а/ов' : ''})`,
+    );
   }
-  
+
   return containerRowAssignments;
 }
 
@@ -487,22 +502,22 @@ export function assignRowsToContainers(
  */
 export function createLayerData(
   snippetGroups: Map<string, SceneNode[]>,
-  containerRowAssignments: Map<string, ContainerRowAssignment>
+  containerRowAssignments: Map<string, ContainerRowAssignment>,
 ): LayerDataItem[] {
   const layerData: LayerDataItem[] = [];
-  
+
   for (const [containerKey, layers] of snippetGroups) {
-    const validLayers = layers.filter(layer => !layer.removed);
+    const validLayers = layers.filter((layer) => !layer.removed);
     if (validLayers.length === 0) continue;
-    
+
     const assignment = containerRowAssignments.get(containerKey);
     if (!assignment) continue;
-    
+
     const { row, rowIndex } = assignment;
-    
+
     // Добавляем ID контейнера в row для использования кэшем
     row['#_containerId'] = containerKey;
-    
+
     // Создаём карту нормализованных ключей
     const rowKeyMap: { [key: string]: string } = {};
     try {
@@ -515,41 +530,47 @@ export function createLayerData(
           }
         }
       }
-    } catch (e) { Logger.debug('[DataAssignment] Field name collection failed'); }
-    
+    } catch (e) {
+      Logger.debug('[DataAssignment] Field name collection failed');
+    }
+
     const processedFieldNames = new Set<string>();
-    
+
     for (const layer of validLayers) {
       const rawLayerName = safeGetLayerName(layer);
       if (!rawLayerName) continue;
-      
+
       const fieldName = extractDataFieldName(rawLayerName);
-      
+
       if (processedFieldNames.has(fieldName)) continue;
       processedFieldNames.add(fieldName);
-      
+
       const normName = normalizeFieldName(fieldName);
       const direct = (row as Record<string, string | undefined>)[fieldName];
       const fallback = rowKeyMap[normName];
-      const fieldValue = (direct !== undefined && direct !== null ? direct : fallback);
-      
-      if (fieldValue === undefined || fieldValue === null || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+      const fieldValue = direct !== undefined && direct !== null ? direct : fallback;
+
+      if (
+        fieldValue === undefined ||
+        fieldValue === null ||
+        (typeof fieldValue === 'string' && fieldValue.trim() === '')
+      ) {
         continue;
       }
-      
+
       const layerType = safeGetLayerType(layer);
       if (!layerType) continue;
-      
+
       let isTextLayer = layerType === 'TEXT';
       const isImageLayer = isImageField(fieldName);
       const isShapeLayer = ['RECTANGLE', 'ELLIPSE', 'POLYGON'].includes(layerType);
-      
+
       if (layerType === 'INSTANCE') {
         if (TEXT_FIELD_NAMES.includes(normalizeFieldName(fieldName))) {
           isTextLayer = true;
         }
       }
-      
+
       layerData.push({
         layer,
         rowIndex,
@@ -558,11 +579,11 @@ export function createLayerData(
         isImage: isImageLayer,
         isText: isTextLayer,
         isShape: isShapeLayer,
-        row
+        row,
       });
     }
   }
-  
+
   return layerData;
 }
 
@@ -571,7 +592,7 @@ export function createLayerData(
  */
 export async function prepareContainersForProcessing(
   snippetGroups: Map<string, SceneNode[]>,
-  containerRowAssignments: Map<string, ContainerRowAssignment>
+  containerRowAssignments: Map<string, ContainerRowAssignment>,
 ): Promise<Map<string, { row: CSVRow | null; container: BaseNode | null }>> {
   const containersToProcess = new Map<string, { row: CSVRow | null; container: BaseNode | null }>();
 
@@ -590,7 +611,7 @@ export async function prepareContainersForProcessing(
         '#SnippetType': baseContainerName,
         '#BUTTON': 'true',
         '#ButtonView': baseContainerName === 'EShopItem' ? 'secondary' : 'white',
-        '#ButtonType': 'shop'
+        '#ButtonType': 'shop',
       };
     }
 

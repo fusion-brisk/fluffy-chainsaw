@@ -10,13 +10,11 @@ import {
   VARIABLE_KEYS,
   ETHUMB_CONFIG,
   LAYOUT_COMPONENT_MAP,
-  getContainerConfig,
 } from './component-map';
 import { loadComponent } from './component-import';
-import { applyFill, applyFillStyle } from './fill-utils';
-import { loadAndApplyImage, findFillableLayer, findImageLayer } from './image-operations';
+import { loadAndApplyImage, findFillableLayer } from './image-operations';
 import type { ImageGridItem } from './image-operations';
-import type { StructureNode, ContainerType, ContainerConfig } from './types';
+import type { StructureNode, ContainerConfig } from './types';
 
 /**
  * Создать Auto Layout фрейм-контейнер
@@ -44,7 +42,8 @@ export function createContainerFrame(config: ContainerConfig): FrameNode {
   } else {
     // Вертикальный layout или WRAP: primaryAxis = высота
     frame.primaryAxisSizingMode = config.height === 'HUG' ? 'AUTO' : 'FIXED';
-    frame.counterAxisSizingMode = config.width === 'FILL' || config.width === 'HUG' ? 'AUTO' : 'FIXED';
+    frame.counterAxisSizingMode =
+      config.width === 'FILL' || config.width === 'HUG' ? 'AUTO' : 'FIXED';
   }
 
   if (typeof config.width === 'number') {
@@ -79,7 +78,7 @@ export function createContainerFrame(config: ContainerConfig): FrameNode {
  */
 export async function createEQuickFiltersPanel(
   node: StructureNode,
-  _platform: 'desktop' | 'touch'
+  _platform: 'desktop' | 'touch',
 ): Promise<FrameNode | null> {
   const data = (node.data || {}) as Record<string, string | undefined>;
   const filterButtons: string[] = [];
@@ -114,7 +113,9 @@ export async function createEQuickFiltersPanel(
   // Добавляем кнопку "Все фильтры" если есть
   if (data['#AllFiltersButton'] === 'true' && FILTER_COMPONENTS.FilterButton.key) {
     try {
-      const filterBtnComponent = await figma.importComponentByKeyAsync(FILTER_COMPONENTS.FilterButton.variantKey);
+      const filterBtnComponent = await figma.importComponentByKeyAsync(
+        FILTER_COMPONENTS.FilterButton.variantKey,
+      );
       if (filterBtnComponent) {
         const filterBtnInstance = filterBtnComponent.createInstance();
         panel.appendChild(filterBtnInstance);
@@ -128,7 +129,9 @@ export async function createEQuickFiltersPanel(
   // Добавляем кнопки быстрых фильтров с разными типами
   if (FILTER_COMPONENTS.QuickFilterButton.key) {
     try {
-      const quickFilterBtnComponent = await figma.importComponentByKeyAsync(FILTER_COMPONENTS.QuickFilterButton.variantKey);
+      const quickFilterBtnComponent = await figma.importComponentByKeyAsync(
+        FILTER_COMPONENTS.QuickFilterButton.variantKey,
+      );
       if (quickFilterBtnComponent) {
         for (let i = 0; i < filterButtons.length; i++) {
           const text = filterButtons[i];
@@ -160,9 +163,9 @@ export async function createEQuickFiltersPanel(
           // Шаг 1: Устанавливаем VARIANT свойства (View, Size, Text)
           try {
             const variantProps: Record<string, string> = {
-              'View': viewValue,
-              'Size': 'M',
-              'Text': 'True',
+              View: viewValue,
+              Size: 'M',
+              Text: 'True',
             };
             btnInstance.setProperties(variantProps);
             Logger.debug(`[EQuickFilters] "${text}" variant: View=${viewValue}`);
@@ -203,7 +206,9 @@ export async function createEQuickFiltersPanel(
           if (textNode) {
             await figma.loadFontAsync(textNode.fontName as FontName);
             textNode.characters = text;
-            Logger.debug(`[EQuickFilters] Кнопка: "${text}" (${buttonType}, View=${viewValue}, Right=${rightValue})`);
+            Logger.debug(
+              `[EQuickFilters] Кнопка: "${text}" (${buttonType}, View=${viewValue}, Right=${rightValue})`,
+            );
           } else {
             Logger.warn(`[EQuickFilters] Не найден текстовый слой в кнопке`);
           }
@@ -225,14 +230,14 @@ export async function createEQuickFiltersPanel(
  */
 export function applyDefaultBooleans(
   instance: InstanceNode,
-  booleans: Record<string, boolean>
+  booleans: Record<string, boolean>,
 ): void {
   try {
-    var props = instance.componentProperties;
-    var toSet: Record<string, boolean> = {};
-    for (var propKey in props) {
+    const props = instance.componentProperties;
+    const toSet: Record<string, boolean> = {};
+    for (const propKey in props) {
       if (props[propKey].type !== 'BOOLEAN') continue;
-      var baseName = propKey.split('#')[0];
+      const baseName = propKey.split('#')[0];
       if (baseName in booleans) {
         toSet[propKey] = booleans[baseName];
       }
@@ -250,7 +255,7 @@ export function applyDefaultBooleans(
  */
 export async function createAsideFiltersPanel(
   node: StructureNode,
-  _platform: 'desktop' | 'touch'
+  _platform: 'desktop' | 'touch',
 ): Promise<FrameNode | null> {
   const data = (node.data || {}) as Record<string, string | undefined>;
   const jsonStr = data['#AsideFilters_data'];
@@ -259,14 +264,16 @@ export async function createAsideFiltersPanel(
     return null;
   }
 
-  let parsed: { filters: Array<{
-    title: string;
-    type: string;
-    items?: string[];
-    placeholderFrom?: string;
-    placeholderTo?: string;
-    hasMore?: boolean;
-  }> };
+  let parsed: {
+    filters: Array<{
+      title: string;
+      type: string;
+      items?: string[];
+      placeholderFrom?: string;
+      placeholderTo?: string;
+      hasMore?: boolean;
+    }>;
+  };
 
   try {
     parsed = JSON.parse(jsonStr);
@@ -283,12 +290,12 @@ export async function createAsideFiltersPanel(
   Logger.info('[EAsideFilters] Создаём панель с ' + parsed.filters.length + ' фильтрами');
 
   // Pre-load all needed components via ComponentSet + variant matching
-  var titleComponent: ComponentNode | null = null;
-  var checkboxComponent: ComponentNode | null = null;
-  var categoryComponent: ComponentNode | null = null;
-  var numberInputComponent: ComponentNode | null = null;
+  let titleComponent: ComponentNode | null = null;
+  let checkboxComponent: ComponentNode | null = null;
+  let categoryComponent: ComponentNode | null = null;
+  let numberInputComponent: ComponentNode | null = null;
 
-  var asideEntries: Array<{
+  const asideEntries: Array<{
     name: string;
     config: { setKey: string; variantProps: Record<string, string> };
   }> = [
@@ -297,25 +304,27 @@ export async function createAsideFiltersPanel(
     { name: 'CategoryItem', config: ASIDE_FILTER_COMPONENTS.CategoryItem },
     { name: 'NumberInput', config: ASIDE_FILTER_COMPONENTS.NumberInput },
   ];
-  var componentResults: (ComponentNode | null)[] = [null, null, null, null];
+  const componentResults: (ComponentNode | null)[] = [null, null, null, null];
 
-  for (var ci2 = 0; ci2 < asideEntries.length; ci2++) {
-    var entry = asideEntries[ci2];
-    var importedComponent: ComponentNode | null = null;
+  for (let ci2 = 0; ci2 < asideEntries.length; ci2++) {
+    const entry = asideEntries[ci2];
+    let importedComponent: ComponentNode | null = null;
 
     // Strategy 1: load as ComponentSet and find variant
     try {
-      var compSet = await figma.importComponentSetByKeyAsync(entry.config.setKey);
+      const compSet = await figma.importComponentSetByKeyAsync(entry.config.setKey);
       if (compSet) {
-        var variant: ComponentNode | null = null;
-        for (var vi = 0; vi < compSet.children.length; vi++) {
-          var child = compSet.children[vi];
+        let variant: ComponentNode | null = null;
+        for (let vi = 0; vi < compSet.children.length; vi++) {
+          const child = compSet.children[vi];
           if (child.type !== 'COMPONENT') continue;
-          var variantValues = (child as ComponentNode).variantProperties;
+          const variantValues = (child as ComponentNode).variantProperties;
           if (!variantValues) continue;
-          var match = true;
-          for (var vpKey in entry.config.variantProps) {
-            if (variantValues[vpKey] !== (entry.config.variantProps as Record<string, string>)[vpKey]) {
+          let match = true;
+          for (const vpKey in entry.config.variantProps) {
+            if (
+              variantValues[vpKey] !== (entry.config.variantProps as Record<string, string>)[vpKey]
+            ) {
               match = false;
               break;
             }
@@ -327,15 +336,24 @@ export async function createAsideFiltersPanel(
         }
         if (variant) {
           importedComponent = variant;
-          Logger.debug('[EAsideFilters] Импортирован ' + entry.name + ' (variant=' + variant.name + ')');
+          Logger.debug(
+            '[EAsideFilters] Импортирован ' + entry.name + ' (variant=' + variant.name + ')',
+          );
         } else if (compSet.children.length > 0 && compSet.children[0].type === 'COMPONENT') {
           importedComponent = compSet.children[0] as ComponentNode;
-          Logger.warn('[EAsideFilters] Variant не найден для ' + entry.name + ', используем default: ' + compSet.children[0].name);
+          Logger.warn(
+            '[EAsideFilters] Variant не найден для ' +
+              entry.name +
+              ', используем default: ' +
+              compSet.children[0].name,
+          );
         }
       }
     } catch (_e1) {
-      var errMsg1 = _e1 instanceof Error ? _e1.message : String(_e1);
-      Logger.warn('[EAsideFilters] importComponentSetByKeyAsync failed for ' + entry.name + ': ' + errMsg1);
+      const errMsg1 = _e1 instanceof Error ? _e1.message : String(_e1);
+      Logger.warn(
+        '[EAsideFilters] importComponentSetByKeyAsync failed for ' + entry.name + ': ' + errMsg1,
+      );
     }
 
     // Strategy 2: key might be a component key directly (not a set)
@@ -343,11 +361,24 @@ export async function createAsideFiltersPanel(
       try {
         importedComponent = await figma.importComponentByKeyAsync(entry.config.setKey);
         if (importedComponent) {
-          Logger.debug('[EAsideFilters] Импортирован ' + entry.name + ' напрямую (key=' + entry.config.setKey + ')');
+          Logger.debug(
+            '[EAsideFilters] Импортирован ' +
+              entry.name +
+              ' напрямую (key=' +
+              entry.config.setKey +
+              ')',
+          );
         }
       } catch (_e2) {
-        var errMsg2 = _e2 instanceof Error ? _e2.message : String(_e2);
-        Logger.error('[EAsideFilters] Не удалось импортировать ' + entry.name + ' (key=' + entry.config.setKey + '): ' + errMsg2);
+        const errMsg2 = _e2 instanceof Error ? _e2.message : String(_e2);
+        Logger.error(
+          '[EAsideFilters] Не удалось импортировать ' +
+            entry.name +
+            ' (key=' +
+            entry.config.setKey +
+            '): ' +
+            errMsg2,
+        );
       }
     }
 
@@ -372,9 +403,9 @@ export async function createAsideFiltersPanel(
   panel.paddingLeft = 0;
   panel.fills = [];
 
-  for (var fi = 0; fi < parsed.filters.length; fi++) {
-    var filter = parsed.filters[fi];
-    var section = figma.createFrame();
+  for (let fi = 0; fi < parsed.filters.length; fi++) {
+    const filter = parsed.filters[fi];
+    const section = figma.createFrame();
     section.name = 'EAsideFilters-Item_' + filter.type;
     section.layoutMode = 'VERTICAL';
     section.primaryAxisSizingMode = 'AUTO';
@@ -388,7 +419,7 @@ export async function createAsideFiltersPanel(
 
     // Title — library component or fallback text
     if (titleComponent) {
-      var titleInst = titleComponent.createInstance();
+      const titleInst = titleComponent.createInstance();
       titleInst.name = 'EAsideFilters-Title';
       if (ASIDE_FILTER_COMPONENTS.SectionTitle.defaultBooleans) {
         applyDefaultBooleans(titleInst, ASIDE_FILTER_COMPONENTS.SectionTitle.defaultBooleans);
@@ -396,9 +427,9 @@ export async function createAsideFiltersPanel(
       // Boolean toggle filters get ACTION ICON = true
       if (filter.type === 'boolean') {
         try {
-          var actionIconProps: Record<string, boolean> = {};
-          var allTitleProps = titleInst.componentProperties;
-          for (var aik in allTitleProps) {
+          const actionIconProps: Record<string, boolean> = {};
+          const allTitleProps = titleInst.componentProperties;
+          for (const aik in allTitleProps) {
             if (allTitleProps[aik].type !== 'BOOLEAN') continue;
             if (aik.split('#')[0] === 'ACTION ICON') {
               actionIconProps[aik] = true;
@@ -413,9 +444,9 @@ export async function createAsideFiltersPanel(
         }
       }
       // Set title via exposed TEXT property 'titleText', fallback to findTextNode
-      var titleProps = titleInst.componentProperties;
-      var titleTextPropKey: string | null = null;
-      for (var tpk in titleProps) {
+      const titleProps = titleInst.componentProperties;
+      let titleTextPropKey: string | null = null;
+      for (const tpk in titleProps) {
         if (titleProps[tpk].type === 'TEXT' && tpk.split('#')[0] === 'titleText') {
           titleTextPropKey = tpk;
           break;
@@ -424,7 +455,7 @@ export async function createAsideFiltersPanel(
       if (titleTextPropKey) {
         titleInst.setProperties({ [titleTextPropKey]: filter.title });
       } else {
-        var titleTextNode = findTextNode(titleInst);
+        const titleTextNode = findTextNode(titleInst);
         if (titleTextNode) {
           await figma.loadFontAsync(titleTextNode.fontName as FontName);
           titleTextNode.characters = filter.title;
@@ -433,7 +464,7 @@ export async function createAsideFiltersPanel(
       section.appendChild(titleInst);
       titleInst.layoutSizingHorizontal = 'FILL';
     } else {
-      var titleFallback = figma.createText();
+      const titleFallback = figma.createText();
       await figma.loadFontAsync({ family: 'Inter', style: 'Bold' });
       titleFallback.fontName = { family: 'Inter', style: 'Bold' };
       titleFallback.fontSize = 14;
@@ -444,11 +475,11 @@ export async function createAsideFiltersPanel(
 
     if (filter.type === 'categories' && filter.items) {
       // Category items — library component or fallback text
-      for (var ci = 0; ci < filter.items.length; ci++) {
+      for (let ci = 0; ci < filter.items.length; ci++) {
         if (categoryComponent) {
-          var catInst = categoryComponent.createInstance();
+          const catInst = categoryComponent.createInstance();
           catInst.name = 'ECategories-Item';
-          var catTextNode = findTextNode(catInst);
+          const catTextNode = findTextNode(catInst);
           if (catTextNode) {
             await figma.loadFontAsync(catTextNode.fontName as FontName);
             catTextNode.characters = filter.items[ci];
@@ -456,7 +487,7 @@ export async function createAsideFiltersPanel(
           section.appendChild(catInst);
           catInst.layoutSizingHorizontal = 'FILL';
         } else {
-          var catFallback = figma.createText();
+          const catFallback = figma.createText();
           await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
           catFallback.fontName = { family: 'Inter', style: 'Regular' };
           catFallback.fontSize = 13;
@@ -467,7 +498,7 @@ export async function createAsideFiltersPanel(
       }
     } else if (filter.type === 'number') {
       // Number range — vertical group, inputs fill width
-      var inputGroup = figma.createFrame();
+      const inputGroup = figma.createFrame();
       inputGroup.name = 'ENumberInputGroup';
       inputGroup.layoutMode = 'VERTICAL';
       inputGroup.primaryAxisSizingMode = 'AUTO';
@@ -475,21 +506,21 @@ export async function createAsideFiltersPanel(
       inputGroup.itemSpacing = 8;
       inputGroup.fills = [];
 
-      var placeholders = [
+      const placeholders = [
         { label: 'от', value: filter.placeholderFrom || '' },
         { label: 'до', value: filter.placeholderTo || '' },
       ];
 
-      for (var ni = 0; ni < placeholders.length; ni++) {
+      for (let ni = 0; ni < placeholders.length; ni++) {
         if (numberInputComponent) {
-          var inputInst = numberInputComponent.createInstance();
+          const inputInst = numberInputComponent.createInstance();
           inputInst.name = 'ENumberInput-' + placeholders[ni].label;
           if (ASIDE_FILTER_COMPONENTS.NumberInput.defaultBooleans) {
             applyDefaultBooleans(inputInst, ASIDE_FILTER_COMPONENTS.NumberInput.defaultBooleans);
           }
           // Find text inside "label" sublayer for placeholder
-          var labelNode = findFirstNodeByName(inputInst, 'label');
-          var labelTextNode = labelNode ? findTextNode(labelNode) : findTextNode(inputInst);
+          const labelNode = findFirstNodeByName(inputInst, 'label');
+          const labelTextNode = labelNode ? findTextNode(labelNode) : findTextNode(inputInst);
           if (labelTextNode) {
             await figma.loadFontAsync(labelTextNode.fontName as FontName);
             labelTextNode.characters = placeholders[ni].value;
@@ -497,7 +528,7 @@ export async function createAsideFiltersPanel(
           inputGroup.appendChild(inputInst);
           inputInst.layoutSizingHorizontal = 'FILL';
         } else {
-          var inputFallback = figma.createText();
+          const inputFallback = figma.createText();
           await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
           inputFallback.fontName = { family: 'Inter', style: 'Regular' };
           inputFallback.fontSize = 13;
@@ -511,14 +542,14 @@ export async function createAsideFiltersPanel(
       inputGroup.layoutSizingHorizontal = 'FILL';
     } else if (filter.type === 'enum' && filter.items) {
       // Enum items — checkbox components or fallback text
-      for (var ei = 0; ei < filter.items.length; ei++) {
+      for (let ei = 0; ei < filter.items.length; ei++) {
         if (checkboxComponent) {
-          var checkInst = checkboxComponent.createInstance();
+          const checkInst = checkboxComponent.createInstance();
           checkInst.name = 'EEnumFilterItem';
           if (ASIDE_FILTER_COMPONENTS.EnumFilterItem.defaultBooleans) {
             applyDefaultBooleans(checkInst, ASIDE_FILTER_COMPONENTS.EnumFilterItem.defaultBooleans);
           }
-          var checkTextNode = findTextNode(checkInst);
+          const checkTextNode = findTextNode(checkInst);
           if (checkTextNode) {
             await figma.loadFontAsync(checkTextNode.fontName as FontName);
             checkTextNode.characters = filter.items[ei];
@@ -526,7 +557,7 @@ export async function createAsideFiltersPanel(
           section.appendChild(checkInst);
           checkInst.layoutSizingHorizontal = 'FILL';
         } else {
-          var enumFallback = figma.createText();
+          const enumFallback = figma.createText();
           await figma.loadFontAsync({ family: 'Inter', style: 'Regular' });
           enumFallback.fontName = { family: 'Inter', style: 'Regular' };
           enumFallback.fontSize = 13;
@@ -538,7 +569,7 @@ export async function createAsideFiltersPanel(
 
       // «Ещё» button — text with tertiary color (no library component)
       if (filter.hasMore) {
-        var moreNode = figma.createText();
+        const moreNode = figma.createText();
         try {
           await figma.loadFontAsync({ family: 'YS Text Web', style: 'Regular' });
           moreNode.fontName = { family: 'YS Text Web', style: 'Regular' };
@@ -551,12 +582,16 @@ export async function createAsideFiltersPanel(
         moreNode.characters = 'Ещё';
         moreNode.name = 'EAsideFilters-Expand';
         try {
-          var tertiaryVar = await figma.variables.importVariableByKeyAsync(
-            VARIABLE_KEYS['Text and Icon/Tertiary']
+          const tertiaryVar = await figma.variables.importVariableByKeyAsync(
+            VARIABLE_KEYS['Text and Icon/Tertiary'],
           );
           if (tertiaryVar) {
-            var basePaint: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
-            var boundPaint = figma.variables.setBoundVariableForPaint(basePaint, 'color', tertiaryVar);
+            const basePaint: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+            const boundPaint = figma.variables.setBoundVariableForPaint(
+              basePaint,
+              'color',
+              tertiaryVar,
+            );
             moreNode.fills = [boundPaint];
           }
         } catch (_e2) {
@@ -569,12 +604,16 @@ export async function createAsideFiltersPanel(
     // border-bottom on all sections except the last
     if (fi < parsed.filters.length - 1) {
       try {
-        var strokeVar = await figma.variables.importVariableByKeyAsync(
-          VARIABLE_KEYS['Applied/Stroke']
+        const strokeVar = await figma.variables.importVariableByKeyAsync(
+          VARIABLE_KEYS['Applied/Stroke'],
         );
         if (strokeVar) {
-          var strokePaint: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
-          var boundStroke = figma.variables.setBoundVariableForPaint(strokePaint, 'color', strokeVar);
+          const strokePaint: SolidPaint = { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+          const boundStroke = figma.variables.setBoundVariableForPaint(
+            strokePaint,
+            'color',
+            strokeVar,
+          );
           section.strokes = [boundStroke];
         } else {
           section.strokes = [{ type: 'SOLID', color: { r: 0.88, g: 0.88, b: 0.88 } }];
@@ -601,7 +640,7 @@ export async function createAsideFiltersPanel(
  */
 export async function createImagesGridPanel(
   node: StructureNode,
-  _platform: 'desktop' | 'touch'
+  _platform: 'desktop' | 'touch',
 ): Promise<{ element: FrameNode; count: number } | null> {
   const data = node.data || (node.children && node.children[0] && node.children[0].data) || {};
   const imagesJson = data['#ImagesGrid_data'];
@@ -654,7 +693,9 @@ export async function createImagesGridPanel(
         try {
           await figma.loadFontAsync(textNode.fontName as FontName);
           textNode.characters = title;
-        } catch (e) { Logger.debug('[ImagesGrid] Title text set failed'); }
+        } catch (e) {
+          Logger.debug('[ImagesGrid] Title text set failed');
+        }
       }
     }
   }
@@ -709,8 +750,16 @@ export async function createImagesGridPanel(
         // Level 1: Library EThumb
         const instance = eThumbComponent.createInstance();
         rowFrame.appendChild(instance);
-        try { instance.setProperties(ETHUMB_CONFIG.gridDefaults); } catch (_e) { /* skip */ }
-        try { instance.resize(imgW, imgH); } catch (_e) { /* skip */ }
+        try {
+          instance.setProperties(ETHUMB_CONFIG.gridDefaults);
+        } catch (_e) {
+          /* skip */
+        }
+        try {
+          instance.resize(imgW, imgH);
+        } catch (_e) {
+          /* skip */
+        }
 
         if (imageItem.url) {
           const imageLayer = findFillableLayer(instance, 'image');
