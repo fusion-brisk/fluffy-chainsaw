@@ -506,10 +506,18 @@ async function renderStructureNode(
         }
       }
 
+      // Determine column count from data or default to 2
+      const gridColumnsStr = node.children?.[0]?.data?.['#gridColumns'];
+      const masonryCols = gridColumnsStr ? parseInt(gridColumnsStr, 10) || 2 : 2;
+      const masonryGap = 8;
+      // Calculate card width: fill container evenly
+      const containerW = 760;
+      const cardW = Math.floor((containerW - (masonryCols - 1) * masonryGap) / masonryCols);
+
       // Создаём контейнер без auto-layout (masonry = ручное позиционирование)
       const containerFrame = figma.createFrame();
       containerFrame.name = 'ProductsMixedGrid';
-      containerFrame.resize(760, 10); // высота обновится после layout
+      containerFrame.resize(containerW, 10); // высота обновится после layout
       containerFrame.fills = [];
       containerFrame.clipsContent = true;
       wrapper.appendChild(containerFrame);
@@ -528,11 +536,11 @@ async function renderStructureNode(
           if (result.element) {
             containerFrame.appendChild(result.element);
             const instance = result.element as InstanceNode;
-            instance.resize(184, instance.height);
+            instance.resize(cardW, instance.height);
 
             // Вычисляем высоту карточки по aspect ratio
             const aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
-            const thumbHeight = Math.round(184 / aspectRatio);
+            const thumbHeight = Math.round(cardW / aspectRatio);
             const isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
             const contentHeight = isImageOnly ? 55 : 90;
             const cardHeight = thumbHeight + contentHeight;
@@ -546,13 +554,13 @@ async function renderStructureNode(
       // Применяем masonry layout
       if (renderedItems.length > 0) {
         const masonryItems: MasonryItem[] = renderedItems.map(function (item, i) {
-          return { id: String(i), width: 184, height: item.height };
+          return { id: String(i), width: cardW, height: item.height };
         });
 
         const masonryResult = assignMasonryPositions(masonryItems, {
-          columns: 4,
-          columnWidth: 184,
-          gap: 8,
+          columns: masonryCols,
+          columnWidth: cardW,
+          gap: masonryGap,
         });
 
         for (var i = 0; i < masonryResult.positions.length; i++) {

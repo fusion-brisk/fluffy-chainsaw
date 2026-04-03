@@ -2597,8 +2597,10 @@ declare global {
         }
       }
 
-      // Заголовок блока
-      const headerEl = serpItem.querySelector('.ProductsImagesMixedGrid-Header, .Title');
+      // Заголовок блока (DebrandingTitle в новом формате, Header в старом)
+      const headerEl = serpItem.querySelector(
+        '.DebrandingTitle-Text, .ProductsImagesMixedGrid-Header, .Title',
+      );
       if (headerEl && results.length > 0) {
         const headerText = (headerEl.textContent || '').trim();
         if (headerText) {
@@ -2606,14 +2608,28 @@ declare global {
         }
       }
 
-      // Кнопка «Показать ещё»
-      const showAllLink = serpItem.querySelector('a.Button[class*="Button_width_max"]');
+      // Кнопка «Показать ещё» — новый формат использует .ProductMoreButton
+      const showAllLink = serpItem.querySelector(
+        '.ProductMoreButton, a.Button[class*="Button_width_max"]',
+      );
       if (showAllLink && results.length > 0) {
         const showAllText = (showAllLink.textContent || '').trim();
         if (showAllText) {
           results[0]['#ProductsMixedGridShowAll'] = 'true';
           results[0]['#ProductsMixedGridShowAllText'] = showAllText;
           console.log(`[ProductsMixedGrid] Button «${showAllText}» found`);
+        }
+      }
+
+      // Detect column count from card positions
+      if (results.length > 0) {
+        const cards = serpItem.querySelectorAll('.ProductsImagesMixedGrid-ProductCard');
+        const uniqueX = new Set();
+        for (let ci = 0; ci < Math.min(cards.length, 8); ci++) {
+          uniqueX.add(Math.round(cards[ci].getBoundingClientRect().x));
+        }
+        if (uniqueX.size > 0) {
+          results[0]['#gridColumns'] = String(uniqueX.size);
         }
       }
 
