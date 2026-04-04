@@ -438,20 +438,11 @@ figma.ui.onmessage = async (msg) => {
 
           Logger.info(`✅ SERP "${result.frame.name}": ${count} сниппетов`);
 
-          placeScreenshotSegments(result.frame, query).catch((err) =>
-            Logger.error('Screenshot placement failed:', err),
-          );
-
-          exportResultToRelay(result.frame, query).catch((err) =>
-            Logger.error('Result export failed:', err),
-          );
-
-          // Render ProductCard sidebar if present
+          // Render ProductCard sidebar BEFORE screenshot/export (modifies frame)
           if (payload.productCard) {
             try {
               const sidebarFrame = await renderProductCardSidebar(payload.productCard, platform);
               if (sidebarFrame) {
-                // Place card inside SERP frame with absolute positioning (top-right)
                 result.frame.appendChild(sidebarFrame);
                 sidebarFrame.layoutPositioning = 'ABSOLUTE';
                 sidebarFrame.x = result.frame.width - sidebarFrame.width;
@@ -466,6 +457,22 @@ figma.ui.onmessage = async (msg) => {
               Logger.error('[ProductCard] render failed:', pcErr);
             }
           }
+
+          // Await secondary operations (were fire-and-forget before)
+          try {
+            await placeScreenshotSegments(result.frame, query);
+          } catch (err) {
+            Logger.error('Screenshot placement failed:', err);
+          }
+
+          try {
+            await exportResultToRelay(result.frame, query);
+          } catch (err) {
+            Logger.error('Result export failed:', err);
+          }
+
+          // Signal that ALL async work is done — safe to close plugin if stale
+          figma.ui.postMessage({ type: 'all-operations-complete' });
         } else {
           const errorMsg =
             result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
@@ -544,6 +551,9 @@ figma.ui.onmessage = async (msg) => {
           Logger.info(
             '✅ Feed "' + feedResult.frame.name + '": ' + feedResult.createdCount + ' карточек',
           );
+
+          // No secondary async ops for feed — signal immediately
+          figma.ui.postMessage({ type: 'all-operations-complete' });
         } else {
           const feedErrorMsg =
             feedResult.errors && feedResult.errors.length > 0

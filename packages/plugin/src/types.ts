@@ -219,6 +219,7 @@ export type CodeMessage =
       frameName?: string;
       error?: string;
     } // Response to apply-relay-payload
+  | { type: 'all-operations-complete' } // All async work done — safe to close plugin
   // === RESET ===
   | { type: 'reset-done'; count: number } // Response to reset-snippets
   // === SETTINGS ===
