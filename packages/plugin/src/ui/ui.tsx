@@ -198,15 +198,15 @@ const App: React.FC = () => {
         setLastImportTime(Date.now());
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
-        // Reset isFirstRun after first successful import (confetti already triggered)
-        if (isFirstRun) setIsFirstRun(false);
+        // NOTE: isFirstRun is reset in Confetti onComplete, not here.
+        // finishProcessing schedules setConfettiActive(true) via setTimeout —
+        // setting isFirstRun=false here would race and kill the animation.
       },
       onRelayPayloadApplied: () => {
         setLastImportCount(importFlow.info.itemCount || undefined);
         setLastImportTime(Date.now());
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
-        if (isFirstRun) setIsFirstRun(false);
       },
       onError: (message) => {
         setErrorMessage(message || 'Ошибка импорта');
@@ -437,7 +437,10 @@ const App: React.FC = () => {
         <Confetti
           isActive={importFlow.confettiActive}
           isFirstRun={isFirstRun}
-          onComplete={importFlow.handleConfettiComplete}
+          onComplete={() => {
+            importFlow.handleConfettiComplete();
+            if (isFirstRun) setIsFirstRun(false);
+          }}
         />
       )}
 
