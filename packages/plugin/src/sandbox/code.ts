@@ -492,6 +492,8 @@ figma.ui.onmessage = async (msg) => {
           error: error instanceof Error ? error.message : String(error),
         });
         figma.notify('❌ Ошибка импорта из браузера');
+        // Signal completion even on error — stale-build close needs this
+        figma.ui.postMessage({ type: 'all-operations-complete' });
       }
 
       return;
@@ -575,6 +577,8 @@ figma.ui.onmessage = async (msg) => {
           error: error instanceof Error ? error.message : String(error),
         });
         figma.notify('❌ Ошибка импорта фида');
+        // Signal completion even on error — stale-build close needs this
+        figma.ui.postMessage({ type: 'all-operations-complete' });
       }
 
       return;

@@ -5,10 +5,14 @@ import babel from '@rollup/plugin-babel';
 import terser from '@rollup/plugin-terser';
 import replace from '@rollup/plugin-replace';
 import { execFileSync } from 'child_process';
+import { writeFileSync } from 'fs';
 
 function buildHash() {
   const gitHash = execFileSync('git', ['rev-parse', '--short', 'HEAD']).toString().trim();
-  return `${gitHash}-${Date.now()}`;
+  const hash = `${gitHash}-${Date.now()}`;
+  // Write sidecar file so relay can read the hash without parsing minified JS
+  writeFileSync('dist/build-hash.txt', hash, 'utf8');
+  return hash;
 }
 
 const isProduction = process.env.NODE_ENV === 'production';
