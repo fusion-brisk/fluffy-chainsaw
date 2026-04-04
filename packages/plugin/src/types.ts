@@ -160,6 +160,7 @@ export type UIMessage =
   | { type: 'test'; message: string }
   | { type: 'get-theme' } // Theme detected via prefers-color-scheme, handler is no-op
   | { type: 'close' }
+  | { type: 'close-plugin'; message?: string } // Close plugin with optional toast message
   // === SELECTION ===
   | { type: 'get-pages' } // Response: 'pages'
   | { type: 'check-selection' } // Response: 'selection-status'

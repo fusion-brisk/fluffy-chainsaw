@@ -18,6 +18,7 @@ import { buildImportSummary, buildImportSummaryData } from '../utils/format';
 import { useRelayConnection } from './hooks/useRelayConnection';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
+import { useBuildCheck } from './hooks/useBuildCheck';
 
 import { usePanelManager } from './hooks/usePanelManager';
 import { useResizeUI } from './hooks/useResizeUI';
@@ -56,8 +57,6 @@ const App: React.FC = () => {
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>(
     [],
   );
-  const [, setShowWhatsNew] = useState(false);
-  const [, setCurrentVersion] = useState('');
   const [extensionInstalled, setExtensionInstalled] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(true);
   const [lastImportCount, setLastImportCount] = useState<number | undefined>();
@@ -75,12 +74,12 @@ const App: React.FC = () => {
 
   const markExtensionInstalled = useCallback(() => {
     setExtensionInstalled(true);
-    setIsFirstRun(false);
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
   const handleSetupComplete = useCallback(() => {
     markExtensionInstalled();
+    setIsFirstRun(false);
     setAppState('checking');
     resizeUI('checking');
   }, [markExtensionInstalled, resizeUI]);
@@ -151,10 +150,7 @@ const App: React.FC = () => {
   const relayConnected = relay.connected;
 
   const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
-  const _handleDismissOnboarding = useCallback(() => {
-    setIsFirstRun(false);
-    sendMessageToPlugin({ type: 'save-setup-skipped' });
-  }, []);
+  const { buildStale } = useBuildCheck(relayUrl, appState !== 'setup');
 
   // === PLUGIN MESSAGES ===
   usePluginMessages({
@@ -163,7 +159,6 @@ const App: React.FC = () => {
         setSetupResolved(true);
         if (skipped) {
           setExtensionInstalled(true);
-          setIsFirstRun(false);
           if (appState === 'setup') {
             setAppState('checking');
             resizeUI('checking');
@@ -202,12 +197,15 @@ const App: React.FC = () => {
         setLastImportTime(Date.now());
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
+        // Reset isFirstRun after first successful import (confetti already triggered)
+        if (isFirstRun) setIsFirstRun(false);
       },
       onRelayPayloadApplied: () => {
         setLastImportCount(importFlow.info.itemCount || undefined);
         setLastImportTime(Date.now());
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
+        if (isFirstRun) setIsFirstRun(false);
       },
       onError: (message) => {
         setErrorMessage(message || 'Ошибка импорта');
@@ -218,11 +216,8 @@ const App: React.FC = () => {
         importFlow.clearPendingEntry();
         importFlow.finishProcessing('cancel');
       },
-      onWhatsNewStatus: (data) => {
-        if (data.shouldShow) {
-          setCurrentVersion(data.currentVersion);
-          setShowWhatsNew(true);
-        }
+      onWhatsNewStatus: () => {
+        // TODO: wire up WhatsNew panel when UI is ready
       },
       onDebugReport: (report) => {
         try {
@@ -239,6 +234,16 @@ const App: React.FC = () => {
       },
       onComponentInfo: (components) => {
         setInspectorData(components);
+      },
+      onAllOperationsComplete: () => {
+        if (buildStale) {
+          setTimeout(() => {
+            sendMessageToPlugin({
+              type: 'close-plugin',
+              message: 'Плагин обновлён — откройте заново',
+            });
+          }, 1500);
+        }
       },
     },
     processingStartTime: null,
@@ -316,8 +321,7 @@ const App: React.FC = () => {
           panels.openPanel('setup');
           break;
         case 'whatsNew':
-          setShowWhatsNew(true);
-          // TODO: could open whatsNew panel
+          // TODO: open whatsNew panel when UI is ready
           break;
         case 'clearQueue':
           importFlow.clearQueue();

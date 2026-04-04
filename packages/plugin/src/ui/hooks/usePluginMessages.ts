@@ -12,7 +12,7 @@ import {
   ProgressData,
   ParsingRulesMetadata,
   UserSettings,
-  ComponentInspectorData
+  ComponentInspectorData,
 } from '../../types';
 
 export interface PluginMessageHandlers {
@@ -25,7 +25,11 @@ export interface PluginMessageHandlers {
 
   // Parsing Rules
   onParsingRulesLoaded?: (metadata: ParsingRulesMetadata) => void;
-  onRulesUpdateAvailable?: (data: { currentVersion: number; newVersion: number; hash: string }) => void;
+  onRulesUpdateAvailable?: (data: {
+    currentVersion: number;
+    newVersion: number;
+    hash: string;
+  }) => void;
 
   // Selection
   onSelectionStatus?: (hasSelection: boolean) => void;
@@ -50,13 +54,21 @@ export interface PluginMessageHandlers {
   onLogLevelLoaded?: (level: number) => void;
 
   // Relay payload
-  onRelayPayloadApplied?: (data: { success: boolean; itemCount?: number; frameName?: string; error?: string }) => void;
+  onRelayPayloadApplied?: (data: {
+    success: boolean;
+    itemCount?: number;
+    frameName?: string;
+    error?: string;
+  }) => void;
 
   // Debug
   onDebugReport?: (report: unknown) => void;
 
   // Component Inspector
   onComponentInfo?: (components: ComponentInspectorData[]) => void;
+
+  // All operations complete (safe to close if build is stale)
+  onAllOperationsComplete?: () => void;
 }
 
 interface UsePluginMessagesOptions {
@@ -69,7 +81,10 @@ interface UsePluginMessagesOptions {
  *
  * @param options - Configuration with handlers and state refs
  */
-export function usePluginMessages({ handlers, processingStartTime }: UsePluginMessagesOptions): void {
+export function usePluginMessages({
+  handlers,
+  processingStartTime,
+}: UsePluginMessagesOptions): void {
   // Use ref to avoid recreating the effect on every handler change
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
@@ -117,7 +132,7 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
             h.onRulesUpdateAvailable({
               currentVersion: msg.currentVersion,
               newVersion: msg.newVersion,
-              hash: msg.hash
+              hash: msg.hash,
             });
           }
           break;
@@ -142,7 +157,7 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
               current: msg.current,
               total: msg.total,
               message: msg.message,
-              operationType: msg.operationType
+              operationType: msg.operationType,
             });
           }
           break;
@@ -188,7 +203,7 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
           if (h.onWhatsNewStatus) {
             h.onWhatsNewStatus({
               shouldShow: msg.shouldShow,
-              currentVersion: msg.currentVersion
+              currentVersion: msg.currentVersion,
             });
           }
           break;
@@ -207,7 +222,7 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
               success: msg.success,
               itemCount: msg.itemCount,
               frameName: msg.frameName,
-              error: msg.error
+              error: msg.error,
             });
           }
           break;
@@ -223,6 +238,13 @@ export function usePluginMessages({ handlers, processingStartTime }: UsePluginMe
         case 'component-info':
           if (h.onComponentInfo) {
             h.onComponentInfo(msg.components);
+          }
+          break;
+
+        // === ALL OPERATIONS COMPLETE ===
+        case 'all-operations-complete':
+          if (h.onAllOperationsComplete) {
+            h.onAllOperationsComplete();
           }
           break;
       }

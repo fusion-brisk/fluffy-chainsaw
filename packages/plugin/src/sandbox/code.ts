@@ -316,6 +316,12 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
+    // === Close plugin with toast ===
+    if (msg.type === 'close-plugin') {
+      figma.closePlugin(msg.message || undefined);
+      return;
+    }
+
     Logger.verbose('📨 Сообщение от UI:', msg.type);
 
     // Пробуем обработать простые сообщения
