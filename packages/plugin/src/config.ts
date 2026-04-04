@@ -13,6 +13,10 @@ export const PORTS = {
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю
 export const PLUGIN_VERSION = '2.5.1';
 
+// Build hash — injected by Rollup at build time. Used for stale-build detection.
+// Format: "<short-git-hash>-<timestamp>"
+export const BUILD_HASH = '__BUILD_HASH__';
+
 // Сообщение о необходимости обновления библиотеки
 export const LIBRARY_UPDATE_NOTICE = {
   show: true,

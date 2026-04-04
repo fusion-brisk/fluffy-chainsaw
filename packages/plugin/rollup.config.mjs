@@ -3,6 +3,13 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import babel from '@rollup/plugin-babel';
 import terser from '@rollup/plugin-terser';
+import replace from '@rollup/plugin-replace';
+import { execFileSync } from 'child_process';
+
+function buildHash() {
+  const gitHash = execFileSync('git', ['rev-parse', '--short', 'HEAD']).toString().trim();
+  return `${gitHash}-${Date.now()}`;
+}
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -14,18 +21,19 @@ export default [
       file: 'dist/ui.js',
       format: 'iife',
       name: 'EProductSnippetUI',
-      sourcemap: false
+      sourcemap: false,
     },
     plugins: [
+      replace({ preventAssignment: true, __BUILD_HASH__: JSON.stringify(buildHash()) }),
       resolve({
         browser: true,
-        preferBuiltins: false
+        preferBuiltins: false,
       }),
       commonjs(),
       typescript({
         tsconfig: './tsconfig.json',
         declaration: false,
-        declarationMap: false
+        declarationMap: false,
       }),
       babel({
         babelHelpers: 'bundled',
@@ -33,13 +41,13 @@ export default [
         presets: [
           ['@babel/preset-env', { targets: { browsers: ['> 1%', 'last 2 versions'] } }],
           '@babel/preset-react',
-          '@babel/preset-typescript'
+          '@babel/preset-typescript',
         ],
-        extensions: ['.js', '.jsx', '.ts', '.tsx']
+        extensions: ['.js', '.jsx', '.ts', '.tsx'],
       }),
-      ...(isProduction ? [terser()] : [])
+      ...(isProduction ? [terser()] : []),
     ],
-    external: []
+    external: [],
   },
   // Code bundle (ES5 for Figma plugin)
   {
@@ -48,25 +56,23 @@ export default [
       file: 'dist/code.js',
       format: 'iife',
       name: 'EProductSnippetCode',
-      sourcemap: false
+      sourcemap: false,
     },
     plugins: [
+      replace({ preventAssignment: true, __BUILD_HASH__: JSON.stringify(buildHash()) }),
       typescript({
         tsconfig: './tsconfig.json',
         declaration: false,
-        declarationMap: false
+        declarationMap: false,
       }),
       babel({
         babelHelpers: 'bundled',
         exclude: 'node_modules/**',
-        presets: [
-          ['@babel/preset-env', { targets: { ie: '11' } }],
-          '@babel/preset-typescript'
-        ],
-        extensions: ['.js', '.ts']
+        presets: [['@babel/preset-env', { targets: { ie: '11' } }], '@babel/preset-typescript'],
+        extensions: ['.js', '.ts'],
       }),
-      ...(isProduction ? [terser()] : [])
+      ...(isProduction ? [terser()] : []),
     ],
-    external: []
-  }
+    external: [],
+  },
 ];
