@@ -79,7 +79,8 @@ const App: React.FC = () => {
 
   const handleSetupComplete = useCallback(() => {
     markExtensionInstalled();
-    setIsFirstRun(false);
+    // NOTE: do NOT set isFirstRun=false here — confetti lifecycle rule
+    // requires it only after first successful import (onDone/onRelayPayloadApplied)
     setAppState('checking');
     resizeUI('checking');
   }, [markExtensionInstalled, resizeUI]);
