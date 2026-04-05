@@ -11,7 +11,7 @@ export const PORTS = {
 // Версия плагина для What's New экрана
 // Формат: MAJOR.MINOR.PATCH
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю
-export const PLUGIN_VERSION = '2.5.1';
+export const PLUGIN_VERSION = '2.6.0';
 
 // Build hash — injected by Rollup at build time. Used for stale-build detection.
 // Format: "<short-git-hash>-<timestamp>"
