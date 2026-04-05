@@ -15,7 +15,7 @@ import {
   computeWithReviews,
   computeWithDelivery,
   computeWithMeta,
-  computeWithData
+  computeWithData,
 } from './transforms';
 
 export const ESHOP_ITEM_SCHEMA: ComponentSchema = {
@@ -26,70 +26,80 @@ export const ESHOP_ITEM_SCHEMA: ComponentSchema = {
     {
       propertyNames: ['brand', 'Brand'],
       fieldName: '#Brand',
-      hasValue: '#Brand'
+      hasValue: '#Brand',
     },
     // withButton (boolean) — Desktop OR checkout
     {
       propertyNames: ['withButton', 'buttons', 'BUTTONS'],
       fieldName: '#BUTTON',
-      compute: function(row, container) { return computeWithButton(row, container); }
+      compute: function (row, container) {
+        return computeWithButton(row, container);
+      },
     },
     // withReviews (boolean) — есть рейтинг или отзывы
     {
       propertyNames: ['withReviews'],
       fieldName: '#withReviews',
-      compute: function(row) { return computeWithReviews(row); }
+      compute: function (row) {
+        return computeWithReviews(row);
+      },
     },
     // withDelivery (boolean) — есть данные доставки
     {
       propertyNames: ['withDelivery', 'delivery', 'Delivery'],
       fieldName: '#withDelivery',
-      compute: function(row) { return computeWithDelivery(row); }
+      compute: function (row) {
+        return computeWithDelivery(row);
+      },
     },
     // withFintech (boolean) — финтех включён
     {
       propertyNames: ['withFintech', 'fintech', 'Fintech'],
       fieldName: '#withFintech',
-      equals: { field: '#EPriceGroup_Fintech', value: 'true' }
+      equals: { field: '#EPriceGroup_Fintech', value: 'true' },
     },
     // priceDisclaimer (boolean) — "Цена, доставка от Маркета"
     {
       propertyNames: ['priceDisclaimer', 'Price Disclaimer'],
       fieldName: '#PriceDisclaimer',
-      equals: { field: '#PriceDisclaimer', value: 'true' }
+      equals: { field: '#PriceDisclaimer', value: 'true' },
     },
     // withMeta (boolean) — доставка ИЛИ BNPL
     {
       propertyNames: ['withMeta', 'deliveryFintech'],
       fieldName: '#withMeta',
-      compute: function(row) { return computeWithMeta(row); }
+      compute: function (row) {
+        return computeWithMeta(row);
+      },
     },
     // withData (boolean) — отзывы ИЛИ доставка ИЛИ BNPL
     {
       propertyNames: ['withData'],
       fieldName: '#EShopItem_withData',
-      compute: function(row) { return computeWithData(row); }
+      compute: function (row) {
+        return computeWithData(row);
+      },
     },
     // favoriteBtn (boolean) — кнопка "В избранное"
     {
       propertyNames: ['favoriteBtn', 'Favorite Btn', '[EXP] Favotite Btn'],
       fieldName: '#FavoriteBtn',
-      equals: { field: '#FavoriteBtn', value: 'true' }
+      equals: { field: '#FavoriteBtn', value: 'true' },
     },
     // organicTitle (string) — название товара
     {
       propertyNames: ['organicTitle'],
       fieldName: '#OrganicTitle',
       stringValue: '#OrganicTitle',
-      skipIfEmpty: true
+      skipIfEmpty: true,
     },
     // organicText (string) — описание товара
     {
       propertyNames: ['organicText'],
       fieldName: '#OrganicText',
       stringValue: '#OrganicText',
-      skipIfEmpty: true
-    }
+      skipIfEmpty: true,
+    },
   ],
 
   nestedInstances: [
@@ -101,16 +111,16 @@ export const ESHOP_ITEM_SCHEMA: ComponentSchema = {
           propertyNames: ['name'],
           fieldName: '#ShopName',
           stringValue: '#ShopName',
-          skipIfEmpty: true
+          skipIfEmpty: true,
         },
         // isOfficial (boolean) — официальный магазин
         {
           propertyNames: ['isOfficial'],
           fieldName: '#OfficialShop',
-          equals: { field: '#OfficialShop', value: 'true' }
-        }
-      ]
-    }
+          equals: { field: '#OfficialShop', value: 'true' },
+        },
+      ],
+    },
   ],
 
   replacesHandlers: [
@@ -118,6 +128,6 @@ export const ESHOP_ITEM_SCHEMA: ComponentSchema = {
     'MarketCheckoutButton',
     'OfficialShop',
     'ShopInfoDeliveryBnplContainer',
-    'EShopItem'
-  ]
+    'EShopItem',
+  ],
 };

@@ -10,6 +10,7 @@ globs: packages/plugin/src/ui/**
 `background: transparent`, `border: 1px solid transparent`, `color: var(--figma-color-text)`.
 
 There is also a global hover rule:
+
 ```css
 button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text) {
   background-color: var(--figma-color-bg-hover);
@@ -27,7 +28,7 @@ button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text)
 ## CSS variable fallbacks are mandatory
 
 Figma injects `--figma-color-*` variables, but they may be unavailable at initial render
-or in certain contexts. Always provide hardcoded fallbacks:
+or in certain contexts. **Every** `var(--figma-color-*)` must have a hardcoded fallback:
 
 ```css
 /* BAD */
@@ -38,14 +39,39 @@ background: var(--figma-color-bg-brand, #0d99ff);
 color: var(--figma-color-text-onbrand, #fff);
 ```
 
+**Verification:** After editing styles.css, grep for bare vars:
+
+```bash
+grep -n 'var(--figma-color-[^,)]*)'  packages/plugin/src/ui/styles.css | grep -v ','
+```
+
+This must return 0 lines.
+
 Key fallback values:
+
+- `--figma-color-bg` → `#ffffff`
 - `--figma-color-bg-brand` → `#0d99ff`
 - `--figma-color-bg-brand-hover` → `#0b88e3`
-- `--figma-color-text-onbrand` → `#fff`
-- `--figma-color-text-danger` → `#f24822`
+- `--figma-color-bg-hover` → `#f5f5f5`
+- `--figma-color-bg-pressed` → `#ebebeb`
+- `--figma-color-bg-secondary` → `#f5f5f5`
+- `--figma-color-bg-selected` → `#e8f4fd`
 - `--figma-color-text` → `#333`
 - `--figma-color-text-secondary` → `#888`
+- `--figma-color-text-tertiary` → `#b3b3b3`
+- `--figma-color-text-onbrand` → `#fff`
+- `--figma-color-text-danger` → `#f24822`
+- `--figma-color-text-success` → `#1bc47d`
 - `--figma-color-border` → `#e5e5e5`
+- `--figma-color-border-brand` → `#0d99ff`
+- `--figma-color-icon-secondary` → `#888`
+
+## Shadow tokens
+
+Use design tokens from `:root` — never inline `rgba()` in box-shadow:
+
+- `--shadow-sm`, `--shadow-md`, `--shadow-lg` — neutral shadows
+- `--shadow-brand` — brand-colored glow for primary buttons
 
 ## Window size includes Figma title bar
 
@@ -54,6 +80,7 @@ Figma adds a ~40px title bar above the plugin iframe. `UI_SIZES` controls the
 `height - ~40px`. Account for this when calculating layout.
 
 Current tiers (`types.ts`):
+
 - compact: 320×56
 - standard: 320×320 (confirming dialog)
 - extended: 420×520
@@ -61,6 +88,7 @@ Current tiers (`types.ts`):
 ## `overflow: hidden` cascade
 
 Three levels of `overflow: hidden` exist:
+
 - `body` (line ~82)
 - `#react-page` (line ~94)
 - `.glass-app` (line ~370)

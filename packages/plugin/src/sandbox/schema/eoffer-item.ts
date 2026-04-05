@@ -16,7 +16,7 @@ import {
   computeOfferWithMeta,
   computeOfferWithData,
   computeWithTitle,
-  computeWithQuotes
+  computeWithQuotes,
 } from './transforms';
 
 export const EOFFER_ITEM_SCHEMA: ComponentSchema = {
@@ -27,68 +27,84 @@ export const EOFFER_ITEM_SCHEMA: ComponentSchema = {
     {
       propertyNames: ['withButton'],
       fieldName: '#EOfferItem_hasButton',
-      compute: function() { return true; }
+      compute: function () {
+        return true;
+      },
     },
     // withReviews (boolean) — рейтинг и отзывы
     {
       propertyNames: ['withReviews', 'RATING + REVIEW'],
       fieldName: '#EOfferItem_hasReviews',
-      compute: function(row) { return computeOfferWithReviews(row); }
+      compute: function (row) {
+        return computeOfferWithReviews(row);
+      },
     },
     // withDelivery (boolean) — доставка
     {
       propertyNames: ['withDelivery', 'Delivery', 'DELIVERY + FINTECH'],
       fieldName: '#EOfferItem_hasDelivery',
-      compute: function(row) { return computeOfferWithDelivery(row); }
+      compute: function (row) {
+        return computeOfferWithDelivery(row);
+      },
     },
     // withFintech (boolean) — финтех в EPriceGroup
     {
       propertyNames: ['withFintech', 'Fintech'],
       fieldName: '#EOfferItem_Fintech',
-      compute: function(row) { return computeOfferWithFintech(row); }
+      compute: function (row) {
+        return computeOfferWithFintech(row);
+      },
     },
     // priceDisclaimer (boolean) — "Цена, доставка от Маркета"
     {
       propertyNames: ['priceDisclaimer', 'Price Disclaimer'],
       fieldName: '#PriceDisclaimer',
-      equals: { field: '#PriceDisclaimer', value: 'true' }
+      equals: { field: '#PriceDisclaimer', value: 'true' },
     },
     // withMeta (boolean) — доставка ИЛИ BNPL
     {
       propertyNames: ['withMeta'],
       fieldName: '#EOfferItem_withMeta',
-      compute: function(row) { return computeOfferWithMeta(row); }
+      compute: function (row) {
+        return computeOfferWithMeta(row);
+      },
     },
     // withData (boolean) — отзывы ИЛИ доставка ИЛИ BNPL
     {
       propertyNames: ['withData'],
       fieldName: '#EOfferItem_withData',
-      compute: function(row) { return computeOfferWithData(row); }
+      compute: function (row) {
+        return computeOfferWithData(row);
+      },
     },
     // withFavoritesButton (boolean) — кнопка "В избранное"
     {
-      propertyNames: ['withFavoritesButton', '[EXP] Favotite Btn'],
+      propertyNames: ['withFavoritesButton', 'Favorite Btn', '[EXP] Favotite Btn'],
       fieldName: '#FavoriteBtn',
-      equals: { field: '#FavoriteBtn', value: 'true' }
+      equals: { field: '#FavoriteBtn', value: 'true' },
     },
     // withTitle (boolean) — показать название товара
     {
       propertyNames: ['withTitle', 'Offer Title'],
       fieldName: '#withTitle',
-      compute: function(row) { return computeWithTitle(row); }
+      compute: function (row) {
+        return computeWithTitle(row);
+      },
     },
     // brand (boolean) — показать бренд
     {
       propertyNames: ['brand', 'Brand'],
       fieldName: '#Brand',
-      hasValue: '#Brand'
+      hasValue: '#Brand',
     },
     // withQuotes (boolean) — цитата из отзыва
     {
       propertyNames: ['withQuotes'],
       fieldName: '#withQuotes',
-      compute: function(row) { return computeWithQuotes(row); }
-    }
+      compute: function (row) {
+        return computeWithQuotes(row);
+      },
+    },
   ],
 
   nestedInstances: [
@@ -100,22 +116,22 @@ export const EOFFER_ITEM_SCHEMA: ComponentSchema = {
           propertyNames: ['name'],
           fieldName: '#ShopName',
           stringValue: '#ShopName',
-          skipIfEmpty: true
+          skipIfEmpty: true,
         },
         // isOfficial (boolean) — официальный магазин
         {
           propertyNames: ['isOfficial'],
           fieldName: '#OfficialShop',
-          equals: { field: '#OfficialShop', value: 'true' }
-        }
-      ]
-    }
+          equals: { field: '#OfficialShop', value: 'true' },
+        },
+      ],
+    },
   ],
 
   replacesHandlers: [
     'BrandLogic',
     'MarketCheckoutButton',
     'ShopInfoDeliveryBnplContainer',
-    'EOfferItem'
-  ]
+    'EOfferItem',
+  ],
 };

@@ -169,6 +169,7 @@ export const COMPONENT_NODE_IDS = {
   },
 } as const;
 
+/** Maps snippet type names (e.g. 'ESnippet', 'EOfferItem') to Figma library component keys and default variant properties. */
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
   ESnippet: {
     key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Platform=Desktop
@@ -265,6 +266,7 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
 /**
  * Маппинг элементов страницы (Header, Footer, Pager, Related)
  */
+/** Maps page layout elements (Header, Footer, Pager, Title, etc.) to Figma library component keys. */
 export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = {
   Header: {
     key: '6cea05769f0320a02cce6ce168573daa75395308',
@@ -437,6 +439,7 @@ export const ASIDE_FILTER_COMPONENTS = {
  * Группы — это компоненты с несколькими слотами для сниппетов
  * Количество видимых сниппетов регулируется через свойства
  */
+/** Defines group container configurations — max child items, item count property, and layout defaults. */
 export const GROUP_COMPONENT_MAP: Record<GroupType, ComponentConfig> = {
   EShopGroup: {
     key: '', // AutoLayout container — created programmatically
@@ -529,6 +532,7 @@ export function isLayoutType(type: string): type is LayoutElementType {
  *
  * Контейнеры — это фреймы, которые группируют сниппеты определённого типа
  */
+/** Configures auto-layout properties (direction, spacing, padding, sizing) for container frames that hold snippet children. */
 export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
   AdvProductGallery: {
     name: 'AdvProductGallery',

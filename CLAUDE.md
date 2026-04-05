@@ -61,6 +61,7 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 | Page builder           | `docs/PAGE_BUILDER_SETUP.md`                      |
 | Release                | `.claude/rules/release.md`                        |
 | Module internals       | `docs/STRUCTURE.md`, `docs/GLOSSARY.md`           |
+| UI state/panels/resize | `.claude/rules/ui-state.md`                       |
 | UI hooks/state         | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks    |
 | UI CSS pitfalls        | `.claude/rules/ui-css.md`                         |
 | Coverage & extend      | `tools/coverage-report.ts`, `/extend`             |
@@ -87,6 +88,8 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - For cross-system bugs (extension → relay → plugin), identify WHICH system the bug is in before changing code. Trace the data flow step by step.
 - **Build-vs-source mismatch**: When a bug defies code analysis, check `dist/` build dates vs source modification times. The running code is what's in `dist/`, not `src/`. Run `ls -la packages/*/dist/*.js | head` and compare with `git diff --stat HEAD` to detect stale builds.
 - **Parallel hypotheses for complex bugs**: When root cause is unclear after initial investigation, spawn 2-3 parallel Agent sub-tasks — each pursues a different hypothesis, reads relevant code, and reports evidence for/against. Present all hypotheses with evidence before proposing a fix. Do NOT serially guess-and-check.
+- **UI state intersection bugs**: When investigating UI bugs, check ALL combinations of independent states (appState × panels.isPanelOpen × menuOpen × banners × confetti). The most subtle bugs hide at state crossings — e.g. data arriving while a panel is open, timers firing after user navigation, refs holding stale values.
+- **Coverage tools may undercount**: `tools/coverage-report.ts` scans only `schema/` + `handlers/`. Fields used in `page-builder/`, `feed-page-builder/`, `productcard-processor.ts` are invisible. Verify "dead field" claims by grepping `src/sandbox/` broadly.
 
 ## Figma Plugin Development
 

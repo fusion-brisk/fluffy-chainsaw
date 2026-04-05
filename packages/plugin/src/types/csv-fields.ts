@@ -82,7 +82,7 @@ export interface CSVFields {
   '#discount'?: string;
   /** Флаг наличия скидки (legacy) */
   '#Discount'?: 'true' | 'false';
-  /** Префикс скидки */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#DiscountPrefix'?: string;
 
   // === EPriceGroup ===
@@ -140,7 +140,7 @@ export interface CSVFields {
   '#ButtonView'?: string;
   /** Тип кнопки */
   '#ButtonType'?: 'checkout' | 'shop' | string;
-  /** Видимость EButton */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#EButton_visible'?: 'true' | 'false';
   /** Лейбл checkout */
   '#EMarketCheckoutLabel'?: 'true' | 'false';
@@ -164,7 +164,7 @@ export interface CSVFields {
   '#EBnpl'?: 'true' | 'false';
 
   // === EOfferItem специфичные ===
-  /** Дефолтное предложение */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#EOfferItem_defaultOffer'?: 'true' | 'false';
   /** Есть ли кнопка в EOfferItem */
   '#EOfferItem_hasButton'?: 'true' | 'false';
@@ -234,15 +234,15 @@ export interface CSVFields {
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */
   '#Sitelinks'?: 'true' | 'false';
-  /** Количество сайтлинков */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#SitelinksCount'?: string;
-  /** Сайтлинк 1 */
+  /** @deprecated — not parsed, not used (sitelinks handled via #Sitelinks boolean + hooks) */
   '#Sitelink_1'?: string;
-  /** Сайтлинк 2 */
+  /** @deprecated — not parsed, not used */
   '#Sitelink_2'?: string;
-  /** Сайтлинк 3 */
+  /** @deprecated — not parsed, not used */
   '#Sitelink_3'?: string;
-  /** Сайтлинк 4 */
+  /** @deprecated — not parsed, not used */
   '#Sitelink_4'?: string;
   /** Текст промо-блока (полный) */
   '#Promo'?: string;
@@ -252,21 +252,21 @@ export interface CSVFields {
   '#PromoLink'?: string;
   /** Есть ли промо-блок */
   '#withPromo'?: 'true' | 'false';
-  /** Текст рекламной метки */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#AdvLabel'?: string;
-  /** Тип верификации (goods, etc.) */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#VerifiedType'?: string;
-  /** Сайт прошёл верификацию */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#isVerified'?: 'true' | 'false';
 
   // === Валюта ===
-  /** Символ валюты (₽, $, €) */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#Currency'?: string;
 
   // === Изображения (доп.) ===
   /** Тип изображения (EThumb, EThumbGroup) */
   '#imageType'?: string;
-  /** Количество картинок в EThumbGroup */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#ThumbGroupCount'?: string;
   /** Есть ли цитата из отзывов */
   '#withQuotes'?: 'true' | 'false';
@@ -281,7 +281,7 @@ export interface CSVFields {
   /** Скрыть блок цены (каталожные страницы) */
   '#hidePriceBlock'?: 'true' | 'false';
 
-  // === Доставка (доп.) ===
+  // === Доставка (детализация) ===
   /** Количество вариантов доставки */
   '#EDeliveryGroup-Count'?: string;
   /** Вариант доставки 1 */
@@ -318,7 +318,7 @@ export interface CSVFields {
   '#hasShopOfflineRegion'?: 'true' | 'false';
   /** Текст адреса (город, метро) */
   '#addressText'?: string;
-  /** Адрес (legacy, snippet-parser) */
+  /** @deprecated — not parsed, not used (superseded by #addressText) */
   '#Address'?: string;
   /** Ссылка адреса (текст) */
   '#addressLink'?: string;
@@ -328,7 +328,7 @@ export interface CSVFields {
   '#Contacts'?: string;
 
   // === InfoIcon ===
-  /** Наличие иконки "Инфо" в Fintech */
+  /** @future — parsed by extension, not yet mapped to schema/handlers */
   '#InfoIcon'?: 'true' | 'false';
 
   // === EQuickFilters (панель быстрых фильтров) ===
@@ -382,7 +382,7 @@ export interface CSVFields {
   '#ImagesGrid_title'?: string;
   /** JSON-массив картинок: [{url, width, height, row}] */
   '#ImagesGrid_data'?: string;
-  /** Количество картинок в блоке */
+  /** @deprecated — not parsed, not used (count derived from #ImagesGrid_data) */
   '#ImagesGrid_count'?: string;
 
   // === EAsideFilters (боковые фильтры) ===
@@ -396,19 +396,19 @@ export interface CSVFields {
   '#OfferTitle'?: string;
   /** Заголовок (generic alias) */
   '#Title'?: string;
-  /** Информация о цене (legacy) */
+  /** @deprecated — not parsed, not used */
   '#PriceInfo'?: string;
 
   // === Legacy / Parser-specific fields ===
-  /** Список лейблов (legacy) */
+  /** @deprecated — not parsed, not used (labels handled via schema #ELabelGroup) */
   '#LabelsList'?: string;
-  /** Список финтех-опций (legacy) */
+  /** @deprecated — not parsed, not used (fintech handled via #EPriceGroup_Fintech) */
   '#FintechList'?: string;
-  /** Наличие товара (legacy) */
+  /** @deprecated — not parsed, not used */
   '#Availability'?: string;
-  /** Варианты самовывоза (legacy) */
+  /** @deprecated — not parsed, not used */
   '#PickupOptions'?: string;
-  /** Срок доставки (legacy) */
+  /** @deprecated — not parsed, not used */
   '#DeliveryETA'?: string;
 
   // === Internal (runtime-only, не приходят из парсера) ===
