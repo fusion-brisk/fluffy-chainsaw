@@ -15,6 +15,7 @@ import { loadComponent } from './component-import';
 import { loadAndApplyImage, findFillableLayer } from './image-operations';
 import type { ImageGridItem } from './image-operations';
 import type { StructureNode, ContainerConfig } from './types';
+import { applyFill } from './fill-utils';
 
 /**
  * Создать Auto Layout фрейм-контейнер
@@ -788,5 +789,184 @@ export async function createImagesGridPanel(
   }
 
   Logger.debug('[ImagesGrid] Создано ' + count + ' картинок в ' + rowIndices.length + ' рядах');
+  return { element: wrapper, count: count };
+}
+
+// ============================================================================
+// WRAPPED CONTAINER BUILDER
+// ============================================================================
+
+interface WrapperStyle {
+  padding: { top: number; bottom: number; left: number; right: number };
+  itemSpacing: number;
+  cornerRadius: number;
+  fillVariable: keyof typeof VARIABLE_KEYS | null; // null = no fill (transparent)
+}
+
+interface WrappedContainerOptions {
+  wrapperName: string;
+  wrapperStyle: WrapperStyle;
+  containerConfig: ContainerConfig;
+  titleDataField: string;
+  titleDefault: string;
+  query?: string;
+  node: StructureNode;
+  childSizing: 'FILL' | 'config';
+  containerPostConfig?: (frame: FrameNode, platform: 'desktop' | 'touch') => void;
+  showAll?: {
+    dataField: string;
+    textDataField: string;
+    defaultText: string;
+  };
+  renderChild: (child: StructureNode) => Promise<{ element: SceneNode | null; count: number }>;
+}
+
+export async function createTitleInstance(titleText: string): Promise<InstanceNode | null> {
+  const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
+  if (!titleConfig || !titleConfig.key) return null;
+  try {
+    const titleComponent = await loadComponent(titleConfig.key);
+    if (!titleComponent) return null;
+    const titleInstance = titleComponent.createInstance();
+    if (titleConfig.defaultVariant) {
+      try {
+        titleInstance.setProperties(titleConfig.defaultVariant as Record<string, string | boolean>);
+      } catch (e) {
+        Logger.debug('[PanelBuilders] Title setProperties: ' + e);
+      }
+    }
+    const textNode = findTextNode(titleInstance);
+    if (textNode) {
+      await figma.loadFontAsync(textNode.fontName as FontName);
+      textNode.characters = titleText;
+    }
+    return titleInstance;
+  } catch (e) {
+    Logger.warn('[PanelBuilders] Title creation failed: ' + e);
+    return null;
+  }
+}
+
+export async function createShowAllButton(text: string): Promise<InstanceNode | null> {
+  try {
+    const btnComponent = await loadComponent('d11550f55331ddcb57d6d8e566dc288de8c706d7');
+    if (!btnComponent) return null;
+    const btnInstance = btnComponent.createInstance();
+    try {
+      btnInstance.setProperties({
+        View: 'Secondary',
+        Size: 'M',
+        Text: 'True',
+        Left: false,
+        Right: false,
+        Suffix: false,
+      } as Record<string, string | boolean>);
+    } catch (e) {
+      Logger.debug('[PanelBuilders] ShowAll setProperties: ' + e);
+    }
+    const textNode = findTextNode(btnInstance);
+    if (textNode) {
+      await figma.loadFontAsync(textNode.fontName as FontName);
+      textNode.characters = text;
+    }
+    return btnInstance;
+  } catch (e) {
+    Logger.debug('[PanelBuilders] ShowAll button: ' + e);
+    return null;
+  }
+}
+
+export async function createWrappedContainer(
+  opts: WrappedContainerOptions,
+): Promise<{ element: FrameNode; count: number }> {
+  const wrapper = figma.createFrame();
+  wrapper.name = opts.wrapperName;
+  wrapper.layoutMode = 'VERTICAL';
+  wrapper.primaryAxisSizingMode = 'AUTO';
+  wrapper.counterAxisSizingMode = 'AUTO';
+  wrapper.clipsContent = true;
+
+  const s = opts.wrapperStyle;
+  wrapper.itemSpacing = s.itemSpacing;
+  wrapper.paddingTop = s.padding.top;
+  wrapper.paddingBottom = s.padding.bottom;
+  wrapper.paddingLeft = s.padding.left;
+  wrapper.paddingRight = s.padding.right;
+  wrapper.cornerRadius = s.cornerRadius;
+
+  if (s.fillVariable) {
+    await applyFill(wrapper, s.fillVariable);
+  } else {
+    wrapper.fills = [];
+  }
+
+  // Title
+  const firstChild =
+    opts.node.children && opts.node.children.length > 0 ? opts.node.children[0] : undefined;
+  const customTitle =
+    firstChild && firstChild.data
+      ? (firstChild.data as Record<string, string | undefined>)[opts.titleDataField]
+      : undefined;
+  let titleText = customTitle || opts.titleDefault;
+  if (!customTitle && opts.query) {
+    titleText = opts.titleDefault;
+  }
+  const titleInstance = await createTitleInstance(titleText);
+  if (titleInstance) {
+    wrapper.appendChild(titleInstance);
+    titleInstance.layoutSizingHorizontal = 'FILL';
+  }
+
+  // Container
+  const containerFrame = createContainerFrame(opts.containerConfig);
+  if (opts.containerPostConfig) {
+    opts.containerPostConfig(containerFrame, 'desktop');
+  }
+  wrapper.appendChild(containerFrame);
+  containerFrame.layoutSizingHorizontal = 'FILL';
+  containerFrame.layoutSizingVertical = 'HUG';
+
+  // Children
+  let count = 0;
+  if (opts.node.children) {
+    for (let i = 0; i < opts.node.children.length; i++) {
+      const child = opts.node.children[i];
+      const result = await opts.renderChild(child);
+      if (result.element) {
+        containerFrame.appendChild(result.element);
+        if (opts.childSizing === 'FILL') {
+          (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
+        } else if (typeof opts.containerConfig.childWidth === 'number') {
+          (result.element as InstanceNode).resize(
+            opts.containerConfig.childWidth,
+            (result.element as InstanceNode).height,
+          );
+        } else if (opts.containerConfig.childWidth === 'FILL') {
+          (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
+        }
+        count += result.count;
+      }
+    }
+  }
+
+  // Show all button
+  if (opts.showAll) {
+    const showAllFlag =
+      firstChild && firstChild.data
+        ? (firstChild.data as Record<string, string | undefined>)[opts.showAll.dataField]
+        : undefined;
+    if (showAllFlag === 'true') {
+      const btnText =
+        (firstChild && firstChild.data
+          ? (firstChild.data as Record<string, string | undefined>)[opts.showAll.textDataField]
+          : undefined) || opts.showAll.defaultText;
+      const btnInstance = await createShowAllButton(btnText);
+      if (btnInstance) {
+        wrapper.appendChild(btnInstance);
+        btnInstance.layoutSizingHorizontal = 'FILL';
+      }
+    }
+  }
+
   return { element: wrapper, count: count };
 }

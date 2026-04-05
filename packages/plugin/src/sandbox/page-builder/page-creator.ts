@@ -9,7 +9,6 @@ import { Logger } from '../../logger';
 import { handlerRegistry } from '../handlers/registry';
 import type { HandlerContext } from '../handlers/types';
 import { buildInstanceCache } from '../../utils/instance-cache';
-import { findTextNode } from '../../utils/node-search';
 import {
   PageElement,
   PageStructure,
@@ -49,6 +48,9 @@ import {
   createAsideFiltersPanel,
   createImagesGridPanel,
   createContainerFrame,
+  createWrappedContainer,
+  createTitleInstance,
+  createShowAllButton,
 } from './panel-builders';
 
 // Re-export clearComponentCache so index.ts can import from page-creator (backwards compat)
@@ -469,38 +471,14 @@ async function renderStructureNode(
       await applyFill(wrapper, 'Background/Primary');
 
       // Добавляем Title
-      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
-      if (titleConfig?.key) {
-        try {
-          const titleComponent = await loadComponent(titleConfig.key);
-          if (titleComponent) {
-            const titleInstance = titleComponent.createInstance();
-            if (titleConfig.defaultVariant) {
-              try {
-                titleInstance.setProperties(
-                  titleConfig.defaultVariant as Record<string, string | boolean>,
-                );
-              } catch (e) {
-                Logger.debug(`[PageCreator] MixedGrid Title setProperties: ${e}`);
-              }
-            }
-            wrapper.appendChild(titleInstance);
-            titleInstance.layoutSizingHorizontal = 'FILL';
-
-            const customTitle = node.children?.[0]?.data?.['#ProductsMixedGridTitle'];
-            const titleText =
-              customTitle ||
-              (query ? `Популярные товары по запросу «${query}»` : 'Популярные товары');
-            const textNode = findTextNode(titleInstance);
-            if (textNode) {
-              await figma.loadFontAsync(textNode.fontName as FontName);
-              textNode.characters = titleText;
-            }
-            Logger.debug(`[PageCreator] MixedGrid Title: "${titleText}"`);
-          }
-        } catch (e) {
-          Logger.warn(`[PageCreator] Не удалось создать MixedGrid Title: ${e}`);
-        }
+      const customTitle = node.children?.[0]?.data?.['#ProductsMixedGridTitle'];
+      const titleText =
+        customTitle ||
+        (query ? 'Популярные товары по запросу «' + query + '»' : 'Популярные товары');
+      const titleInstance = await createTitleInstance(titleText);
+      if (titleInstance) {
+        wrapper.appendChild(titleInstance);
+        titleInstance.layoutSizingHorizontal = 'FILL';
       }
 
       // Determine column count from data or default to 3
@@ -583,35 +561,12 @@ async function renderStructureNode(
       // Кнопка «Показать ещё»
       const showAllFlag = node.children?.[0]?.data?.['#ProductsMixedGridShowAll'];
       if (showAllFlag === 'true') {
-        try {
-          const btnComponent = await loadComponent('d11550f55331ddcb57d6d8e566dc288de8c706d7');
-          if (btnComponent) {
-            const btnInstance = btnComponent.createInstance();
-            try {
-              btnInstance.setProperties({
-                View: 'Secondary',
-                Size: 'M',
-                Text: 'True',
-                Left: false,
-                Right: false,
-                Suffix: false,
-              } as Record<string, string | boolean>);
-            } catch (e) {
-              Logger.debug(`[PageCreator] MixedGrid ShowAll setProperties: ${e}`);
-            }
-            const showAllText =
-              node.children?.[0]?.data?.['#ProductsMixedGridShowAllText'] || 'Показать ещё';
-            const btnTextNode = findTextNode(btnInstance);
-            if (btnTextNode) {
-              await figma.loadFontAsync(btnTextNode.fontName as FontName);
-              btnTextNode.characters = showAllText;
-            }
-            wrapper.appendChild(btnInstance);
-            btnInstance.layoutSizingHorizontal = 'FILL';
-            Logger.debug(`[PageCreator] MixedGrid кнопка «${showAllText}» добавлена`);
-          }
-        } catch (e) {
-          Logger.debug(`[PageCreator] MixedGrid ShowAll кнопка: ${e}`);
+        const showAllText =
+          node.children?.[0]?.data?.['#ProductsMixedGridShowAllText'] || 'Показать ещё';
+        const btnInstance = await createShowAllButton(showAllText);
+        if (btnInstance) {
+          wrapper.appendChild(btnInstance);
+          btnInstance.layoutSizingHorizontal = 'FILL';
         }
       }
 
@@ -623,318 +578,84 @@ async function renderStructureNode(
 
     // === ProductsTiles: оборачиваем в productTilesWrapper с Title ===
     if (thisContainerType === 'ProductsTiles') {
-      const wrapper = figma.createFrame();
-      wrapper.name = 'productTilesWrapper';
-      wrapper.layoutMode = 'VERTICAL';
-      wrapper.primaryAxisSizingMode = 'AUTO';
-      wrapper.counterAxisSizingMode = 'AUTO';
-      wrapper.itemSpacing = 0;
-      wrapper.paddingTop = 16;
-      wrapper.paddingBottom = 16;
-      wrapper.paddingLeft = 15;
-      wrapper.paddingRight = 15;
-      wrapper.cornerRadius = 16;
-      wrapper.clipsContent = true;
-      await applyFill(wrapper, 'Background/Primary');
-
-      // Добавляем Title
-      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
-      if (titleConfig?.key) {
-        try {
-          const titleComponent = await loadComponent(titleConfig.key);
-          if (titleComponent) {
-            const titleInstance = titleComponent.createInstance();
-
-            // Применяем defaultVariant свойства (отключаем лишние элементы)
-            if (titleConfig.defaultVariant) {
-              try {
-                titleInstance.setProperties(
-                  titleConfig.defaultVariant as Record<string, string | boolean>,
-                );
-              } catch (e) {
-                Logger.debug(`[PageCreator] Title setProperties: ${e}`);
-              }
-            }
-
-            wrapper.appendChild(titleInstance);
-            titleInstance.layoutSizingHorizontal = 'FILL';
-
-            // Устанавливаем текст заголовка
-            const customTitle = node.children?.[0]?.data?.['#ProductsTilesTitle'];
-            const titleText =
-              customTitle ||
-              (query ? `Популярные товары по запросу «${query}»` : 'Популярные товары');
-            const textNode = findTextNode(titleInstance);
-            if (textNode) {
-              await figma.loadFontAsync(textNode.fontName as FontName);
-              textNode.characters = titleText;
-            }
-
-            Logger.debug(`[PageCreator] Title добавлен: "${titleText}"`);
-          }
-        } catch (e) {
-          Logger.warn(`[PageCreator] Не удалось создать Title: ${e}`);
-        }
-      }
-
-      // Создаём ProductsTiles внутри wrapper
-      const containerFrame = createContainerFrame(containerConfig);
-      wrapper.appendChild(containerFrame);
-      containerFrame.layoutSizingHorizontal = 'FILL';
-      containerFrame.layoutSizingVertical = 'HUG';
-
-      // Рендерим дочерние узлы
-      if (node.children) {
-        for (const child of node.children) {
-          const result = await renderStructureNode(
-            child,
-            platform,
-            errors,
-            thisContainerType,
-            query,
-          );
-          if (result.element) {
-            containerFrame.appendChild(result.element);
-
-            // Touch: FILL ширина, Desktop: фиксированная
-            const isProductsTilesOnTouch = platform === 'touch';
-            if (containerConfig.childWidth === 'FILL' || isProductsTilesOnTouch) {
-              (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
-            } else if (typeof containerConfig.childWidth === 'number') {
-              (result.element as InstanceNode).resize(
-                containerConfig.childWidth,
-                (result.element as InstanceNode).height,
-              );
-            }
-
-            count += result.count;
-          }
-        }
-      }
-
-      // === Кнопка «Показать все» под каруселью ===
-      const showAllFlag = node.children?.[0]?.data?.['#ProductsTilesShowAll'];
-      if (showAllFlag === 'true') {
-        try {
-          const btnComponent = await loadComponent('d11550f55331ddcb57d6d8e566dc288de8c706d7');
-          if (btnComponent) {
-            const btnInstance = btnComponent.createInstance();
-            // Устанавливаем пропсы: View=Secondary, Size=M, Text=True
-            try {
-              btnInstance.setProperties({
-                View: 'Secondary',
-                Size: 'M',
-                Text: 'True',
-                Left: false,
-                Right: false,
-                Suffix: false,
-              } as Record<string, string | boolean>);
-            } catch (e) {
-              Logger.debug(`[PageCreator] ShowAll button setProperties: ${e}`);
-            }
-
-            // Устанавливаем текст кнопки
-            const showAllText =
-              node.children?.[0]?.data?.['#ProductsTilesShowAllText'] || 'Показать все';
-            const textNode = findTextNode(btnInstance);
-            if (textNode) {
-              await figma.loadFontAsync(textNode.fontName as FontName);
-              textNode.characters = showAllText;
-            }
-
-            wrapper.appendChild(btnInstance);
-            btnInstance.layoutSizingHorizontal = 'FILL';
-
-            Logger.debug(`[PageCreator] Кнопка «${showAllText}» добавлена в ProductsTiles`);
-          }
-        } catch (e) {
-          Logger.debug(`[PageCreator] Не удалось создать ShowAll кнопку: ${e}`);
-        }
-      }
-
-      Logger.debug(`[PageCreator] ProductsTiles wrapper: ${node.children?.length || 0} элементов`);
-      return { element: wrapper, count };
+      const result = await createWrappedContainer({
+        wrapperName: 'productTilesWrapper',
+        wrapperStyle: {
+          padding: { top: 16, bottom: 16, left: 15, right: 15 },
+          itemSpacing: 0,
+          cornerRadius: 16,
+          fillVariable: 'Background/Primary',
+        },
+        containerConfig: containerConfig,
+        titleDataField: '#ProductsTilesTitle',
+        titleDefault: query ? 'Популярные товары по запросу «' + query + '»' : 'Популярные товары',
+        node: node,
+        childSizing: platform === 'touch' ? 'FILL' : 'config',
+        showAll: {
+          dataField: '#ProductsTilesShowAll',
+          textDataField: '#ProductsTilesShowAllText',
+          defaultText: 'Показать все',
+        },
+        renderChild: function (child) {
+          return renderStructureNode(child, platform, errors, thisContainerType, query);
+        },
+      });
+      return { element: result.element, count: result.count };
     }
 
     // === EntityOffers: оборачиваем в entityOffersWrapper с Title ===
     if (thisContainerType === 'EntityOffers') {
-      const wrapper = figma.createFrame();
-      wrapper.name = 'entityOffersWrapper';
-      wrapper.layoutMode = 'VERTICAL';
-      wrapper.primaryAxisSizingMode = 'AUTO';
-      wrapper.counterAxisSizingMode = 'AUTO';
-      wrapper.clipsContent = true;
-
-      // Desktop: без паддингов и скруглений
-      // Touch: паддинги, скругления, gap 12px между Title и контентом
-      if (platform === 'touch') {
-        wrapper.itemSpacing = 12;
-        wrapper.paddingTop = 16;
-        wrapper.paddingBottom = 16;
-        wrapper.paddingLeft = 15;
-        wrapper.paddingRight = 15;
-        wrapper.cornerRadius = 16;
-        await applyFill(wrapper, 'Background/Primary');
-      } else {
-        wrapper.itemSpacing = 0;
-        wrapper.paddingTop = 0;
-        wrapper.paddingBottom = 0;
-        wrapper.paddingLeft = 0;
-        wrapper.paddingRight = 0;
-        wrapper.cornerRadius = 0;
-        wrapper.fills = [];
-      }
-
-      // Добавляем Title с текстом из данных (EntityOffersTitle) или дефолтным
-      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
-      if (titleConfig?.key) {
-        try {
-          const titleComponent = await loadComponent(titleConfig.key);
-          if (titleComponent) {
-            const titleInstance = titleComponent.createInstance();
-
-            // Применяем defaultVariant свойства (отключаем лишние элементы)
-            if (titleConfig.defaultVariant) {
-              try {
-                titleInstance.setProperties(
-                  titleConfig.defaultVariant as Record<string, string | boolean>,
-                );
-              } catch (e) {
-                Logger.debug(`[PageCreator] Title setProperties: ${e}`);
-              }
+      const isTouch = platform === 'touch';
+      const result = await createWrappedContainer({
+        wrapperName: 'entityOffersWrapper',
+        wrapperStyle: isTouch
+          ? {
+              padding: { top: 16, bottom: 16, left: 15, right: 15 },
+              itemSpacing: 12,
+              cornerRadius: 16,
+              fillVariable: 'Background/Primary',
             }
-
-            wrapper.appendChild(titleInstance);
-            titleInstance.layoutSizingHorizontal = 'FILL';
-
-            // Устанавливаем текст заголовка из данных первого ребёнка или дефолтный
-            const entityTitle =
-              node.children?.[0]?.data?.['#EntityOffersTitle'] || 'Цены по вашему запросу';
-            const textNode = findTextNode(titleInstance);
-            if (textNode) {
-              await figma.loadFontAsync(textNode.fontName as FontName);
-              textNode.characters = String(entityTitle);
-            }
-
-            Logger.debug(`[PageCreator] EntityOffers Title: "${entityTitle}"`);
-          }
-        } catch (e) {
-          Logger.warn(`[PageCreator] Не удалось создать Title для EntityOffers: ${e}`);
-        }
-      }
-
-      // Создаём EntityOffers контейнер внутри wrapper
-      const containerFrame = createContainerFrame(containerConfig);
-      // Touch: gap 8px между элементами внутри EntityOffers
-      if (platform === 'touch') {
-        containerFrame.itemSpacing = 8;
-      }
-      wrapper.appendChild(containerFrame);
-      containerFrame.layoutSizingHorizontal = 'FILL';
-
-      // Рендерим дочерние узлы (EShopItem)
-      if (node.children) {
-        for (const child of node.children) {
-          const result = await renderStructureNode(
-            child,
-            platform,
-            errors,
-            thisContainerType,
-            query,
-          );
-          if (result.element) {
-            containerFrame.appendChild(result.element);
-            (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
-            count += result.count;
-          }
-        }
-      }
-
-      Logger.debug(`[PageCreator] EntityOffers wrapper: ${node.children?.length || 0} элементов`);
-      return { element: wrapper, count };
+          : {
+              padding: { top: 0, bottom: 0, left: 0, right: 0 },
+              itemSpacing: 0,
+              cornerRadius: 0,
+              fillVariable: null,
+            },
+        containerConfig: containerConfig,
+        titleDataField: '#EntityOffersTitle',
+        titleDefault: 'Цены по вашему запросу',
+        node: node,
+        childSizing: 'FILL',
+        containerPostConfig: function (frame) {
+          if (isTouch) frame.itemSpacing = 8;
+        },
+        renderChild: function (child) {
+          return renderStructureNode(child, platform, errors, thisContainerType, query);
+        },
+      });
+      return { element: result.element, count: result.count };
     }
 
     // === EShopList: оборачиваем в eShopListWrapper с Title ===
     if (thisContainerType === 'EShopList') {
-      const wrapper = figma.createFrame();
-      wrapper.name = 'eShopListWrapper';
-      wrapper.layoutMode = 'VERTICAL';
-      wrapper.primaryAxisSizingMode = 'AUTO';
-      wrapper.counterAxisSizingMode = 'AUTO';
-      wrapper.clipsContent = true;
-
-      // Touch: паддинги, скругления, gap 12px между Title и контентом
-      wrapper.itemSpacing = 12;
-      wrapper.paddingTop = 16;
-      wrapper.paddingBottom = 16;
-      wrapper.paddingLeft = 15;
-      wrapper.paddingRight = 15;
-      wrapper.cornerRadius = 16;
-      await applyFill(wrapper, 'Background/Primary');
-
-      // Добавляем Title с текстом из данных (EShopListTitle) или дефолтным
-      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
-      if (titleConfig?.key) {
-        try {
-          const titleComponent = await loadComponent(titleConfig.key);
-          if (titleComponent) {
-            const titleInstance = titleComponent.createInstance();
-
-            // Применяем defaultVariant свойства (отключаем лишние элементы)
-            if (titleConfig.defaultVariant) {
-              try {
-                titleInstance.setProperties(
-                  titleConfig.defaultVariant as Record<string, string | boolean>,
-                );
-              } catch (e) {
-                Logger.debug(`[PageCreator] Title setProperties: ${e}`);
-              }
-            }
-
-            wrapper.appendChild(titleInstance);
-            titleInstance.layoutSizingHorizontal = 'FILL';
-
-            // Устанавливаем текст заголовка из данных первого ребёнка или дефолтный
-            const shopListTitle =
-              node.children?.[0]?.data?.['#EShopListTitle'] || 'Цены в магазинах';
-            const textNode = findTextNode(titleInstance);
-            if (textNode) {
-              await figma.loadFontAsync(textNode.fontName as FontName);
-              textNode.characters = String(shopListTitle);
-            }
-
-            Logger.debug(`[PageCreator] EShopList Title: "${shopListTitle}"`);
-          }
-        } catch (e) {
-          Logger.warn(`[PageCreator] Не удалось создать Title для EShopList: ${e}`);
-        }
-      }
-
-      // Создаём EShopList контейнер внутри wrapper (с gap 6px)
-      const containerFrame = createContainerFrame(containerConfig);
-      wrapper.appendChild(containerFrame);
-      containerFrame.layoutSizingHorizontal = 'FILL';
-
-      // Рендерим дочерние узлы (EShopItem)
-      if (node.children) {
-        for (const child of node.children) {
-          const result = await renderStructureNode(
-            child,
-            platform,
-            errors,
-            thisContainerType,
-            query,
-          );
-          if (result.element) {
-            containerFrame.appendChild(result.element);
-            (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
-            count += result.count;
-          }
-        }
-      }
-
-      Logger.debug(`[PageCreator] EShopList wrapper: ${node.children?.length || 0} элементов`);
-      return { element: wrapper, count };
+      const result = await createWrappedContainer({
+        wrapperName: 'eShopListWrapper',
+        wrapperStyle: {
+          padding: { top: 16, bottom: 16, left: 15, right: 15 },
+          itemSpacing: 12,
+          cornerRadius: 16,
+          fillVariable: 'Background/Primary',
+        },
+        containerConfig: containerConfig,
+        titleDataField: '#EShopListTitle',
+        titleDefault: 'Цены в магазинах',
+        node: node,
+        childSizing: 'FILL',
+        renderChild: function (child) {
+          return renderStructureNode(child, platform, errors, thisContainerType, query);
+        },
+      });
+      return { element: result.element, count: result.count };
     }
 
     // === ImagesGrid: justified grid из EThumb ===
@@ -948,81 +669,24 @@ async function renderStructureNode(
 
     // === AdvProductGallery: wrapper с заголовком и белым фоном ===
     if (thisContainerType === 'AdvProductGallery') {
-      const wrapper = figma.createFrame();
-      wrapper.name = 'advProductGalleryWrapper';
-      wrapper.layoutMode = 'VERTICAL';
-      wrapper.primaryAxisSizingMode = 'AUTO';
-      wrapper.counterAxisSizingMode = 'AUTO';
-      wrapper.itemSpacing = 12;
-      wrapper.paddingTop = 16;
-      wrapper.paddingBottom = 16;
-      wrapper.paddingLeft = 15;
-      wrapper.paddingRight = 15;
-      wrapper.cornerRadius = 16;
-      wrapper.clipsContent = true;
-      await applyFill(wrapper, 'Background/Primary');
-
-      // Заголовок галереи
-      const galleryTitle =
-        node.children?.[0]?.data?.['#AdvGalleryTitle'] || 'Предложения магазинов';
-      const titleConfig = LAYOUT_COMPONENT_MAP['Title'];
-      if (titleConfig?.key) {
-        try {
-          const titleComponent = await loadComponent(titleConfig.key);
-          if (titleComponent) {
-            const titleInstance = titleComponent.createInstance();
-            if (titleConfig.defaultVariant) {
-              try {
-                titleInstance.setProperties(
-                  titleConfig.defaultVariant as Record<string, string | boolean>,
-                );
-              } catch (e) {
-                Logger.debug(`[PageCreator] AdvGallery Title setProperties: ${e}`);
-              }
-            }
-            wrapper.appendChild(titleInstance);
-            titleInstance.layoutSizingHorizontal = 'FILL';
-
-            const textNode = findTextNode(titleInstance);
-            if (textNode) {
-              await figma.loadFontAsync(textNode.fontName as FontName);
-              textNode.characters = galleryTitle;
-            }
-            Logger.debug(`[PageCreator] AdvGallery Title: "${galleryTitle}"`);
-          }
-        } catch (e) {
-          Logger.warn(`[PageCreator] AdvGallery Title error: ${e}`);
-        }
-      }
-
-      // Контейнер с карточками
-      const containerFrame = createContainerFrame(containerConfig);
-      wrapper.appendChild(containerFrame);
-
-      if (node.children) {
-        for (const child of node.children) {
-          const result = await renderStructureNode(
-            child,
-            platform,
-            errors,
-            thisContainerType,
-            query,
-          );
-          if (result.element) {
-            containerFrame.appendChild(result.element);
-            if (typeof containerConfig.childWidth === 'number') {
-              (result.element as InstanceNode).resize(
-                containerConfig.childWidth,
-                (result.element as InstanceNode).height,
-              );
-            }
-            count += result.count;
-          }
-        }
-      }
-
-      Logger.debug(`[PageCreator] AdvProductGallery: ${node.children?.length || 0} карточек`);
-      return { element: wrapper, count };
+      const result = await createWrappedContainer({
+        wrapperName: 'advProductGalleryWrapper',
+        wrapperStyle: {
+          padding: { top: 16, bottom: 16, left: 15, right: 15 },
+          itemSpacing: 12,
+          cornerRadius: 16,
+          fillVariable: 'Background/Primary',
+        },
+        containerConfig: containerConfig,
+        titleDataField: '#AdvGalleryTitle',
+        titleDefault: 'Предложения магазинов',
+        node: node,
+        childSizing: 'config',
+        renderChild: function (child) {
+          return renderStructureNode(child, platform, errors, thisContainerType, query);
+        },
+      });
+      return { element: result.element, count: result.count };
     }
 
     // === Остальные контейнеры ===
