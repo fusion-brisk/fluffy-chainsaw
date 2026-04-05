@@ -82,7 +82,7 @@ Figma adds a ~40px title bar above the plugin iframe. `UI_SIZES` controls the
 Current tiers (`types.ts`):
 
 - compact: 320×56
-- standard: 320×320 (confirming dialog)
+- standard: 320×220 (confirming dialog)
 - extended: 420×520
 
 ## `overflow: hidden` cascade

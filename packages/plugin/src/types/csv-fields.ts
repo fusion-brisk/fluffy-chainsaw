@@ -485,8 +485,6 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#isVerified',
   '#Sitelinks',
   '#withPromo',
-  '#PromoLabel',
-  '#PromoLink',
   '#withQuotes',
   '#withPrice',
   '#isCatalogPage',
@@ -495,8 +493,6 @@ export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   '#hasShopOfflineRegion',
   '#InfoIcon',
   '#ProductsTilesShowAll',
-  '#ProductsTilesShowAllText',
-  '#ProductsTilesShowAllHref',
   '#ProductsMixedGridShowAll',
   '#MixedGridImageOnly',
 ];
