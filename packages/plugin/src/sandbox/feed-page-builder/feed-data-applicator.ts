@@ -253,13 +253,13 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
   // Main image — path: instance > ... > Thumb > Image (INSTANCE) > Img (fill target)
   if (imageUrl) {
     chain = chain.then(function () {
-      var thumb = findChildByName(instance, 'Thumb', 8);
+      const thumb = findChildByName(instance, 'Thumb', 8);
 
       // Step 1: Find Image instance and set properties
-      var imageInst = findChildInstance(instance, 'Image', 8);
+      const imageInst = findChildInstance(instance, 'Image', 8);
       if (imageInst) {
-        var imageProps: Record<string, string | boolean> = { 'Placeholder#4004:1': false };
-        var ratio = card['#Feed_ImageRatio'];
+        const imageProps: Record<string, string | boolean> = { 'Placeholder#4004:1': false };
+        const ratio = card['#Feed_ImageRatio'];
         if (ratio) {
           imageProps['Ratio'] = ratio;
         }
@@ -273,7 +273,7 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
       }
 
       // Step 2: Find Img fill target — try multiple paths
-      var imgNode: SceneNode | null = null;
+      let imgNode: SceneNode | null = null;
 
       // Path A: inside Image instance
       if (imageInst) {
@@ -294,7 +294,9 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
       }
 
       Logger.debug('[FeedApplicator] Applying image to ' + imgNode.name + ' in ' + instance.name);
-      return fetchAndApplyImage(imgNode, imageUrl, 'FILL', '[Feed/thumb]', relayUrl);
+      return fetchAndApplyImage(imgNode, imageUrl, 'FILL', '[Feed/thumb]', relayUrl).then(
+        function () {},
+      );
     });
   }
 
@@ -309,7 +311,7 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
       const imgNode = findFillableByName(sourceIcon, 'Img', 4);
       if (!imgNode) return;
       // Hide "Placeholder" child layer inside Source Feed / Icon
-      var placeholder = findChildByName(sourceIcon, 'Placeholder', 2);
+      const placeholder = findChildByName(sourceIcon, 'Placeholder', 2);
       if (placeholder) {
         safeSetVisible(placeholder, false, sourceIcon);
       }

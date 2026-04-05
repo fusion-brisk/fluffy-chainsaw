@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CSVRow, AppState, ImportInfo, ProcessingStats, RelayPayload } from '../../types';
 import { sendMessageToPlugin } from '../../utils/index';
 import type { ImportOptions } from '../components/ImportConfirmDialog';

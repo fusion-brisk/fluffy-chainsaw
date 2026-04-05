@@ -145,10 +145,10 @@ export async function fetchAndApplyImage(
     }
 
     // Fetch image — try direct first, fallback to relay proxy (for CORS-blocked URLs)
-    var arrayBuffer: ArrayBuffer | null = null;
+    let arrayBuffer: ArrayBuffer | null = null;
 
     try {
-      var directRes = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
+      const directRes = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
       if (directRes.ok) {
         arrayBuffer = await directRes.arrayBuffer();
       } else {
@@ -161,8 +161,8 @@ export async function fetchAndApplyImage(
     // Fallback: relay image-proxy (handles CORS-blocked CDNs like get-inspire)
     if ((!arrayBuffer || arrayBuffer.byteLength === 0) && proxyBaseUrl) {
       try {
-        var proxyUrl = proxyBaseUrl + '/image-proxy?url=' + encodeURIComponent(normalizedUrl);
-        var proxyRes = await withTimeout(fetch(proxyUrl), IMAGE_FETCH_TIMEOUT);
+        const proxyUrl = proxyBaseUrl + '/image-proxy?url=' + encodeURIComponent(normalizedUrl);
+        const proxyRes = await withTimeout(fetch(proxyUrl), IMAGE_FETCH_TIMEOUT);
         if (proxyRes.ok) {
           arrayBuffer = await proxyRes.arrayBuffer();
           Logger.debug(
