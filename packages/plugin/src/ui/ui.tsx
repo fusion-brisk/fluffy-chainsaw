@@ -471,6 +471,7 @@ const App: React.FC = () => {
       {panels.activePanel === 'whatsNew' && (
         <PanelLayout title="Что нового" onBack={handleCloseWhatsNew}>
           {/* TODO: replace with <WhatsNewContent /> when component is ready */}
+          <div className="panel-layout__placeholder" />
         </PanelLayout>
       )}
     </div>
