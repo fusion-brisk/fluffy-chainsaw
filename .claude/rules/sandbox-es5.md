@@ -9,6 +9,7 @@ All code in `packages/plugin/src/sandbox/` compiles to ES5 via Babel (IE11 targe
 ## Forbidden APIs
 
 Never use these runtime APIs — they don't exist in ES5:
+
 - `Promise.allSettled()`, `Promise.any()`
 - `Object.fromEntries()`, `Object.entries()` (use polyfilled alternatives)
 - `Array.flat()`, `Array.flatMap()`
@@ -27,6 +28,7 @@ Never use these runtime APIs — they don't exist in ES5:
 ## Scope
 
 This constraint does NOT apply to:
+
 - `src/ui/` (React, modern browsers)
 - `packages/extension/` (Chrome, modern JS)
 - `packages/relay/` (Node.js)

@@ -41,10 +41,10 @@ sequenceDiagram
 
 ### Entry Points
 
-| Файл | Thread | Описание |
-|------|--------|----------|
-| `src/code.ts` | Sandbox | Главная логика плагина, Figma API |
-| `src/ui.tsx` | UI (iframe) | React-интерфейс, парсинг файлов |
+| Файл          | Thread      | Описание                          |
+| ------------- | ----------- | --------------------------------- |
+| `src/code.ts` | Sandbox     | Главная логика плагина, Figma API |
+| `src/ui.tsx`  | UI (iframe) | React-интерфейс, парсинг файлов   |
 
 ### Поток обработки данных
 
@@ -71,20 +71,22 @@ postMessage({ type: 'done', count })
 Декларативная система маппинга данных на свойства Figma-компонентов. Заменяет императивные handlers для 4 типов контейнеров.
 
 **Принцип:** Вместо императивного кода `if (row['#X'] === 'true') trySetProperty(...)` — декларативная запись:
+
 ```typescript
 { propertyNames: ['withX'], fieldName: '#X', equals: { field: '#X', value: 'true' } }
 ```
 
 **Покрытые контейнеры:**
 
-| Контейнер | Schema файл | Props | Nested |
-|-----------|-------------|-------|--------|
-| EShopItem | `eshop-item.ts` | 11 | EShopName (2) |
-| EOfferItem | `eoffer-item.ts` | 10 | — |
-| EProductSnippet/2 | `eproduct-snippet.ts` | 4 | EShopName (1) |
-| ESnippet/Snippet | `esnippet.ts` | 21 | — |
+| Контейнер         | Schema файл           | Props | Nested        |
+| ----------------- | --------------------- | ----- | ------------- |
+| EShopItem         | `eshop-item.ts`       | 11    | EShopName (2) |
+| EOfferItem        | `eoffer-item.ts`      | 10    | —             |
+| EProductSnippet/2 | `eproduct-snippet.ts` | 4     | EShopName (1) |
+| ESnippet/Snippet  | `esnippet.ts`         | 21    | —             |
 
 **PropertyMapping — 4 режима значений:**
+
 - `hasValue: '#Field'` — boolean: поле непустое
 - `stringValue: '#Field'` — string: значение as-is
 - `equals: { field, value }` — boolean: точное совпадение
@@ -100,18 +102,19 @@ postMessage({ type: 'done', count })
 
 **Приоритеты выполнения:**
 
-| Приоритет | Название | Handlers |
-|-----------|----------|----------|
-| 0 | CRITICAL | EPriceGroup |
-| 10 | VARIANTS | BrandLogic*, ELabelGroup, EPriceBarometer, ShopInfoBnpl |
-| 20 | VISIBILITY | EButton, OfficialShop*, HidePriceBlock, ImageType, EcomMetaVisibility |
-| 30 | TEXT | LabelDiscountView, ShopInfoUgcAndEReviewsShopText, ShopOfflineRegion, QuoteText, OrganicPath, EDeliveryGroup |
-| 40 | FALLBACK | ESnippetOrganicTextFallback, ESnippetOrganicHostFromFavicon |
-| 50 | FINAL | EmptyGroups |
+| Приоритет | Название   | Handlers                                                                                                     |
+| --------- | ---------- | ------------------------------------------------------------------------------------------------------------ |
+| 0         | CRITICAL   | EPriceGroup                                                                                                  |
+| 10        | VARIANTS   | BrandLogic\*, ELabelGroup, EPriceBarometer, ShopInfoBnpl                                                     |
+| 20        | VISIBILITY | EButton, OfficialShop\*, HidePriceBlock, ImageType, EcomMetaVisibility                                       |
+| 30        | TEXT       | LabelDiscountView, ShopInfoUgcAndEReviewsShopText, ShopOfflineRegion, QuoteText, OrganicPath, EDeliveryGroup |
+| 40        | FALLBACK   | ESnippetOrganicTextFallback, ESnippetOrganicHostFromFavicon                                                  |
+| 50        | FINAL      | EmptyGroups                                                                                                  |
 
 \* — пропускается для контейнеров, обрабатываемых schema engine
 
 **Режимы выполнения:**
+
 - `sync` — синхронное выполнение
 - `async` — асинхронное, но последовательное
 - `parallel` — параллельное выполнение независимых handlers
@@ -120,12 +123,12 @@ postMessage({ type: 'done', count })
 
 Утилиты для работы со свойствами Figma-компонентов.
 
-| Функция | Описание |
-|---------|----------|
-| `trySetProperty(instance, keys[], value, fieldName)` | Умная установка свойства с fallback на полный ключ |
-| `processVariantProperty(instance, 'Key=value', fieldName)` | Установка Variant Property |
-| `processBooleanProperty(instance, key, value, fieldName)` | Установка Boolean Property |
-| `getCachedInstance(cache, name)` | Получение инстанса из кэша |
+| Функция                                                    | Описание                                           |
+| ---------------------------------------------------------- | -------------------------------------------------- |
+| `trySetProperty(instance, keys[], value, fieldName)`       | Умная установка свойства с fallback на полный ключ |
+| `processVariantProperty(instance, 'Key=value', fieldName)` | Установка Variant Property                         |
+| `processBooleanProperty(instance, key, value, fieldName)`  | Установка Boolean Property                         |
+| `getCachedInstance(cache, name)`                           | Получение инстанса из кэша                         |
 
 **Важно:** Свойства из вложенных компонентов имеют суффикс `#12345:0`. Функция `trySetProperty` автоматически обрабатывает это.
 
@@ -162,13 +165,13 @@ extension/
 
 **Ключевые функции:**
 
-| Функция | Описание |
-|---------|----------|
-| `extractSnippets()` | Главная точка входа — возвращает CSVRow[] |
-| `extractRowData(container)` | Парсинг одного сниппета |
-| `getSnippetType(container)` | Определение типа по CSS-классам |
-| `extractPrices(container)` | Извлечение цен (текущая, старая, скидка) |
-| `extractFavicon(container)` | Извлечение фавиконки (5 стратегий) |
+| Функция                     | Описание                                  |
+| --------------------------- | ----------------------------------------- |
+| `extractSnippets()`         | Главная точка входа — возвращает CSVRow[] |
+| `extractRowData(container)` | Парсинг одного сниппета                   |
+| `getSnippetType(container)` | Определение типа по CSS-классам           |
+| `extractPrices(container)`  | Извлечение цен (текущая, старая, скидка)  |
+| `extractFavicon(container)` | Извлечение фавиконки (5 стратегий)        |
 
 **Определение типа сниппета:**
 
@@ -198,12 +201,12 @@ function getSnippetType(container) {
 
 ### Endpoints
 
-| Endpoint | Method | Описание |
-|----------|--------|----------|
-| `/push` | POST | Extension отправляет данные |
-| `/pull` | GET | Plugin получает данные |
-| `/status` | GET | Статус очереди |
-| `/health` | GET | Проверка здоровья + lastPushAt |
+| Endpoint  | Method | Описание                       |
+| --------- | ------ | ------------------------------ |
+| `/push`   | POST   | Extension отправляет данные    |
+| `/pull`   | GET    | Plugin получает данные         |
+| `/status` | GET    | Статус очереди                 |
+| `/health` | GET    | Проверка здоровья + lastPushAt |
 
 ### Формат данных
 
@@ -265,6 +268,7 @@ React-приложение с конечным автоматом состоян
 ```
 
 **Альтернативные состояния:**
+
 - `setup` — Relay не подключён, показываем инструкцию
 - `fileDrop` — Fallback для загрузки файлов
 
@@ -274,44 +278,44 @@ React-приложение с конечным автоматом состоян
 
 ### Добавление нового поля данных
 
-| Шаг | Файл | Что делать |
-|-----|------|------------|
-| 1 | `src/types/csv-fields.ts` | Добавить поле в CSVFields |
-| 2 | `extension/content.js` | Добавить извлечение в extractRowData() |
-| 3 | `src/parsing-rules.ts` | Добавить селекторы (опционально) |
+| Шаг | Файл                      | Что делать                             |
+| --- | ------------------------- | -------------------------------------- |
+| 1   | `src/types/csv-fields.ts` | Добавить поле в CSVFields              |
+| 2   | `extension/content.js`    | Добавить извлечение в extractRowData() |
+| 3   | `src/parsing-rules.ts`    | Добавить селекторы (опционально)       |
 
 ### Добавление нового handler
 
-| Шаг | Файл | Что делать |
-|-----|------|------------|
-| 1 | `src/handlers/*.ts` | Создать функцию handleXxx() |
-| 2 | `src/handlers/registry.ts` | Зарегистрировать с приоритетом |
-| 3 | `src/handlers/types.ts` | Добавить типы если нужно |
+| Шаг | Файл                       | Что делать                     |
+| --- | -------------------------- | ------------------------------ |
+| 1   | `src/handlers/*.ts`        | Создать функцию handleXxx()    |
+| 2   | `src/handlers/registry.ts` | Зарегистрировать с приоритетом |
+| 3   | `src/handlers/types.ts`    | Добавить типы если нужно       |
 
 ### Добавление нового компонента
 
-| Шаг | Файл | Что делать |
-|-----|------|------------|
-| 1 | Figma Dev Console | Получить ключ компонента |
-| 2 | `src/page-builder/component-map.ts` | Добавить в SNIPPET_COMPONENT_MAP |
-| 3 | `src/page-builder/structure-builder.ts` | Добавить обработку типа |
-| 4 | `src/page-builder/page-creator.ts` | Добавить создание если нужно специальное |
+| Шаг | Файл                                    | Что делать                               |
+| --- | --------------------------------------- | ---------------------------------------- |
+| 1   | Figma Dev Console                       | Получить ключ компонента                 |
+| 2   | `src/page-builder/component-map.ts`     | Добавить в SNIPPET_COMPONENT_MAP         |
+| 3   | `src/page-builder/structure-builder.ts` | Добавить обработку типа                  |
+| 4   | `src/page-builder/page-creator.ts`      | Добавить создание если нужно специальное |
 
 ### Изменение UI
 
-| Файл | Описание |
-|------|----------|
-| `src/ui.tsx` | Главный React-компонент, state machine |
-| `src/components/*.tsx` | React-компоненты |
-| `src/styles.css` | CSS стили (Figma UI3 переменные) |
+| Файл                   | Описание                               |
+| ---------------------- | -------------------------------------- |
+| `src/ui.tsx`           | Главный React-компонент, state machine |
+| `src/components/*.tsx` | React-компоненты                       |
+| `src/styles.css`       | CSS стили (Figma UI3 переменные)       |
 
 ### Отладка
 
-| Файл | Что смотреть |
-|------|--------------|
-| `src/logger.ts` | Уровни логирования |
+| Файл              | Что смотреть                             |
+| ----------------- | ---------------------------------------- |
+| `src/logger.ts`   | Уровни логирования                       |
 | Figma Dev Console | Логи плагина, debugComponentProperties() |
-| Chrome DevTools | Network → Relay запросы |
+| Chrome DevTools   | Network → Relay запросы                  |
 
 ---
 

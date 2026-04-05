@@ -33,178 +33,185 @@ const SUCCESS_COLORS = [
   '#60A5FA', // Голубой
 ];
 
-export const Confetti: React.FC<ConfettiProps> = memo(({ isActive, isFirstRun = false, onComplete }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number | null>(null);
-  const particlesRef = useRef<Particle[]>([]);
+export const Confetti: React.FC<ConfettiProps> = memo(
+  ({ isActive, isFirstRun = false, onComplete }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const animationRef = useRef<number | null>(null);
+    const particlesRef = useRef<Particle[]>([]);
 
-  // Only show confetti on first successful import
-  const shouldAnimate = isActive && isFirstRun;
+    // Only show confetti on first successful import
+    const shouldAnimate = isActive && isFirstRun;
 
-  useEffect(() => {
-    if (!shouldAnimate) {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      particlesRef.current = [];
-      return;
-    }
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Устанавливаем размер canvas
-    const updateSize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    updateSize();
-
-    const colors = SUCCESS_COLORS;
-    const particleCount = 50;
-
-    // Создаём частицы с 3D-эффектом
-    const createParticles = () => {
-      const particles: Particle[] = [];
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-
-      for (let i = 0; i < particleCount; i++) {
-        const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
-        const velocity = 4 + Math.random() * 6; // Reduced velocity
-        const shapes: ('rect' | 'circle' | 'star')[] = ['rect', 'circle', 'star'];
-
-        particles.push({
-          x: centerX,
-          y: centerY,
-          vx: Math.cos(angle) * velocity * (0.5 + Math.random()),
-          vy: Math.sin(angle) * velocity * (0.5 + Math.random()) - 3,
-          rotation: Math.random() * 360,
-          rotationSpeed: (Math.random() - 0.5) * 10,
-          color: colors[Math.floor(Math.random() * colors.length)],
-          size: 4 + Math.random() * 6, // Smaller particles
-          shape: shapes[Math.floor(Math.random() * shapes.length)],
-          opacity: 1,
-          life: 1,
-        });
-      }
-      return particles;
-    };
-
-    particlesRef.current = createParticles();
-    const startTime = Date.now();
-    const duration = 1500;
-
-    // Анимация
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = elapsed / duration;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (progress >= 1) {
+    useEffect(() => {
+      if (!shouldAnimate) {
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
           animationRef.current = null;
         }
         particlesRef.current = [];
-        onComplete?.();
         return;
       }
 
-      for (const p of particlesRef.current) {
-        // Физика с гравитацией
-        p.vy += 0.3; // Гравитация
-        p.vx *= 0.99; // Трение воздуха
-        p.vy *= 0.99;
-        p.x += p.vx;
-        p.y += p.vy;
-        p.rotation += p.rotationSpeed;
-        
-        // Затухание
-        p.life = 1 - progress;
-        p.opacity = p.life * (1 - Math.pow(progress, 2));
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-        // Отскок от краёв
-        if (p.y > canvas.height - p.size) {
-          p.y = canvas.height - p.size;
-          p.vy *= -0.5;
-          p.vx *= 0.8;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Устанавливаем размер canvas
+      const updateSize = () => {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      };
+      updateSize();
+
+      const colors = SUCCESS_COLORS;
+      const particleCount = 50;
+
+      // Создаём частицы с 3D-эффектом
+      const createParticles = () => {
+        const particles: Particle[] = [];
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        for (let i = 0; i < particleCount; i++) {
+          const angle = (Math.PI * 2 * i) / particleCount + Math.random() * 0.5;
+          const velocity = 4 + Math.random() * 6; // Reduced velocity
+          const shapes: ('rect' | 'circle' | 'star')[] = ['rect', 'circle', 'star'];
+
+          particles.push({
+            x: centerX,
+            y: centerY,
+            vx: Math.cos(angle) * velocity * (0.5 + Math.random()),
+            vy: Math.sin(angle) * velocity * (0.5 + Math.random()) - 3,
+            rotation: Math.random() * 360,
+            rotationSpeed: (Math.random() - 0.5) * 10,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            size: 4 + Math.random() * 6, // Smaller particles
+            shape: shapes[Math.floor(Math.random() * shapes.length)],
+            opacity: 1,
+            life: 1,
+          });
+        }
+        return particles;
+      };
+
+      particlesRef.current = createParticles();
+      const startTime = Date.now();
+      const duration = 1500;
+
+      // Анимация
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = elapsed / duration;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (progress >= 1) {
+          if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+            animationRef.current = null;
+          }
+          particlesRef.current = [];
+          onComplete?.();
+          return;
         }
 
-        // Рисуем частицу с 3D-эффектом
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate((p.rotation * Math.PI) / 180);
-        ctx.globalAlpha = p.opacity;
+        for (const p of particlesRef.current) {
+          // Физика с гравитацией
+          p.vy += 0.3; // Гравитация
+          p.vx *= 0.99; // Трение воздуха
+          p.vy *= 0.99;
+          p.x += p.vx;
+          p.y += p.vy;
+          p.rotation += p.rotationSpeed;
 
-        // 3D-эффект через градиент
-        const gradient = ctx.createLinearGradient(-p.size / 2, -p.size / 2, p.size / 2, p.size / 2);
-        gradient.addColorStop(0, p.color);
-        gradient.addColorStop(0.5, p.color);
-        gradient.addColorStop(1, adjustColor(p.color, -30));
+          // Затухание
+          p.life = 1 - progress;
+          p.opacity = p.life * (1 - Math.pow(progress, 2));
 
-        ctx.fillStyle = gradient;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = 4;
+          // Отскок от краёв
+          if (p.y > canvas.height - p.size) {
+            p.y = canvas.height - p.size;
+            p.vy *= -0.5;
+            p.vx *= 0.8;
+          }
 
-        if (p.shape === 'rect') {
-          // Прямоугольник (конфетти)
-          ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
-        } else if (p.shape === 'circle') {
-          // Круг
-          ctx.beginPath();
-          ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
-          ctx.fill();
-        } else {
-          // Звезда
-          drawStar(ctx, 0, 0, 5, p.size / 2, p.size / 4);
-          ctx.fill();
+          // Рисуем частицу с 3D-эффектом
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.globalAlpha = p.opacity;
+
+          // 3D-эффект через градиент
+          const gradient = ctx.createLinearGradient(
+            -p.size / 2,
+            -p.size / 2,
+            p.size / 2,
+            p.size / 2,
+          );
+          gradient.addColorStop(0, p.color);
+          gradient.addColorStop(0.5, p.color);
+          gradient.addColorStop(1, adjustColor(p.color, -30));
+
+          ctx.fillStyle = gradient;
+          ctx.shadowColor = p.color;
+          ctx.shadowBlur = 4;
+
+          if (p.shape === 'rect') {
+            // Прямоугольник (конфетти)
+            ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+          } else if (p.shape === 'circle') {
+            // Круг
+            ctx.beginPath();
+            ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+            ctx.fill();
+          } else {
+            // Звезда
+            drawStar(ctx, 0, 0, 5, p.size / 2, p.size / 4);
+            ctx.fill();
+          }
+
+          ctx.restore();
         }
 
-        ctx.restore();
+        animationRef.current = requestAnimationFrame(animate);
+      };
+
+      animate();
+
+      return () => {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+        }
+      };
+    }, [shouldAnimate, onComplete]);
+
+    // If active but not first run, immediately signal completion
+    useEffect(() => {
+      if (isActive && !isFirstRun) {
+        onComplete?.();
       }
+    }, [isActive, isFirstRun, onComplete]);
 
-      animationRef.current = requestAnimationFrame(animate);
-    };
+    if (!shouldAnimate) return null;
 
-    animate();
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-    };
-  }, [shouldAnimate, onComplete]);
-
-  // If active but not first run, immediately signal completion
-  useEffect(() => {
-    if (isActive && !isFirstRun) {
-      onComplete?.();
-    }
-  }, [isActive, isFirstRun, onComplete]);
-
-  if (!shouldAnimate) return null;
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: 9999,
-      }}
-    />
-  );
-});
+    return (
+      <canvas
+        ref={canvasRef}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+          zIndex: 9999,
+        }}
+      />
+    );
+  },
+);
 
 Confetti.displayName = 'Confetti';
 
@@ -223,7 +230,7 @@ function drawStar(
   cy: number,
   spikes: number,
   outerRadius: number,
-  innerRadius: number
+  innerRadius: number,
 ) {
   let rot = (Math.PI / 2) * 3;
   const step = Math.PI / spikes;
@@ -246,4 +253,3 @@ function drawStar(
   ctx.lineTo(cx, cy - outerRadius);
   ctx.closePath();
 }
-

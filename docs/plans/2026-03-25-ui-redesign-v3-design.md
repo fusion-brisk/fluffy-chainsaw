@@ -43,11 +43,13 @@ Create two CJM documents.
 "Pivotal Journey" — from first plugin launch to first successful import.
 
 Columns (states):
+
 1. Plugin Install → 2. First Launch → 3. Relay Setup → 4. Extension Setup →
-5. Connection Check → 6. First SERP Browse → 7. First Data Received →
-8. First Confirm → 9. First Processing → 10. First Success
+2. Connection Check → 6. First SERP Browse → 7. First Data Received →
+3. First Confirm → 9. First Processing → 10. First Success
 
 Rows for each column:
+
 - User Goal: what the user wants at this step
 - User Action: specific action (click, navigate, wait)
 - UI State: current AppState, window size, key elements on screen
@@ -61,11 +63,13 @@ Rows for each column:
 - Key Metric: completion rate / time-on-task / error rate
 
 Also include:
+
 - Emotional curve (ASCII chart by steps)
 - TTV (Time-to-Value): estimate current and target time
 - Critical barriers: top-3 drop-off points
 
 Current flow context:
+
 - SetupFlow.tsx: step-by-step wizard (relay download → extension install → verify)
 - useRelayConnection.ts: WebSocket + HTTP polling to localhost:3847
 - On first launch: isFirstRun=true, shows SetupFlow
@@ -76,13 +80,15 @@ Current flow context:
 "Toothbrush Journey" — daily usage cycle.
 
 Columns (states):
+
 1. Open Plugin → 2. Checking → 3. Ready (waiting) → 4. Browse SERP →
-5. Data Received (confirming) → 6. Configure Import (confirming) →
-7. Processing → 8. Success → 9. Back to Ready
+2. Data Received (confirming) → 6. Configure Import (confirming) →
+3. Processing → 8. Success → 9. Back to Ready
 
 Rows: same as Onboarding CJM.
 
 Also include:
+
 - Usage frequency (times per day)
 - Average imports per session
 - Sequential import patterns (batch workflow)
@@ -126,11 +132,13 @@ Create a document with:
 Add:
 
 1. Extend AppState, adding 'setup' as a separate state:
+
    ```typescript
    export type AppState = 'setup' | 'checking' | 'ready' | 'confirming' | 'processing' | 'success';
    ```
 
 2. Add FSM event types:
+
    ```typescript
    export type AppEvent =
      | 'SETUP_COMPLETE'
@@ -147,8 +155,9 @@ Add:
    ```
 
 3. Add transition map (type-safe):
+
    ```typescript
-   export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState>>>
+   export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState>>>;
    ```
 
 4. Update STATE_TO_TIER, adding 'setup': 'extended'
@@ -175,6 +184,7 @@ Migrate all custom CSS variables to native Figma CSS variables.
 Figma injects CSS variables into plugin iframe with themeColors: true. Full list: https://developers.figma.com/docs/plugins/css-variables/
 
 Key native variables:
+
 ```
 --figma-color-bg
 --figma-color-bg-secondary
@@ -205,6 +215,7 @@ Figma switches CSS variable values itself. Custom dark mode NOT needed.
 #### Step 2: Remove duplicate custom variables
 
 Replacement mapping:
+
 ```
 --color-primary → --figma-color-bg-brand
 --color-primary-hover → --figma-color-bg-brand-hover
@@ -224,6 +235,7 @@ Replacement mapping:
 #### Step 3: Keep ONLY semantic tokens not provided by Figma
 
 Keep:
+
 - Typography scale: --font-size-xs through --font-size-3xl
 - Font weights: --font-weight-regular/medium/semibold
 - Spacing scale: --space-xs through --space-2xl
@@ -234,7 +246,8 @@ Keep:
 - --btn-radius, --step-number-size
 
 Remove:
-- All --figma-color-* overrides in :root (they come from Figma)
+
+- All --figma-color-\* overrides in :root (they come from Figma)
 - Entire [data-theme="dark"] block
 - --gradient-brand (not UI3)
 - --overlay-bg, --overlay-bg-dark (replace with inline rgba)
@@ -243,11 +256,13 @@ Remove:
 #### Step 4: Update typography for UI3
 
 Figma UI3 uses:
+
 - Body: 11px / weight 400 (instead of current 12px)
 - Emphasis: weight 500 (instead of 600)
 - Spacing: strict 4px grid
 
 Update:
+
 ```
 --font-size-base: 11px (was 12px)
 --font-size-sm: 10px (was 11px)
@@ -289,18 +304,21 @@ Rewrite SetupFlow as a full onboarding wizard in Figma UI3 style.
 #### New Step Structure
 
 **Step 1: "Relay Server"**
+
 - Description: "Relay transfers data from browser to Figma"
 - Action: Download installer / Check connection
 - Auto-skip: if useRelayConnection.connected === true
 - Validation: ping localhost:3847/status
 
 **Step 2: "Browser Extension"**
+
 - Description: "Extension collects data from search results"
 - Action: Download zip → Instructions for loading into Chrome
 - Auto-skip: if extensionInstalled === true (from relay heartbeat)
 - Validation: relay reports extension connected
 
 **Step 3: "All Set!"**
+
 - Description: "Open Yandex search — data will arrive automatically"
 - Action: button "Start Working" → transition to Ready state
 - Show mini-instruction: "Enter query → wait for SERP → data appears here"
@@ -325,9 +343,15 @@ File: packages/plugin/src/ui/components/SetupFlow.tsx
 
   {/* Navigation */}
   <div className="setup-flow__footer">
-    {currentStep > 0 && <button className="btn-text" onClick={prev}>← Назад</button>}
+    {currentStep > 0 && (
+      <button className="btn-text" onClick={prev}>
+        ← Назад
+      </button>
+    )}
     <div className="setup-flow__footer-right">
-      <button className="btn-text" onClick={skip}>Пропустить</button>
+      <button className="btn-text" onClick={skip}>
+        Пропустить
+      </button>
       <button className="btn-primary" onClick={next} disabled={!stepValid}>
         {isLastStep ? 'Начать' : 'Далее →'}
       </button>
@@ -339,6 +363,7 @@ File: packages/plugin/src/ui/components/SetupFlow.tsx
 #### StepIndicator
 
 New component: horizontal dots with lines between them.
+
 - Completed: filled dot (--figma-color-bg-brand)
 - Current: ring with pulse animation
 - Future: grey dot (--figma-color-border)
@@ -357,6 +382,7 @@ New component: horizontal dots with lines between them.
 #### Auto-detect
 
 In useEffect on each step:
+
 - Step 1 (Relay): polling /status every 2s, on connected → markComplete + autoAdvance after 1s
 - Step 2 (Extension): listen for extensionInstalled from useRelayConnection
 - On auto-skip show green checkmark + "Already connected" for 1s, then next
@@ -434,6 +460,7 @@ Redesign ReadyView as the main plugin screen in Figma UI3 style.
 #### SVG Illustration
 
 Create simple monochrome SVG (80x80):
+
 - Use only --figma-color-text-tertiary and --figma-color-border
 - Style: thin lines (1.5px stroke), minimal, like icons in Figma empty states
 - Content: stylized browser window with magnifier → arrow → layers stack
@@ -477,6 +504,7 @@ Redesign three core flow screens for Figma UI3.
 Current problem: too many options, overloaded.
 
 New layout (400x400, tier standard):
+
 ```
 ┌──────────────────────────────────┐
 │ StatusBar                    ⚙ ≡ │
@@ -502,6 +530,7 @@ New layout (400x400, tier standard):
 ```
 
 Style:
+
 - Summary list: simple vertical list, no card
 - Each item: emoji/icon + text, --font-size-base
 - Radio buttons: native style, no custom components
@@ -513,6 +542,7 @@ Style:
 Current problem: generic spinner, no progress details.
 
 New layout (400x400):
+
 ```
 ┌──────────────────────────────────┐
 │ StatusBar                    ⚙ ≡ │
@@ -535,6 +565,7 @@ New layout (400x400):
 ```
 
 Style:
+
 - Centered vertically
 - Spinner: simple CSS (border-top trick), 2px stroke, --figma-color-bg-brand
 - Progress bar: 3px height, rounded, --figma-color-bg-brand fill
@@ -547,6 +578,7 @@ Style:
 Current problem: confetti on error, overloaded with stats.
 
 New layout (400x400):
+
 ```
 ┌──────────────────────────────────┐
 │ StatusBar                    ⚙ ≡ │
@@ -567,6 +599,7 @@ New layout (400x400):
 ```
 
 Style:
+
 - Checkmark: SVG, 48px, --figma-color-text-success, bounceIn animation (scale 0.3→1.1→1)
 - Auto-dismiss bar: thin (2px), shrinks from left over 3s, --figma-color-bg-brand
 - Confetti: ONLY on onboarding first success (isFirstRun), NOT on regular import
@@ -626,6 +659,7 @@ interface PanelLayoutProps {
 ```
 
 Usage:
+
 ```tsx
 <PanelLayout title="Логи" onBack={() => setShowLogViewer(false)}>
   <LogList messages={logMessages} />
@@ -635,6 +669,7 @@ Usage:
 #### Back Button
 
 UI3 style: not a pill, simple text "← Назад" or icon ← (16px).
+
 - --figma-color-text-secondary, hover → --figma-color-text
 - Clickable zone height: 32px (touch target)
 - Position: absolute left, title centered
@@ -687,6 +722,7 @@ Redesign StatusBar in Figma UI3 bottom bar style.
 Height: 32px. Position: fixed bottom (not top!).
 
 **State "all ok":**
+
 ```
 ┌──────────────────────────────────┐
 │  ● Подключено          ⚙    ≡   │
@@ -698,6 +734,7 @@ Height: 32px. Position: fixed bottom (not top!).
 - ≡ → open Logs (icon button)
 
 **State "has problem":**
+
 ```
 ┌──────────────────────────────────┐
 │  ⚠ Relay офлайн   [Настроить]   │
@@ -708,6 +745,7 @@ Height: 32px. Position: fixed bottom (not top!).
 - Action button → open corresponding guide
 
 **Click on status text → toggle detail popup (not hover!):**
+
 ```
 ┌──────────────────────┐
 │  Relay         ● онлайн  │
@@ -759,30 +797,30 @@ Unify all animations and transitions.
 ```css
 :root {
   /* Transitions */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);        /* Figma ease out */
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);    /* Standard */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1); /* Figma ease out */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1); /* Standard */
   --spring-quick: cubic-bezier(0.34, 1.56, 0.64, 1); /* Bounce */
-  --spring-gentle: cubic-bezier(0.22, 1, 0.36, 1);   /* Soft scale */
+  --spring-gentle: cubic-bezier(0.22, 1, 0.36, 1); /* Soft scale */
 
-  --duration-micro: 100ms;   /* Button feedback */
-  --duration-fast: 150ms;    /* Component transitions */
-  --duration-normal: 200ms;  /* View transitions */
-  --duration-slow: 300ms;    /* Panel slides */
-  --duration-resize: 350ms;  /* Window resize */
+  --duration-micro: 100ms; /* Button feedback */
+  --duration-fast: 150ms; /* Component transitions */
+  --duration-normal: 200ms; /* View transitions */
+  --duration-slow: 300ms; /* Panel slides */
+  --duration-resize: 350ms; /* Window resize */
 }
 ```
 
 #### State Transition Animations
 
-| Transition | Animation | Duration | Easing |
-|------------|-----------|----------|--------|
-| checking → ready | fade + scaleY expand | 350ms | --ease-out |
-| ready → confirming | crossfade | 200ms | --ease-out |
-| confirming → processing | crossfade | 200ms | --ease-out |
-| processing → success | crossfade + checkmark bounce | 200ms + 500ms | --ease-out + --spring-quick |
-| success → ready | fade out | 150ms | --ease-in-out |
-| ready → panel | slideX(16px) | 250ms | --ease-out |
-| panel → ready | slideX(-16px) | 200ms | --ease-in-out |
+| Transition              | Animation                    | Duration      | Easing                      |
+| ----------------------- | ---------------------------- | ------------- | --------------------------- |
+| checking → ready        | fade + scaleY expand         | 350ms         | --ease-out                  |
+| ready → confirming      | crossfade                    | 200ms         | --ease-out                  |
+| confirming → processing | crossfade                    | 200ms         | --ease-out                  |
+| processing → success    | crossfade + checkmark bounce | 200ms + 500ms | --ease-out + --spring-quick |
+| success → ready         | fade out                     | 150ms         | --ease-in-out               |
+| ready → panel           | slideX(16px)                 | 250ms         | --ease-out                  |
+| panel → ready           | slideX(-16px)                | 200ms         | --ease-in-out               |
 
 #### Implementation
 
@@ -802,7 +840,9 @@ Unify all animations and transitions.
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
@@ -870,19 +910,19 @@ Visually: walk through ALL states in light + dark mode.
 
 ## Summary
 
-| Phase | Description | Effort | Result |
-|-------|-------------|--------|--------|
-| 0 | CJM (two journey maps) | 2-3 h | 2 docs |
-| 1 | FSM (state machine) | 1-2 h | doc + types.ts |
-| 2 | Design Tokens (CSS migration) | 3-4 h | styles.css |
-| 3 | Onboarding Wizard | 6-8 h | SetupFlow.tsx |
-| 4 | Ready State | 3-4 h | ReadyView.tsx |
-| 5 | Core Flow (3 screens) | 6-8 h | 3 components |
-| 6 | Secondary Panels | 4-5 h | PanelLayout + 3 panels |
-| 7 | StatusBar | 3-4 h | StatusBar.tsx |
-| 8 | Motion & Transitions | 2-3 h | styles.css + ui.tsx |
-| 9 | Polish & QA | 2-3 h | audit + fixes |
-| **Total** | | **~33-44 h** | **~15 files** |
+| Phase     | Description                   | Effort       | Result                 |
+| --------- | ----------------------------- | ------------ | ---------------------- |
+| 0         | CJM (two journey maps)        | 2-3 h        | 2 docs                 |
+| 1         | FSM (state machine)           | 1-2 h        | doc + types.ts         |
+| 2         | Design Tokens (CSS migration) | 3-4 h        | styles.css             |
+| 3         | Onboarding Wizard             | 6-8 h        | SetupFlow.tsx          |
+| 4         | Ready State                   | 3-4 h        | ReadyView.tsx          |
+| 5         | Core Flow (3 screens)         | 6-8 h        | 3 components           |
+| 6         | Secondary Panels              | 4-5 h        | PanelLayout + 3 panels |
+| 7         | StatusBar                     | 3-4 h        | StatusBar.tsx          |
+| 8         | Motion & Transitions          | 2-3 h        | styles.css + ui.tsx    |
+| 9         | Polish & QA                   | 2-3 h        | audit + fixes          |
+| **Total** |                               | **~33-44 h** | **~15 files**          |
 
 ## Post-PR Checklist
 
@@ -894,6 +934,7 @@ npm run test                          # Tests
 ```
 
 Visual verification:
+
 - [ ] All states render correctly
 - [ ] Dark mode works automatically
 - [ ] Transitions between states are smooth

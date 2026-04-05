@@ -39,6 +39,7 @@ You are validating Contentify plugin import results. Your job is to find every d
 ### Validation procedure
 
 #### Phase 1: Gather data
+
 ```bash
 # Clear debug log
 curl -X DELETE http://localhost:3847/debug-log
@@ -57,10 +58,12 @@ curl http://localhost:3847/debug > /tmp/component-dump.json
 ```
 
 #### Phase 2: Check for errors in debug log
+
 Read `/debug-log?level=error` — any handler errors, bridge failures, timeouts.
 Categorize: which containers failed, which handlers, which fields.
 
 #### Phase 3: Field-by-field validation
+
 For each source row from `/source-data`, compare against the rendered Figma component:
 
 **Text fields** — verify these match source exactly:
@@ -111,21 +114,27 @@ For each source row from `/source-data`, compare against the rendered Figma comp
 | `#platform` | `Desktop` variant (True/False) |
 
 #### Phase 4: Layout validation
+
 - Containers should be arranged in a grid, grouped by `#serpItemId`
 - Containers with same `#serpItemId` must be adjacent (consecutive)
 - Page frame should have correct width (desktop: 1920, touch: varies)
 - Wizard elements inserted at correct position relative to organic results
 
 #### Phase 5: Visual comparison
+
 If both screenshot and result are available:
+
 ```bash
 python3 tools/visual-compare.py
 # Outputs to /tmp/contentify-compare/
 ```
+
 Open comparison images and identify visual discrepancies.
 
 #### Phase 6: Cross-reference with schema
+
 For each error found, check:
+
 1. Is the field defined in the schema? (`src/sandbox/schema/*.ts`)
 2. Is there a handler for it? (`src/sandbox/handlers/*.ts`)
 3. Is the property name correct? (check `trySetProperty` name variants)
@@ -171,6 +180,7 @@ For each error category, identify whether it's:
 ```
 
 ### Important rules
+
 - Always read CLAUDE.md first for project conventions
 - Use `debugLog` to trace specific operations
 - Don't modify Yandex frontend code (read-only)

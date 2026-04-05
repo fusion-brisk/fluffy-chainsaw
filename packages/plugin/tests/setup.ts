@@ -29,7 +29,7 @@ interface MockTextNode extends MockSceneNode {
 
 export function createMockInstance(
   name: string,
-  properties: Record<string, string> = {}
+  properties: Record<string, string> = {},
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): any {
   const componentProperties: Record<string, { value: string; type: string }> = {};
@@ -52,7 +52,7 @@ export function createMockInstance(
         componentProperties[key] = { value, type: 'VARIANT' };
       }
     }),
-    resetOverrides: vi.fn()
+    resetOverrides: vi.fn(),
   };
 }
 
@@ -66,14 +66,11 @@ export function createMockTextNode(name: string, text: string): MockTextNode {
     locked: false,
     parent: null,
     characters: text,
-    fontName: { family: 'Inter', style: 'Regular' }
+    fontName: { family: 'Inter', style: 'Regular' },
   };
 }
 
-export function createMockFrame(
-  name: string,
-  children: MockSceneNode[] = []
-): MockSceneNode {
+export function createMockFrame(name: string, children: MockSceneNode[] = []): MockSceneNode {
   const frame: MockSceneNode = {
     id: `frame-${Math.random().toString(36).substr(2, 9)}`,
     name,
@@ -82,7 +79,7 @@ export function createMockFrame(
     removed: false,
     locked: false,
     parent: null,
-    children
+    children,
   };
 
   // Устанавливаем parent для детей
@@ -102,13 +99,13 @@ const mockFigma = {
     children: [] as MockSceneNode[],
     findAll: vi.fn((predicate: (node: MockSceneNode) => boolean) => {
       return mockFigma.currentPage.children.filter(predicate);
-    })
+    }),
   },
   ui: {
-    postMessage: vi.fn()
+    postMessage: vi.fn(),
   },
   notify: vi.fn(),
-  loadFontAsync: vi.fn().mockResolvedValue(undefined)
+  loadFontAsync: vi.fn().mockResolvedValue(undefined),
 };
 
 // @ts-expect-error — мокаем глобальный figma
@@ -125,4 +122,3 @@ export function resetFigmaMocks(): void {
 }
 
 export { mockFigma };
-

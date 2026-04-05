@@ -7,6 +7,7 @@ globs: src/config.ts, package.json, packages/extension/manifest.json
 ## Version Bump Files
 
 All must be updated together:
+
 1. `package.json` → `version`
 2. `packages/plugin/src/config.ts` → `PLUGIN_VERSION`
 3. `packages/extension/manifest.json` → `version`
@@ -14,11 +15,11 @@ All must be updated together:
 
 ## Release Artifacts (GitHub Actions, on tag `v*`)
 
-| Artifact | Description |
-|----------|-------------|
-| `contentify.crx` | Chrome extension (signed CRX) |
-| `Contentify-Installer.zip` | macOS installer |
-| `contentify-relay-host-arm64` | Relay binary (Apple Silicon) |
+| Artifact                      | Description                   |
+| ----------------------------- | ----------------------------- |
+| `contentify.crx`              | Chrome extension (signed CRX) |
+| `Contentify-Installer.zip`    | macOS installer               |
+| `contentify-relay-host-arm64` | Relay binary (Apple Silicon)  |
 
 ## Steps
 

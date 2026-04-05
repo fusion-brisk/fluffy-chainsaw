@@ -62,7 +62,9 @@ export function buildImportSummary(opts: {
             const parsed = JSON.parse(jsonStr);
             filterSections = parsed.filters?.length || 0;
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         continue;
       }
       typeCounts[t] = (typeCounts[t] || 0) + 1;
@@ -70,11 +72,19 @@ export function buildImportSummary(opts: {
 
     const actualSnippets = Object.values(typeCounts).reduce((a, b) => a + b, 0);
     if (actualSnippets > 0) {
-      parts.push(actualSnippets + ' ' + pluralize(actualSnippets, 'сниппет', 'сниппета', 'сниппетов'));
+      parts.push(
+        actualSnippets + ' ' + pluralize(actualSnippets, 'сниппет', 'сниппета', 'сниппетов'),
+      );
     }
 
     if (filterSections > 0) {
-      parts.push('фильтры (' + filterSections + ' ' + pluralize(filterSections, 'раздел', 'раздела', 'разделов') + ')');
+      parts.push(
+        'фильтры (' +
+          filterSections +
+          ' ' +
+          pluralize(filterSections, 'раздел', 'раздела', 'разделов') +
+          ')',
+      );
     }
   }
 
@@ -85,16 +95,21 @@ export function buildImportSummary(opts: {
   // ProductCard sidebar
   if (payload?.productCard) {
     const pc = payload.productCard;
-    const offerCount = (Array.isArray(pc.offers) ? pc.offers.length : 0)
-      + (pc.defaultOffer ? 1 : 0);
+    const offerCount =
+      (Array.isArray(pc.offers) ? pc.offers.length : 0) + (pc.defaultOffer ? 1 : 0);
     if (offerCount > 0) {
-      parts.push('сайдбар (' + offerCount + ' ' + pluralize(offerCount, 'оффер', 'оффера', 'офферов') + ')');
+      parts.push(
+        'сайдбар (' + offerCount + ' ' + pluralize(offerCount, 'оффер', 'оффера', 'офферов') + ')',
+      );
     } else {
       parts.push('сайдбар');
     }
   }
 
-  return parts.join(', ') || (snippetCount + ' ' + pluralize(snippetCount, 'элемент', 'элемента', 'элементов'));
+  return (
+    parts.join(', ') ||
+    snippetCount + ' ' + pluralize(snippetCount, 'элемент', 'элемента', 'элементов')
+  );
 }
 
 /**
@@ -122,7 +137,9 @@ export function buildImportSummaryData(opts: {
           const parsed = JSON.parse(jsonStr);
           filterCount = parsed.filters?.length || 0;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     } else {
       snippetCount++;
     }
@@ -131,8 +148,7 @@ export function buildImportSummaryData(opts: {
   let offerCount = 0;
   if (payload?.productCard) {
     const pc = payload.productCard;
-    offerCount = (Array.isArray(pc.offers) ? pc.offers.length : 0)
-      + (pc.defaultOffer ? 1 : 0);
+    offerCount = (Array.isArray(pc.offers) ? pc.offers.length : 0) + (pc.defaultOffer ? 1 : 0);
   }
 
   return { snippetCount, wizardCount, filterCount, offerCount };

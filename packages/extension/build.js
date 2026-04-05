@@ -4,12 +4,7 @@ const isWatch = process.argv.includes('--watch');
 
 async function build() {
   const ctx = await esbuild.context({
-    entryPoints: [
-      'src/content.ts',
-      'src/background.ts',
-      'src/popup.ts',
-      'src/options.ts',
-    ],
+    entryPoints: ['src/content.ts', 'src/background.ts', 'src/popup.ts', 'src/options.ts'],
     bundle: true,
     outdir: 'dist',
     format: 'iife',

@@ -87,4 +87,3 @@ export type AsyncHandler = (context: HandlerContext) => Promise<void>;
  * Общий тип обработчика
  */
 export type Handler = SyncHandler | AsyncHandler;
-

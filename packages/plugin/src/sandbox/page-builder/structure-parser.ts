@@ -6,15 +6,8 @@
 
 import { CSVRow } from '../../types';
 import { Logger } from '../../logger';
-import {
-  SnippetType,
-  StructureNode,
-  SerpPageStructure,
-  ContainerType
-} from './types';
-import {
-  isContainerType
-} from './component-map';
+import { SnippetType, StructureNode, SerpPageStructure, ContainerType } from './types';
+import { isContainerType } from './component-map';
 
 // ============================================================================
 // Группировка по serpItemId и containerType
@@ -72,7 +65,10 @@ export function groupSnippetsBySerpItem(rows: CSVRow[]): SerpItemGroup[] {
 /**
  * Преобразовать группы сниппетов в структуру для Page Builder
  */
-export function buildSerpStructure(rows: CSVRow[], platform: 'desktop' | 'touch' = 'desktop'): SerpPageStructure {
+export function buildSerpStructure(
+  rows: CSVRow[],
+  platform: 'desktop' | 'touch' = 'desktop',
+): SerpPageStructure {
   const groups = groupSnippetsBySerpItem(rows);
   const contentLeft: StructureNode[] = [];
   let nodeIdCounter = 0;
@@ -138,7 +134,7 @@ export function buildSerpStructure(rows: CSVRow[], platform: 'desktop' | 'touch'
   }
 
   // Извлекаем query из первой строки
-  const query = rows.length > 0 ? (rows[0]['#query'] || '') : '';
+  const query = rows.length > 0 ? rows[0]['#query'] || '' : '';
 
   Logger.info(`[Structure] Структура: ${totalSnippets} сниппетов, ${containersCount} контейнеров`);
   Logger.debug(`[Structure] По типам:`, byType);

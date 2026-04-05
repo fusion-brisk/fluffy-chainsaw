@@ -7,14 +7,11 @@
   "enableProposedApi": false,
   "enablePrivatePluginApi": true,
   "documentAccess": "dynamic-page",
-  "editorType": [
-    "figma"
-  ],
+  "editorType": ["figma"],
   "ui": "dist/ui-embedded.html",
   "networkAccess": {
-    "allowedDomains": ["*","https://avatars.mds.yandex.net/","https://favicon.yandex.net/"],
+    "allowedDomains": ["*", "https://avatars.mds.yandex.net/", "https://favicon.yandex.net/"],
     "devAllowedDomains": ["*"],
     "reasoning": "Required to load images and content from external URLs."
   }
 }
-

@@ -46,7 +46,7 @@ const codePath = path.join(__dirname, 'dist', 'code.js');
 
 if (fs.existsSync(codePath)) {
   const codeContent = fs.readFileSync(codePath, 'utf8');
-  
+
   // Проверяем, есть ли уже полифилл
   if (!codeContent.includes('function __awaiter')) {
     const newContent = polyfill + codeContent;

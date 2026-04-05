@@ -11,31 +11,22 @@ export type {
   RowMappingResult,
   ProgressCallback,
   MessageType,
-  PluginMessage
+  PluginMessage,
 } from './types';
 
 // Global handlers
-export {
-  resetAllSnippets,
-  applyGlobalQuery
-} from './global-handlers';
+export { resetAllSnippets, applyGlobalQuery } from './global-handlers';
 
 // Message router
-export {
-  handleSimpleMessage
-} from './message-router';
+export { handleSimpleMessage } from './message-router';
 
 // Data assignment
 export {
   groupContainersWithDataLayers,
   assignRowsToContainers,
   createLayerData,
-  prepareContainersForProcessing
+  prepareContainersForProcessing,
 } from './data-assignment';
 
 // Wizard processor
-export {
-  renderWizards,
-  renderWizardPayload
-} from './wizard-processor';
-
+export { renderWizards, renderWizardPayload } from './wizard-processor';

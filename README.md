@@ -93,12 +93,12 @@ npm run test
 
 ## Документация
 
-| Документ | Описание |
-|----------|----------|
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Детальная карта проекта, диаграммы, потоки данных |
-| [GLOSSARY.md](docs/GLOSSARY.md) | Термины и концепции: Snippet, Container, CSVRow, Handler |
-| [EXTENDING.md](docs/EXTENDING.md) | Пошаговые гайды добавления handlers, полей, компонентов |
-| [STRUCTURE.md](docs/STRUCTURE.md) | Детали архитектуры модулей |
+| Документ                                | Описание                                                 |
+| --------------------------------------- | -------------------------------------------------------- |
+| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Детальная карта проекта, диаграммы, потоки данных        |
+| [GLOSSARY.md](docs/GLOSSARY.md)         | Термины и концепции: Snippet, Container, CSVRow, Handler |
+| [EXTENDING.md](docs/EXTENDING.md)       | Пошаговые гайды добавления handlers, полей, компонентов  |
+| [STRUCTURE.md](docs/STRUCTURE.md)       | Детали архитектуры модулей                               |
 
 ## Для AI-разработки
 
@@ -108,6 +108,7 @@ npm run test
 - **`.cursor/`** — дополнительные гайды для AI
 
 При работе с AI рекомендуется:
+
 1. Читать `.cursorrules` для понимания ограничений
 2. Использовать `docs/EXTENDING.md` для типовых задач
 3. Смотреть `.cursor/debug-guide.md` для отладки
@@ -128,15 +129,15 @@ npm run test
 
 ## Команды
 
-| Команда | Описание |
-|---------|----------|
-| `npm run build` | Полная сборка |
-| `npm run build:watch` | Watch mode |
-| `npm run dev` | Build + Relay server |
-| `npm run relay` | Только Relay server |
-| `npm run test` | Запуск тестов |
-| `npm run lint` | ESLint проверка |
-| `npm run lint:fix` | ESLint с автоисправлением |
+| Команда               | Описание                  |
+| --------------------- | ------------------------- |
+| `npm run build`       | Полная сборка             |
+| `npm run build:watch` | Watch mode                |
+| `npm run dev`         | Build + Relay server      |
+| `npm run relay`       | Только Relay server       |
+| `npm run test`        | Запуск тестов             |
+| `npm run lint`        | ESLint проверка           |
+| `npm run lint:fix`    | ESLint с автоисправлением |
 
 ## Лицензия
 

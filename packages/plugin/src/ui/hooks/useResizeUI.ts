@@ -37,7 +37,11 @@ export function useResizeUI(): (state: string) => void {
     if (isFirstResizeRef.current) {
       isFirstResizeRef.current = false;
       currentSizeRef.current = { width: targetSize.width, height: targetSize.height };
-      sendMessageToPlugin({ type: 'resize-ui', width: targetSize.width, height: targetSize.height });
+      sendMessageToPlugin({
+        type: 'resize-ui',
+        width: targetSize.width,
+        height: targetSize.height,
+      });
       return;
     }
 

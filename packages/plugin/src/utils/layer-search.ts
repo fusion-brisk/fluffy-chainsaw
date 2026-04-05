@@ -12,7 +12,7 @@
  */
 export function findFillableLayer(
   node: BaseNode,
-  strategy: 'image' | 'simple' = 'simple'
+  strategy: 'image' | 'simple' = 'simple',
 ): SceneNode | null {
   if (strategy === 'image') {
     return findFillableLayerImage(node as SceneNode);

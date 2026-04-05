@@ -19,7 +19,9 @@ router.post('/debug', (req: Request, res: Response) => {
   if (debugReports.length > MAX_DEBUG_REPORTS) {
     debugReports.length = MAX_DEBUG_REPORTS;
   }
-  console.log(`[Debug] Report received: ${report.operation || 'unknown'}, success=${report.success}, errors=${(report.errors || []).length}`);
+  console.log(
+    `[Debug] Report received: ${report.operation || 'unknown'}, success=${report.success}, errors=${(report.errors || []).length}`,
+  );
   res.json({ ok: true, stored: debugReports.length });
 });
 

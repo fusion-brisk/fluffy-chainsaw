@@ -4,9 +4,9 @@ Chrome extension for parsing Yandex SERP data and sending to Figma plugin via re
 
 ## Development
 
-npm run build       # Build with esbuild (IIFE bundles)
+npm run build # Build with esbuild (IIFE bundles)
 npm run build:watch # Watch mode
-npm run typecheck   # TypeScript check
+npm run typecheck # TypeScript check
 
 ## Architecture
 

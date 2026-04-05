@@ -47,12 +47,14 @@ describe('normalizeImageUrl', () => {
   });
 
   it('handles URL with query params', () => {
-    expect(normalizeImageUrl('https://example.com/img.jpg?w=100&h=200'))
-      .toBe('https://example.com/img.jpg?w=100&h=200');
+    expect(normalizeImageUrl('https://example.com/img.jpg?w=100&h=200')).toBe(
+      'https://example.com/img.jpg?w=100&h=200',
+    );
   });
 
   it('handles protocol-relative URL with path', () => {
-    expect(normalizeImageUrl('//avatars.mds.yandex.net/get-mpic/123/img/orig'))
-      .toBe('https://avatars.mds.yandex.net/get-mpic/123/img/orig');
+    expect(normalizeImageUrl('//avatars.mds.yandex.net/get-mpic/123/img/orig')).toBe(
+      'https://avatars.mds.yandex.net/get-mpic/123/img/orig',
+    );
   });
 });

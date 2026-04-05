@@ -19,7 +19,7 @@ function resolveValue(
   mapping: PropertyMapping,
   row: CSVRow,
   container: InstanceNode,
-  cache: DeepCache
+  cache: DeepCache,
 ): boolean | string | null {
   // Priority 1: compute
   if (mapping.compute) {
@@ -28,17 +28,23 @@ function resolveValue(
 
   // Priority 2: equals
   if (mapping.equals) {
-    return (row as Record<string, string | undefined>)[mapping.equals.field] === mapping.equals.value;
+    return (
+      (row as Record<string, string | undefined>)[mapping.equals.field] === mapping.equals.value
+    );
   }
 
   // Priority 3: hasValue (truthy presence)
   if (mapping.hasValue) {
-    return !!(((row as Record<string, string | undefined>)[mapping.hasValue] || '') as string).trim();
+    return !!(
+      ((row as Record<string, string | undefined>)[mapping.hasValue] || '') as string
+    ).trim();
   }
 
   // Priority 4: stringValue (pass-through)
   if (mapping.stringValue) {
-    const val = (((row as Record<string, string | undefined>)[mapping.stringValue] || '') as string).trim();
+    const val = (
+      ((row as Record<string, string | undefined>)[mapping.stringValue] || '') as string
+    ).trim();
     if (mapping.skipIfEmpty && !val) return null;
     return val;
   }
@@ -55,7 +61,7 @@ function applyProperties(
   row: CSVRow,
   container: InstanceNode,
   cache: DeepCache,
-  logPrefix: string
+  logPrefix: string,
 ): void {
   for (let i = 0; i < mappings.length; i++) {
     const mapping = mappings[i];
@@ -63,15 +69,17 @@ function applyProperties(
 
     if (value === null) continue;
 
-    const result = trySetProperty(
-      target,
-      mapping.propertyNames,
-      value,
-      mapping.fieldName
-    );
+    const result = trySetProperty(target, mapping.propertyNames, value, mapping.fieldName);
 
     Logger.debug(
-      '   ' + logPrefix + ' ' + mapping.propertyNames[0] + '=' + String(value) + ', result=' + result
+      '   ' +
+        logPrefix +
+        ' ' +
+        mapping.propertyNames[0] +
+        '=' +
+        String(value) +
+        ', result=' +
+        result,
     );
   }
 }
@@ -88,12 +96,14 @@ export function applySchema(
   container: InstanceNode,
   row: CSVRow,
   schema: ComponentSchema,
-  cache: DeepCache
+  cache: DeepCache,
 ): void {
   if (!container || !row || container.removed) return;
 
   const containerName = container.name || 'Unknown';
-  Logger.debug('[Schema] Applying ' + schema.containerNames[0] + ' schema to "' + containerName + '"');
+  Logger.debug(
+    '[Schema] Applying ' + schema.containerNames[0] + ' schema to "' + containerName + '"',
+  );
 
   // 1. Свойства контейнера
   applyProperties(
@@ -102,7 +112,7 @@ export function applySchema(
     row,
     container,
     cache,
-    '[' + containerName + ']'
+    '[' + containerName + ']',
   );
 
   // 2. Свойства вложенных инстансов
@@ -121,7 +131,7 @@ export function applySchema(
       row,
       container,
       cache,
-      '[' + nested.instanceName + ']'
+      '[' + nested.instanceName + ']',
     );
   }
 }

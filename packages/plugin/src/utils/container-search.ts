@@ -9,14 +9,14 @@ import { Logger } from '../logger';
 /**
  * Проверяет, является ли имя узла сниппет-контейнером
  * Поддерживает как точное совпадение ("EShopItem"), так и с суффиксом ("EShopItem 2")
- * 
+ *
  * Паттерн: базовое имя может быть с пробелом и числом в конце (копии в Figma)
  * Примеры: "EShopItem", "EShopItem 2", "EShopItem 123", "ESnippet", "ESnippet 5"
  */
 function isSnippetContainerName(name: string): boolean {
   // Точное совпадение
   if (SNIPPET_CONTAINER_NAMES.includes(name)) return true;
-  
+
   // Проверяем паттерн "BaseName N" где N — число
   // Убираем суффикс " N" и проверяем базовое имя
   const baseNameMatch = name.match(/^(.+?)\s+\d+$/);
@@ -24,7 +24,7 @@ function isSnippetContainerName(name: string): boolean {
     const baseName = baseNameMatch[1];
     return SNIPPET_CONTAINER_NAMES.includes(baseName);
   }
-  
+
   return false;
 }
 
@@ -39,7 +39,7 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
   if (scope === 'page') {
     // Быстрый поиск по всей странице через нативный findAll
     if (figma.currentPage.findAll) {
-      const found = figma.currentPage.findAll(n => isSnippetContainerName(n.name));
+      const found = figma.currentPage.findAll((n) => isSnippetContainerName(n.name));
       Logger.debug(`📦 [findSnippetContainers] page: найдено ${found.length} контейнеров`);
       // Логируем типы найденных контейнеров
       const typeCounts: Record<string, number> = {};
@@ -47,17 +47,21 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
         const baseName = n.name.replace(/\s+\d+$/, '');
         typeCounts[baseName] = (typeCounts[baseName] || 0) + 1;
       }
-      Logger.debug(`📦 [findSnippetContainers] типы: ${Object.entries(typeCounts).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+      Logger.debug(
+        `📦 [findSnippetContainers] типы: ${Object.entries(typeCounts)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(', ')}`,
+      );
       return found;
     } else {
       // Fallback для старых версий API
-      figma.currentPage.children.forEach(child => {
+      figma.currentPage.children.forEach((child) => {
         if (isSnippetContainerName(child.name)) containers.push(child);
         if ('findAll' in child) {
           containers.push(
-            ...(child as SceneNode & ChildrenMixin).findAll(
-              (n: SceneNode) => isSnippetContainerName(n.name)
-            )
+            ...(child as SceneNode & ChildrenMixin).findAll((n: SceneNode) =>
+              isSnippetContainerName(n.name),
+            ),
           );
         }
       });
@@ -65,20 +69,20 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
   } else {
     // Поиск в выделении
     const visited = new Set<string>();
-    
+
     for (const node of figma.currentPage.selection) {
       if (node.removed) continue;
-      
+
       // Проверяем сам узел
       if (isSnippetContainerName(node.name) && !visited.has(node.id)) {
         containers.push(node);
         visited.add(node.id);
       }
-      
+
       // Ищем внутри узла
       if ('findAll' in node) {
-        const found = (node as SceneNode & ChildrenMixin).findAll(
-          (n: SceneNode) => isSnippetContainerName(n.name)
+        const found = (node as SceneNode & ChildrenMixin).findAll((n: SceneNode) =>
+          isSnippetContainerName(n.name),
         );
         for (const item of found) {
           if (!visited.has(item.id)) {
@@ -88,7 +92,7 @@ export function findSnippetContainers(scope: 'page' | 'selection'): SceneNode[] 
         }
       }
     }
-    
+
     Logger.debug(`📦 [findSnippetContainers] selection: найдено ${containers.length} контейнеров`);
   }
 
@@ -105,13 +109,13 @@ export function sortContainersByPosition(containers: SceneNode[]): SceneNode[] {
   // Кэшируем позиции ПЕРЕД сортировкой — одно обращение к absoluteTransform на контейнер
   // Это критично, т.к. каждое обращение к absoluteTransform вызывает пересчёт layout в Figma
   const positionCache = new Map<string, { x: number; y: number }>();
-  
+
   for (const c of containers) {
     const x = c.absoluteTransform ? c.absoluteTransform[0][2] : c.x;
     const y = c.absoluteTransform ? c.absoluteTransform[1][2] : c.y;
     positionCache.set(c.id, { x, y });
   }
-  
+
   containers.sort((a, b) => {
     const posA = positionCache.get(a.id)!;
     const posB = positionCache.get(b.id)!;
@@ -131,17 +135,17 @@ export function sortContainersByPosition(containers: SceneNode[]): SceneNode[] {
 export function normalizeContainerName(name: string): string {
   if (!name) return 'unknown';
   const lower = name.toLowerCase();
-  
+
   // Прямые совпадения
   for (const base of SNIPPET_CONTAINER_NAMES) {
     if (lower === base.toLowerCase()) return base;
   }
-  
+
   // Префиксное совпадение: имя начинается с базового типа
   for (const base of SNIPPET_CONTAINER_NAMES) {
     if (lower.startsWith(base.toLowerCase())) return base;
   }
-  
+
   return name;
 }
 
@@ -161,14 +165,14 @@ export function isSnippetContainer(node: BaseNode): boolean {
  * Находит ближайший контейнер-сниппет для слоя данных
  * Поднимается вверх по дереву от слоя до первого контейнера-сниппета
  * Поддерживает суффиксы копий ("EShopItem 2", "ESnippet 3")
- * 
+ *
  * @param layer - Слой данных (или массив слоёв)
  * @param containerKey - ID контейнера (используется как fallback через figma.getNodeById)
  * @returns Найденный контейнер или null
  */
 export async function findContainerForLayers(
   layers: SceneNode[] | null,
-  containerKey?: string
+  containerKey?: string,
 ): Promise<BaseNode | null> {
   // 1. Пробуем найти через parent traversal от слоёв
   if (layers && layers.length > 0) {
@@ -183,7 +187,7 @@ export async function findContainerForLayers(
       }
     }
   }
-  
+
   // 2. Fallback: получаем контейнер напрямую по ID
   if (containerKey) {
     try {
@@ -195,7 +199,7 @@ export async function findContainerForLayers(
       // ignore
     }
   }
-  
+
   return null;
 }
 
@@ -206,6 +210,5 @@ export async function findContainerForLayers(
  */
 export function getContainerName(container: BaseNode | null): string {
   if (!container) return '';
-  return ('name' in container) ? String(container.name) : '';
+  return 'name' in container ? String(container.name) : '';
 }
-

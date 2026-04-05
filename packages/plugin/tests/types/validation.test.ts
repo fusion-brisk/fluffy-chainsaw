@@ -3,11 +3,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { 
-  validateRow, 
-  validateRows, 
+import {
+  validateRow,
+  validateRows,
   hasRequiredFields,
-  getMissingRequiredFields 
+  getMissingRequiredFields,
 } from '../../src/types/validation';
 import { CSVRow, SnippetType } from '../../src/types/csv-fields';
 
@@ -18,11 +18,11 @@ describe('validation', () => {
         '#SnippetType': 'EShopItem',
         '#ShopName': 'Test Shop',
         '#OrganicPrice': '1 990 ₽',
-        '#OrganicTitle': 'Test Product'
+        '#OrganicTitle': 'Test Product',
       };
 
       const result = validateRow(row);
-      
+
       expect(result.valid).toBe(true);
       expect(result.errors).toHaveLength(0);
     });
@@ -33,11 +33,11 @@ describe('validation', () => {
         '#ShopName': 'Test Shop',
         '#OrganicPrice': '1 990 ₽',
         '#EPriceGroup_Discount': 'TRUE',
-        '#OfficialShop': 'yes'
+        '#OfficialShop': 'yes',
       } as unknown as CSVRow;
 
       const result = validateRow(row);
-      
+
       expect(result.normalizedRow['#EPriceGroup_Discount']).toBe('true');
       expect(result.normalizedRow['#OfficialShop']).toBe('true');
     });
@@ -48,11 +48,11 @@ describe('validation', () => {
         '#ShopName': 'Test Shop',
         '#OrganicPrice': '1 990 ₽',
         '#ProductRating': '4,5',
-        '#DiscountPercent': '-20%'
+        '#DiscountPercent': '-20%',
       };
 
       const result = validateRow(row);
-      
+
       // Рейтинг нормализуется
       expect(result.normalizedRow['#ProductRating']).toBeDefined();
     });
@@ -61,12 +61,12 @@ describe('validation', () => {
       const row: CSVRow = {
         '#SnippetType': 'EShopItem',
         '#ShopName': 'Test Shop',
-        '#OrganicPrice': '1 990 ₽'
+        '#OrganicPrice': '1 990 ₽',
         // Missing #OrganicImage, #FaviconImage
       };
 
       const result = validateRow(row);
-      
+
       expect(result.valid).toBe(true);
       // Warnings for missing images are OK
     });
@@ -76,11 +76,11 @@ describe('validation', () => {
     it('should validate multiple rows', () => {
       const rows: CSVRow[] = [
         { '#SnippetType': 'EShopItem', '#ShopName': 'Shop 1', '#OrganicPrice': '100' },
-        { '#SnippetType': 'EShopItem', '#ShopName': 'Shop 2', '#OrganicPrice': '200' }
+        { '#SnippetType': 'EShopItem', '#ShopName': 'Shop 2', '#OrganicPrice': '200' },
       ];
 
       const result = validateRows(rows);
-      
+
       expect(result.validRows).toHaveLength(2);
       expect(result.invalidRows).toHaveLength(0);
       expect(result.totalErrors).toBe(0);
@@ -89,11 +89,11 @@ describe('validation', () => {
     it('should separate valid and invalid rows', () => {
       const rows: CSVRow[] = [
         { '#SnippetType': 'EShopItem', '#ShopName': 'Valid Shop', '#OrganicPrice': '100' },
-        { '#SnippetType': 'Unknown' as SnippetType } // Invalid type
+        { '#SnippetType': 'Unknown' as SnippetType }, // Invalid type
       ];
 
       const result = validateRows(rows);
-      
+
       expect(result.validRows.length).toBeGreaterThanOrEqual(1);
     });
   });
@@ -103,7 +103,7 @@ describe('validation', () => {
       const row: CSVRow = {
         '#SnippetType': 'EShopItem',
         '#ShopName': 'Test Shop',
-        '#OrganicPrice': '1 990 ₽'
+        '#OrganicPrice': '1 990 ₽',
       };
 
       expect(hasRequiredFields(row, 'EShopItem')).toBe(true);
@@ -112,7 +112,7 @@ describe('validation', () => {
     it('should return false for EShopItem missing ShopName', () => {
       const row: CSVRow = {
         '#SnippetType': 'EShopItem',
-        '#OrganicPrice': '1 990 ₽'
+        '#OrganicPrice': '1 990 ₽',
       };
 
       expect(hasRequiredFields(row, 'EShopItem')).toBe(false);
@@ -121,7 +121,7 @@ describe('validation', () => {
     it('should return true for Organic with minimal fields', () => {
       const row: CSVRow = {
         '#SnippetType': 'Organic',
-        '#OrganicTitle': 'Search Result Title'
+        '#OrganicTitle': 'Search Result Title',
       };
 
       expect(hasRequiredFields(row, 'Organic')).toBe(true);
@@ -131,7 +131,7 @@ describe('validation', () => {
       const row: CSVRow = {
         '#SnippetType': 'EProductSnippet2',
         '#OrganicTitle': 'Product',
-        '#OrganicPrice': '500 ₽'
+        '#OrganicPrice': '500 ₽',
       };
 
       expect(hasRequiredFields(row, 'EProductSnippet2')).toBe(true);
@@ -143,7 +143,7 @@ describe('validation', () => {
       const row: CSVRow = {
         '#SnippetType': 'EShopItem',
         '#ShopName': 'Shop',
-        '#OrganicPrice': '100'
+        '#OrganicPrice': '100',
       };
 
       const missing = getMissingRequiredFields(row, 'EShopItem');
@@ -152,7 +152,7 @@ describe('validation', () => {
 
     it('should return missing fields for EShopItem', () => {
       const row: CSVRow = {
-        '#SnippetType': 'EShopItem'
+        '#SnippetType': 'EShopItem',
         // Missing: #ShopName, #OrganicPrice
       };
 
@@ -163,7 +163,7 @@ describe('validation', () => {
 
     it('should return missing fields for EOfferItem', () => {
       const row: CSVRow = {
-        '#SnippetType': 'EOfferItem'
+        '#SnippetType': 'EOfferItem',
       };
 
       const missing = getMissingRequiredFields(row, 'EOfferItem');
@@ -172,4 +172,3 @@ describe('validation', () => {
     });
   });
 });
-

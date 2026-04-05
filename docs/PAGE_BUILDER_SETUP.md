@@ -3,7 +3,7 @@
 ## Обзор
 
 Page Builder — модуль для автоматического создания страниц Figma из HTML.
-Плагин анализирует HTML-структуру SERP, создаёт Auto Layout фреймы 
+Плагин анализирует HTML-структуру SERP, создаёт Auto Layout фреймы
 и размещает инстансы компонентов из библиотеки DC • ECOM.
 
 ## Структура модуля
@@ -19,7 +19,7 @@ src/page-builder/
 
 ## Шаг 1: Получение ключей компонентов
 
-Прежде чем использовать Page Builder, необходимо получить ключи компонентов 
+Прежде чем использовать Page Builder, необходимо получить ключи компонентов
 из библиотеки DC • ECOM.
 
 ### Вариант A: Автоматический скрипт
@@ -39,7 +39,7 @@ src/page-builder/
 4. В URL найдите `node-id=XXX:YYY` — это ID
 5. Для получения key используйте Dev Console:
    ```javascript
-   figma.currentPage.selection[0].key
+   figma.currentPage.selection[0].key;
    ```
 
 ## Шаг 2: Обновление component-map.ts
@@ -48,12 +48,12 @@ src/page-builder/
 
 ```typescript
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
-  'ESnippet': {
-    key: 'ВАШ_КЛЮЧ_ЗДЕСЬ',  // ← Вставьте ключ
+  ESnippet: {
+    key: 'ВАШ_КЛЮЧ_ЗДЕСЬ', // ← Вставьте ключ
     name: 'ESnippet',
     defaultVariant: {
-      'Platform': 'desktop',
-      'withButton': true,
+      Platform: 'desktop',
+      withButton: true,
     },
   },
   // ... остальные компоненты
@@ -80,7 +80,7 @@ figma.ui.onmessage = async (msg) => {
       width: 1280,
       platform: 'desktop',
     });
-    
+
     figma.notify(`Создано ${result.createdCount} элементов`);
   }
 };
@@ -135,12 +135,12 @@ const grouped = groupSequentialElements(elements, 2); // мин. 2 для гру
 Группы — это компоненты с вложенными слотами для сниппетов.
 Количество видимых элементов регулируется через component properties.
 
-| Тип группы | Свойство | Макс. элементов |
-|------------|----------|-----------------|
-| EShopGroup | itemsCount | 6 |
-| EOfferGroup | itemsCount | 10 |
-| ProductTileRow | columns | 4 |
-| OrganicBlock | resultsCount | 5 |
+| Тип группы     | Свойство     | Макс. элементов |
+| -------------- | ------------ | --------------- |
+| EShopGroup     | itemsCount   | 6               |
+| EOfferGroup    | itemsCount   | 10              |
+| ProductTileRow | columns      | 4               |
+| OrganicBlock   | resultsCount | 5               |
 
 ## Troubleshooting
 
@@ -160,4 +160,3 @@ const grouped = groupSequentialElements(elements, 2); // мин. 2 для гру
 
 1. Проверьте HTML — порядок берётся из DOM
 2. Используйте `groupSequentialElements()` для группировки
-

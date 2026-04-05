@@ -7,7 +7,7 @@ const STORAGE_KEYS = {
   RULES_CACHE: 'contentify_parsing_rules_cache',
   RULES_METADATA: 'contentify_parsing_rules_metadata',
   REMOTE_URL: 'contentify_remote_config_url',
-  PENDING_RULES: 'contentify_pending_rules' // Для правил, ожидающих подтверждения
+  PENDING_RULES: 'contentify_pending_rules', // Для правил, ожидающих подтверждения
 };
 
 /**
@@ -18,7 +18,7 @@ function simpleHash(str: string): string {
   if (str.length === 0) return String(hash);
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
   return String(hash);
@@ -30,30 +30,30 @@ function simpleHash(str: string): string {
 function mergeRules(baseRules: ParsingSchema, remoteRules: Partial<ParsingSchema>): ParsingSchema {
   const merged: ParsingSchema = {
     version: remoteRules.version || baseRules.version,
-    rules: {}
+    rules: {},
   };
-  
+
   // Копируем все базовые правила
   for (const key in baseRules.rules) {
     if (Object.prototype.hasOwnProperty.call(baseRules.rules, key)) {
       merged.rules[key] = baseRules.rules[key];
     }
   }
-  
+
   // Накладываем удалённые правила (override + новые поля)
   if (remoteRules.rules) {
     for (const remoteKey in remoteRules.rules) {
       if (Object.prototype.hasOwnProperty.call(remoteRules.rules, remoteKey)) {
         const remoteRule = remoteRules.rules[remoteKey];
         const baseRule = merged.rules[remoteKey];
-        
+
         if (baseRule) {
           // Merge существующего правила
           merged.rules[remoteKey] = {
             domSelectors: remoteRule.domSelectors || baseRule.domSelectors,
             jsonKeys: remoteRule.jsonKeys || baseRule.jsonKeys,
             type: remoteRule.type || baseRule.type,
-            domAttribute: remoteRule.domAttribute || baseRule.domAttribute
+            domAttribute: remoteRule.domAttribute || baseRule.domAttribute,
           };
         } else {
           // Добавляем новое правило
@@ -62,14 +62,14 @@ function mergeRules(baseRules: ParsingSchema, remoteRules: Partial<ParsingSchema
       }
     }
   }
-  
+
   return merged;
 }
 
 export class ParsingRulesManager {
   private currentMetadata: ParsingRulesMetadata | null = null;
   private pendingRemoteRules: ParsingSchema | null = null;
-  
+
   /**
    * Загружает правила при старте плагина
    * Приоритет: Cached → Embedded
@@ -79,22 +79,22 @@ export class ParsingRulesManager {
       // Пробуем загрузить из кэша
       const cachedRulesStr = await figma.clientStorage.getAsync(STORAGE_KEYS.RULES_CACHE);
       const cachedMetadataStr = await figma.clientStorage.getAsync(STORAGE_KEYS.RULES_METADATA);
-      
+
       if (cachedRulesStr && cachedMetadataStr) {
         try {
           const cachedRules = JSON.parse(cachedRulesStr) as ParsingSchema;
           const cachedMetadata = JSON.parse(cachedMetadataStr);
-          
+
           Logger.info('📦 Загружены кэшированные правила парсинга');
-          
+
           this.currentMetadata = {
             rules: cachedRules,
             source: 'cached',
             lastUpdated: cachedMetadata.lastUpdated || Date.now(),
             hash: cachedMetadata.hash,
-            remoteUrl: cachedMetadata.remoteUrl
+            remoteUrl: cachedMetadata.remoteUrl,
           };
-          
+
           return this.currentMetadata;
         } catch (parseError) {
           Logger.error('Ошибка парсинга кэшированных правил:', parseError);
@@ -103,71 +103,74 @@ export class ParsingRulesManager {
     } catch (storageError) {
       Logger.error('Ошибка чтения clientStorage:', storageError);
     }
-    
+
     // Fallback на embedded правила
     Logger.info('📚 Используются встроенные правила парсинга');
-    
+
     this.currentMetadata = {
       rules: DEFAULT_PARSING_RULES,
       source: 'embedded',
       lastUpdated: Date.now(),
-      hash: simpleHash(JSON.stringify(DEFAULT_PARSING_RULES))
+      hash: simpleHash(JSON.stringify(DEFAULT_PARSING_RULES)),
     };
-    
+
     return this.currentMetadata;
   }
-  
+
   /**
    * Проверяет доступность обновлений с удалённого сервера
    */
-  async checkForUpdates(): Promise<{ hasUpdate: boolean; newRules?: ParsingSchema; hash?: string } | null> {
+  async checkForUpdates(): Promise<{
+    hasUpdate: boolean;
+    newRules?: ParsingSchema;
+    hash?: string;
+  } | null> {
     try {
       const remoteUrl = await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
-      
+
       if (!remoteUrl) {
         Logger.debug('Remote config URL не настроен');
         return null;
       }
-      
+
       Logger.info('🔍 Проверка обновлений правил с ' + remoteUrl);
-      
+
       const response = await fetch(remoteUrl);
-      
+
       if (!response.ok) {
         Logger.error('Не удалось загрузить удалённые правила: HTTP ' + response.status);
         return null;
       }
-      
+
       const remoteRulesText = await response.text();
       const remoteRules = JSON.parse(remoteRulesText) as ParsingSchema;
-      
+
       // Вычисляем hash удалённых правил
       const remoteHash = simpleHash(remoteRulesText);
       const currentHash = this.currentMetadata?.hash;
-      
+
       if (remoteHash !== currentHash) {
         Logger.info('✨ Найдены обновлённые правила парсинга');
         this.pendingRemoteRules = remoteRules;
-        
+
         // Сохраняем pending правила
         await figma.clientStorage.setAsync(STORAGE_KEYS.PENDING_RULES, remoteRulesText);
-        
+
         return {
           hasUpdate: true,
           newRules: remoteRules,
-          hash: remoteHash
+          hash: remoteHash,
         };
       }
-      
+
       Logger.info('✅ Правила парсинга актуальны');
       return { hasUpdate: false };
-      
     } catch (error) {
       Logger.error('Ошибка проверки обновлений правил:', error);
       return null;
     }
   }
-  
+
   /**
    * Применяет удалённые правила после подтверждения пользователя
    */
@@ -175,55 +178,57 @@ export class ParsingRulesManager {
     try {
       // Загружаем pending правила
       const pendingRulesStr = await figma.clientStorage.getAsync(STORAGE_KEYS.PENDING_RULES);
-      
+
       if (!pendingRulesStr) {
         Logger.error('Нет ожидающих правил для применения');
         return false;
       }
-      
+
       const pendingRules = JSON.parse(pendingRulesStr) as ParsingSchema;
       const pendingHash = simpleHash(pendingRulesStr);
-      
+
       // Проверяем hash для безопасности
       if (pendingHash !== hash) {
         Logger.error('Hash pending правил не совпадает');
         return false;
       }
-      
+
       // Мягкое слияние с базовыми правилами
       const mergedRules = mergeRules(DEFAULT_PARSING_RULES, pendingRules);
-      
+
       // Сохраняем в кэш
       const remoteUrl = await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
-      
+
       await figma.clientStorage.setAsync(STORAGE_KEYS.RULES_CACHE, JSON.stringify(mergedRules));
-      await figma.clientStorage.setAsync(STORAGE_KEYS.RULES_METADATA, JSON.stringify({
-        lastUpdated: Date.now(),
-        hash: pendingHash,
-        remoteUrl: remoteUrl
-      }));
-      
+      await figma.clientStorage.setAsync(
+        STORAGE_KEYS.RULES_METADATA,
+        JSON.stringify({
+          lastUpdated: Date.now(),
+          hash: pendingHash,
+          remoteUrl: remoteUrl,
+        }),
+      );
+
       // Обновляем текущие правила
       this.currentMetadata = {
         rules: mergedRules,
         source: 'remote',
         lastUpdated: Date.now(),
         hash: pendingHash,
-        remoteUrl: remoteUrl || undefined
+        remoteUrl: remoteUrl || undefined,
       };
-      
+
       // Очищаем pending
       await figma.clientStorage.deleteAsync(STORAGE_KEYS.PENDING_RULES);
-      
+
       Logger.info('✅ Удалённые правила успешно применены');
       return true;
-      
     } catch (error) {
       Logger.error('Ошибка применения удалённых правил:', error);
       return false;
     }
   }
-  
+
   /**
    * Отклоняет ожидающие обновления правил
    */
@@ -232,7 +237,7 @@ export class ParsingRulesManager {
     this.pendingRemoteRules = null;
     Logger.info('❌ Обновление правил отклонено');
   }
-  
+
   /**
    * Очищает кэш и возвращается к embedded правилам
    */
@@ -240,19 +245,19 @@ export class ParsingRulesManager {
     await figma.clientStorage.deleteAsync(STORAGE_KEYS.RULES_CACHE);
     await figma.clientStorage.deleteAsync(STORAGE_KEYS.RULES_METADATA);
     await figma.clientStorage.deleteAsync(STORAGE_KEYS.PENDING_RULES);
-    
+
     Logger.info('🔄 Сброс правил к значениям по умолчанию');
-    
+
     this.currentMetadata = {
       rules: DEFAULT_PARSING_RULES,
       source: 'embedded',
       lastUpdated: Date.now(),
-      hash: simpleHash(JSON.stringify(DEFAULT_PARSING_RULES))
+      hash: simpleHash(JSON.stringify(DEFAULT_PARSING_RULES)),
     };
-    
+
     return this.currentMetadata;
   }
-  
+
   /**
    * Сохраняет URL для удалённого конфига
    */
@@ -260,21 +265,21 @@ export class ParsingRulesManager {
     await figma.clientStorage.setAsync(STORAGE_KEYS.REMOTE_URL, url);
     Logger.info('🔗 Remote config URL установлен: ' + url);
   }
-  
+
   /**
    * Получает текущий URL удалённого конфига
    */
   async getRemoteUrl(): Promise<string | null> {
     return await figma.clientStorage.getAsync(STORAGE_KEYS.REMOTE_URL);
   }
-  
+
   /**
    * Возвращает текущие метаданные правил
    */
   getCurrentMetadata(): ParsingRulesMetadata | null {
     return this.currentMetadata;
   }
-  
+
   /**
    * Возвращает текущие правила (для использования в парсерах)
    */
@@ -285,4 +290,3 @@ export class ParsingRulesManager {
     return this.currentMetadata.rules;
   }
 }
-

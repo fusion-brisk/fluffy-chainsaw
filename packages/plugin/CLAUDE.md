@@ -8,6 +8,7 @@
 **Container** — Figma-инстанс компонента, в который заполняются данные.
 
 **CSVRow** — одна строка данных. Поля с `#` префиксом:
+
 - Текст: `#OrganicTitle`, `#OrganicPrice`, `#OldPrice`, `#ShopName`, `#ProductRating`
 - Изображения: `#OrganicImage`, `#ThumbImage`, `#FaviconImage`
 - Флаги: `#EPriceGroup_Discount`, `#BUTTON`, `#EDeliveryGroup`, `#OfficialShop`
@@ -17,10 +18,10 @@ Full list: `src/types/csv-fields.ts` (200+ fields, NO index signature).
 
 ## Runtime Split
 
-| Directory | Target | APIs available |
-|-----------|--------|---------------|
+| Directory      | Target            | APIs available                     |
+| -------------- | ----------------- | ---------------------------------- |
 | `src/sandbox/` | ES5 (Babel, IE11) | Figma API only, no DOM, no Node.js |
-| `src/ui/` | Modern browsers | React 18, DOM, fetch |
+| `src/ui/`      | Modern browsers   | React 18, DOM, fetch               |
 
 Communication: `figma.ui.postMessage()` ↔ `parent.postMessage()` only.
 Images: loaded via CORS-proxy (`config.ts`), cached by `ImageProcessor`.
@@ -28,11 +29,13 @@ Images: loaded via CORS-proxy (`config.ts`), cached by `ImageProcessor`.
 ## Message Protocol
 
 ### UI → Code (sandbox)
+
 - `import-csv` — `{ rows: CSVRow[], scope }` — импорт данных
 - `apply-relay-payload` — данные от браузера через Relay
 - `build-page` — создание страницы из HTML
 
 ### Code → UI
+
 - `progress` — `{ current, total, message, operationType }`
 - `stats` — статистика обработки
 - `done` — `{ count }` — завершение
@@ -42,6 +45,7 @@ Images: loaded via CORS-proxy (`config.ts`), cached by `ImageProcessor`.
 File: `src/sandbox/schema/*.ts`. Engine: `src/sandbox/schema/engine.ts` (~90 LOC).
 
 PropertyMapping modes:
+
 - `hasValue` — boolean if field is truthy
 - `stringValue` — direct text mapping
 - `equals` — boolean if field === value
@@ -60,28 +64,28 @@ Nested Line/Label: `instance.setProperties({ value })`.
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/sandbox/code.ts` | Entry point (Figma sandbox) |
-| `src/sandbox/schema/types.ts` | `ComponentSchema`, `PropertyMapping` |
-| `src/sandbox/handlers/registry.ts` | Handler registry + schema wrappers |
-| `src/sandbox/handlers/price-handlers.ts` | EPriceGroup (most complex handler) |
-| `src/types/csv-fields.ts` | 200+ explicit CSV fields |
-| `src/config.ts` | Version, URLs, container names |
-| `src/logger.ts` | Logger class |
-| `src/ui/ui.tsx` | UI entry point — thin orchestrator (~390 LOC) |
-| `src/ui/hooks/useImportFlow.ts` | Import lifecycle (confirm, process, success) |
-| `src/ui/hooks/usePanelManager.ts` | Panel overlay state (setup/logs/inspector) |
-| `src/ui/hooks/useResizeUI.ts` | Animated window resize |
+| File                                     | Role                                          |
+| ---------------------------------------- | --------------------------------------------- |
+| `src/sandbox/code.ts`                    | Entry point (Figma sandbox)                   |
+| `src/sandbox/schema/types.ts`            | `ComponentSchema`, `PropertyMapping`          |
+| `src/sandbox/handlers/registry.ts`       | Handler registry + schema wrappers            |
+| `src/sandbox/handlers/price-handlers.ts` | EPriceGroup (most complex handler)            |
+| `src/types/csv-fields.ts`                | 200+ explicit CSV fields                      |
+| `src/config.ts`                          | Version, URLs, container names                |
+| `src/logger.ts`                          | Logger class                                  |
+| `src/ui/ui.tsx`                          | UI entry point — thin orchestrator (~390 LOC) |
+| `src/ui/hooks/useImportFlow.ts`          | Import lifecycle (confirm, process, success)  |
+| `src/ui/hooks/usePanelManager.ts`        | Panel overlay state (setup/logs/inspector)    |
+| `src/ui/hooks/useResizeUI.ts`            | Animated window resize                        |
 
 ## Testing
 
-| Change | Test file |
-|--------|-----------|
+| Change             | Test file                         |
+| ------------------ | --------------------------------- |
 | Transform function | `tests/schema/transforms.test.ts` |
-| Schema mapping | `tests/schema/engine.test.ts` |
-| Handler logic | `tests/handlers/registry.test.ts` |
-| CSV validation | `tests/types/validation.test.ts` |
+| Schema mapping     | `tests/schema/engine.test.ts`     |
+| Handler logic      | `tests/handlers/registry.test.ts` |
+| CSV validation     | `tests/types/validation.test.ts`  |
 
 Mock setup: `tests/setup.ts` (mocks Figma API).
 

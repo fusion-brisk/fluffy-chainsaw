@@ -4,9 +4,9 @@ Local relay server bridging Chrome extension and Figma plugin.
 
 ## Development
 
-npm start           # Start server (port 3847)
-npm run build       # Compile TypeScript
-npm run typecheck   # TypeScript check
+npm start # Start server (port 3847)
+npm run build # Compile TypeScript
+npm run typecheck # TypeScript check
 
 ## Architecture
 

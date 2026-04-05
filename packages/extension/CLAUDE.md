@@ -7,13 +7,13 @@
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/content.ts` | Content script — DOM parsing, data extraction |
+| File                | Role                                                  |
+| ------------------- | ----------------------------------------------------- |
+| `src/content.ts`    | Content script — DOM parsing, data extraction         |
 | `src/background.ts` | Service worker — relay communication, message routing |
-| `src/popup.ts` | Popup UI |
-| `src/options.ts` | Options page |
-| `manifest.json` | Extension manifest (version here must match root) |
+| `src/popup.ts`      | Popup UI                                              |
+| `src/options.ts`    | Options page                                          |
+| `manifest.json`     | Extension manifest (version here must match root)     |
 
 ## Architecture
 

@@ -1,5 +1,10 @@
 import { Logger } from '../logger';
-import { findPropertyKey, getPropertyMetadata, logComponentCacheStats, getCachedPropertyNames } from '../utils/component-cache';
+import {
+  findPropertyKey,
+  getPropertyMetadata,
+  logComponentCacheStats,
+  getCachedPropertyNames,
+} from '../utils/component-cache';
 
 // ============================================================================
 // Кэш предупреждений для агрегации (чтобы не спамить одинаковыми сообщениями)
@@ -61,8 +66,9 @@ export function logPropertyWarnings(): void {
   // Предупреждения о ненайденных свойствах
   if (missingPropertyWarnings.size > 0) {
     Logger.verbose(`⚠️ Свойства не найдены в компонентах:`);
-    const sorted = Array.from(missingPropertyWarnings.entries())
-      .sort((a, b) => b[1].count - a[1].count);
+    const sorted = Array.from(missingPropertyWarnings.entries()).sort(
+      (a, b) => b[1].count - a[1].count,
+    );
 
     for (const [key, stats] of sorted) {
       const [instanceType, propertyName] = key.split(':');
@@ -72,9 +78,10 @@ export function logPropertyWarnings(): void {
 
   // Ошибки установки variant properties
   if (setPropertyErrors.size > 0) {
-    Logger.verbose(`❌ Не удалось установить Variant Properties (свойство не найдено или значение невалидно):`);
-    const sorted = Array.from(setPropertyErrors.entries())
-      .sort((a, b) => b[1].count - a[1].count);
+    Logger.verbose(
+      `❌ Не удалось установить Variant Properties (свойство не найдено или значение невалидно):`,
+    );
+    const sorted = Array.from(setPropertyErrors.entries()).sort((a, b) => b[1].count - a[1].count);
 
     for (const [key, stats] of sorted) {
       const parts = key.split(':');
@@ -110,7 +117,11 @@ function logAvailablePropertiesOnce(instance: InstanceNode, propertyName: string
 /**
  * Регистрирует предупреждение о ненайденном свойстве (не выводит в лог)
  */
-export function trackMissingProperty(instanceName: string, propertyName: string, instance?: InstanceNode): void {
+export function trackMissingProperty(
+  instanceName: string,
+  propertyName: string,
+  instance?: InstanceNode,
+): void {
   // Извлекаем тип инстанса (например, "EProductSnippet" из "EProductSnippet")
   const instanceType = instanceName.split(' ')[0];
   const key = `${instanceType}:${propertyName}`;
@@ -126,7 +137,7 @@ export function trackMissingProperty(instanceName: string, propertyName: string,
     }
     missingPropertyWarnings.set(key, {
       count: 1,
-      instanceNames: new Set([instanceName])
+      instanceNames: new Set([instanceName]),
     });
   }
 }
@@ -134,7 +145,12 @@ export function trackMissingProperty(instanceName: string, propertyName: string,
 /**
  * Регистрирует ошибку установки свойства (не выводит в лог)
  */
-export function trackSetPropertyError(instanceName: string, propertyName: string, value: string, instance?: InstanceNode): void {
+export function trackSetPropertyError(
+  instanceName: string,
+  propertyName: string,
+  value: string,
+  instance?: InstanceNode,
+): void {
   const instanceType = instanceName.split(' ')[0];
   const key = `${instanceType}:${propertyName}:${value}`;
 
@@ -149,7 +165,7 @@ export function trackSetPropertyError(instanceName: string, propertyName: string
     }
     setPropertyErrors.set(key, {
       count: 1,
-      instanceNames: new Set([instanceName])
+      instanceNames: new Set([instanceName]),
     });
   }
 }

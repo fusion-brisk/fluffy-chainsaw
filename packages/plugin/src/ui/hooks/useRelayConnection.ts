@@ -161,7 +161,9 @@ export function useRelayConnection({
   }, [relayUrl]);
 
   // checkRelay — check relay status and peek if data available
-  const checkRelay = useCallback(async (): Promise<'connected' | 'connected-with-data' | 'disconnected'> => {
+  const checkRelay = useCallback(async (): Promise<
+    'connected' | 'connected-with-data' | 'disconnected'
+  > => {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
@@ -179,7 +181,7 @@ export function useRelayConnection({
         setRelayVersion(data.version);
       }
 
-      const hasPendingData = data.hasData || (data.pendingCount > 0) || (data.queueSize > 0);
+      const hasPendingData = data.hasData || data.pendingCount > 0 || data.queueSize > 0;
 
       if (hasPendingData) {
         await peekRelayData();
@@ -193,38 +195,41 @@ export function useRelayConnection({
   }, [relayUrl, peekRelayData]);
 
   // ackData — acknowledge relay data after successful load (with retry)
-  const ackData = useCallback(async (entryId: string) => {
-    lastProcessedEntryIdRef.current = entryId;
-    isAckInProgressRef.current = true;
+  const ackData = useCallback(
+    async (entryId: string) => {
+      lastProcessedEntryIdRef.current = entryId;
+      isAckInProgressRef.current = true;
 
-    const MAX_RETRIES = 3;
-    const RETRY_DELAYS = [1000, 2000, 4000];
+      const MAX_RETRIES = 3;
+      const RETRY_DELAYS = [1000, 2000, 4000];
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const response = await fetch(`${relayUrl}/ack`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entryId }),
-          signal: AbortSignal.timeout(5000),
-        });
-        if (response.ok) {
-          lastProcessedEntryIdRef.current = null;
-          isAckInProgressRef.current = false;
-          return;
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const response = await fetch(`${relayUrl}/ack`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entryId }),
+            signal: AbortSignal.timeout(5000),
+          });
+          if (response.ok) {
+            lastProcessedEntryIdRef.current = null;
+            isAckInProgressRef.current = false;
+            return;
+          }
+        } catch {
+          // retry
         }
-      } catch {
-        // retry
+
+        if (attempt < MAX_RETRIES) {
+          const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
       }
 
-      if (attempt < MAX_RETRIES) {
-        const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-
-    isAckInProgressRef.current = false;
-  }, [relayUrl]);
+      isAckInProgressRef.current = false;
+    },
+    [relayUrl],
+  );
 
   // clearQueue — delete all pending entries
   const clearQueue = useCallback(async () => {

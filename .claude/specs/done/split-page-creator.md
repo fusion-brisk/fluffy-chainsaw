@@ -22,6 +22,7 @@ Used only in `createPageFromRows` (line 497).
 ### 0b. Extract shared `findFillableLayer` to utils
 
 Two different implementations exist:
+
 - **page-creator.ts:1640** — more sophisticated (skips "White BG", checks min dimensions 20x20, has `#OrganicImage` priority)
 - **wizard-processor.ts:244** — simpler (finds first non-TEXT node with fills)
 
@@ -32,11 +33,13 @@ These serve **different purposes** — page-creator's version is for image grid 
 ## Phase 1: Extract `fill-utils.ts` (~97 LOC)
 
 **Functions:**
+
 - `applyFillVariable` (lines 127–164)
 - `applyFillStyle` (lines 174–190)
 - `applyFill` (lines 201–220)
 
 **Imports needed:**
+
 - `Logger` from `../../logger`
 - `VARIABLE_KEYS`, `PAINT_STYLE_KEYS` from `./component-map`
 
@@ -49,12 +52,14 @@ These serve **different purposes** — page-creator's version is for image grid 
 ## Phase 2: Extract `component-import.ts` (~70 LOC)
 
 **Functions + state:**
+
 - `const componentCache = new Map<string, ComponentNode>()` (line 86)
 - `clearComponentCache` (lines 91–93) — **exported**
 - `importComponent` (lines 98–119)
 - `createPlaceholder` (lines 56–80)
 
 **Imports needed:**
+
 - `Logger` from `../../logger`
 
 **Exports:** `clearComponentCache`, `importComponent`, `createPlaceholder`
@@ -66,11 +71,13 @@ These serve **different purposes** — page-creator's version is for image grid 
 ## Phase 3: Extract `instance-factory.ts` (~144 LOC)
 
 **Functions:**
+
 - `createInstanceForElement` (lines 225–269) — used only by legacy `createPageFromStructure`
 - `applyDataToInstance` (lines 274–309) — used by legacy path
 - `createGroupWithChildren` (lines 314–365) — used by legacy path
 
 **Imports needed:**
+
 - `Logger` from `../../logger`
 - `getComponentConfig` from `./component-map`
 - `importComponent`, `createPlaceholder` from `./component-import`
@@ -87,6 +94,7 @@ These serve **different purposes** — page-creator's version is for image grid 
 ## Phase 4: Extract `image-operations.ts` (~388 LOC)
 
 **Functions:**
+
 - `preloadInstanceFonts` (lines 601–617)
 - `findImageLayer` (lines 622–639)
 - `findLayerByPartialName` (lines 644–657)
@@ -97,6 +105,7 @@ These serve **different purposes** — page-creator's version is for image grid 
 - `applyQuoteAvatar` (lines 923–985)
 
 **Imports needed:**
+
 - `Logger` from `../../logger`
 
 **Exports:** `preloadInstanceFonts`, `applySnippetImages`, `applyFavicon`, `applyQuoteAvatar`, `loadAndApplyImage`, `findImageLayer`, `findFillableLayer` (the page-creator version, for use in panel-builders)
@@ -110,6 +119,7 @@ Also move `findFillableLayer` (lines 1640–1665) and `ImageGridItem` interface 
 ## Phase 5: Extract `panel-builders.ts` (~690 LOC)
 
 **Functions:**
+
 - `createEQuickFiltersPanel` (lines 1103–1242)
 - `applyDefaultBooleans` (lines 1249–1269)
 - `createAsideFiltersPanel` (lines 1274–1620)
@@ -117,6 +127,7 @@ Also move `findFillableLayer` (lines 1640–1665) and `ImageGridItem` interface 
 - `createContainerFrame` (lines 544–595)
 
 **Imports needed:**
+
 - `Logger` from `../../logger`
 - `findTextNode`, `findFirstNodeByName` from `../../utils/node-search`
 - `FILTER_COMPONENTS`, `ASIDE_FILTER_COMPONENTS`, `VARIABLE_KEYS`, `ETHUMB_CONFIG`, `LAYOUT_COMPONENT_MAP`, `getContainerConfig` from `./component-map`
@@ -134,6 +145,7 @@ Also move `findFillableLayer` (lines 1640–1665) and `ImageGridItem` interface 
 ## Phase 6: Slim down `page-creator.ts` (~530 LOC)
 
 **Remains in page-creator.ts:**
+
 - `DEFAULT_OPTIONS` constant
 - `createSnippetInstance` (~108 LOC) — uses importComponent, preloadInstanceFonts, applySnippetImages, applyFavicon, applyQuoteAvatar
 - `renderStructureNode` (~392 LOC) — the recursive dispatcher
@@ -143,12 +155,27 @@ Also move `findFillableLayer` (lines 1640–1665) and `ImageGridItem` interface 
 - `validateComponentKeys` (exported, ~24 LOC)
 
 **New imports:**
+
 ```ts
 import { importComponent, createPlaceholder, clearComponentCache } from './component-import';
 import { applyFill, applyFillStyle } from './fill-utils';
-import { createInstanceForElement, applyDataToInstance, createGroupWithChildren } from './instance-factory';
-import { preloadInstanceFonts, applySnippetImages, applyFavicon, applyQuoteAvatar } from './image-operations';
-import { createEQuickFiltersPanel, createAsideFiltersPanel, createImagesGridPanel, createContainerFrame } from './panel-builders';
+import {
+  createInstanceForElement,
+  applyDataToInstance,
+  createGroupWithChildren,
+} from './instance-factory';
+import {
+  preloadInstanceFonts,
+  applySnippetImages,
+  applyFavicon,
+  applyQuoteAvatar,
+} from './image-operations';
+import {
+  createEQuickFiltersPanel,
+  createAsideFiltersPanel,
+  createImagesGridPanel,
+  createContainerFrame,
+} from './panel-builders';
 import { detectSnippetType } from './structure-builder';
 ```
 

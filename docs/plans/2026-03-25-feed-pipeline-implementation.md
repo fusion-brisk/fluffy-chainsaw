@@ -15,6 +15,7 @@
 ### Task 1: Add FeedCardRow Types
 
 **Files:**
+
 - Create: `packages/plugin/src/types/feed-card-types.ts`
 - Modify: `packages/plugin/src/types/index.ts`
 
@@ -27,8 +28,22 @@ Copy the prepared file from `/Users/shchuchkin/Downloads/files 6/feed-card-types
 Add to the existing exports in `packages/plugin/src/types/index.ts`:
 
 ```typescript
-export type { FeedCardRow, FeedCardFields, FeedCardType, FeedCardSize, FeedPlatform, FeedComponentVariant, VariantSelector, FeedMasonryConfig } from './feed-card-types';
-export { FEED_REQUIRED_FIELDS, FEED_IMAGE_FIELDS, FEED_BOOLEAN_FIELDS, DEFAULT_MASONRY_CONFIG } from './feed-card-types';
+export type {
+  FeedCardRow,
+  FeedCardFields,
+  FeedCardType,
+  FeedCardSize,
+  FeedPlatform,
+  FeedComponentVariant,
+  VariantSelector,
+  FeedMasonryConfig,
+} from './feed-card-types';
+export {
+  FEED_REQUIRED_FIELDS,
+  FEED_IMAGE_FIELDS,
+  FEED_BOOLEAN_FIELDS,
+  DEFAULT_MASONRY_CONFIG,
+} from './feed-card-types';
 ```
 
 **Step 3: Run typecheck**
@@ -48,6 +63,7 @@ git commit -m "feat: add FeedCardRow types for feed pipeline"
 ### Task 2: Feed Component Map
 
 **Files:**
+
 - Create: `packages/plugin/src/sandbox/feed-page-builder/feed-component-map.ts`
 
 **Step 1: Write test for variant selector**
@@ -160,38 +176,45 @@ Expected: FAIL — module not found
 Create `packages/plugin/src/sandbox/feed-page-builder/feed-component-map.ts`.
 
 This file needs:
+
 1. `FEED_VARIANT_MAP` — Record of variant keys per card type, keyed by `{type}_{variant}_{platform}`
 2. `selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null` — selector function
 
 Variant keys come from the DC Feed library (file `0dr1G4gFr6q8enaEOR1YUW`). The key component sets and their structure:
 
-| Card Type | Component Set | Set Key | Variants × Platform |
-|-----------|--------------|---------|---------------------|
-| post | Posts | `0fdaa4594724de9e5aca70b24697acfe99c47069` | 1–14 × Desktop/Mobile (28 total) |
-| video | Videos | `012cb3e9e93ac64676b2ba3e5f33ff3ac9b99061` | 1–5 × Desktop/Mobile (10 total) |
-| market | Market Production Snippet | `3b7e0b1f54a2cc8843efb69597158fd1ba0a1858` | 1–8 × Desktop/Mobile (16 total) |
-| advert (prod) | Ads Production Snippets | `66df545c9090c6776444d39306af1e3b34e7da41` | 1–6 × Desktop/Mobile (12 total) |
-| advert (examples) | Ads Examples | `fa33e1ca52751009197bba25340780694e977cdf` | 1–9 × Desktop/Mobile (18 total) |
-| product | Products Examples | `862ed09175edc1b277dd67b9686e753e5c51212d` | 1–21 × Independent/Market × Desktop/Mobile (56 total) |
-| collection | Collections | `0a973790f90a010df34a9f6509256b176bd611b3` | 1–4 × Desktop/Mobile (8 total) |
+| Card Type         | Component Set             | Set Key                                    | Variants × Platform                                   |
+| ----------------- | ------------------------- | ------------------------------------------ | ----------------------------------------------------- |
+| post              | Posts                     | `0fdaa4594724de9e5aca70b24697acfe99c47069` | 1–14 × Desktop/Mobile (28 total)                      |
+| video             | Videos                    | `012cb3e9e93ac64676b2ba3e5f33ff3ac9b99061` | 1–5 × Desktop/Mobile (10 total)                       |
+| market            | Market Production Snippet | `3b7e0b1f54a2cc8843efb69597158fd1ba0a1858` | 1–8 × Desktop/Mobile (16 total)                       |
+| advert (prod)     | Ads Production Snippets   | `66df545c9090c6776444d39306af1e3b34e7da41` | 1–6 × Desktop/Mobile (12 total)                       |
+| advert (examples) | Ads Examples              | `fa33e1ca52751009197bba25340780694e977cdf` | 1–9 × Desktop/Mobile (18 total)                       |
+| product           | Products Examples         | `862ed09175edc1b277dd67b9686e753e5c51212d` | 1–21 × Independent/Market × Desktop/Mobile (56 total) |
+| collection        | Collections               | `0a973790f90a010df34a9f6509256b176bd611b3` | 1–4 × Desktop/Mobile (8 total)                        |
 
 **IMPORTANT:** These are COMPONENT_SET keys (parent). For `importComponentByKeyAsync` we need individual VARIANT keys. We need to resolve them.
 
 **Approach:** Use `figma.importComponentSetByKeyAsync(setKey)` to import the component set, then find the matching variant child by property values (`Variant`, `Platform`). This avoids hardcoding 100+ individual variant keys.
 
 ```typescript
-import type { FeedCardRow, FeedCardType, FeedCardSize, FeedPlatform, FeedComponentVariant } from '../../types/feed-card-types';
+import type {
+  FeedCardRow,
+  FeedCardType,
+  FeedCardSize,
+  FeedPlatform,
+  FeedComponentVariant,
+} from '../../types/feed-card-types';
 import { Logger } from '../../logger';
 
 // Component SET keys (parent sets, not individual variants)
 const FEED_COMPONENT_SET_KEYS: Record<string, string> = {
-  'post':           '0fdaa4594724de9e5aca70b24697acfe99c47069',
-  'video':          '012cb3e9e93ac64676b2ba3e5f33ff3ac9b99061',
-  'market':         '3b7e0b1f54a2cc8843efb69597158fd1ba0a1858',
-  'advert_prod':    '66df545c9090c6776444d39306af1e3b34e7da41',
-  'advert_examples':'fa33e1ca52751009197bba25340780694e977cdf',
-  'product':        '862ed09175edc1b277dd67b9686e753e5c51212d',
-  'collection':     '0a973790f90a010df34a9f6509256b176bd611b3',
+  post: '0fdaa4594724de9e5aca70b24697acfe99c47069',
+  video: '012cb3e9e93ac64676b2ba3e5f33ff3ac9b99061',
+  market: '3b7e0b1f54a2cc8843efb69597158fd1ba0a1858',
+  advert_prod: '66df545c9090c6776444d39306af1e3b34e7da41',
+  advert_examples: 'fa33e1ca52751009197bba25340780694e977cdf',
+  product: '862ed09175edc1b277dd67b9686e753e5c51212d',
+  collection: '0a973790f90a010df34a9f6509256b176bd611b3',
 };
 
 // Cache imported component sets
@@ -212,7 +235,7 @@ async function importComponentSet(setKey: string): Promise<ComponentSetNode | nu
 function findVariantInSet(
   set: ComponentSetNode,
   variantNum: number,
-  platform: FeedPlatform
+  platform: FeedPlatform,
 ): ComponentNode | null {
   const platformValue = platform === 'desktop' ? 'Desktop' : 'Mobile';
   for (const child of set.children) {
@@ -227,7 +250,11 @@ function findVariantInSet(
 }
 
 // Size → variant range mapping
-function getVariantRange(type: FeedCardType, size: FeedCardSize, row: FeedCardRow): { min: number; max: number } {
+function getVariantRange(
+  type: FeedCardType,
+  size: FeedCardSize,
+  row: FeedCardRow,
+): { min: number; max: number } {
   switch (type) {
     case 'market':
       if (size === 'xs') return { min: 1, max: 2 };
@@ -280,9 +307,7 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
 }
 
 /** Import a feed component variant — returns instance-ready ComponentNode */
-export async function importFeedComponent(
-  row: FeedCardRow
-): Promise<ComponentNode | null> {
+export async function importFeedComponent(row: FeedCardRow): Promise<ComponentNode | null> {
   const selected = selectFeedVariant(row);
   if (!selected) return null;
 
@@ -291,9 +316,11 @@ export async function importFeedComponent(
 
   const variant = findVariantInSet(set, selected.variant, selected.platform);
   if (!variant) {
-    Logger.warn('[FeedComponentMap] Variant not found: ' + selected.variant + '/' + selected.platform);
+    Logger.warn(
+      '[FeedComponentMap] Variant not found: ' + selected.variant + '/' + selected.platform,
+    );
     // Fallback: first child
-    const firstChild = set.children.find(c => c.type === 'COMPONENT');
+    const firstChild = set.children.find((c) => c.type === 'COMPONENT');
     return (firstChild as ComponentNode) || null;
   }
   return variant;
@@ -323,6 +350,7 @@ git commit -m "feat: add feed component map with variant selection"
 ### Task 3: Masonry Layout Algorithm
 
 **Files:**
+
 - Create: `packages/plugin/src/sandbox/feed-page-builder/feed-masonry-layout.ts`
 - Create: `packages/plugin/tests/feed/masonry-layout.test.ts`
 
@@ -330,7 +358,11 @@ git commit -m "feat: add feed component map with variant selection"
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import { assignMasonryPositions, type MasonryItem, type MasonryResult } from '../../src/sandbox/feed-page-builder/feed-masonry-layout';
+import {
+  assignMasonryPositions,
+  type MasonryItem,
+  type MasonryResult,
+} from '../../src/sandbox/feed-page-builder/feed-masonry-layout';
 
 describe('assignMasonryPositions', () => {
   it('assigns items to shortest column', () => {
@@ -446,10 +478,7 @@ export interface MasonryResult {
   totalHeight: number;
 }
 
-export function assignMasonryPositions(
-  items: MasonryItem[],
-  config: MasonryConfig
-): MasonryResult {
+export function assignMasonryPositions(items: MasonryItem[], config: MasonryConfig): MasonryResult {
   var columnHeights: number[] = [];
   for (var c = 0; c < config.columns; c++) {
     columnHeights.push(0);
@@ -516,6 +545,7 @@ git commit -m "feat: add masonry layout algorithm for feed grid"
 ### Task 4: Feed Page Creator
 
 **Files:**
+
 - Create: `packages/plugin/src/sandbox/feed-page-builder/feed-page-creator.ts`
 - Create: `packages/plugin/src/sandbox/feed-page-builder/index.ts`
 
@@ -533,7 +563,11 @@ This is the core module — it takes `FeedCardRow[]` and produces a Figma frame 
 import { Logger } from '../../logger';
 import type { FeedCardRow, FeedPlatform, FeedMasonryConfig } from '../../types/feed-card-types';
 import { DEFAULT_MASONRY_CONFIG } from '../../types/feed-card-types';
-import { importFeedComponent, selectFeedVariant, clearFeedComponentCache } from './feed-component-map';
+import {
+  importFeedComponent,
+  selectFeedVariant,
+  clearFeedComponentCache,
+} from './feed-component-map';
 import { assignMasonryPositions, type MasonryItem } from './feed-masonry-layout';
 import { buildInstanceCache } from '../../utils/instance-cache';
 import { createPlaceholder } from '../page-builder/component-import';
@@ -556,7 +590,7 @@ export interface FeedPageResult {
  */
 export async function createFeedPage(
   cards: FeedCardRow[],
-  options: FeedPageOptions = {}
+  options: FeedPageOptions = {},
 ): Promise<FeedPageResult> {
   var platform: FeedPlatform = options.platform || 'desktop';
   var masonryDefaults = DEFAULT_MASONRY_CONFIG[platform];
@@ -570,8 +604,14 @@ export async function createFeedPage(
   var errors: string[] = [];
   var createdCount = 0;
 
-  Logger.info('[FeedPageCreator] Creating feed page: ' + cards.length + ' cards, ' +
-    config.columns + ' columns, platform=' + platform);
+  Logger.info(
+    '[FeedPageCreator] Creating feed page: ' +
+      cards.length +
+      ' cards, ' +
+      config.columns +
+      ' columns, platform=' +
+      platform,
+  );
 
   // 1. Import all components and create instances
   var instances: Array<{ instance: InstanceNode | FrameNode; row: FeedCardRow }> = [];
@@ -583,13 +623,16 @@ export async function createFeedPage(
         type: 'progress',
         current: Math.round((i / cards.length) * 80) + 10,
         total: 100,
-        message: 'Импорт карточки ' + (i + 1) + '/' + cards.length + ' (' + card['#Feed_CardType'] + ')',
+        message:
+          'Импорт карточки ' + (i + 1) + '/' + cards.length + ' (' + card['#Feed_CardType'] + ')',
         operationType: 'feed-import',
       });
 
       var component = await importFeedComponent(card);
       if (!component) {
-        Logger.warn('[FeedPageCreator] No component for card ' + i + ' (' + card['#Feed_CardType'] + ')');
+        Logger.warn(
+          '[FeedPageCreator] No component for card ' + i + ' (' + card['#Feed_CardType'] + ')',
+        );
         var placeholder = createPlaceholder(card['#Feed_CardType'], config.columnWidth, 200);
         if (placeholder) {
           instances.push({ instance: placeholder, row: card });
@@ -647,8 +690,17 @@ export async function createFeedPage(
     inst.y = pos.y;
   }
 
-  Logger.info('[FeedPageCreator] Created feed page: ' + createdCount + '/' + cards.length +
-    ' cards, ' + layout.totalWidth + 'x' + layout.totalHeight + 'px');
+  Logger.info(
+    '[FeedPageCreator] Created feed page: ' +
+      createdCount +
+      '/' +
+      cards.length +
+      ' cards, ' +
+      layout.totalWidth +
+      'x' +
+      layout.totalHeight +
+      'px',
+  );
 
   return {
     success: true,
@@ -670,7 +722,12 @@ export { createFeedPage, clearFeedComponentCache } from './feed-page-creator';
 export type { FeedPageOptions, FeedPageResult } from './feed-page-creator';
 export { selectFeedVariant, importFeedComponent } from './feed-component-map';
 export { assignMasonryPositions } from './feed-masonry-layout';
-export type { MasonryItem, MasonryConfig, MasonryPosition, MasonryResult } from './feed-masonry-layout';
+export type {
+  MasonryItem,
+  MasonryConfig,
+  MasonryPosition,
+  MasonryResult,
+} from './feed-masonry-layout';
 ```
 
 **Step 3: Run typecheck**
@@ -690,6 +747,7 @@ git commit -m "feat: add feed page creator with masonry layout"
 ### Task 5: Wire Up Message Handler
 
 **Files:**
+
 - Modify: `packages/plugin/src/sandbox/code.ts`
 
 **Step 1: Add apply-feed-payload handler**
@@ -745,7 +803,9 @@ if (msg.type === 'apply-feed-payload') {
 
       Logger.info('[Feed] Created "' + result.frame.name + '": ' + result.createdCount + ' cards');
     } else {
-      throw new Error(result.errors.length > 0 ? result.errors.join('; ') : 'Failed to create feed page');
+      throw new Error(
+        result.errors.length > 0 ? result.errors.join('; ') : 'Failed to create feed page',
+      );
     }
   } catch (error) {
     Logger.error('[Feed] Error:', error);
@@ -787,6 +847,7 @@ git commit -m "feat: wire apply-feed-payload message handler"
 ### Task 6: Mock Data for Testing
 
 **Files:**
+
 - Create: `packages/plugin/tests/feed/fixtures/mock-feed-cards.ts`
 
 **Step 1: Create mock data fixture**
@@ -924,9 +985,30 @@ figma.ui.postMessage({
   type: 'apply-feed-payload',
   payload: {
     cards: [
-      { '#Feed_CardType': 'market', '#Feed_CardSize': 'xs', '#Feed_Platform': 'desktop', '#Feed_Index': '0', '#Feed_Title': 'Test Market', '#Feed_Price': '999' },
-      { '#Feed_CardType': 'post', '#Feed_CardSize': 'm', '#Feed_Platform': 'desktop', '#Feed_Index': '1', '#Feed_Title': 'Test Post', '#Feed_SourceName': 'test.ru' },
-      { '#Feed_CardType': 'video', '#Feed_CardSize': 'ml', '#Feed_Platform': 'desktop', '#Feed_Index': '2', '#Feed_HasVideo': 'true', '#Feed_SourceName': 'testchannel' },
+      {
+        '#Feed_CardType': 'market',
+        '#Feed_CardSize': 'xs',
+        '#Feed_Platform': 'desktop',
+        '#Feed_Index': '0',
+        '#Feed_Title': 'Test Market',
+        '#Feed_Price': '999',
+      },
+      {
+        '#Feed_CardType': 'post',
+        '#Feed_CardSize': 'm',
+        '#Feed_Platform': 'desktop',
+        '#Feed_Index': '1',
+        '#Feed_Title': 'Test Post',
+        '#Feed_SourceName': 'test.ru',
+      },
+      {
+        '#Feed_CardType': 'video',
+        '#Feed_CardSize': 'ml',
+        '#Feed_Platform': 'desktop',
+        '#Feed_Index': '2',
+        '#Feed_HasVideo': 'true',
+        '#Feed_SourceName': 'testchannel',
+      },
     ],
     platform: 'desktop',
   },
@@ -936,6 +1018,7 @@ figma.ui.postMessage({
 **Step 3: Verify output**
 
 Expected: A frame named "Feed Page" appears with 3 card instances arranged in a masonry grid (3 columns for 3 cards). Check:
+
 - Cards are from DC Feed library (not placeholders)
 - Masonry positioning looks correct (items fill columns left to right)
 - No console errors
@@ -944,15 +1027,15 @@ Expected: A frame named "Feed Page" appears with 3 card instances arranged in a 
 
 ## Summary
 
-| Task | What | Files |
-|------|------|-------|
-| 1 | FeedCardRow types | `types/feed-card-types.ts` |
-| 2 | Component map + variant selector | `feed-page-builder/feed-component-map.ts` |
-| 3 | Masonry layout algorithm | `feed-page-builder/feed-masonry-layout.ts` |
-| 4 | Feed page creator | `feed-page-builder/feed-page-creator.ts` |
-| 5 | Message handler wiring | `sandbox/code.ts` |
-| 6 | Mock test fixtures | `tests/feed/fixtures/mock-feed-cards.ts` |
-| 7 | Build verification | All files |
-| 8 | Manual Figma test | Plugin in Figma |
+| Task | What                             | Files                                      |
+| ---- | -------------------------------- | ------------------------------------------ |
+| 1    | FeedCardRow types                | `types/feed-card-types.ts`                 |
+| 2    | Component map + variant selector | `feed-page-builder/feed-component-map.ts`  |
+| 3    | Masonry layout algorithm         | `feed-page-builder/feed-masonry-layout.ts` |
+| 4    | Feed page creator                | `feed-page-builder/feed-page-creator.ts`   |
+| 5    | Message handler wiring           | `sandbox/code.ts`                          |
+| 6    | Mock test fixtures               | `tests/feed/fixtures/mock-feed-cards.ts`   |
+| 7    | Build verification               | All files                                  |
+| 8    | Manual Figma test                | Plugin in Figma                            |
 
 **Dependencies:** Task 1 → Task 2 → Task 4. Task 3 is independent (parallel with Task 2). Tasks 5-8 sequential after Task 4.

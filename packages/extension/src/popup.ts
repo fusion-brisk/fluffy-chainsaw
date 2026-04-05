@@ -51,7 +51,9 @@ async function loadCachedRules(): Promise<unknown> {
     if (cache?.rules) {
       return cache.rules;
     }
-  } catch { /* no cached rules */ }
+  } catch {
+    /* no cached rules */
+  }
   return null;
 }
 
@@ -62,14 +64,16 @@ async function parsePageData(tabId: number): Promise<ParseResult | undefined> {
   if (rules) {
     await chrome.scripting.executeScript({
       target: { tabId },
-      func: (r: unknown) => { (window as Window).__contentifyParsingRules = r; },
-      args: [rules]
+      func: (r: unknown) => {
+        (window as Window).__contentifyParsingRules = r;
+      },
+      args: [rules],
     });
   }
 
   const results = await chrome.scripting.executeScript({
     target: { tabId },
-    files: ['dist/content.js']
+    files: ['dist/content.js'],
   });
   return results[0]?.result as ParseResult | undefined;
 }
@@ -150,14 +154,14 @@ async function handleClick(): Promise<void> {
       capturedAt: new Date().toISOString(),
       rawRows: rows,
       wizards: wizards,
-      productCard: productCard
+      productCard: productCard,
     };
 
     const meta = {
       url: tab.url,
       parsedAt: new Date().toISOString(),
       snippetCount: rows.length,
-      wizardCount: wizards.length
+      wizardCount: wizards.length,
     };
 
     // Send to relay
@@ -171,7 +175,7 @@ async function handleClick(): Promise<void> {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ payload, meta }),
-          signal: AbortSignal.timeout(2000)
+          signal: AbortSignal.timeout(2000),
         });
         relaySuccess = res.ok;
       }
@@ -192,7 +196,6 @@ async function handleClick(): Promise<void> {
     if (relaySuccess) {
       setTimeout(() => window.close(), 1000);
     }
-
   } catch (err: unknown) {
     console.error('Error:', err);
     setState('error', 'Ошибка', (err as Error).message || 'Попробуйте снова');

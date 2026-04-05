@@ -13,7 +13,7 @@ import { VARIABLE_KEYS, PAINT_STYLE_KEYS } from './component-map';
  */
 export async function applyFillVariable(
   node: SceneNode & { fills?: readonly Paint[] | typeof figma.mixed },
-  variableKey: string
+  variableKey: string,
 ): Promise<boolean> {
   if (!variableKey) {
     Logger.debug('[PageCreator] Пустой ключ переменной');
@@ -45,7 +45,9 @@ export async function applyFillVariable(
     return true;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    Logger.warn(`[PageCreator] Не удалось применить переменную заливки (key=${variableKey}): ${msg}`);
+    Logger.warn(
+      `[PageCreator] Не удалось применить переменную заливки (key=${variableKey}): ${msg}`,
+    );
   }
   return false;
 }
@@ -60,7 +62,7 @@ export async function applyFillVariable(
  */
 export async function applyFillStyle(
   node: SceneNode & { fillStyleId?: string | typeof figma.mixed },
-  styleKey: string
+  styleKey: string,
 ): Promise<boolean> {
   try {
     const style = await figma.importStyleByKeyAsync(styleKey);
@@ -86,8 +88,11 @@ export async function applyFillStyle(
  * @returns true если заливка успешно применена
  */
 export async function applyFill(
-  node: SceneNode & { fills?: readonly Paint[] | typeof figma.mixed; fillStyleId?: string | typeof figma.mixed },
-  colorName: keyof typeof VARIABLE_KEYS
+  node: SceneNode & {
+    fills?: readonly Paint[] | typeof figma.mixed;
+    fillStyleId?: string | typeof figma.mixed;
+  },
+  colorName: keyof typeof VARIABLE_KEYS,
 ): Promise<boolean> {
   // 1. Сначала пробуем переменную
   const variableKey = VARIABLE_KEYS[colorName];

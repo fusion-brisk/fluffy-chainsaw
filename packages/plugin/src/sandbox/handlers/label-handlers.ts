@@ -16,12 +16,12 @@ import { HandlerContext } from './types';
 /**
  * Обработка Brand (если нет значения, выключаем)
  * Brand — BOOLEAN свойство, передаём boolean напрямую
- * 
+ *
  * Brand существует ТОЛЬКО в:
  * - EProductSnippet
  * - EShopItem
  * - EOfferItem
- * 
+ *
  * НЕ существует в:
  * - ESnippet (у него: Kebab, imageType, Price, BUTTON, Quote, DELIVERY + FINTECH, etc.)
  */
@@ -30,13 +30,13 @@ export async function handleBrandLogic(context: HandlerContext): Promise<void> {
   if (!container || !row) return;
 
   const containerName = container.name || 'Unknown';
-  
+
   // ESnippet не имеет свойства Brand — пропускаем
   if (containerName === 'ESnippet' || containerName === 'Snippet') {
     Logger.debug(`   🔧 [Brand Logic] Пропускаем ${containerName} (нет свойства Brand)`);
     return;
   }
-  
+
   // Проверяем наличие #Brand в строке (значение не пустое)
   const brandValue = row['#Brand'];
   // Игнорируем Variant Property синтаксис для определения наличия значения
@@ -44,14 +44,14 @@ export async function handleBrandLogic(context: HandlerContext): Promise<void> {
   const hasBrandValue = !!(brandValue && brandValue.trim() !== '' && !isVariantPropertySyntax);
 
   Logger.debug(`   🔧 [Brand Logic] Brand=${hasBrandValue} для контейнера "${containerName}"`);
-  
+
   try {
     // Устанавливаем Brand на контейнере (BOOLEAN свойство)
     if (container.type === 'INSTANCE' && !container.removed) {
       const containerInstance = container as InstanceNode;
       trySetProperty(containerInstance, ['Brand'], hasBrandValue, '#Brand');
     }
-    
+
     // Также пробуем на дочерних инстансах (для вложенных компонентов)
     if ('children' in container) {
       for (const child of container.children) {
@@ -59,7 +59,11 @@ export async function handleBrandLogic(context: HandlerContext): Promise<void> {
           const instance = child as InstanceNode;
           // Пропускаем ESnippet и подобные
           const childName = instance.name;
-          if (childName !== 'ESnippet' && childName !== 'Snippet' && SNIPPET_CONTAINER_NAMES.includes(childName)) {
+          if (
+            childName !== 'ESnippet' &&
+            childName !== 'Snippet' &&
+            SNIPPET_CONTAINER_NAMES.includes(childName)
+          ) {
             trySetProperty(instance, ['Brand'], hasBrandValue, '#Brand');
           }
         }
@@ -102,13 +106,18 @@ export async function handleELabelGroup(context: HandlerContext): Promise<void> 
   // Barometer — BOOLEAN свойство
   if (eLabelGroupInstance) {
     const hasBarometer = row['#ELabelGroup_Barometer'] === 'true';
-    trySetProperty(eLabelGroupInstance, ['withBarometer', 'Barometer'], hasBarometer, '#ELabelGroup_Barometer');
+    trySetProperty(
+      eLabelGroupInstance,
+      ['withBarometer', 'Barometer'],
+      hasBarometer,
+      '#ELabelGroup_Barometer',
+    );
   }
 }
 
 /**
  * Обработка EPriceBarometer — View и isCompact
- * 
+ *
  * Логика isCompact:
  * - ESnippet/Snippet: всегда isCompact=false
  * - EProductSnippet2: isCompact=true если width<=182px, иначе false
@@ -120,7 +129,7 @@ export async function handleEPriceBarometer(context: HandlerContext): Promise<vo
 
   const hasBarometer = row['#ELabelGroup_Barometer'] === 'true';
   const viewVal = row['#EPriceBarometer_View'];
-  const containerName = ('name' in container) ? String(container.name) : '';
+  const containerName = 'name' in container ? String(container.name) : '';
 
   if (hasBarometer && viewVal) {
     const ePriceBarometerInstance = getCachedInstance(instanceCache!, 'EPriceBarometer');
@@ -135,14 +144,21 @@ export async function handleEPriceBarometer(context: HandlerContext): Promise<vo
         isCompact = false;
         Logger.debug(`   📐 [EPriceBarometer] ESnippet → isCompact=false`);
       } else if (containerName === 'EProductSnippet2') {
-        const containerWidth = ('width' in container) ? (container as SceneNode & { width: number }).width : 999;
+        const containerWidth =
+          'width' in container ? (container as SceneNode & { width: number }).width : 999;
         isCompact = containerWidth <= 182;
-        Logger.debug(`   📐 [EPriceBarometer] EProductSnippet2 width=${containerWidth}px → isCompact=${isCompact}`);
+        Logger.debug(
+          `   📐 [EPriceBarometer] EProductSnippet2 width=${containerWidth}px → isCompact=${isCompact}`,
+        );
       } else {
         isCompact = row['#EPriceBarometer_isCompact'] === 'true';
       }
 
-      trySetVariantProperty(ePriceBarometerInstance, [`isCompact=${isCompact}`], '#EPriceBarometer_isCompact');
+      trySetVariantProperty(
+        ePriceBarometerInstance,
+        [`isCompact=${isCompact}`],
+        '#EPriceBarometer_isCompact',
+      );
       Logger.debug(`   📐 [EPriceBarometer] isCompact=${isCompact}`);
     }
   }
@@ -157,12 +173,20 @@ export function handleEMarketCheckoutLabel(context: HandlerContext): void {
   if (!container || !row) return;
 
   const hasCheckout = row['#EMarketCheckoutLabel'] === 'true';
-  
+
   // Ищем ELabelGroup — родительский компонент с withCheckout
-  const labelGroupInstance = getCachedInstanceByNames(instanceCache!, ['ELabelGroup', 'LabelGroup']);
-  
+  const labelGroupInstance = getCachedInstanceByNames(instanceCache!, [
+    'ELabelGroup',
+    'LabelGroup',
+  ]);
+
   if (labelGroupInstance) {
-    const set = trySetProperty(labelGroupInstance, ['withCheckout'], hasCheckout, '#EMarketCheckoutLabel');
+    const set = trySetProperty(
+      labelGroupInstance,
+      ['withCheckout'],
+      hasCheckout,
+      '#EMarketCheckoutLabel',
+    );
     Logger.debug(`   🏷️ [EMarketCheckoutLabel] withCheckout=${hasCheckout}, result=${set}`);
   } else {
     // Fallback: ищем сам EMarketCheckoutLabel и пробуем visible (старое поведение)

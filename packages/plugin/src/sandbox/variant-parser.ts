@@ -24,7 +24,11 @@ export function parseVariantSyntax(value: string): { propName: string; propValue
   return { propName, propValue };
 }
 
-export type PropertyCategory = 'VARIANT_WITH_OPTIONS' | 'VARIANT_NO_OPTIONS' | 'BOOLEAN' | 'UNKNOWN';
+export type PropertyCategory =
+  | 'VARIANT_WITH_OPTIONS'
+  | 'VARIANT_NO_OPTIONS'
+  | 'BOOLEAN'
+  | 'UNKNOWN';
 
 /**
  * Определяет категорию свойства компонента
@@ -59,7 +63,10 @@ export function detectPropertyType(property: unknown): PropertyCategory {
  *
  * @returns Нормализованное значение из options или null если не найдено
  */
-export function normalizeVariantValue(targetValue: string, options: readonly string[]): string | null {
+export function normalizeVariantValue(
+  targetValue: string,
+  options: readonly string[],
+): string | null {
   const targetLower = targetValue.toLowerCase();
 
   // 1. Точное совпадение
@@ -80,9 +87,11 @@ export function normalizeVariantValue(targetValue: string, options: readonly str
   if (targetLower === 'true' || targetLower === 'false') {
     for (const option of options) {
       const optLower = option.toLowerCase();
-      if (optLower === targetLower ||
-          (targetLower === 'true' && optLower === '1') ||
-          (targetLower === 'false' && optLower === '0')) {
+      if (
+        optLower === targetLower ||
+        (targetLower === 'true' && optLower === '1') ||
+        (targetLower === 'false' && optLower === '0')
+      ) {
         return option;
       }
     }

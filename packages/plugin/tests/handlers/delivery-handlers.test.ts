@@ -11,19 +11,19 @@ vi.mock('../../src/logger', () => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
-  }
+    error: vi.fn(),
+  },
 }));
 
 vi.mock('../../src/sandbox/property-utils', () => ({
-  trySetProperty: vi.fn(() => true)
+  trySetProperty: vi.fn(() => true),
 }));
 
 vi.mock('../../src/utils/node-search', () => ({
   findFirstTextByPredicate: vi.fn(() => null),
   findAllNodesByName: vi.fn(() => []),
   findAllInstances: vi.fn(() => []),
-  safeSetTextNode: vi.fn()
+  safeSetTextNode: vi.fn(),
 }));
 
 vi.mock('../../src/utils/instance-cache', () => ({
@@ -32,7 +32,7 @@ vi.mock('../../src/utils/instance-cache', () => ({
 }));
 
 vi.mock('../../src/utils/container-search', () => ({
-  isSnippetContainer: vi.fn(() => true)
+  isSnippetContainer: vi.fn(() => true),
 }));
 
 import { handleShopInfoDeliveryBnplContainer } from '../../src/sandbox/handlers/delivery-handlers';
@@ -49,21 +49,18 @@ function mockCache() {
     textNodes: new Map(),
     groups: new Map(),
     allTextNodes: [],
-    stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 }
+    stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
-function createContext(
-  containerName: string,
-  row: Record<string, string> | null
-): HandlerContext {
+function createContext(containerName: string, row: Record<string, string> | null): HandlerContext {
   const container = createMockInstance(containerName);
   return {
     container,
     containerKey: container.id,
     row: row as HandlerContext['row'],
-    instanceCache: mockCache()
+    instanceCache: mockCache(),
   };
 }
 
@@ -85,7 +82,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -101,7 +98,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -116,7 +113,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -131,7 +128,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -146,7 +143,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -161,7 +158,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -174,7 +171,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       false,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -222,7 +219,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 
@@ -238,7 +235,7 @@ describe('handleShopInfoDeliveryBnplContainer', () => {
       ctx.container,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       true,
-      '#withMeta'
+      '#withMeta',
     );
   });
 });

@@ -18,7 +18,12 @@ class TestHandlerRegistry {
   register(
     name: string,
     handler: (ctx: HandlerContext) => void | Promise<void>,
-    metadata: { priority?: number; mode?: string; containers?: string[]; dependsOn?: string[] } = {}
+    metadata: {
+      priority?: number;
+      mode?: string;
+      containers?: string[];
+      dependsOn?: string[];
+    } = {},
   ): void {
     this.handlers.push({
       name,
@@ -27,8 +32,8 @@ class TestHandlerRegistry {
         priority: metadata.priority ?? HandlerPriority.VARIANTS,
         mode: metadata.mode ?? 'sync',
         containers: metadata.containers ?? [],
-        dependsOn: metadata.dependsOn ?? []
-      }
+        dependsOn: metadata.dependsOn ?? [],
+      },
     });
     this.handlers.sort((a, b) => a.metadata.priority - b.metadata.priority);
   }
@@ -46,7 +51,7 @@ class TestHandlerRegistry {
           handlerName: h.name,
           success: false,
           duration: Date.now() - start,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -85,7 +90,7 @@ describe('HandlerRegistry', () => {
       registry.register('Critical', vi.fn(), { priority: HandlerPriority.CRITICAL });
       registry.register('Normal', vi.fn(), { priority: HandlerPriority.VARIANTS });
 
-      const names = registry.getHandlers().map(h => h.name);
+      const names = registry.getHandlers().map((h) => h.name);
       expect(names).toEqual(['Critical', 'Normal', 'Low']);
     });
 
@@ -107,7 +112,7 @@ describe('HandlerRegistry', () => {
       const context: HandlerContext = {
         container: createMockInstance('TestContainer'),
         containerKey: 'test-key',
-        row: { '#ShopName': 'Test Shop' }
+        row: { '#ShopName': 'Test Shop' },
       };
 
       const results = await registry.executeAll(context);
@@ -115,7 +120,7 @@ describe('HandlerRegistry', () => {
       expect(handler1).toHaveBeenCalledWith(context);
       expect(handler2).toHaveBeenCalledWith(context);
       expect(results).toHaveLength(2);
-      expect(results.every(r => r.success)).toBe(true);
+      expect(results.every((r) => r.success)).toBe(true);
     });
 
     it('should catch and report errors', async () => {
@@ -125,7 +130,7 @@ describe('HandlerRegistry', () => {
       const context: HandlerContext = {
         container: createMockInstance('TestContainer'),
         containerKey: 'test-key',
-        row: null
+        row: null,
       };
 
       const results = await registry.executeAll(context);
@@ -138,14 +143,32 @@ describe('HandlerRegistry', () => {
     it('should execute handlers in priority order', async () => {
       const executionOrder: string[] = [];
 
-      registry.register('Last', () => { executionOrder.push('Last'); }, { priority: 50 });
-      registry.register('First', () => { executionOrder.push('First'); }, { priority: 0 });
-      registry.register('Middle', () => { executionOrder.push('Middle'); }, { priority: 25 });
+      registry.register(
+        'Last',
+        () => {
+          executionOrder.push('Last');
+        },
+        { priority: 50 },
+      );
+      registry.register(
+        'First',
+        () => {
+          executionOrder.push('First');
+        },
+        { priority: 0 },
+      );
+      registry.register(
+        'Middle',
+        () => {
+          executionOrder.push('Middle');
+        },
+        { priority: 25 },
+      );
 
       const context: HandlerContext = {
         container: createMockInstance('TestContainer'),
         containerKey: 'test-key',
-        row: {}
+        row: {},
       };
 
       await registry.executeAll(context);
@@ -155,13 +178,13 @@ describe('HandlerRegistry', () => {
 
     it('should measure execution duration', async () => {
       registry.register('SlowHandler', async () => {
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       });
 
       const context: HandlerContext = {
         container: createMockInstance('TestContainer'),
         containerKey: 'test-key',
-        row: {}
+        row: {},
       };
 
       const results = await registry.executeAll(context);
@@ -199,8 +222,8 @@ describe('HandlerContext', () => {
         '#SnippetType': 'EShopItem',
         '#ShopName': 'Test Shop',
         '#OrganicPrice': '1 990 ₽',
-        '#EPriceGroup_Discount': 'true'
-      }
+        '#EPriceGroup_Discount': 'true',
+      },
     };
 
     expect(context.row?.['#ShopName']).toBe('Test Shop');
@@ -211,10 +234,9 @@ describe('HandlerContext', () => {
     const context: HandlerContext = {
       container: createMockInstance('Unknown'),
       containerKey: 'unknown-123',
-      row: null
+      row: null,
     };
 
     expect(context.row).toBeNull();
   });
 });
-

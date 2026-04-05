@@ -8,12 +8,12 @@ import type { CSVRow } from '../../src/types/csv-fields';
 
 // Mock dependencies before importing engine
 vi.mock('../../src/sandbox/property-utils', () => ({
-  trySetProperty: vi.fn(() => true)
+  trySetProperty: vi.fn(() => true),
 }));
 
 vi.mock('../../src/utils/instance-cache', () => ({
   getCachedInstance: vi.fn(),
-  DeepCache: {}
+  DeepCache: {},
 }));
 
 vi.mock('../../src/logger', () => ({
@@ -21,8 +21,8 @@ vi.mock('../../src/logger', () => ({
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
-  }
+    error: vi.fn(),
+  },
 }));
 
 import { applySchema } from '../../src/sandbox/schema/engine';
@@ -47,8 +47,8 @@ function mockCache() {
     textNodes: new Map(),
     groups: new Map(),
     allTextNodes: [],
-    stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stats: { nodeCount: 0, instanceCount: 0, textCount: 0, groupCount: 0, buildTime: 0 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
 
@@ -65,41 +65,41 @@ describe('applySchema', () => {
     it('sets true when field matches value', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['withFintech'],
-          fieldName: '#F',
-          equals: { field: '#EPriceGroup_Fintech', value: 'true' }
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['withFintech'],
+            fieldName: '#F',
+            equals: { field: '#EPriceGroup_Fintech', value: 'true' },
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#EPriceGroup_Fintech': 'true' }, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withFintech'], true, '#F'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['withFintech'], true, '#F');
     });
 
     it('sets false when field does not match', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['withFintech'],
-          fieldName: '#F',
-          equals: { field: '#EPriceGroup_Fintech', value: 'true' }
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['withFintech'],
+            fieldName: '#F',
+            equals: { field: '#EPriceGroup_Fintech', value: 'true' },
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#EPriceGroup_Fintech': 'false' }, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withFintech'], false, '#F'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['withFintech'], false, '#F');
     });
   });
 
@@ -107,61 +107,61 @@ describe('applySchema', () => {
     it('sets true when field has non-empty value', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['brand'],
-          fieldName: '#Brand',
-          hasValue: '#Brand'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['brand'],
+            fieldName: '#Brand',
+            hasValue: '#Brand',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#Brand': 'Samsung' }, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['brand'], true, '#Brand'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['brand'], true, '#Brand');
     });
 
     it('sets false when field is empty', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['brand'],
-          fieldName: '#Brand',
-          hasValue: '#Brand'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['brand'],
+            fieldName: '#Brand',
+            hasValue: '#Brand',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#Brand': '' }, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['brand'], false, '#Brand'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['brand'], false, '#Brand');
     });
 
     it('sets false when field is whitespace', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['brand'],
-          fieldName: '#Brand',
-          hasValue: '#Brand'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['brand'],
+            fieldName: '#Brand',
+            hasValue: '#Brand',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#Brand': '  ' }, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['brand'], false, '#Brand'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['brand'], false, '#Brand');
     });
   });
 
@@ -169,34 +169,41 @@ describe('applySchema', () => {
     it('passes string value through', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['organicTitle'],
-          fieldName: '#OrganicTitle',
-          stringValue: '#OrganicTitle'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['organicTitle'],
+            fieldName: '#OrganicTitle',
+            stringValue: '#OrganicTitle',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#OrganicTitle': 'iPhone 15' }, schema, mockCache());
 
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['organicTitle'], 'iPhone 15', '#OrganicTitle'
+        container,
+        ['organicTitle'],
+        'iPhone 15',
+        '#OrganicTitle',
       );
     });
 
     it('skips when skipIfEmpty and value is empty', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['organicTitle'],
-          fieldName: '#OrganicTitle',
-          stringValue: '#OrganicTitle',
-          skipIfEmpty: true
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['organicTitle'],
+            fieldName: '#OrganicTitle',
+            stringValue: '#OrganicTitle',
+            skipIfEmpty: true,
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
@@ -208,41 +215,46 @@ describe('applySchema', () => {
     it('passes empty string when skipIfEmpty is not set', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['organicTitle'],
-          fieldName: '#OrganicTitle',
-          stringValue: '#OrganicTitle'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['organicTitle'],
+            fieldName: '#OrganicTitle',
+            stringValue: '#OrganicTitle',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#OrganicTitle': '' }, schema, mockCache());
 
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['organicTitle'], '', '#OrganicTitle'
+        container,
+        ['organicTitle'],
+        '',
+        '#OrganicTitle',
       );
     });
 
     it('trims whitespace', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['title'],
-          fieldName: '#T',
-          stringValue: '#OrganicTitle'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['title'],
+            fieldName: '#T',
+            stringValue: '#OrganicTitle',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#OrganicTitle': '  iPhone 15  ' }, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['title'], 'iPhone 15', '#T'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['title'], 'iPhone 15', '#T');
     });
   });
 
@@ -251,13 +263,15 @@ describe('applySchema', () => {
       const computeFn = vi.fn(() => true);
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['withButton'],
-          fieldName: '#B',
-          compute: computeFn
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['withButton'],
+            fieldName: '#B',
+            compute: computeFn,
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
@@ -266,29 +280,27 @@ describe('applySchema', () => {
       applySchema(container, row, schema, cache);
 
       expect(computeFn).toHaveBeenCalledWith(row, container, cache);
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withButton'], true, '#B'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['withButton'], true, '#B');
     });
 
     it('compute returning string passes string', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['view'],
-          fieldName: '#V',
-          compute: () => 'special'
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['view'],
+            fieldName: '#V',
+            compute: () => 'special',
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, {}, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['view'], 'special', '#V'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['view'], 'special', '#V');
     });
   });
 
@@ -300,22 +312,22 @@ describe('applySchema', () => {
     it('compute wins over equals', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['prop'],
-          fieldName: '#F',
-          compute: () => 'from-compute',
-          equals: { field: '#X', value: 'true' }
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['prop'],
+            fieldName: '#F',
+            compute: () => 'from-compute',
+            equals: { field: '#X', value: 'true' },
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#X': 'true' } as CSVRow, schema, mockCache());
 
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['prop'], 'from-compute', '#F'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['prop'], 'from-compute', '#F');
     });
   });
 
@@ -331,25 +343,27 @@ describe('applySchema', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
         containerProperties: [],
-        nestedInstances: [{
-          instanceName: 'EShopName',
-          properties: [{
-            propertyNames: ['name'],
-            fieldName: '#ShopName',
-            stringValue: '#ShopName',
-            skipIfEmpty: true
-          }]
-        }],
-        replacesHandlers: []
+        nestedInstances: [
+          {
+            instanceName: 'EShopName',
+            properties: [
+              {
+                propertyNames: ['name'],
+                fieldName: '#ShopName',
+                stringValue: '#ShopName',
+                skipIfEmpty: true,
+              },
+            ],
+          },
+        ],
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
       applySchema(container, { '#ShopName': 'Ozon' }, schema, mockCache());
 
       expect(mockGetCachedInstance).toHaveBeenCalledWith(expect.anything(), 'EShopName');
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        nestedInst, ['name'], 'Ozon', '#ShopName'
-      );
+      expect(mockTrySetProperty).toHaveBeenCalledWith(nestedInst, ['name'], 'Ozon', '#ShopName');
     });
 
     it('skips nested instance if not found in cache', () => {
@@ -358,15 +372,19 @@ describe('applySchema', () => {
       const schema: ComponentSchema = {
         containerNames: ['Test'],
         containerProperties: [],
-        nestedInstances: [{
-          instanceName: 'Missing',
-          properties: [{
-            propertyNames: ['name'],
-            fieldName: '#F',
-            stringValue: '#ShopName'
-          }]
-        }],
-        replacesHandlers: []
+        nestedInstances: [
+          {
+            instanceName: 'Missing',
+            properties: [
+              {
+                propertyNames: ['name'],
+                fieldName: '#F',
+                stringValue: '#ShopName',
+              },
+            ],
+          },
+        ],
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
@@ -388,13 +406,15 @@ describe('applySchema', () => {
 
       const schema: ComponentSchema = {
         containerNames: ['Test'],
-        containerProperties: [{
-          propertyNames: ['x'],
-          fieldName: '#X',
-          equals: { field: '#X', value: 'true' }
-        }],
+        containerProperties: [
+          {
+            propertyNames: ['x'],
+            fieldName: '#X',
+            equals: { field: '#X', value: 'true' },
+          },
+        ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       applySchema(container, { '#X': 'true' } as CSVRow, schema, mockCache());
@@ -407,7 +427,7 @@ describe('applySchema', () => {
         containerNames: ['Test'],
         containerProperties: [],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       // @ts-expect-error — testing null row
@@ -427,14 +447,19 @@ describe('applySchema', () => {
         containerProperties: [
           { propertyNames: ['first'], fieldName: '#1', equals: { field: '#A', value: 'true' } },
           { propertyNames: ['second'], fieldName: '#2', equals: { field: '#B', value: 'true' } },
-          { propertyNames: ['third'], fieldName: '#3', equals: { field: '#C', value: 'true' } }
+          { propertyNames: ['third'], fieldName: '#3', equals: { field: '#C', value: 'true' } },
         ],
         nestedInstances: [],
-        replacesHandlers: []
+        replacesHandlers: [],
       };
 
       const container = mockInstance('Test');
-      applySchema(container, { '#A': 'true', '#B': 'true', '#C': 'true' } as CSVRow, schema, mockCache());
+      applySchema(
+        container,
+        { '#A': 'true', '#B': 'true', '#C': 'true' } as CSVRow,
+        schema,
+        mockCache(),
+      );
 
       expect(calls).toEqual(['first', 'second', 'third']);
     });
@@ -453,18 +478,38 @@ describe('applySchema', () => {
         containerNames: ['EShopItem'],
         containerProperties: [
           { propertyNames: ['brand'], fieldName: '#Brand', hasValue: '#Brand' },
-          { propertyNames: ['withFintech'], fieldName: '#wF', equals: { field: '#EPriceGroup_Fintech', value: 'true' } },
-          { propertyNames: ['organicTitle'], fieldName: '#OT', stringValue: '#OrganicTitle', skipIfEmpty: true },
-          { propertyNames: ['withButton'], fieldName: '#B', compute: () => true }
+          {
+            propertyNames: ['withFintech'],
+            fieldName: '#wF',
+            equals: { field: '#EPriceGroup_Fintech', value: 'true' },
+          },
+          {
+            propertyNames: ['organicTitle'],
+            fieldName: '#OT',
+            stringValue: '#OrganicTitle',
+            skipIfEmpty: true,
+          },
+          { propertyNames: ['withButton'], fieldName: '#B', compute: () => true },
         ],
-        nestedInstances: [{
-          instanceName: 'EShopName',
-          properties: [
-            { propertyNames: ['name'], fieldName: '#SN', stringValue: '#ShopName', skipIfEmpty: true },
-            { propertyNames: ['isOfficial'], fieldName: '#OS', equals: { field: '#OfficialShop', value: 'true' } }
-          ]
-        }],
-        replacesHandlers: ['EShopItem']
+        nestedInstances: [
+          {
+            instanceName: 'EShopName',
+            properties: [
+              {
+                propertyNames: ['name'],
+                fieldName: '#SN',
+                stringValue: '#ShopName',
+                skipIfEmpty: true,
+              },
+              {
+                propertyNames: ['isOfficial'],
+                fieldName: '#OS',
+                equals: { field: '#OfficialShop', value: 'true' },
+              },
+            ],
+          },
+        ],
+        replacesHandlers: ['EShopItem'],
       };
 
       const container = mockInstance('EShopItem');
@@ -473,7 +518,7 @@ describe('applySchema', () => {
         '#EPriceGroup_Fintech': 'true',
         '#OrganicTitle': 'iPhone 15',
         '#ShopName': 'Ozon',
-        '#OfficialShop': 'true'
+        '#OfficialShop': 'true',
       };
 
       applySchema(container, row, schema, mockCache());
@@ -481,7 +526,12 @@ describe('applySchema', () => {
       // Container properties
       expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['brand'], true, '#Brand');
       expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['withFintech'], true, '#wF');
-      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['organicTitle'], 'iPhone 15', '#OT');
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container,
+        ['organicTitle'],
+        'iPhone 15',
+        '#OT',
+      );
       expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['withButton'], true, '#B');
 
       // Nested EShopName properties
@@ -523,34 +573,53 @@ describe('applySchema', () => {
 
       // brand=true (hasValue)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['brand', 'Brand'], true, '#Brand'
+        container,
+        ['brand', 'Brand'],
+        true,
+        '#Brand',
       );
       // withButton=true (compute: Desktop default + checkout)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withButton', 'buttons', 'BUTTONS'], true, '#BUTTON'
+        container,
+        ['withButton', 'buttons', 'BUTTONS'],
+        true,
+        '#BUTTON',
       );
       // withReviews=true (compute)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withReviews'], true, '#withReviews'
+        container,
+        ['withReviews'],
+        true,
+        '#withReviews',
       );
       // withDelivery=true (compute)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withDelivery', 'delivery', 'Delivery'], true, '#withDelivery'
+        container,
+        ['withDelivery', 'delivery', 'Delivery'],
+        true,
+        '#withDelivery',
       );
       // withFintech=true (equals)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withFintech', 'fintech', 'Fintech'], true, '#withFintech'
+        container,
+        ['withFintech', 'fintech', 'Fintech'],
+        true,
+        '#withFintech',
       );
       // organicTitle string
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['organicTitle'], 'iPhone 15', '#OrganicTitle'
+        container,
+        ['organicTitle'],
+        'iPhone 15',
+        '#OrganicTitle',
       );
       // Nested EShopName — name + isOfficial
+      expect(mockTrySetProperty).toHaveBeenCalledWith(nestedInst, ['name'], 'Ozon', '#ShopName');
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        nestedInst, ['name'], 'Ozon', '#ShopName'
-      );
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        nestedInst, ['isOfficial'], true, '#OfficialShop'
+        nestedInst,
+        ['isOfficial'],
+        true,
+        '#OfficialShop',
       );
     });
 
@@ -563,20 +632,27 @@ describe('applySchema', () => {
 
       // brand=false (hasValue, no #Brand)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['brand', 'Brand'], false, '#Brand'
+        container,
+        ['brand', 'Brand'],
+        false,
+        '#Brand',
       );
       // withReviews=false
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withReviews'], false, '#withReviews'
+        container,
+        ['withReviews'],
+        false,
+        '#withReviews',
       );
       // withDelivery=false
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withDelivery', 'delivery', 'Delivery'], false, '#withDelivery'
+        container,
+        ['withDelivery', 'delivery', 'Delivery'],
+        false,
+        '#withDelivery',
       );
       // organicTitle skipped (skipIfEmpty) — should NOT be called with empty
-      const titleCalls = mockTrySetProperty.mock.calls.filter(
-        c => c[1][0] === 'organicTitle'
-      );
+      const titleCalls = mockTrySetProperty.mock.calls.filter((c) => c[1][0] === 'organicTitle');
       expect(titleCalls).toHaveLength(0);
     });
   });
@@ -592,7 +668,10 @@ describe('applySchema', () => {
 
       // withButton always true for EOfferItem
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withButton'], true, '#EOfferItem_hasButton'
+        container,
+        ['withButton'],
+        true,
+        '#EOfferItem_hasButton',
       );
     });
 
@@ -601,10 +680,18 @@ describe('applySchema', () => {
       mockTrySetProperty.mockReturnValue(true);
 
       const container = mockInstance('EOfferItem');
-      applySchema(container, { '#OrganicTitle': 'Product' } as CSVRow, EOFFER_ITEM_SCHEMA, mockCache());
+      applySchema(
+        container,
+        { '#OrganicTitle': 'Product' } as CSVRow,
+        EOFFER_ITEM_SCHEMA,
+        mockCache(),
+      );
 
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withTitle', 'Offer Title'], true, '#withTitle'
+        container,
+        ['withTitle', 'Offer Title'],
+        true,
+        '#withTitle',
       );
     });
 
@@ -613,10 +700,18 @@ describe('applySchema', () => {
       mockTrySetProperty.mockReturnValue(true);
 
       const container = mockInstance('EOfferItem');
-      applySchema(container, { '#QuoteText': 'Отличный товар!' } as CSVRow, EOFFER_ITEM_SCHEMA, mockCache());
+      applySchema(
+        container,
+        { '#QuoteText': 'Отличный товар!' } as CSVRow,
+        EOFFER_ITEM_SCHEMA,
+        mockCache(),
+      );
 
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withQuotes'], true, '#withQuotes'
+        container,
+        ['withQuotes'],
+        true,
+        '#withQuotes',
       );
     });
   });
@@ -638,19 +733,31 @@ describe('applySchema', () => {
 
       // withDelivery=true (equals)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withDelivery', 'Delivery'], true, '#withDelivery'
+        container,
+        ['withDelivery', 'Delivery'],
+        true,
+        '#withDelivery',
       );
       // withButton=true (compute: EMarketCheckoutLabel)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withButton', 'Button'], true, '#withButton'
+        container,
+        ['withButton', 'Button'],
+        true,
+        '#withButton',
       );
       // organicTitle string
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['organicTitle', 'title', 'Title'], 'Ноутбук', '#OrganicTitle'
+        container,
+        ['organicTitle', 'title', 'Title'],
+        'Ноутбук',
+        '#OrganicTitle',
       );
       // brand=true (hasValue)
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['brand', 'Brand'], true, '#Brand'
+        container,
+        ['brand', 'Brand'],
+        true,
+        '#Brand',
       );
     });
 
@@ -662,7 +769,10 @@ describe('applySchema', () => {
       applySchema(container, {} as CSVRow, EPRODUCT_SNIPPET_SCHEMA, mockCache());
 
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withButton', 'Button'], false, '#withButton'
+        container,
+        ['withButton', 'Button'],
+        false,
+        '#withButton',
       );
     });
   });
@@ -699,23 +809,36 @@ describe('applySchema', () => {
       applySchema(container, row, ESNIPPET_SCHEMA, mockCache());
 
       // Spot-check key properties
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['image'], 'single', '#imageType');
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['image'], 'single', '#imageType'
+        container,
+        ['withReviews'],
+        true,
+        '#withReviews',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withReviews'], true, '#withReviews'
+        container,
+        ['withDelivery'],
+        true,
+        '#withDelivery',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withDelivery'], true, '#withDelivery'
+        container,
+        ['withContacts'],
+        true,
+        '#withContacts',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withContacts'], true, '#withContacts'
+        container,
+        ['organicTitle'],
+        'Товар',
+        '#OrganicTitle',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['organicTitle'], 'Товар', '#OrganicTitle'
-      );
-      expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['isOfficial', 'official', 'Official'], true, '#isOfficial'
+        container,
+        ['isOfficial', 'official', 'Official'],
+        true,
+        '#isOfficial',
       );
     });
 
@@ -736,16 +859,28 @@ describe('applySchema', () => {
 
       // All Organic-suppressed properties should be false
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withDelivery'], false, '#withDelivery'
+        container,
+        ['withDelivery'],
+        false,
+        '#withDelivery',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withPrice'], false, '#withPrice'
+        container,
+        ['withPrice'],
+        false,
+        '#withPrice',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withContacts'], false, '#withContacts'
+        container,
+        ['withContacts'],
+        false,
+        '#withContacts',
       );
       expect(mockTrySetProperty).toHaveBeenCalledWith(
-        container, ['withPromo'], false, '#withPromo'
+        container,
+        ['withPromo'],
+        false,
+        '#withPromo',
       );
     });
 
@@ -757,9 +892,7 @@ describe('applySchema', () => {
       applySchema(container, { '#SnippetType': 'Organic' } as CSVRow, ESNIPPET_SCHEMA, mockCache());
 
       // organicTitle should not appear in calls (skipIfEmpty + empty)
-      const titleCalls = mockTrySetProperty.mock.calls.filter(
-        c => c[1][0] === 'organicTitle'
-      );
+      const titleCalls = mockTrySetProperty.mock.calls.filter((c) => c[1][0] === 'organicTitle');
       expect(titleCalls).toHaveLength(0);
     });
   });

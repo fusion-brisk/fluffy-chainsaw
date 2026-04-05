@@ -57,10 +57,7 @@
       "type": "boolean"
     },
     "#OrganicPath": {
-      "domSelectors": [
-        ".Path",
-        "[class*=\"Path\"]"
-      ],
+      "domSelectors": [".Path", "[class*=\"Path\"]"],
       "jsonKeys": ["path", "breadcrumbs"],
       "type": "text"
     },
@@ -259,10 +256,7 @@
       "type": "boolean"
     },
     "EDeliveryGroup-Item": {
-      "domSelectors": [
-        ".EDeliveryGroup-Item",
-        "[class*=\"EDeliveryGroup-Item\"]"
-      ],
+      "domSelectors": [".EDeliveryGroup-Item", "[class*=\"EDeliveryGroup-Item\"]"],
       "jsonKeys": [],
       "type": "text"
     },
@@ -416,11 +410,7 @@
       "type": "text"
     },
     "EQuote": {
-      "domSelectors": [
-        ".EQuote",
-        "[class*=\"EQuote\"]",
-        ".OrganicUgcReviews-QuoteWrapper"
-      ],
+      "domSelectors": [".EQuote", "[class*=\"EQuote\"]", ".OrganicUgcReviews-QuoteWrapper"],
       "jsonKeys": [],
       "type": "boolean"
     },
@@ -474,12 +464,18 @@
       "type": "price"
     },
     "EShopSplitDiscount_DiscountLabel": {
-      "domSelectors": [".EShopSplitDiscount-DiscountLabel", "[class*=\"EShopSplitDiscount-DiscountLabel\"]"],
+      "domSelectors": [
+        ".EShopSplitDiscount-DiscountLabel",
+        "[class*=\"EShopSplitDiscount-DiscountLabel\"]"
+      ],
       "jsonKeys": [],
       "type": "text"
     },
     "EShopSplitDiscount_PayMethod": {
-      "domSelectors": [".EShopSplitDiscount-PayMethod", "[class*=\"EShopSplitDiscount-PayMethod\"]"],
+      "domSelectors": [
+        ".EShopSplitDiscount-PayMethod",
+        "[class*=\"EShopSplitDiscount-PayMethod\"]"
+      ],
       "jsonKeys": [],
       "type": "text"
     },

@@ -7,12 +7,15 @@
 ## 🏗️ Архитектура
 
 ### Приоритет загрузки правил:
+
 1. **Remote** (последние с удалённого сервера)
 2. **Cached** (сохранённые в `clientStorage`)
 3. **Embedded** (вшитые `DEFAULT_PARSING_RULES` как fallback)
 
 ### Мягкий merge (Soft Merge)
+
 Удалённые правила **дополняют**, а не заменяют базовые:
+
 - Если поле есть в remote — используется remote версия
 - Если поля нет в remote — используется embedded версия
 - Новые поля из remote добавляются к существующим
@@ -23,12 +26,14 @@
 
 ```typescript
 // В clientStorage сохраняется:
-contentify_remote_config_url = 'https://raw.githubusercontent.com/username/repo/main/parsing-rules.json'
+contentify_remote_config_url =
+  'https://raw.githubusercontent.com/username/repo/main/parsing-rules.json';
 ```
 
 ### 2. Автоматическая проверка обновлений
 
 При каждом запуске плагина:
+
 1. Загружаются правила из кэша (или embedded fallback)
 2. В фоне проверяется наличие обновлений по URL
 3. Сравнивается hash текущих и удалённых правил
@@ -47,18 +52,21 @@ Current: v1  →  New: v2
 ```
 
 Пользователь может:
+
 - **Update** — применить новые правила (сохраняются в кэш)
 - **Not Now** — отклонить обновление (можно обновить позже вручную)
 
 ### 4. Ручная проверка обновлений
 
 В UI доступна кнопка **🔄** в секции "Parsing Rules":
+
 - Принудительно проверяет наличие обновлений
 - Показывает диалог, если обновления найдены
 
 ### 5. Сброс к defaults
 
 Кнопка **🗑️** (доступна, если source != 'embedded'):
+
 - Очищает кэш
 - Возвращает плагин к встроенным правилам
 
@@ -71,11 +79,7 @@ Current: v1  →  New: v2
   "version": 2,
   "rules": {
     "#OrganicTitle": {
-      "domSelectors": [
-        ".OrganicTitle",
-        "[class*='OrganicTitle']",
-        ".NewClass-Title"
-      ],
+      "domSelectors": [".OrganicTitle", "[class*='OrganicTitle']", ".NewClass-Title"],
       "jsonKeys": ["title", "name", "headline"],
       "type": "text"
     },
@@ -129,7 +133,7 @@ function simpleHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash;
   }
   return String(hash);
@@ -139,6 +143,7 @@ function simpleHash(str: string): string {
 ### Валидация
 
 Remote config должен:
+
 - Быть валидным JSON
 - Содержать поле `version` (number)
 - Содержать поле `rules` (Record<string, FieldRule>)
@@ -189,6 +194,7 @@ https://raw.githubusercontent.com/username/contentify-config/main/parsing-rules.
 ```
 
 ### Преимущества GitHub:
+
 - ✅ Версионирование (Git history)
 - ✅ Публичный доступ через raw.githubusercontent.com
 - ✅ Возможность rollback к предыдущим версиям
@@ -200,21 +206,26 @@ https://raw.githubusercontent.com/username/contentify-config/main/parsing-rules.
 
 ```typescript
 class ParsingRulesManager {
-  loadRules(): Promise<ParsingRulesMetadata>
-  checkForUpdates(): Promise<{ hasUpdate: boolean; newRules?: ParsingSchema; hash?: string } | null>
-  applyRemoteRules(hash: string): Promise<boolean>
-  dismissUpdate(): Promise<void>
-  resetToDefaults(): Promise<ParsingRulesMetadata>
-  setRemoteUrl(url: string): Promise<void>
-  getRemoteUrl(): Promise<string | null>
-  getCurrentMetadata(): ParsingRulesMetadata | null
-  getCurrentRules(): ParsingSchema
+  loadRules(): Promise<ParsingRulesMetadata>;
+  checkForUpdates(): Promise<{
+    hasUpdate: boolean;
+    newRules?: ParsingSchema;
+    hash?: string;
+  } | null>;
+  applyRemoteRules(hash: string): Promise<boolean>;
+  dismissUpdate(): Promise<void>;
+  resetToDefaults(): Promise<ParsingRulesMetadata>;
+  setRemoteUrl(url: string): Promise<void>;
+  getRemoteUrl(): Promise<string | null>;
+  getCurrentMetadata(): ParsingRulesMetadata | null;
+  getCurrentRules(): ParsingSchema;
 }
 ```
 
 ### Сообщения между UI ↔ Code
 
 #### UI → Code:
+
 - `get-parsing-rules` — запрос текущих правил
 - `check-remote-rules-update` — ручная проверка обновлений
 - `apply-remote-rules` — применить удалённые правила
@@ -222,6 +233,7 @@ class ParsingRulesManager {
 - `reset-rules-cache` — сброс к defaults
 
 #### Code → UI:
+
 - `parsing-rules-loaded` — правила загружены (с метаданными)
 - `rules-update-available` — доступно обновление (с версиями и hash)
 
@@ -237,17 +249,19 @@ class ParsingRulesManager {
 ## 🐛 Troubleshooting
 
 ### Правила не обновляются
+
 1. Проверьте URL в clientStorage
 2. Проверьте доступность URL (CORS, формат)
 3. Проверьте консоль на наличие ошибок fetch
 
 ### После обновления плагин работает некорректно
+
 1. Нажмите 🗑️ для сброса к defaults
 2. Проверьте формат remote config (валидность JSON)
 3. Проверьте, что все обязательные поля присутствуют
 
 ### Диалог обновления не появляется
+
 1. Проверьте, что hash различаются
 2. Убедитесь, что remote config отличается от текущего
 3. Проверьте логи в консоли
-

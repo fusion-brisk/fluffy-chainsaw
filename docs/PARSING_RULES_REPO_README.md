@@ -59,18 +59,19 @@ This repository contains parsing rules for the **Contentify** Figma plugin, whic
 
 ## 📝 Field Types
 
-| Type | Description | Example Usage |
-|------|-------------|---------------|
-| `text` | Plain text content | Title, description |
-| `image` | Image URL extraction | Product images |
-| `price` | Price with formatting | Current price, old price |
-| `html` | HTML content | Rich text |
-| `attribute` | HTML attribute | href, src, data-* |
-| `boolean` | Presence check | Element exists |
+| Type        | Description           | Example Usage            |
+| ----------- | --------------------- | ------------------------ |
+| `text`      | Plain text content    | Title, description       |
+| `image`     | Image URL extraction  | Product images           |
+| `price`     | Price with formatting | Current price, old price |
+| `html`      | HTML content          | Rich text                |
+| `attribute` | HTML attribute        | href, src, data-\*       |
+| `boolean`   | Presence check        | Element exists           |
 
 ## 🎯 Supported Fields
 
 ### Product Information
+
 - `#OrganicTitle` - Product title
 - `#ShopName` - Shop/vendor name
 - `#OrganicText` - Product description
@@ -78,16 +79,19 @@ This repository contains parsing rules for the **Contentify** Figma plugin, whic
 - `#ProductURL` - Product page URL
 
 ### Pricing
+
 - `#OrganicPrice` - Current price
 - `#OldPrice` - Original price
 - `#DiscountPercent` - Discount percentage
 
 ### Ratings & Reviews
+
 - `#ShopRating` - Shop rating
 - `#ProductRating` - Product rating
 - `#ReviewsNumber` - Reviews count
 
 ### Technical Fields
+
 - `EPriceGroup_*` - Price group parsing
 - `LabelDiscount_*` - Discount labels
 - `EPriceBarometer` - Price comparison
@@ -95,6 +99,7 @@ This repository contains parsing rules for the **Contentify** Figma plugin, whic
 ## 🔄 Version History
 
 ### v1 (Current)
+
 - Initial release with Yandex search results support
 - Basic product fields
 - Price and rating extraction
@@ -102,12 +107,14 @@ This repository contains parsing rules for the **Contentify** Figma plugin, whic
 ## 🐛 Troubleshooting
 
 ### Rules not updating?
+
 1. Check URL is correct (raw GitHub URL)
 2. Verify JSON is valid (use JSONLint)
 3. Ensure `version` field is incremented
 4. Check browser console for errors
 
 ### Plugin not working after update?
+
 1. Open plugin Settings
 2. Click **Reset to defaults** (🗑️ button)
 3. Plugin will revert to embedded rules
@@ -141,4 +148,3 @@ MIT License - see LICENSE file for details
 ---
 
 **Note:** This configuration is automatically loaded by the Contentify plugin. Changes will be applied after user confirmation.
-

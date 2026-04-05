@@ -14,7 +14,7 @@ export enum LogLevel {
   ERROR = 1,
   SUMMARY = 2,
   VERBOSE = 3,
-  DEBUG = 4
+  DEBUG = 4,
 }
 
 export interface LogEntry {
@@ -52,9 +52,9 @@ const stats: LogStats = {
     [LogLevel.ERROR]: 0,
     [LogLevel.SUMMARY]: 0,
     [LogLevel.VERBOSE]: 0,
-    [LogLevel.DEBUG]: 0
+    [LogLevel.DEBUG]: 0,
   },
-  bySource: {}
+  bySource: {},
 };
 
 /**
@@ -70,7 +70,8 @@ function flushToUI(): void {
   for (const entry of batch) {
     try {
       const figmaGlobal = (globalThis as unknown as Record<string, unknown>).figma as
-        { ui?: { postMessage?: (msg: unknown) => void } } | undefined;
+        | { ui?: { postMessage?: (msg: unknown) => void } }
+        | undefined;
       if (figmaGlobal && figmaGlobal.ui && typeof figmaGlobal.ui.postMessage === 'function') {
         figmaGlobal.ui.postMessage({ type: 'log', message: entry.message });
       }
@@ -123,16 +124,18 @@ function log(level: LogLevel, message: string, source?: string, ...args: unknown
   // Формируем сообщение с аргументами
   let fullMessage = message;
   if (args.length > 0) {
-    const argsStr = args.map(arg => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg);
-        } catch {
-          return String(arg);
+    const argsStr = args
+      .map((arg) => {
+        if (typeof arg === 'object') {
+          try {
+            return JSON.stringify(arg);
+          } catch {
+            return String(arg);
+          }
         }
-      }
-      return String(arg);
-    }).join(' ');
+        return String(arg);
+      })
+      .join(' ');
     fullMessage = `${message} ${argsStr}`;
   }
 
@@ -158,7 +161,7 @@ function log(level: LogLevel, message: string, source?: string, ...args: unknown
     level,
     message: displayMessage,
     timestamp: Date.now(),
-    source
+    source,
   };
   queueForUI(entry);
 
@@ -223,7 +226,7 @@ export const Logger = {
       [LogLevel.ERROR]: 0,
       [LogLevel.SUMMARY]: 0,
       [LogLevel.VERBOSE]: 0,
-      [LogLevel.DEBUG]: 0
+      [LogLevel.DEBUG]: 0,
     };
     stats.bySource = {};
   },
@@ -247,7 +250,7 @@ export const Logger = {
       queueForUI({
         level: LogLevel.ERROR,
         message: args.length > 0 ? `${message} ${args.join(' ')}` : message,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       });
     }
   },
@@ -319,7 +322,9 @@ export const Logger = {
   /**
    * Логирует агрегированную статистику handlers
    */
-  logHandlerStats(handlerStats: Map<string, { count: number; totalTime: number; avgTime: number }>): void {
+  logHandlerStats(
+    handlerStats: Map<string, { count: number; totalTime: number; avgTime: number }>,
+  ): void {
     if (currentLevel < LogLevel.SUMMARY) return;
 
     const entries = Array.from(handlerStats.entries())
@@ -364,7 +369,10 @@ export const Logger = {
 
     const timeStr = (totalTime / 1000).toFixed(1);
     if (failed > 0) {
-      log(LogLevel.SUMMARY, `🖼️ Изображения: ${successful} успешно, ${failed} ошибок (${timeStr}s)`);
+      log(
+        LogLevel.SUMMARY,
+        `🖼️ Изображения: ${successful} успешно, ${failed} ошибок (${timeStr}s)`,
+      );
     } else {
       log(LogLevel.SUMMARY, `🖼️ Изображения: ${successful} успешно (${timeStr}s)`);
     }
@@ -378,5 +386,5 @@ export const Logger = {
 
     const timeStr = (totalTime / 1000).toFixed(1);
     log(LogLevel.SUMMARY, `📝 Тексты: ${count} слоёв (${timeStr}s)`);
-  }
+  },
 };

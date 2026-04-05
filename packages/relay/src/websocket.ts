@@ -47,13 +47,15 @@ export function initWebSocket(server: Server): WebSocketServer {
     });
 
     const queue = getQueue();
-    const pendingCount = queue.filter(e => !e.acknowledged).length;
-    aliveWs.send(JSON.stringify({
-      type: 'connected',
-      queueSize: queue.length,
-      pendingCount,
-      timestamp: Date.now()
-    }));
+    const pendingCount = queue.filter((e) => !e.acknowledged).length;
+    aliveWs.send(
+      JSON.stringify({
+        type: 'connected',
+        queueSize: queue.length,
+        pendingCount,
+        timestamp: Date.now(),
+      }),
+    );
   });
 
   const heartbeatInterval = setInterval(() => {

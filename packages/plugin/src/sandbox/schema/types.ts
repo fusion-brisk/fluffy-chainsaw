@@ -12,7 +12,7 @@ import type { DeepCache } from '../../utils/instance-cache';
 export type ComputedTransform = (
   row: CSVRow,
   container: InstanceNode,
-  cache: DeepCache
+  cache: DeepCache,
 ) => boolean | string;
 
 /**

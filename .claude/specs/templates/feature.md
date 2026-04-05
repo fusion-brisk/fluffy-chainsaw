@@ -10,8 +10,8 @@
 
 ## Files to Change
 
-| File | Change |
-|------|--------|
+| File              | Change         |
+| ----------------- | -------------- |
 | `path/to/file.ts` | <what changes> |
 
 ## Implementation Steps

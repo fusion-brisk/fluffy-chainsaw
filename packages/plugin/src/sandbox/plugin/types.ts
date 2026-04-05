@@ -35,7 +35,12 @@ export interface RowMappingResult {
 }
 
 /** Callback для обновления прогресса */
-export type ProgressCallback = (current: number, total: number, message: string, operationType: string) => void;
+export type ProgressCallback = (
+  current: number,
+  total: number,
+  message: string,
+  operationType: string,
+) => void;
 
 /** Типы сообщений от UI */
 export type MessageType =
@@ -62,4 +67,3 @@ export interface PluginMessage {
   type: MessageType;
   [key: string]: unknown;
 }
-

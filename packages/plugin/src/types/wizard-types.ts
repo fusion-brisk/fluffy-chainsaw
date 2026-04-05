@@ -15,9 +15,9 @@ export interface WizardSpan {
 }
 
 export interface WizardFootnote {
-  text: string;       // e.g. "ru.wikipedia.org*"
-  href: string;       // e.g. "https://ru.wikipedia.org/wiki/..."
-  iconUrl: string;    // e.g. "https://favicon.yandex.net/favicon/v2/..."
+  text: string; // e.g. "ru.wikipedia.org*"
+  href: string; // e.g. "https://ru.wikipedia.org/wiki/..."
+  iconUrl: string; // e.g. "https://favicon.yandex.net/favicon/v2/..."
   debug: null | Record<string, unknown>;
 }
 
@@ -127,9 +127,17 @@ export interface WizardComponentKeys {
  * Допустимые значения variant property `Type` компонента Markdown.
  */
 export type MarkdownVariant =
-  | 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
-  | 'p' | 'p+source'
-  | 'bullet list' | 'numbered list' | 'dashed list'
+  | 'h1'
+  | 'h2'
+  | 'h3'
+  | 'h4'
+  | 'h5'
+  | 'h6'
+  | 'p'
+  | 'p+source'
+  | 'bullet list'
+  | 'numbered list'
+  | 'dashed list'
   | 'quote';
 
 // ============================================================================

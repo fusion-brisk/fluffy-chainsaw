@@ -17,11 +17,9 @@ import {
   findTextLayerByName,
   findFirstNodeByName,
   findFirstTextByPredicate,
-  safeSetTextNode
+  safeSetTextNode,
 } from '../../utils/node-search';
-import {
-  getCachedInstance,
-} from '../../utils/instance-cache';
+import { getCachedInstance } from '../../utils/instance-cache';
 import { fetchAndApplyImage } from '../image-apply';
 import { HandlerContext } from './types';
 
@@ -32,7 +30,7 @@ export async function handleESnippetOrganicTextFallback(context: HandlerContext)
   const { container, row } = context;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const containerName = container && 'name' in container ? String(container.name) : '';
   const isESnippetContainer = containerName === 'ESnippet' || containerName === 'Snippet';
   if (!isESnippetContainer) return;
 
@@ -87,7 +85,7 @@ export async function handleESnippetOrganicHostFromFavicon(context: HandlerConte
   const { container, row } = context;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const containerName = container && 'name' in container ? String(container.name) : '';
   const isESnippetContainer = containerName === 'ESnippet' || containerName === 'Snippet';
   if (!isESnippetContainer) return;
 
@@ -187,8 +185,8 @@ export async function handleShopInfoUgcAndEReviewsShopText(context: HandlerConte
   if (reviewsLabelGroup && reviewsLabelGroup.type === 'INSTANCE') {
     const inst = reviewsLabelGroup as InstanceNode;
     if ('findAll' in inst) {
-      const lineInstances = inst.findAll((n: SceneNode) =>
-        n.type === 'INSTANCE' && n.name === 'Line'
+      const lineInstances = inst.findAll(
+        (n: SceneNode) => n.type === 'INSTANCE' && n.name === 'Line',
       ) as InstanceNode[];
 
       let linesSet = 0;
@@ -198,14 +196,18 @@ export async function handleShopInfoUgcAndEReviewsShopText(context: HandlerConte
           lineInstances[0].setProperties({ value: ratingDisplay });
           linesSet++;
           Logger.debug(`   ⭐ [EReviewsLabel] Line[0].value set: ${ratingDisplay}`);
-        } catch (_e) { Logger.debug('[EReviewsLabel] Line[0].value rating set failed'); }
+        } catch (_e) {
+          Logger.debug('[EReviewsLabel] Line[0].value rating set failed');
+        }
       }
       if (reviewsTextRaw && lineInstances.length >= 2) {
         try {
           lineInstances[1].setProperties({ value: reviewsTextRaw });
           linesSet++;
           Logger.debug(`   📝 [EReviewsLabel] Line[1].value set: ${reviewsTextRaw}`);
-        } catch (_e) { Logger.debug('[EReviewsLabel] Line[1].value reviews set failed'); }
+        } catch (_e) {
+          Logger.debug('[EReviewsLabel] Line[1].value reviews set failed');
+        }
       }
       if (linesSet > 0) return; // Lines set, skip text fallbacks
     }
@@ -314,7 +316,9 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
       try {
         (eQuoteLayer as SceneNode).visible = false;
         Logger.debug('   💬 [QuoteText] Line / EQuote hidden (no quote data, touch workaround)');
-      } catch (_e) { Logger.debug('[QuoteText] EQuote hide failed'); }
+      } catch (_e) {
+        Logger.debug('[QuoteText] EQuote hide failed');
+      }
     }
     return;
   }
@@ -327,15 +331,17 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
     const eQuoteWrapper = findFirstNodeByName(container, 'Line / EQuote');
     if (eQuoteWrapper && eQuoteWrapper.type === 'INSTANCE') {
       // Line / EQuote contains a nested Line instance with value property
-      const innerLine = (eQuoteWrapper as InstanceNode).findOne((n: SceneNode) =>
-        n.type === 'INSTANCE' && n.name === 'Line'
+      const innerLine = (eQuoteWrapper as InstanceNode).findOne(
+        (n: SceneNode) => n.type === 'INSTANCE' && n.name === 'Line',
       ) as InstanceNode | null;
       if (innerLine) {
         try {
           innerLine.setProperties({ value: quoteText });
           textApplied = true;
           Logger.debug(`   💬 [QuoteText] Line.value set: "${quoteText.substring(0, 40)}..."`);
-        } catch (_e) { Logger.debug('[QuoteText] Line.value set failed'); }
+        } catch (_e) {
+          Logger.debug('[QuoteText] Line.value set failed');
+        }
       }
     }
 
@@ -355,8 +361,9 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
 
     // Strategy 2: Predicate search inside EQuote container
     if (!textApplied) {
-      const quoteContainer = findFirstNodeByName(container, 'EQuote') ||
-                             findFirstNodeByName(container, 'OrganicUgcReviews-QuoteWrapper');
+      const quoteContainer =
+        findFirstNodeByName(container, 'EQuote') ||
+        findFirstNodeByName(container, 'OrganicUgcReviews-QuoteWrapper');
       if (quoteContainer) {
         const textNode = findFirstTextByPredicate(quoteContainer, (t) => {
           const s = (t.characters || '').trim();
@@ -364,7 +371,9 @@ export async function handleQuoteText(context: HandlerContext): Promise<void> {
         });
         if (textNode) {
           await safeSetTextNode(textNode, quoteText);
-          Logger.debug(`   💬 [QuoteText] Fallback: цитата через EQuote: "${quoteText.substring(0, 40)}..."`);
+          Logger.debug(
+            `   💬 [QuoteText] Fallback: цитата через EQuote: "${quoteText.substring(0, 40)}..."`,
+          );
         }
       }
     }
@@ -388,7 +397,12 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
   const sceneContainer = container as SceneNode;
 
   // Ищем слой для аватара
-  const layerNames = ['#EQuote-AuthorAvatar', 'EQuote-AuthorAvatar', '#QuoteImage', 'EQuote-AvatarWrapper'];
+  const layerNames = [
+    '#EQuote-AuthorAvatar',
+    'EQuote-AuthorAvatar',
+    '#QuoteImage',
+    'EQuote-AvatarWrapper',
+  ];
   let layer: SceneNode | null = null;
 
   for (const name of layerNames) {
@@ -401,8 +415,9 @@ async function applyQuoteAuthorAvatar(container: BaseNode, avatarUrl: string): P
 
   if (!layer) {
     // Fallback: ищем внутри EQuote или OrganicUgcReviews-QuoteWrapper
-    const quoteWrapper = findFirstNodeByName(sceneContainer, 'EQuote') ||
-                         findFirstNodeByName(sceneContainer, 'OrganicUgcReviews-QuoteWrapper');
+    const quoteWrapper =
+      findFirstNodeByName(sceneContainer, 'EQuote') ||
+      findFirstNodeByName(sceneContainer, 'OrganicUgcReviews-QuoteWrapper');
     if (quoteWrapper) {
       // Ищем любой небольшой квадратный/круглый слой (аватар обычно маленький)
       const avatarCandidates = ['Avatar', 'Image', 'Photo'];
@@ -446,8 +461,9 @@ export async function handleOrganicPath(context: HandlerContext): Promise<void> 
   }
 
   // Fallback: ищем текстовый слой внутри Path блока
-  const pathBlock = findFirstNodeByName(container, 'Block / Snippet-staff / Path') ||
-                    findFirstNodeByName(container, 'Path');
+  const pathBlock =
+    findFirstNodeByName(container, 'Block / Snippet-staff / Path') ||
+    findFirstNodeByName(container, 'Path');
   if (pathBlock) {
     // Ищем текст после разделителя (не домен)
     const pathTextNode = findFirstTextByPredicate(pathBlock, (t) => {

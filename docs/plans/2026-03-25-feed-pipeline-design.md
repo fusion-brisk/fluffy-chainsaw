@@ -38,15 +38,15 @@ For now: test with mock data via dev button. Later: relay sends `sourceType: 'fe
 
 Figma REST API → component keys from DC Feed sections:
 
-| Type | Section Node ID | Variant Range |
-|------|----------------|---------------|
-| Posts | 3086:34741 | 1–18, Platform=Desktop\|Mobile |
-| Videos | 3086:34758 | 1–5, Platform=Desktop\|Mobile |
-| Collections | 3086:34767 | 1–4, Platform=Desktop\|Mobile |
-| Market | 3453:87507 | 1–8, Platform=Desktop\|Mobile |
-| Ads Prod | 3086:34824 | 1–6, Platform=Desktop\|Mobile |
-| Ads Ex | 5868:71590 | 1–9, Platform=Desktop\|Mobile |
-| Products | 5618:44663 | 1–21, Type=Independent\|Market, Platform=Desktop\|Mobile |
+| Type        | Section Node ID | Variant Range                                            |
+| ----------- | --------------- | -------------------------------------------------------- |
+| Posts       | 3086:34741      | 1–18, Platform=Desktop\|Mobile                           |
+| Videos      | 3086:34758      | 1–5, Platform=Desktop\|Mobile                            |
+| Collections | 3086:34767      | 1–4, Platform=Desktop\|Mobile                            |
+| Market      | 3453:87507      | 1–8, Platform=Desktop\|Mobile                            |
+| Ads Prod    | 3086:34824      | 1–6, Platform=Desktop\|Mobile                            |
+| Ads Ex      | 5868:71590      | 1–9, Platform=Desktop\|Mobile                            |
+| Products    | 5618:44663      | 1–21, Type=Independent\|Market, Platform=Desktop\|Mobile |
 
 Result: `FEED_COMPONENT_MAP` — `Record<FeedCardType, { variants, select }>`.
 
@@ -84,6 +84,7 @@ feed-page-builder/
 5. Wrap all in parent frame: `feedWidth × max(columnHeights)`
 
 Config from `DEFAULT_MASONRY_CONFIG`:
+
 - Desktop: 5 cols × 250px, 16px gap, total 1314px
 - Mobile: 2 cols × 200px, 8px gap, total 408px
 
@@ -113,6 +114,7 @@ schema/
 Same `PropertyMapping` modes as SERP. Exact property names resolved after inspecting Figma component definitions.
 
 Example mappings:
+
 ```typescript
 { mode: 'stringValue', field: '#Feed_Title', property: ['Title', 'TITLE'] }
 { mode: 'stringValue', field: '#Feed_Price', property: ['Value', 'PRICE'] }
@@ -123,6 +125,7 @@ Example mappings:
 ## Image Loading
 
 Reuse existing `loadAndApplyImages()`. Feed image fields:
+
 - `#Feed_ImageUrl` → card thumbnail (Img layer)
 - `#Feed_SourceAvatarUrl` → source icon (Source Feed / Icon)
 - `#Feed_CarouselImages` (JSON array) → carousel image slots

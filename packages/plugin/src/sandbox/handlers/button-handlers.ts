@@ -2,7 +2,7 @@
  * Обработчики кнопок
  * - handleMarketCheckoutButton — BUTTON variant на контейнере (устаревший)
  * - handleEButton — EButton view через свойство withButton
- * 
+ *
  * Все случаи теперь завязаны на свойство withButton (boolean)
  */
 
@@ -45,7 +45,12 @@ function findButtonInstanceLoose(container: BaseNode): InstanceNode | null {
  * Устанавливает view property для кнопки
  */
 function setButtonView(buttonInstance: InstanceNode, viewValue: string): void {
-  const viewSet = trySetProperty(buttonInstance, ['view', 'View', 'VIEW'], viewValue, '#ButtonView');
+  const viewSet = trySetProperty(
+    buttonInstance,
+    ['view', 'View', 'VIEW'],
+    viewValue,
+    '#ButtonView',
+  );
   if (viewSet) {
     Logger.debug(`   🔘 [EButton] view=${viewValue}`);
   }
@@ -56,10 +61,10 @@ function setButtonView(buttonInstance: InstanceNode, viewValue: string): void {
  */
 function isPlatformTouch(container: SceneNode): boolean {
   if (container.type !== 'INSTANCE') return false;
-  
+
   const instance = container as InstanceNode;
   const props = instance.componentProperties || {};
-  
+
   for (const key in props) {
     if (!Object.prototype.hasOwnProperty.call(props, key)) continue;
     const propName = key.split('#')[0].toLowerCase();
@@ -85,7 +90,12 @@ function hasRealCheckout(buttonType: string, buttonView: string): boolean {
 /**
  * Определяет view кнопки по типу сниппета и наличию checkout
  */
-function getButtonView(snippetType: string, isCheckout: boolean, isTouch: boolean, defaultView?: string): string {
+function getButtonView(
+  snippetType: string,
+  isCheckout: boolean,
+  isTouch: boolean,
+  defaultView?: string,
+): string {
   if (snippetType === 'EShopItem') {
     // EShopItem: checkout → primaryShort, без checkout → secondary
     return isCheckout ? 'primaryShort' : 'secondary';
@@ -96,7 +106,7 @@ function getButtonView(snippetType: string, isCheckout: boolean, isTouch: boolea
   }
   if (snippetType === 'ESnippet' || snippetType === 'Snippet') {
     // ESnippet: Touch + checkout → primaryShort, иначе primaryLong
-    return (isTouch && isCheckout) ? 'primaryShort' : (defaultView || 'primaryLong');
+    return isTouch && isCheckout ? 'primaryShort' : defaultView || 'primaryLong';
   }
   return defaultView || 'secondary';
 }
@@ -109,18 +119,19 @@ export async function handleMarketCheckoutButton(context: HandlerContext): Promi
   const { container, row } = context;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
-  
+  const containerName = container && 'name' in container ? String(container.name) : '';
+
   // Определяем наличие кнопки
   const buttonType = row['#ButtonType'] ? String(row['#ButtonType']).trim() : '';
   const buttonView = row['#ButtonView'] || '';
   const isCheckout = hasRealCheckout(buttonType, buttonView);
-  
+
   // Определяем платформу из данных или компонента
   const dataPlatform = row['#platform'];
-  const componentPlatformTouch = container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
+  const componentPlatformTouch =
+    container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
   const isTouch = dataPlatform === 'touch' || componentPlatformTouch;
-  
+
   // Для EShopItem/EOfferItem:
   // - Desktop: кнопка показывается всегда
   // - Touch: кнопка показывается только при checkout
@@ -133,23 +144,23 @@ export async function handleMarketCheckoutButton(context: HandlerContext): Promi
   } else {
     hasButton = row['#BUTTON'] === 'true';
   }
-  
+
   if (container.type !== 'INSTANCE' || container.removed) return;
-  
+
   // ВАЖНО: EOfferItem обрабатывается в handleEOfferItem, не перезаписываем!
   if (containerName === 'EOfferItem') return;
-  
+
   const instance = container as InstanceNode;
-  
+
   // Устанавливаем withButton на контейнере
   // Пробуем разные имена: withButton (новое), BUTTON, BUTTONS (старые)
   const withButtonSet = trySetProperty(
-    instance, 
-    ['withButton', 'BUTTON', 'BUTTONS'], 
-    hasButton, 
-    '#withButton'
+    instance,
+    ['withButton', 'BUTTON', 'BUTTONS'],
+    hasButton,
+    '#withButton',
   );
-  
+
   if (withButtonSet) {
     Logger.debug(`   🛒 [BUTTON] withButton=${hasButton} для "${containerName}"`);
   } else {
@@ -164,31 +175,38 @@ export async function handleMarketCheckoutButton(context: HandlerContext): Promi
 export async function handleEButton(context: HandlerContext): Promise<void> {
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
-  
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
-  const snippetType = (containerName === 'EShopItem' || containerName === 'EOfferItem' || containerName === 'ESnippet' || containerName === 'Snippet')
-    ? containerName
-    : row['#SnippetType'];
-  
+
+  const containerName = container && 'name' in container ? String(container.name) : '';
+  const snippetType =
+    containerName === 'EShopItem' ||
+    containerName === 'EOfferItem' ||
+    containerName === 'ESnippet' ||
+    containerName === 'Snippet'
+      ? containerName
+      : row['#SnippetType'];
+
   const buttonType = row['#ButtonType'] ? String(row['#ButtonType']).trim() : '';
   const buttonViewData = row['#ButtonView'] || '';
   const isCheckout = hasRealCheckout(buttonType, buttonViewData);
-  
+
   // Определяем платформу:
   // 1. Сначала проверяем #platform из данных (приоритет — данные парсинга)
   // 2. Если нет — проверяем Platform property компонента
   const dataPlatform = row['#platform'];
-  const componentPlatformTouch = container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
+  const componentPlatformTouch =
+    container.type === 'INSTANCE' ? isPlatformTouch(container as SceneNode) : false;
   const isTouch = dataPlatform === 'touch' || componentPlatformTouch;
-  
-  Logger.debug(`   📱 [EButton] platform: data=${dataPlatform}, component=${componentPlatformTouch ? 'touch' : 'desktop'}, final isTouch=${isTouch}`);
-  
+
+  Logger.debug(
+    `   📱 [EButton] platform: data=${dataPlatform}, component=${componentPlatformTouch ? 'touch' : 'desktop'}, final isTouch=${isTouch}`,
+  );
+
   // Определяем hasButton по типу контейнера и Platform
   // Логика: кнопка показывается только если Platform = Desktop или есть checkout
   // Если Platform = Touch — кнопка не показывается (кроме checkout)
   let hasButton: boolean;
   const isDesktop = !isTouch;
-  
+
   if (containerName === 'EShopItem' || containerName === 'EOfferItem') {
     // Для EShopItem/EOfferItem: кнопка если Desktop или checkout
     hasButton = isDesktop || isCheckout;
@@ -198,25 +216,22 @@ export async function handleEButton(context: HandlerContext): Promise<void> {
   } else {
     hasButton = row['#BUTTON'] === 'true';
   }
-  
+
   // === Устанавливаем withButton на контейнере ===
   // ВАЖНО: EOfferItem обрабатывается в handleEOfferItem, не перезаписываем!
   if (containerName !== 'EOfferItem' && container.type === 'INSTANCE' && !container.removed) {
     const instance = container as InstanceNode;
-    
-    trySetProperty(
-      instance,
-      ['withButton', 'BUTTON', 'BUTTONS'],
-      hasButton,
-      '#withButton'
+
+    trySetProperty(instance, ['withButton', 'BUTTON', 'BUTTONS'], hasButton, '#withButton');
+
+    Logger.debug(
+      `   🔘 [EButton] ${containerName}: withButton=${hasButton}, isCheckout=${isCheckout}, isTouch=${isTouch}`,
     );
-    
-    Logger.debug(`   🔘 [EButton] ${containerName}: withButton=${hasButton}, isCheckout=${isCheckout}, isTouch=${isTouch}`);
   }
-  
+
   // Если кнопка не нужна — дальше не обрабатываем view
   if (!hasButton) return;
-  
+
   // === Находим инстанс кнопки и устанавливаем view ===
   let buttonInstance = getCachedInstanceByNames(instanceCache!, ['EButton', 'Ebutton', 'Button']);
   if (!buttonInstance) {
@@ -225,15 +240,15 @@ export async function handleEButton(context: HandlerContext): Promise<void> {
   if (!buttonInstance) {
     buttonInstance = findButtonInstanceLoose(container);
   }
-  
+
   if (!buttonInstance) {
     Logger.debug(`   ⚠️ [EButton] Инстанс кнопки не найден в "${containerName}"`);
     return;
   }
-  
+
   // Определяем и устанавливаем view
   const viewToSet = getButtonView(snippetType || '', isCheckout, isTouch, buttonViewData);
   setButtonView(buttonInstance, viewToSet);
-  
+
   Logger.debug(`   🔘 [EButton] "${buttonInstance.name}" view=${viewToSet}`);
 }

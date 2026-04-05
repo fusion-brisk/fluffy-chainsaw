@@ -10,4 +10,9 @@ export type { FeedPageOptions, FeedPageResult } from './feed-page-creator';
 export { selectFeedVariant, importFeedComponent } from './feed-component-map';
 
 export { assignMasonryPositions } from './feed-masonry-layout';
-export type { MasonryItem, MasonryConfig, MasonryPosition, MasonryResult } from './feed-masonry-layout';
+export type {
+  MasonryItem,
+  MasonryConfig,
+  MasonryPosition,
+  MasonryResult,
+} from './feed-masonry-layout';

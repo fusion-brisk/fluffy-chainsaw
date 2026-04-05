@@ -1,0 +1,271 @@
+- generic [ref=e1]:
+    - dialog [ref=e4]:
+        - button "Нет" [ref=e6] [cursor=pointer]
+        - generic [ref=e7]:
+            - generic [ref=e8]: Алиса AI — новая нейросеть Яндекса
+            - link "Открыть чат" [ref=e10] [cursor=pointer]:
+                - /url: https://yabs.yandex.ru/count/WfmejI_zOoVX2LaN0tKK0FDWVaTBHqP7Nu6u4axW1Cm9LF49S1FO4zWJq2QWJK3h3HFGctruHCu8UA7Fvt9dp_OxTzvmv-jtlDvmXsl_LAr8Fq9Kwv4GabBI4XBrnbEQWx2XAA3H4ptEFEgSWd2Y0F5yWkYvGJoV89H6i2ezdo1yf21Aq2WI6ZgoMgi_rY2X8Qe9Qv3G45Ln1qpPf23CZx2cGUaRi5B5IxZ1eEDOpl7wWKqBAtiXO8p3pcxDaT3AM1i1Oxy53isxsALiIGy2nlII979V4tar4dZ3vdG7-CfpwGGKr3Y1d-2184Y26HmiBVOao7ao34dunciOW9CVAk5ylc42t00EO0DNWITGS1kslevGoqg3kDd7vQBLi3Vxk5oq6hPUJOEMPkipQ7s6R8nJwI_GGNWC4owmuMzWH_P-1EfP2riBEtoRbTZCbhwwkGAcODvZn3v6zp1c2b0mv0mmOlmCvhi1AG0H8jZIW1MOBZuK9G9iYnxJrFE_qHFX0VxXB-O2sy1wlzS6rlkvleUM-UzVp0N-sYLWZyQVNGBsQ6IQK-ZCCdFffR1bAkj2D_ewGYqhRwOZVVa7kNBMvSSIU702O69gPV_rJ7PRnbg_fNMTYSbkorZhjHEyxkbs9xJirfYFmICEZo1WW81sm1UEjtAbKgaKykjmjdEm69WRb5_Bg8H10pDg010r_5LtkV1i_NHF6sfuB9KvZo_jpSt9g4mmWdnoytTf-MOAebqXe0CHG5OG0cOkHN-xG535UN_tOIEo81VdK7d9AuAmlCoIoW_Skwo3bQcCDo2Z21PVFsYZsTG3EKM5G9_lUutRx_fj8GwgGsyr8g8t_SSSZyHiSBbUnOjkN0RDAMSRP6tmo4C1cGMNReGl6ohB_m00~2
+                - generic: Открыть чат
+    - main [ref=e11]:
+        - generic [ref=e12]:
+            - complementary "Информеры" [ref=e14]:
+                - link "Ваш город определён как Москва" [ref=e16] [cursor=pointer]:
+                    - /url: https://ya.ru/tune/geo?retpath=https%3A%2F%2Fya.ru%2F%3Fnr%3D1%26redirect_ts%3D1775311870.00000&nosync=1
+                    - text: Москва
+                - link "Погода в Москве 15°, Облачно с прояснениями" [ref=e17] [cursor=pointer]:
+                    - /url: https://yandex.ru/pogoda/213?lat=55.755863&lon=37.6177&utm_campaign=informer&utm_content=main_informer&utm_medium=web&utm_source=home
+                    - generic [ref=e19]: +15°
+                - link "Высокая активность ольхи, лещины" [ref=e21] [cursor=pointer]:
+                    - /url: https://yandex.ru/pogoda/allergies?allergen=alder&lat=55.755863&lon=37.6177&utm_campaign=informer&utm_content=pollen_informer&utm_medium=web&utm_source=home
+                - generic [ref=e23]:
+                    - heading "Курсы ЦБ РФ" [level=2] [ref=e24]
+                    - link "USD ЦБ 79,73" [ref=e26] [cursor=pointer]:
+                        - /url: https://ya.ru/search/?lr=213&search_source=ya_morda_stocks&text=USD+%D0%A6%D0%91&wiz=finance
+                        - generic [ref=e27]:
+                            - text: USD
+                            - text: 79,73
+            - generic [ref=e28]:
+                - button "Сервисы" [ref=e31] [cursor=pointer]:
+                    - img [ref=e33]
+                - button "Избранное" [ref=e36] [cursor=pointer]:
+                    - img [ref=e38]
+                - link "Подключить Плюс" [ref=e40] [cursor=pointer]:
+                    - /url: https://plus.yandex.ru/?service_name=yaru&utm_source=yaru&utm_medium=shildik_noplus&utm_campaign=default
+                    - generic [ref=e43]: Плюс
+                - link "Войти" [ref=e44] [cursor=pointer]:
+                    - /url: https://passport.yandex.ru/auth?retpath=https%3A%2F%2Fsso.passport.yandex.ru%2Fpush%3Fretpath%3Dhttps%253A%252F%252Fya.ru%252F%253Fnr%253D1%2526redirect_ts%253D1775311870.00000%26uuid%3D7b5fade2-39be-48f7-94d5-3f7f5b86c343&msid=1775311871552392-3536045873243320944-balancer-l7leveler-kubr-yp-sas-138-BAL&origin=home_yaru_desktop_new
+                - button "Профиль, вход не выполнен" [ref=e48] [cursor=pointer]:
+                    - img [ref=e50]
+        - generic [ref=e52]:
+            - search "Поиск в интернете" [ref=e53]:
+                - generic [ref=e55]:
+                    - generic [ref=e56]:
+                        - generic:
+                            - list:
+                                - listitem [ref=e57]:
+                                    - link "Алиса AI" [ref=e58] [cursor=pointer]:
+                                        - /url: https://alice.yandex.ru/?utm_source=yandex&utm_campaign=home_web&utm_medium=interface
+                                        - generic [ref=e60]: Алиса AI
+                                - listitem [ref=e61]:
+                                    - link "Финансы" [ref=e62] [cursor=pointer]:
+                                        - /url: https://yandex.ru/finance?utm_source=subclasses_product&utm_content=fin_5&utm_campaign=home_web&pers_suggest=0
+                                        - generic [ref=e64]: Финансы
+                                - listitem [ref=e65]:
+                                    - link "Квартиры" [ref=e66] [cursor=pointer]:
+                                        - /url: https://yandex.ru/realty/?utm_source=subclasses_realty&utm_content=realty&utm_campaign=home_web
+                                        - generic [ref=e68]: Квартиры
+                                - listitem [ref=e69]:
+                                    - link "Товары" [ref=e70] [cursor=pointer]:
+                                        - /url: https://yandex.ru/products?utm_source=subclasses_product&utm_content=ecom&utm_campaign=home_web&pers_suggest=0
+                                        - generic [ref=e72]: Товары
+                                - listitem [ref=e73]:
+                                    - link "Медицина" [ref=e74] [cursor=pointer]:
+                                        - /url: https://yandex.ru/medicine?utm_source=subclasses_product&utm_content=med_doc&utm_campaign=home_web&pers_suggest=0
+                                        - generic [ref=e76]: Медицина
+                                - listitem [ref=e77]:
+                                    - link "Услуги" [ref=e78] [cursor=pointer]:
+                                        - /url: https://yandex.ru/services?utm_source=subclasses_product&utm_content=services&utm_campaign=home_web
+                                        - generic [ref=e80]: Услуги
+                    - generic [ref=e82]:
+                        - combobox "Найдётся всё" [active] [ref=e85]
+                        - generic [ref=e86]:
+                            - button "Клавиатура":
+                                - img
+                        - button "Голосовой поиск" [ref=e88] [cursor=pointer]:
+                            - generic:
+                                - img
+                        - button "Поиск по картинке" [ref=e90] [cursor=pointer]:
+                            - img [ref=e91]
+            - list [ref=e95]:
+                - listitem [ref=e96]:
+                    - link "Спросить ИИ" [ref=e97] [cursor=pointer]:
+                        - /url: https://alice.yandex.ru/?utm_campaign=ask_ai_yaru&utm_medium=ai_mode&utm_source=yaru&utm_to=web_site
+                        - generic [ref=e99]: Спросить ИИ
+                - listitem [ref=e100]:
+                    - link "Нарисовать картинку" [ref=e101] [cursor=pointer]:
+                        - /url: https://alice.yandex.ru/?draw_picture=1&utm_campaign=draw_picture_yaru&utm_medium=ai_mode&utm_source=yaru&utm_to=web_site
+                        - generic [ref=e102]: Нарисовать картинку
+                - listitem [ref=e103]:
+                    - link "Найти дешевле" [ref=e104] [cursor=pointer]:
+                        - /url: https://alice.yandex.ru/?best-price-redirect-supported=1&model=alice-agents-best-price&utm_campaign=find_cheaper_yaru&utm_medium=ai_mode&utm_source=yaru&utm_to=web_site
+                        - generic [ref=e105]: Найти дешевле
+                - listitem [ref=e106]:
+                    - link "Рассуждать" [ref=e107] [cursor=pointer]:
+                        - /url: https://alice.yandex.ru/?model=thinking&utm_campaign=thinking_yaru&utm_medium=ai_mode&utm_source=yaru&utm_to=web_site
+                        - generic [ref=e108]: Рассуждать
+            - generic [ref=e110]:
+                - generic [ref=e112]:
+                    - generic [ref=e113]: Промокод на 5 000 ₽ для новых клиентов от Яндекс Директа
+                    - generic [ref=e114]:
+                        - generic [ref=e115]: yandex.ru
+                        - generic [ref=e116]: Реклама
+                - link [ref=e118] [cursor=pointer]:
+                    - /url: https://yandex.ru/an/count/Wo4ejI_zOoVX2LaZ0vqO02EiglxlQvM0EO4gFW6kDqn0R_RX4JaZuBs0W6uYnfOiibAfFA2BDzpv-XslDzpXvd3cg59pE7CW1IqXZQ3Uc4ATDpGQbKQbTewg43N7D8_QKcT-Iw4vga8oSkHE-tb7SwSqHrKeICcAb0EQsqudRZlj73EESYmXZQ3Uc8uGjN-CP1WD_HWL_K1ZhFW1ag7qOsH52leXidzkvuzz_nmPAT58ibP_agfKwz2FKT6FbKX8wST51JynLlp4I471puy5FoiiIF6Z56H54aAXmS-B51Jyl4ZHuWU35ZQiHRNJwOIIi5QDWeo8Z92EI91G2h8Y2LL9A0LPGp3giWEcR58GvaT0yr8gbLwKC13HCEWuPfc1vCt1w_B0oKS1MW-Si0hGUk1qLO3M0oUh0hGUEFKeGEk1axO0BGT2hkHy7L0sKNg9vFCWfqlx2M5Q-n36yC7hFN1D-DL8GPV0xmRuodFf11JKy252ui7l2ZZOkeer10mnpkSRfYORm7x3Du0DNA-zSkAoOUlh2EdgD8YRVLmkMWrxiu_BHQjXsq7YbxeQSOokxtgDtgJPjk4mV22jXeG0lZnmqWQmTK3NUXzB78KveS10p10jPTeBPlmDxCZUZq0zQs5hOSTLL2OxGqQ_kGBsK88nvAQklMFIis0nucQClW4f015un9HUOBhuK9G8i2rwp0uitYz-uMZumxGIoBqFze0y5F_Nxy32zhr-1nQsp_LShIf_Rzu9wNujqql8ZfzbUWdPmJHdU6AMcKll12_8B6Tq8ysZZTvf7ctqjWETzNM4T7NU7CAN_Hws2TUJVrYYUUp7j0SdGDwthFpNDpqv34FvBQthJ4rF3iDGNkiya-pYipDnGGozxeK8Bl5wyRBbjgClZNovKgbK2lbrEDivM0nC7UKNKf99cQenTa4W_5BqFi2AU8TBQgWgBuhcoYQdWllwjfW1Qzci-W5-GzFJYazNXGEFJF8aSD6Qn7ojABE-gO6k0jSEbLTTmkUzoJeTRLSHMOS3Rpfv_1HdiKB0F28Rm2N6F0FGR6Wp-ln1AY8XV080~2?stat-id=1&actual-format=101
+                - button [ref=e119] [cursor=pointer]:
+                    - img [ref=e121]
+        - list [ref=e130]:
+            - listitem [ref=e131]:
+                - generic [ref=e133] [cursor=pointer]:
+                    - generic [ref=e134]:
+                        - 'heading "Галерея: skdesign.ru" [level=3] [ref=e135]':
+                            - 'link "Галерея: skdesign.ru" [ref=e136]':
+                                - /url: https://yandex.ru/rythm/posts/11426034839295284936?utm_source=expyaru
+                        - paragraph [ref=e137]: Содержит ссылки на товары
+                        - paragraph [ref=e138]: Идея для спальни с рабочей зоной. Вся мебель в проекте от @skdesign.ru ✨
+                        - generic [ref=e150]:
+                            - paragraph [ref=e153]: Идея для спальни с рабочей зоной. Вся мебель в проекте от @skdesign.ru ✨
+                            - button "Лайк" [ref=e155]:
+                                - img [ref=e156]
+                    - button "Подробнее" [ref=e158]
+                    - generic [ref=e160]:
+                        - generic [ref=e161]: Кровать двуспальная вилл ЛОУ, с подъёмным механизмом, 160 см
+                        - generic [ref=e163]:
+                            - generic [ref=e164]: 222600 ₽
+                            - generic [ref=e165]:
+                                - text: 222 600
+                                - generic [ref=e166]: ₽
+                - generic [ref=e167]:
+                    - link "skdesign.ru" [ref=e168] [cursor=pointer]:
+                        - /url: https://yandex.ru/rythm/businesses/@skdesign.ru?utm_source=expyaru
+                        - generic [ref=e171]: skdesign.ru
+                    - button "Дополнительные действия для поста" [ref=e172] [cursor=pointer]:
+                        - img [ref=e173]
+            - listitem [ref=e177]:
+                - generic [ref=e178]:
+                    - heading "Яндекс Маркет" [level=3] [ref=e179]:
+                        - link "Яндекс Маркет" [ref=e180] [cursor=pointer]:
+                            - /url: https://market.yandex.ru/card/chasy-naruchnyye-casio-mtp-1374d-1a/103541704934?offerid=fpQ4-pjChx-Xh_04e9o65A&cpc=xJNVIk0YMrm8rhiSm9y3tTOlB0d34s4Xs471o41lNiY3pOY7r97UlNO2RriqQklbDdOpMolKQMStPmpsEZBHTIptHgtwsPpHTq1dPjYCNLpzi3gcl-EnHXDta0CCHuXFUsbN06urRzTwG4Ub2EGvPPjbvxv7fXSLV_QODdlI0mjpyuAcxZjz2Rq7oVjKT4K2KtFxycRAyX9-HD08SFMCYePMntAt3Sc0&show-uid=17753118723242911297406001&clid=994&lr=213&regionId=213
+                    - paragraph [ref=e181]: Наручные часы CASIO Collection
+                    - generic [ref=e182]: Цена с картой Яндекс Пей 5784 рублявместо 9350 рублей
+                    - link [ref=e183] [cursor=pointer]:
+                        - /url: https://market.yandex.ru/card/chasy-naruchnyye-casio-mtp-1374d-1a/103541704934?offerid=fpQ4-pjChx-Xh_04e9o65A&cpc=xJNVIk0YMrm8rhiSm9y3tTOlB0d34s4Xs471o41lNiY3pOY7r97UlNO2RriqQklbDdOpMolKQMStPmpsEZBHTIptHgtwsPpHTq1dPjYCNLpzi3gcl-EnHXDta0CCHuXFUsbN06urRzTwG4Ub2EGvPPjbvxv7fXSLV_QODdlI0mjpyuAcxZjz2Rq7oVjKT4K2KtFxycRAyX9-HD08SFMCYePMntAt3Sc0&show-uid=17753118723242911297406001&clid=994&lr=213&regionId=213
+                        - img [ref=e185]
+                        - generic [ref=e189]: Яндекс Маркет
+                        - generic [ref=e190]: Наручные часы CASIO Collection
+                        - generic [ref=e191]:
+                            - generic [ref=e192]: 5784₽
+                            - img [ref=e193]
+            - listitem [ref=e196]:
+                - generic [ref=e198] [cursor=pointer]:
+                    - generic [ref=e199]:
+                        - 'heading "Видео: vkusvill_ru" [level=3] [ref=e200]':
+                            - 'link "Видео: vkusvill_ru" [ref=e201]':
+                                - /url: https://yandex.ru/rythm/posts/7086033322854037511?utm_source=expyaru
+                        - paragraph [ref=e202]: '🍋 Пасхальный кекс с лимоном и маком Ингредиенты: Мука — 320 г Масло сливочное — 270 г Яйцо — 5 шт. Сахар — 300 г Крахмал — 80 г Разрыхлитель — 6 г Лимонный сок — 60 мл Цедра 1-2 лимонов Мак — 50 г Ванилин — по вкусу Соль — щепотка Мягкое сливочное масло смешать с сахаром, перемешать до объединения. Добавить лимонный сок, соль и цедру лимона. Взбить миксером до получения однородной массы. Добавлять по одному яйца, каждый раз взбивая, пока смесь не станет гладкой и глянцевой. В отдельной емкости смешать муку, крахмал, ванилин, разрыхлитель. Просеять мучную смесь в масляную. Добавить мак. Смешать лопаткой до получения гладкого теста. Тесто для лимонного кекса выложить в форму, предварительно смазать стенки и дно маслом, и присыпать мукой или манкой. Выпекать 40-50 минут на 180 градусах до румяного цвета. Готовность проверяйте шпажкой. Сохраните, чтобы не потерять 💚'
+                        - button "Включить звук":
+                            - img
+                        - generic [ref=e204]:
+                            - img [ref=e207]
+                            - generic [ref=e210]:
+                                - paragraph [ref=e213]: '🍋 Пасхальный кекс с лимоном и маком Ингредиенты: Мука — 320 г Масло сливочное — 270 г Яйцо — 5 шт. Сахар — 300 г Крахмал — 80 г Разрыхлитель — 6 г Лимонный сок — 60 мл Цедра 1-2 лимонов Мак — 50 г Ванилин — по вкусу Соль — щепотка Мягкое сливочное масло смешать с сахаром, перемешать до объединения. Добавить лимонный сок, соль и цедру лимона. Взбить миксером до получения однородной массы. Добавлять по одному яйца, каждый раз взбивая, пока смесь не станет гладкой и глянцевой. В отдельной емкости смешать муку, крахмал, ванилин, разрыхлитель. Просеять мучную смесь в масляную. Добавить мак. Смешать лопаткой до получения гладкого теста. Тесто для лимонного кекса выложить в форму, предварительно смазать стенки и дно маслом, и присыпать мукой или манкой. Выпекать 40-50 минут на 180 градусах до румяного цвета. Готовность проверяйте шпажкой. Сохраните, чтобы не потерять 💚'
+                                - button "Лайк" [ref=e215]:
+                                    - img [ref=e216]
+                    - button "Подробнее" [ref=e218]
+                - generic [ref=e219]:
+                    - link "vkusvill_ru" [ref=e220] [cursor=pointer]:
+                        - /url: https://yandex.ru/rythm/businesses/@vkusvill_ru?utm_source=expyaru
+                        - generic [ref=e223]: vkusvill_ru
+                    - button "Дополнительные действия для поста" [ref=e224] [cursor=pointer]:
+                        - img [ref=e225]
+            - listitem [ref=e229]:
+                - generic [ref=e230]:
+                    - heading "Яндекс Маркет" [level=3] [ref=e231]:
+                        - link "Яндекс Маркет" [ref=e232] [cursor=pointer]:
+                            - /url: https://market.yandex.ru/card/zhenskiy-dzhinsovyy-kombinezon-uvrcos-m-seryy/4327762996?offerid=UcV4YCXuZWhRuITs_VaqiA&cpc=xJNVIk0YMrk2_y0RrU5r7VoB9H7HozpJ4CkoFU5gwJZF2Ao3LoJxPq9qFU9r_RlNtOydCrVeHoqR9VMSkRySIUVttYpFK4gJD-m_VHv_mqHcjik-q3QihnbQgDmBwc8Ff7Pkp5ZAsJezidEtC8xTj_UuZfcrBYJPywhhiacoQhOD30Gu2EbTmHjomI0GiSRoDlmqKHOiT-BXtmQF3BLih4gJE0RZxHEf&show-uid=17753118723242907199506001&clid=994&lr=213&regionId=213
+                    - paragraph [ref=e233]: Комбинезон UZSC
+                    - generic [ref=e234]: Цена 3121 рубль
+                    - link [ref=e235] [cursor=pointer]:
+                        - /url: https://market.yandex.ru/card/zhenskiy-dzhinsovyy-kombinezon-uvrcos-m-seryy/4327762996?offerid=UcV4YCXuZWhRuITs_VaqiA&cpc=xJNVIk0YMrk2_y0RrU5r7VoB9H7HozpJ4CkoFU5gwJZF2Ao3LoJxPq9qFU9r_RlNtOydCrVeHoqR9VMSkRySIUVttYpFK4gJD-m_VHv_mqHcjik-q3QihnbQgDmBwc8Ff7Pkp5ZAsJezidEtC8xTj_UuZfcrBYJPywhhiacoQhOD30Gu2EbTmHjomI0GiSRoDlmqKHOiT-BXtmQF3BLih4gJE0RZxHEf&show-uid=17753118723242907199506001&clid=994&lr=213&regionId=213
+                        - img [ref=e237]
+                        - generic [ref=e241]: Яндекс Маркет
+                        - generic [ref=e242]: Комбинезон UZSC
+                        - generic [ref=e244]: 3121₽
+            - listitem [ref=e245]:
+                - generic [ref=e247] [cursor=pointer]:
+                    - generic [ref=e248]:
+                        - 'heading "Видео: easyco.lab" [level=3] [ref=e249]':
+                            - 'link "Видео: easyco.lab" [ref=e250]':
+                                - /url: https://yandex.ru/rythm/posts/10794798180331378766?utm_source=expyaru
+                        - paragraph [ref=e251]: Ваша кожа говорит о вас больше, чем вы думаете > в шапке профиля самый натуральный воздушный баттер из 4 полезных масел, забирай на здоровье 🤍 @easyco.lab
+                        - button "Включить звук":
+                            - img
+                        - generic [ref=e253]:
+                            - img [ref=e256]
+                            - generic [ref=e259]:
+                                - paragraph [ref=e262]: Ваша кожа говорит о вас больше, чем вы думаете > в шапке профиля самый натуральный воздушный баттер из 4 полезных масел, забирай на здоровье 🤍 @easyco.lab
+                                - button "Лайк" [ref=e264]:
+                                    - img [ref=e265]
+                    - button "Подробнее" [ref=e267]
+                - generic [ref=e268]:
+                    - link "easyco.lab" [ref=e269] [cursor=pointer]:
+                        - /url: https://yandex.ru/rythm/businesses/@easyco.lab?utm_source=expyaru
+                        - generic [ref=e272]: easyco.lab
+                    - button "Дополнительные действия для поста" [ref=e273] [cursor=pointer]:
+                        - img [ref=e274]
+            - listitem [ref=e278]
+            - listitem [ref=e282]
+            - listitem [ref=e286]:
+                - generic [ref=e287]:
+                    - heading "Яндекс Маркет" [level=3] [ref=e288]:
+                        - link "Яндекс Маркет" [ref=e289] [cursor=pointer]:
+                            - /url: https://market.yandex.ru/card/51-krasnaya-roza-v-plenke/103163820498?offerid=nDf3WFwwvFOahWu6JmMxcg&cpc=xJNVIk0YMrmCbmouuVrrRTfd0Rc-cVlvDSBm5vEL_6KYRjvVifhNRp9Wpho-Tzu7eR0GhQD0PY2LJvrD_wBduswT8TsXAn-z6BYS0aLdN8NzJOEzkQUrPFNV8DPpP20nLO5aObry2CC473ZmbI78pTEm9SXFJL7wgjwKzHWYAVW0ABfBxcftiYpU-usrTSSjgy1pGYeqGXII5Qpni0aex3YlXJAXmv1J&show-uid=17753118723515140531606001&clid=994&lr=213&regionId=213
+                    - paragraph [ref=e290]: 51 красная роза в пленке
+                    - generic [ref=e291]: Цена с картой Яндекс Пей 2578 рублейвместо 8690 рублей
+                    - link [ref=e292] [cursor=pointer]:
+                        - /url: https://market.yandex.ru/card/51-krasnaya-roza-v-plenke/103163820498?offerid=nDf3WFwwvFOahWu6JmMxcg&cpc=xJNVIk0YMrmCbmouuVrrRTfd0Rc-cVlvDSBm5vEL_6KYRjvVifhNRp9Wpho-Tzu7eR0GhQD0PY2LJvrD_wBduswT8TsXAn-z6BYS0aLdN8NzJOEzkQUrPFNV8DPpP20nLO5aObry2CC473ZmbI78pTEm9SXFJL7wgjwKzHWYAVW0ABfBxcftiYpU-usrTSSjgy1pGYeqGXII5Qpni0aex3YlXJAXmv1J&show-uid=17753118723515140531606001&clid=994&lr=213&regionId=213
+                        - img [ref=e294]
+                        - generic [ref=e298]: Яндекс Маркет
+                        - generic [ref=e299]: 51 красная роза в пленке
+                        - generic [ref=e300]:
+                            - generic [ref=e301]: 2578₽
+                            - img [ref=e302]
+            - listitem [ref=e305]:
+                - generic [ref=e307] [cursor=pointer]:
+                    - generic [ref=e308]:
+                        - 'heading "Видео: Мемания" [level=3] [ref=e309]':
+                            - 'link "Видео: Мемания" [ref=e310]':
+                                - /url: https://yandex.ru/rythm/posts/4784991714981724227?utm_source=expyaru
+                        - paragraph [ref=e311]: Содержит ссылки на товары
+                        - paragraph [ref=e312]: когда заказал вкусняшек Ролл Филадельфия Ролл с креветкой и огурцом Онигири с запечённым тунцом Ролл с креветкой и семгой Ролл Унаги Маки Онигири Филадельфия
+                        - button "Включить звук":
+                            - img
+                        - generic [ref=e314]:
+                            - img [ref=e317]
+                            - generic [ref=e320]:
+                                - paragraph [ref=e323]: когда заказал вкусняшек Ролл Филадельфия Ролл с креветкой и огурцом Онигири с запечённым тунцом Ролл с креветкой и семгой Ролл Унаги Маки Онигири Филадельфия
+                                - button "Лайк" [ref=e325]:
+                                    - img [ref=e326]
+                    - button "Подробнее" [ref=e328]
+                    - generic [ref=e329]:
+                        - generic [ref=e330]:
+                            - generic [ref=e331]: Ролл Филадельфия
+                            - generic [ref=e333]:
+                                - generic [ref=e334]: 598 ₽
+                                - generic [ref=e335]:
+                                    - text: '598'
+                                    - generic [ref=e336]: ₽
+                        - generic [ref=e337]: Ещё 5
+                - generic [ref=e338]:
+                    - link "Мемания" [ref=e339] [cursor=pointer]:
+                        - /url: https://yandex.ru/rythm/profile/@019c23b1fc7074918393293504cd7392?utm_source=expyaru
+                        - generic [ref=e342]: Мемания
+                    - button "Дополнительные действия для поста" [ref=e343] [cursor=pointer]:
+                        - img [ref=e344]
+            - listitem [ref=e348]:
+                - generic [ref=e349]:
+                    - heading "Яндекс Маркет" [level=3] [ref=e350]:
+                        - link "Яндекс Маркет" [ref=e351] [cursor=pointer]:
+                            - /url: https://market.yandex.ru/card/naruchnyye-chasy-casio-ltp-1314d-5a-kvartsevyye-zhenskiye-wr50-5-atm/103096080765?offerid=6Af4LN37EEk8RYQNWse9RA&cpc=xJNVIk0YMrk8aYhkqqIRtoGnbEhvYFbyhGdfWjWASAXSj2267tdvfveCRWrICIu8K2PRKFRD_waLUsGTA1Zwd3pDxW2zxC4gofh_6w1etZhsoY9dme2S6bqIYfRU5ZZfscBUAsI5eK0AvhWB9BGJDt2EqlWv6vfRLb_PxdRGDVfQ5WWP8Il7a10IhOZmnJv2e7KEZ5pGutLuKpurDYbI0rR8kJQLrSGP&show-uid=17753118723242885850606001&clid=994&lr=213&regionId=213
+                    - paragraph [ref=e352]: Наручные часы CASIO
+                    - generic [ref=e353]: Цена с картой Яндекс Пей 4498 рублейвместо 10405 рублей
+                    - link [ref=e354] [cursor=pointer]:
+                        - /url: https://market.yandex.ru/card/naruchnyye-chasy-casio-ltp-1314d-5a-kvartsevyye-zhenskiye-wr50-5-atm/103096080765?offerid=6Af4LN37EEk8RYQNWse9RA&cpc=xJNVIk0YMrk8aYhkqqIRtoGnbEhvYFbyhGdfWjWASAXSj2267tdvfveCRWrICIu8K2PRKFRD_waLUsGTA1Zwd3pDxW2zxC4gofh_6w1etZhsoY9dme2S6bqIYfRU5ZZfscBUAsI5eK0AvhWB9BGJDt2EqlWv6vfRLb_PxdRGDVfQ5WWP8Il7a10IhOZmnJv2e7KEZ5pGutLuKpurDYbI0rR8kJQLrSGP&show-uid=17753118723242885850606001&clid=994&lr=213&regionId=213
+                        - img [ref=e356]
+                        - generic [ref=e360]: Яндекс Маркет
+                        - generic [ref=e361]: Наручные часы CASIO
+                        - generic [ref=e362]:
+                            - generic [ref=e363]: 4498₽
+                            - img [ref=e364]
+    - alert
+    - button "🐌" [ref=e374] [cursor=pointer]:
+        - generic [ref=e375]: 🐌

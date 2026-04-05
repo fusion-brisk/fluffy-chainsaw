@@ -48,19 +48,12 @@
       "type": "text"
     },
     "#ShopName": {
-      "domSelectors": [
-        ".EShopName",
-        "[class*=\"EShopName\"]",
-        "[class*=\"ShopName\"]"
-      ],
+      "domSelectors": [".EShopName", "[class*=\"EShopName\"]", "[class*=\"ShopName\"]"],
       "jsonKeys": ["shopName", "shop", "vendor", "domain"],
       "type": "text"
     },
     "#OrganicPath": {
-      "domSelectors": [
-        ".Path",
-        "[class*=\"Path\"]"
-      ],
+      "domSelectors": [".Path", "[class*=\"Path\"]"],
       "jsonKeys": ["path", "breadcrumbs"],
       "type": "text"
     },
@@ -112,11 +105,7 @@
       "type": "text"
     },
     "#ShopRating": {
-      "domSelectors": [
-        ".Rating",
-        "[class*=\"Rating\"]",
-        "[aria-label*=\"рейтинг\" i]"
-      ],
+      "domSelectors": [".Rating", "[class*=\"Rating\"]", "[aria-label*=\"рейтинг\" i]"],
       "jsonKeys": ["rating", "stars"],
       "type": "text"
     },
@@ -195,4 +184,3 @@
     }
   }
 }
-

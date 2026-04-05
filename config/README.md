@@ -9,6 +9,7 @@ This directory contains remote configuration files for the EProductSnippet Figma
 Parsing rules for extracting data from HTML/MHTML files (Yandex search results).
 
 **Raw URL:**
+
 ```
 https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/config/parsing-rules.json
 ```
@@ -49,4 +50,3 @@ This URL is used by the plugin to automatically fetch updates.
 - Always validate JSON before committing
 - Increment version to trigger updates
 - Test changes before pushing to main branch
-

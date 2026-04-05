@@ -4,10 +4,10 @@ Figma plugin for auto-filling design mockups with production Yandex SERP data.
 
 ## Development
 
-npm run build       # Build plugin (Rollup + Babel)
-npm run test        # Run tests (Vitest, 119 tests)
-npm run typecheck   # TypeScript check
-npm run lint        # ESLint
+npm run build # Build plugin (Rollup + Babel)
+npm run test # Run tests (Vitest, 119 tests)
+npm run typecheck # TypeScript check
+npm run lint # ESLint
 
 ## Architecture
 

@@ -34,10 +34,10 @@
 
 ### Два пути парсинга
 
-| Путь | Файл | Контекст | Особенности |
-|------|------|----------|-------------|
-| **Browser Extension** | `extension/content.js` | Живая страница Яндекса | `getComputedStyle()` для фавиконок, полный DOM |
-| **Plugin Fallback** | `src/utils/snippet-parser.ts` | MHTML/HTML файл | CSS-кэш, parsing-rules.ts |
+| Путь                  | Файл                          | Контекст               | Особенности                                    |
+| --------------------- | ----------------------------- | ---------------------- | ---------------------------------------------- |
+| **Browser Extension** | `extension/content.js`        | Живая страница Яндекса | `getComputedStyle()` для фавиконок, полный DOM |
+| **Plugin Fallback**   | `src/utils/snippet-parser.ts` | MHTML/HTML файл        | CSS-кэш, parsing-rules.ts                      |
 
 Оба пути генерируют **CSVRow[]** — унифицированный формат данных.
 
@@ -46,26 +46,26 @@
 ## Типы сниппетов (SnippetType)
 
 ```typescript
-type SnippetType = 
-  | 'EShopItem'           // Карточка магазина в списке "Цены в магазинах"
-  | 'EOfferItem'          // Оффер магазина в попапе выбора магазина
-  | 'EProductSnippet2'    // Товарная плитка (галерея товаров)
+type SnippetType =
+  | 'EShopItem' // Карточка магазина в списке "Цены в магазинах"
+  | 'EOfferItem' // Оффер магазина в попапе выбора магазина
+  | 'EProductSnippet2' // Товарная плитка (галерея товаров)
   | 'Organic_withOfferInfo' // Органический результат с ценой
-  | 'Organic'             // Обычный органический результат
-  | 'ESnippet'            // Универсальный сниппет (промо)
-  | 'Snippet';            // Legacy
+  | 'Organic' // Обычный органический результат
+  | 'ESnippet' // Универсальный сниппет (промо)
+  | 'Snippet'; // Legacy
 ```
 
 ### Маппинг на Figma-компоненты
 
-| SnippetType | Figma Component | Описание |
-|-------------|-----------------|----------|
-| `EShopItem` | EShopItem | Карточка магазина |
-| `EOfferItem` | EOfferItem | Оффер в попапе |
-| `EProductSnippet2` | EProductSnippet | Товарная плитка |
-| `Organic_withOfferInfo` | Organic | Органика с ценой |
-| `Organic` | Organic | Обычная органика |
-| `ESnippet` | ESnippet | Универсальный |
+| SnippetType             | Figma Component | Описание          |
+| ----------------------- | --------------- | ----------------- |
+| `EShopItem`             | EShopItem       | Карточка магазина |
+| `EOfferItem`            | EOfferItem      | Оффер в попапе    |
+| `EProductSnippet2`      | EProductSnippet | Товарная плитка   |
+| `Organic_withOfferInfo` | Organic         | Органика с ценой  |
+| `Organic`               | Organic         | Обычная органика  |
+| `ESnippet`              | ESnippet        | Универсальный     |
 
 ---
 
@@ -73,15 +73,15 @@ type SnippetType =
 
 Контейнеры группируют сниппеты на странице SERP:
 
-| containerType | Содержимое | Селектор на странице |
-|---------------|------------|---------------------|
-| `ProductsTiles` | Галерея EProductSnippet2 | `data-fast-name="products_mode_constr"` |
-| `EShopList` | Список EShopItem | Множественные `.EShopItem` |
-| `EOfferList` | Список EOfferItem | Множественные `.EOfferItem` |
-| `EntityOffers` | Групповые офферы | `.entity-offers` |
-| `AdvProductGallery` | Рекламная галерея | `.AdvProductGallery` |
-| `OrganicList` | Органические результаты | Обычные `li.serp-item` |
-| `Single` | Одиночный сниппет | Нет группировки |
+| containerType       | Содержимое               | Селектор на странице                    |
+| ------------------- | ------------------------ | --------------------------------------- |
+| `ProductsTiles`     | Галерея EProductSnippet2 | `data-fast-name="products_mode_constr"` |
+| `EShopList`         | Список EShopItem         | Множественные `.EShopItem`              |
+| `EOfferList`        | Список EOfferItem        | Множественные `.EOfferItem`             |
+| `EntityOffers`      | Групповые офферы         | `.entity-offers`                        |
+| `AdvProductGallery` | Рекламная галерея        | `.AdvProductGallery`                    |
+| `OrganicList`       | Органические результаты  | Обычные `li.serp-item`                  |
+| `Single`            | Одиночный сниппет        | Нет группировки                         |
 
 ---
 
@@ -202,10 +202,10 @@ type SnippetType =
 
 ```typescript
 interface FieldRule {
-  domSelectors: string[];  // CSS-селекторы (по приоритету)
-  jsonKeys: string[];      // JSON-ключи (fallback)
+  domSelectors: string[]; // CSS-селекторы (по приоритету)
+  jsonKeys: string[]; // JSON-ключи (fallback)
   type?: 'text' | 'image' | 'price' | 'boolean' | 'attribute';
-  domAttribute?: string;   // Атрибут для извлечения (href, src, value)
+  domAttribute?: string; // Атрибут для извлечения (href, src, value)
 }
 ```
 
@@ -257,56 +257,56 @@ Handlers применяют данные CSVRow к Figma-компонентам 
 
 ### Приоритеты выполнения
 
-| Приоритет | Категория | Описание |
-|-----------|-----------|----------|
-| 0 | CRITICAL | Структурные изменения (EPriceGroup) |
-| 10 | VARIANTS | Переключение variant properties |
-| 20 | VISIBILITY | Показ/скрытие элементов |
-| 30 | TEXT | Текстовые поля |
-| 40 | FALLBACK | Финальные обработки |
+| Приоритет | Категория  | Описание                            |
+| --------- | ---------- | ----------------------------------- |
+| 0         | CRITICAL   | Структурные изменения (EPriceGroup) |
+| 10        | VARIANTS   | Переключение variant properties     |
+| 20        | VISIBILITY | Показ/скрытие элементов             |
+| 30        | TEXT       | Текстовые поля                      |
+| 40        | FALLBACK   | Финальные обработки                 |
 
 ### Список handlers
 
 ```typescript
 // CRITICAL (0)
-'EPriceGroup'      // Цены, скидки, Fintech
-'EPriceView'       // EPrice view (special/default)
+'EPriceGroup'; // Цены, скидки, Fintech
+'EPriceView'; // EPrice view (special/default)
 
 // VARIANTS (10)
-'BrandLogic'       // Brand variant
-'EPriceBarometer'  // Барометр цен
-'EMarketCheckoutLabel'  // Лейбл чекаута
-'MarketCheckoutButton'  // BUTTON variant на контейнере
-'EOfferItem'       // Модификаторы карточки предложения
-'EShopItem'        // Модификаторы карточки магазина
-'ESnippetProps'    // Boolean пропсы ESnippet
-'EProductSnippet'  // Модификаторы карточки товара
-'ShopInfoBnpl'     // BNPL иконки
+'BrandLogic'; // Brand variant
+'EPriceBarometer'; // Барометр цен
+'EMarketCheckoutLabel'; // Лейбл чекаута
+'MarketCheckoutButton'; // BUTTON variant на контейнере
+'EOfferItem'; // Модификаторы карточки предложения
+'EShopItem'; // Модификаторы карточки магазина
+'ESnippetProps'; // Boolean пропсы ESnippet
+'EProductSnippet'; // Модификаторы карточки товара
+'ShopInfoBnpl'; // BNPL иконки
 
 // VISIBILITY (20)
-'EButton'          // EButton view и visible
-'OfficialShop'     // Галочка официального магазина
-'RatingReviewQuoteVisibility'  // Скрывает группу если нет данных
-'InfoIcon'         // Иконка "Инфо" в EPriceGroup-Fintech
+'EButton'; // EButton view и visible
+'OfficialShop'; // Галочка официального магазина
+'RatingReviewQuoteVisibility'; // Скрывает группу если нет данных
+'InfoIcon'; // Иконка "Инфо" в EPriceGroup-Fintech
 
 // TEXT (30)
-'LabelDiscountView'  // View лейбла скидки
-'QuoteText'        // Текст цитаты
-'OrganicPath'      // Путь URL
+'LabelDiscountView'; // View лейбла скидки
+'QuoteText'; // Текст цитаты
+'OrganicPath'; // Путь URL
 
 // FALLBACK (40)
-'ESnippetOrganicTextFallback'      // Fallback для текста
-'ESnippetOrganicHostFromFavicon'   // Host из favicon URL
+'ESnippetOrganicTextFallback'; // Fallback для текста
+'ESnippetOrganicHostFromFavicon'; // Host из favicon URL
 ```
 
 ### HandlerContext
 
 ```typescript
 interface HandlerContext {
-  container: InstanceNode;     // Figma-инстанс контейнера
-  row: CSVRow;                 // Данные строки
-  instanceCache: Map<string, InstanceNode>;  // Кэш вложенных инстансов
-  snippetType: string;         // Тип сниппета
+  container: InstanceNode; // Figma-инстанс контейнера
+  row: CSVRow; // Данные строки
+  instanceCache: Map<string, InstanceNode>; // Кэш вложенных инстансов
+  snippetType: string; // Тип сниппета
 }
 ```
 
@@ -318,17 +318,17 @@ interface HandlerContext {
 
 Слои данных в Figma-компонентах начинаются с `#`:
 
-| Имя слоя Figma | Тип слоя | Поле CSVRow |
-|----------------|----------|-------------|
-| `#OrganicTitle` | TEXT | `row['#OrganicTitle']` |
-| `#OrganicPrice` | TEXT | `row['#OrganicPrice']` |
-| `#OldPrice` | TEXT | `row['#OldPrice']` |
-| `#discount` | TEXT | `row['#discount']` |
-| `#ShopName` | TEXT | `row['#ShopName']` |
-| `#OrganicHost` | TEXT | `row['#OrganicHost']` |
+| Имя слоя Figma  | Тип слоя         | Поле CSVRow            |
+| --------------- | ---------------- | ---------------------- |
+| `#OrganicTitle` | TEXT             | `row['#OrganicTitle']` |
+| `#OrganicPrice` | TEXT             | `row['#OrganicPrice']` |
+| `#OldPrice`     | TEXT             | `row['#OldPrice']`     |
+| `#discount`     | TEXT             | `row['#discount']`     |
+| `#ShopName`     | TEXT             | `row['#ShopName']`     |
+| `#OrganicHost`  | TEXT             | `row['#OrganicHost']`  |
 | `#OrganicImage` | RECTANGLE (fill) | `row['#OrganicImage']` |
 | `#FaviconImage` | RECTANGLE (fill) | `row['#FaviconImage']` |
-| `#ThumbImage` | RECTANGLE (fill) | `row['#ThumbImage']` |
+| `#ThumbImage`   | RECTANGLE (fill) | `row['#ThumbImage']`   |
 
 ### Способы применения данных
 
@@ -341,7 +341,7 @@ const imageHash = figma.createImage(bytes).hash;
 node.fills = [{ type: 'IMAGE', imageHash, scaleMode: 'FILL' }];
 
 // 3. Variant Properties — через setProperties
-instance.setProperties({ 'View': 'secondary' });
+instance.setProperties({ View: 'secondary' });
 
 // 4. Exposed Boolean Properties
 trySetProperty(instance, ['withButton'], true);
@@ -419,10 +419,10 @@ if (!productRating && !reviewsNumber && !quoteText) {
 
 ```typescript
 // Touch
-'.EShopItem-Leading img'
+'.EShopItem-Leading img';
 
-// Desktop  
-'.EShopItem-Left img'
+// Desktop
+'.EShopItem-Left img';
 ```
 
 **Решение**: Обе версии уже в parsing-rules.ts, проверять порядок приоритетов.
@@ -431,18 +431,18 @@ if (!productRating && !reviewsNumber && !quoteText) {
 
 ## Файлы для анализа
 
-| Путь | Описание | LOC |
-|------|----------|-----|
-| `src/types/csv-fields.ts` | Типы полей CSVRow | ~280 |
-| `src/parsing-rules.ts` | CSS-селекторы парсинга | ~925 |
-| `src/handlers/registry.ts` | Реестр handlers | ~460 |
-| `src/handlers/price-handlers.ts` | Обработка цен | ~300 |
-| `src/handlers/snippet-handlers.ts` | Обработка сниппетов | ~600 |
-| `src/handlers/button-handlers.ts` | Обработка кнопок | ~200 |
-| `src/plugin/data-assignment.ts` | Маппинг row→container | ~670 |
-| `src/page-builder/component-map.ts` | Ключи компонентов | ~620 |
-| `extension/content.js` | Парсинг (browser) | ~2360 |
-| `src/utils/snippet-parser.ts` | Парсинг (plugin) | ~2010 |
+| Путь                                | Описание               | LOC   |
+| ----------------------------------- | ---------------------- | ----- |
+| `src/types/csv-fields.ts`           | Типы полей CSVRow      | ~280  |
+| `src/parsing-rules.ts`              | CSS-селекторы парсинга | ~925  |
+| `src/handlers/registry.ts`          | Реестр handlers        | ~460  |
+| `src/handlers/price-handlers.ts`    | Обработка цен          | ~300  |
+| `src/handlers/snippet-handlers.ts`  | Обработка сниппетов    | ~600  |
+| `src/handlers/button-handlers.ts`   | Обработка кнопок       | ~200  |
+| `src/plugin/data-assignment.ts`     | Маппинг row→container  | ~670  |
+| `src/page-builder/component-map.ts` | Ключи компонентов      | ~620  |
+| `extension/content.js`              | Парсинг (browser)      | ~2360 |
+| `src/utils/snippet-parser.ts`       | Парсинг (plugin)       | ~2010 |
 
 ---
 

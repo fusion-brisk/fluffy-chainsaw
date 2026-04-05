@@ -25,11 +25,11 @@
  *   - collection-card (если появится)          → 'collection'
  */
 export type FeedCardType =
-  | 'post'        // Posts (18 desktop variants) — контент с товарами/каруселью
-  | 'video'       // Videos (5 desktop variants) — видео-контент
-  | 'market'      // Market Production Snippet (8 desktop variants) — Яндекс Маркет
-  | 'advert'      // Ads Production/Examples (6+9 desktop variants) — реклама
-  | 'product'     // Products Examples (7 Independent + 21 Market) — товарные карточки
+  | 'post' // Posts (18 desktop variants) — контент с товарами/каруселью
+  | 'video' // Videos (5 desktop variants) — видео-контент
+  | 'market' // Market Production Snippet (8 desktop variants) — Яндекс Маркет
+  | 'advert' // Ads Production/Examples (6+9 desktop variants) — реклама
+  | 'product' // Products Examples (7 Independent + 21 Market) — товарные карточки
   | 'collection'; // Collections (4 desktop variants) — подборки
 
 /**
@@ -176,11 +176,11 @@ export type FeedCardRow = FeedCardFields;
  * Обязательные поля для каждого типа карточки.
  */
 export const FEED_REQUIRED_FIELDS: Record<FeedCardType, (keyof FeedCardFields)[]> = {
-  post:       ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_SourceName'],
-  video:      ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_SourceName'],
-  market:     ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_Title', '#Feed_Price'],
-  advert:     ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_SourceDomain'],
-  product:    ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_Title', '#Feed_Price'],
+  post: ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_SourceName'],
+  video: ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_SourceName'],
+  market: ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_Title', '#Feed_Price'],
+  advert: ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_SourceDomain'],
+  product: ['#Feed_CardType', '#Feed_ImageUrl', '#Feed_Title', '#Feed_Price'],
   collection: ['#Feed_CardType', '#Feed_SourceName'],
 };
 

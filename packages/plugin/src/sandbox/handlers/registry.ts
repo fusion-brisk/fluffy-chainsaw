@@ -1,6 +1,6 @@
 /**
  * Handler Registry — централизованная регистрация и выполнение обработчиков
- * 
+ *
  * Преимущества:
  * - Единое место для всех обработчиков
  * - Контроль порядка выполнения через приоритеты
@@ -18,8 +18,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, name: string): Promise<
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('Handler "' + name + '" timed out after ' + ms + 'ms')), ms)
-    )
+      setTimeout(
+        () => reject(new Error('Handler "' + name + '" timed out after ' + ms + 'ms')),
+        ms,
+      ),
+    ),
   ]);
 }
 
@@ -43,17 +46,20 @@ export function resetHandlerStats(): void {
 /**
  * Получить статистику для Logger.logHandlerStats
  */
-export function getHandlerStatsForLogger(): Map<string, { count: number; totalTime: number; avgTime: number }> {
+export function getHandlerStatsForLogger(): Map<
+  string,
+  { count: number; totalTime: number; avgTime: number }
+> {
   const result = new Map<string, { count: number; totalTime: number; avgTime: number }>();
-  
+
   for (const [name, stats] of handlerStatsMap.entries()) {
     result.set(name, {
       count: stats.totalCalls,
       totalTime: stats.totalTime,
-      avgTime: stats.totalCalls > 0 ? stats.totalTime / stats.totalCalls : 0
+      avgTime: stats.totalCalls > 0 ? stats.totalTime / stats.totalCalls : 0,
     });
   }
-  
+
   return result;
 }
 
@@ -62,7 +68,7 @@ export function getHandlerStatsForLogger(): Map<string, { count: number; totalTi
  */
 export function logHandlerStats(): void {
   if (handlerStatsMap.size === 0) return;
-  
+
   const statsForLogger = getHandlerStatsForLogger();
   Logger.logHandlerStats(statsForLogger);
 }
@@ -76,7 +82,7 @@ function updateHandlerStats(name: string, duration: number): void {
     stats = { totalCalls: 0, totalTime: 0, maxTime: 0, slowCalls: 0 };
     handlerStatsMap.set(name, stats);
   }
-  
+
   stats.totalCalls++;
   stats.totalTime += duration;
   if (duration > stats.maxTime) stats.maxTime = duration;
@@ -84,10 +90,31 @@ function updateHandlerStats(name: string, duration: number): void {
 }
 
 // Import all handlers
-import { handleBrandLogic, handleELabelGroup, handleEPriceBarometer, handleEMarketCheckoutLabel } from './label-handlers';
+import {
+  handleBrandLogic,
+  handleELabelGroup,
+  handleEPriceBarometer,
+  handleEMarketCheckoutLabel,
+} from './label-handlers';
 import { handleMarketCheckoutButton, handleEButton } from './button-handlers';
-import { handleESnippetOrganicTextFallback, handleESnippetOrganicHostFromFavicon, handleShopInfoUgcAndEReviewsShopText, handleOfficialShop, handleShopOfflineRegion, handleHidePriceBlock, handleImageType, handleEmptyGroups, handleQuoteText, handleOrganicPath, handleEcomMetaVisibility } from './snippet-handlers';
-import { handleEDeliveryGroup, handleShopInfoBnpl, handleShopInfoDeliveryBnplContainer } from './delivery-handlers';
+import {
+  handleESnippetOrganicTextFallback,
+  handleESnippetOrganicHostFromFavicon,
+  handleShopInfoUgcAndEReviewsShopText,
+  handleOfficialShop,
+  handleShopOfflineRegion,
+  handleHidePriceBlock,
+  handleImageType,
+  handleEmptyGroups,
+  handleQuoteText,
+  handleOrganicPath,
+  handleEcomMetaVisibility,
+} from './snippet-handlers';
+import {
+  handleEDeliveryGroup,
+  handleShopInfoBnpl,
+  handleShopInfoDeliveryBnplContainer,
+} from './delivery-handlers';
 import { handleEPriceGroup, handleLabelDiscountView } from './price-handlers';
 
 // Schema engine
@@ -114,7 +141,7 @@ export enum HandlerPriority {
   /** Fallback обработчики */
   FALLBACK = 40,
   /** Финальные обработчики */
-  FINAL = 50
+  FINAL = 50,
 }
 
 /**
@@ -137,7 +164,7 @@ class HandlerRegistry {
   register(
     name: string,
     handler: (context: HandlerContext) => void | Promise<void>,
-    metadata: Partial<HandlerMetadata> = {}
+    metadata: Partial<HandlerMetadata> = {},
   ): void {
     const fullMetadata: HandlerMetadata = {
       priority: metadata.priority ?? HandlerPriority.VARIANTS,
@@ -145,11 +172,11 @@ class HandlerRegistry {
       containers: metadata.containers ?? [],
       dependsOn: metadata.dependsOn ?? [],
       description: metadata.description ?? '',
-      skipForContainers: metadata.skipForContainers
+      skipForContainers: metadata.skipForContainers,
     };
 
     this.handlers.push({ name, handler, metadata: fullMetadata });
-    
+
     // Сортируем по приоритету после каждой регистрации
     this.handlers.sort((a, b) => a.metadata.priority - b.metadata.priority);
   }
@@ -171,7 +198,7 @@ class HandlerRegistry {
     this.register('EPriceGroup', handleEPriceGroup, {
       priority: HandlerPriority.CRITICAL,
       mode: 'sync',
-      description: 'Обработка цен, скидок, Fintech'
+      description: 'Обработка цен, скидок, Fintech',
     });
 
     // EPriceView — merged into EPriceGroup (view + value теперь устанавливаются там)
@@ -182,115 +209,145 @@ class HandlerRegistry {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
       description: 'Brand variant',
-      skipForContainers: ['EShopItem', 'EOfferItem', 'EProductSnippet', 'EProductSnippet2', 'ESnippet', 'Snippet']
+      skipForContainers: [
+        'EShopItem',
+        'EOfferItem',
+        'EProductSnippet',
+        'EProductSnippet2',
+        'ESnippet',
+        'Snippet',
+      ],
     });
 
     this.register('EPriceBarometer', handleEPriceBarometer, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
-      description: 'Барометр цен'
+      description: 'Барометр цен',
     });
 
     this.register('EMarketCheckoutLabel', handleEMarketCheckoutLabel, {
       priority: HandlerPriority.VARIANTS,
       mode: 'sync',
-      description: 'Лейбл чекаута'
+      description: 'Лейбл чекаута',
     });
 
     this.register('MarketCheckoutButton', handleMarketCheckoutButton, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
       description: 'BUTTON variant на контейнере',
-      skipForContainers: ['EShopItem', 'EOfferItem', 'EProductSnippet', 'EProductSnippet2', 'ESnippet', 'Snippet']
+      skipForContainers: [
+        'EShopItem',
+        'EOfferItem',
+        'EProductSnippet',
+        'EProductSnippet2',
+        'ESnippet',
+        'Snippet',
+      ],
     });
 
     // EOfferItem — schema engine (заменяет императивный handleEOfferItem)
-    this.register('EOfferItem', (context: HandlerContext) => {
-      const { container, row, instanceCache } = context;
-      if (!container || !row || !instanceCache) return;
-      if (container.type !== 'INSTANCE' || container.removed) return;
-      applySchema(container as InstanceNode, row, EOFFER_ITEM_SCHEMA, instanceCache);
-    }, {
-      priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
-      containers: ['EOfferItem'],
-      description: 'EOfferItem schema-based property mapping'
-    });
+    this.register(
+      'EOfferItem',
+      (context: HandlerContext) => {
+        const { container, row, instanceCache } = context;
+        if (!container || !row || !instanceCache) return;
+        if (container.type !== 'INSTANCE' || container.removed) return;
+        applySchema(container as InstanceNode, row, EOFFER_ITEM_SCHEMA, instanceCache);
+      },
+      {
+        priority: HandlerPriority.VARIANTS,
+        mode: 'sync',
+        containers: ['EOfferItem'],
+        description: 'EOfferItem schema-based property mapping',
+      },
+    );
 
     // EShopItem — schema engine (заменяет императивный handleEShopItem)
-    this.register('EShopItem', (context: HandlerContext) => {
-      const { container, row, instanceCache } = context;
-      if (!container || !row || !instanceCache) return;
-      if (container.type !== 'INSTANCE' || container.removed) return;
-      applySchema(container as InstanceNode, row, ESHOP_ITEM_SCHEMA, instanceCache);
-    }, {
-      priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
-      containers: ['EShopItem'],
-      description: 'EShopItem schema-based property mapping'
-    });
+    this.register(
+      'EShopItem',
+      (context: HandlerContext) => {
+        const { container, row, instanceCache } = context;
+        if (!container || !row || !instanceCache) return;
+        if (container.type !== 'INSTANCE' || container.removed) return;
+        applySchema(container as InstanceNode, row, ESHOP_ITEM_SCHEMA, instanceCache);
+      },
+      {
+        priority: HandlerPriority.VARIANTS,
+        mode: 'sync',
+        containers: ['EShopItem'],
+        description: 'EShopItem schema-based property mapping',
+      },
+    );
 
     // ESnippet — schema engine (заменяет императивный handleESnippetProps)
-    this.register('ESnippetProps', (context: HandlerContext) => {
-      const { container, row, instanceCache } = context;
-      if (!container || !row || !instanceCache) return;
-      if (container.type !== 'INSTANCE' || container.removed) return;
-      applySchema(container as InstanceNode, row, ESNIPPET_SCHEMA, instanceCache);
-    }, {
-      priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
-      containers: ['ESnippet', 'Snippet'],
-      description: 'ESnippet schema-based property mapping'
-    });
+    this.register(
+      'ESnippetProps',
+      (context: HandlerContext) => {
+        const { container, row, instanceCache } = context;
+        if (!container || !row || !instanceCache) return;
+        if (container.type !== 'INSTANCE' || container.removed) return;
+        applySchema(container as InstanceNode, row, ESNIPPET_SCHEMA, instanceCache);
+      },
+      {
+        priority: HandlerPriority.VARIANTS,
+        mode: 'sync',
+        containers: ['ESnippet', 'Snippet'],
+        description: 'ESnippet schema-based property mapping',
+      },
+    );
 
     // ESnippet structural hooks (сайтлинки, промо-текст, EThumb fallback, clipsContent)
     this.register('ESnippetStructural', handleESnippetStructural, {
       priority: HandlerPriority.VARIANTS,
       mode: 'sync',
       containers: ['ESnippet', 'Snippet'],
-      description: 'ESnippet structural hooks (sitelinks, promo, thumb, clipsContent)'
+      description: 'ESnippet structural hooks (sitelinks, promo, thumb, clipsContent)',
     });
 
     // EProductSnippet — schema engine (заменяет императивный handleEProductSnippet)
-    this.register('EProductSnippet', (context: HandlerContext) => {
-      const { container, row, instanceCache } = context;
-      if (!container || !row || !instanceCache) return;
-      if (container.type !== 'INSTANCE' || container.removed) return;
-      applySchema(container as InstanceNode, row, EPRODUCT_SNIPPET_SCHEMA, instanceCache);
-    }, {
-      priority: HandlerPriority.VARIANTS,
-      mode: 'sync',
-      containers: ['EProductSnippet', 'EProductSnippet2'],
-      description: 'EProductSnippet schema-based property mapping'
-    });
+    this.register(
+      'EProductSnippet',
+      (context: HandlerContext) => {
+        const { container, row, instanceCache } = context;
+        if (!container || !row || !instanceCache) return;
+        if (container.type !== 'INSTANCE' || container.removed) return;
+        applySchema(container as InstanceNode, row, EPRODUCT_SNIPPET_SCHEMA, instanceCache);
+      },
+      {
+        priority: HandlerPriority.VARIANTS,
+        mode: 'sync',
+        containers: ['EProductSnippet', 'EProductSnippet2'],
+        description: 'EProductSnippet schema-based property mapping',
+      },
+    );
 
     // RatingReviewQuoteVisibility — removed (deprecated no-op)
 
     this.register('ShopInfoBnpl', handleShopInfoBnpl, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
-      description: 'BNPL иконки'
+      description: 'BNPL иконки',
     });
 
     this.register('ShopInfoDeliveryBnplContainer', handleShopInfoDeliveryBnplContainer, {
       priority: HandlerPriority.VARIANTS,
       mode: 'sync',
       description: 'Контейнер доставки/BNPL',
-      skipForContainers: ['EShopItem', 'EOfferItem', 'ESnippet', 'Snippet']
+      skipForContainers: ['EShopItem', 'EOfferItem', 'ESnippet', 'Snippet'],
     });
 
     // === VISIBILITY (20) — видимость элементов ===
     this.register('EButton', handleEButton, {
       priority: HandlerPriority.VISIBILITY,
       mode: 'async',
-      description: 'EButton view и visible'
+      description: 'EButton view и visible',
     });
 
     this.register('OfficialShop', handleOfficialShop, {
       priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
       description: 'Галочка официального магазина',
-      skipForContainers: ['EShopItem', 'ESnippet', 'Snippet']
+      skipForContainers: ['EShopItem', 'ESnippet', 'Snippet'],
     });
 
     // === TEXT (30) — текстовые поля ===
@@ -298,55 +355,55 @@ class HandlerRegistry {
       priority: HandlerPriority.TEXT,
       mode: 'async',
       dependsOn: ['EPriceGroup'],
-      description: 'LabelDiscount view и текст'
+      description: 'LabelDiscount view и текст',
     });
 
     this.register('ShopInfoUgcAndEReviewsShopText', handleShopInfoUgcAndEReviewsShopText, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
-      description: 'Рейтинг и отзывы магазина'
+      description: 'Рейтинг и отзывы магазина',
     });
 
     this.register('ShopOfflineRegion', handleShopOfflineRegion, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
-      description: 'Адрес магазина (#addressText, #addressLink)'
+      description: 'Адрес магазина (#addressText, #addressLink)',
     });
 
     this.register('QuoteText', handleQuoteText, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
-      description: 'Цитата из отзыва (#QuoteText, #EQuote-Text)'
+      description: 'Цитата из отзыва (#QuoteText, #EQuote-Text)',
     });
 
     this.register('OrganicPath', handleOrganicPath, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
-      description: 'Путь после домена (#OrganicPath)'
+      description: 'Путь после домена (#OrganicPath)',
     });
 
     this.register('HidePriceBlock', handleHidePriceBlock, {
       priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
-      description: 'Скрытие Price Block для страниц каталога'
+      description: 'Скрытие Price Block для страниц каталога',
     });
 
     this.register('ImageType', handleImageType, {
       priority: HandlerPriority.VARIANTS,
       mode: 'async',
-      description: 'Переключение imageType (EThumb/EThumbGroup)'
+      description: 'Переключение imageType (EThumb/EThumbGroup)',
     });
 
     this.register('ELabelGroup', handleELabelGroup, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
-      description: 'Rating + Barometer'
+      description: 'Rating + Barometer',
     });
 
     this.register('EDeliveryGroup', handleEDeliveryGroup, {
       priority: HandlerPriority.TEXT,
       mode: 'async',
-      description: 'Группа доставки'
+      description: 'Группа доставки',
     });
 
     // === FALLBACK (40) — fallback обработчики ===
@@ -354,14 +411,14 @@ class HandlerRegistry {
       priority: HandlerPriority.FALLBACK,
       mode: 'async',
       containers: ['ESnippet', 'Snippet'],
-      description: 'Fallback для OrganicText'
+      description: 'Fallback для OrganicText',
     });
 
     this.register('ESnippetOrganicHostFromFavicon', handleESnippetOrganicHostFromFavicon, {
       priority: HandlerPriority.FALLBACK,
       mode: 'async',
       containers: ['ESnippet', 'Snippet'],
-      description: 'Fallback для OrganicHost из favicon'
+      description: 'Fallback для OrganicHost из favicon',
     });
 
     // === VISIBILITY (20) — EcomMeta visibility на основе данных ===
@@ -369,7 +426,7 @@ class HandlerRegistry {
       priority: HandlerPriority.VISIBILITY,
       mode: 'sync',
       containers: ['ESnippet', 'Snippet'],
-      description: 'Скрытие EcomMeta если нет данных для его содержимого'
+      description: 'Скрытие EcomMeta если нет данных для его содержимого',
     });
 
     // === FINAL (50) — финальные обработчики ===
@@ -378,7 +435,8 @@ class HandlerRegistry {
       priority: HandlerPriority.FINAL,
       mode: 'async',
       dependsOn: ['EPriceGroup', 'ESnippetProps', 'ELabelGroup', 'ImageType', 'EcomMetaVisibility'],
-      description: 'Автоматическое скрытие/показ "пустых" групп (EcomMeta, Meta и др.) на основе видимости детей'
+      description:
+        'Автоматическое скрытие/показ "пустых" групп (EcomMeta, Meta и др.) на основе видимости детей',
     });
 
     this.initialized = true;
@@ -393,15 +451,14 @@ class HandlerRegistry {
     this.aborted = false;
 
     const results: HandlerResult[] = [];
-    const containerName = context.container && 'name' in context.container 
-      ? String(context.container.name) 
-      : '';
-    
+    const containerName =
+      context.container && 'name' in context.container ? String(context.container.name) : '';
+
     // DEBUG: Логируем список handlers при первом вызове
     if (!this.loggedHandlers) {
       this.loggedHandlers = true;
       Logger.debug(`[HandlerRegistry] Всего handlers: ${this.handlers.length}`);
-      Logger.debug(`[HandlerRegistry] Handlers: ${this.handlers.map(h => h.name).join(', ')}`);
+      Logger.debug(`[HandlerRegistry] Handlers: ${this.handlers.map((h) => h.name).join(', ')}`);
     }
 
     // Группируем обработчики по режиму выполнения
@@ -450,7 +507,7 @@ class HandlerRegistry {
     // 3. Выполняем независимые async параллельно
     if (asyncParallel.length > 0 && !this.aborted) {
       const parallelResults = await Promise.all(
-        asyncParallel.map(h => this.executeHandler(h, context))
+        asyncParallel.map((h) => this.executeHandler(h, context)),
       );
       results.push(...parallelResults);
     }
@@ -463,7 +520,7 @@ class HandlerRegistry {
    */
   private async executeHandler(
     registered: RegisteredHandler,
-    context: HandlerContext
+    context: HandlerContext,
   ): Promise<HandlerResult> {
     const startTime = Date.now();
     resetFieldCounts();
@@ -472,7 +529,7 @@ class HandlerRegistry {
       await withTimeout(
         Promise.resolve(registered.handler(context)),
         HANDLER_TIMEOUT_MS,
-        registered.name
+        registered.name,
       );
 
       const duration = Date.now() - startTime;
@@ -486,7 +543,7 @@ class HandlerRegistry {
         success: true,
         duration,
         fieldsSet: fields.set,
-        fieldsFailed: fields.failed
+        fieldsFailed: fields.failed,
       };
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -503,7 +560,7 @@ class HandlerRegistry {
         duration,
         fieldsSet: fields.set,
         fieldsFailed: fields.failed,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -529,4 +586,3 @@ export const handlerRegistry = new HandlerRegistry();
 
 // Инициализация при импорте
 handlerRegistry.initialize();
-

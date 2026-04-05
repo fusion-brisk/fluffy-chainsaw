@@ -4,14 +4,14 @@
 
 ## 0. Выбор подхода: Schema vs. Handler
 
-| Когда | Подход |
-|-------|--------|
-| Boolean/string свойства на контейнере | **Schema** — одна строка в `.ts` файле |
-| Вложенные свойства (EShopName.name) | **Schema** — `nestedInstances` |
-| Сложная вложенная логика (EPriceGroup: EPrice + OldPrice + Fintech) | **Handler** |
-| Заполнение слотов (доставка, BNPL items) | **Handler** |
-| Instance swap (imageType: EThumb ↔ EThumbGroup) | **Handler** |
-| Текстовые fallback с поиском по DOM | **Handler** или **Structural hook** |
+| Когда                                                               | Подход                                 |
+| ------------------------------------------------------------------- | -------------------------------------- |
+| Boolean/string свойства на контейнере                               | **Schema** — одна строка в `.ts` файле |
+| Вложенные свойства (EShopName.name)                                 | **Schema** — `nestedInstances`         |
+| Сложная вложенная логика (EPriceGroup: EPrice + OldPrice + Fintech) | **Handler**                            |
+| Заполнение слотов (доставка, BNPL items)                            | **Handler**                            |
+| Instance swap (imageType: EThumb ↔ EThumbGroup)                     | **Handler**                            |
+| Текстовые fallback с поиском по DOM                                 | **Handler** или **Structural hook**    |
 
 **Правило:** если логика сводится к `trySetProperty(container, [...], value, field)` — это schema. Если нужен обход дерева, async операции или findAll — это handler.
 
@@ -71,18 +71,27 @@ import type { ComponentSchema } from './types';
 export var MY_COMPONENT_SCHEMA: ComponentSchema = {
   containerNames: ['MyComponent'],
   containerProperties: [
-    { propertyNames: ['withFeature'], fieldName: '#Feature', equals: { field: '#Feature', value: 'true' } },
-    { propertyNames: ['title'], fieldName: '#Title', stringValue: '#Title', skipIfEmpty: true }
+    {
+      propertyNames: ['withFeature'],
+      fieldName: '#Feature',
+      equals: { field: '#Feature', value: 'true' },
+    },
+    { propertyNames: ['title'], fieldName: '#Title', stringValue: '#Title', skipIfEmpty: true },
   ],
   nestedInstances: [
     {
       instanceName: 'EShopName',
       properties: [
-        { propertyNames: ['name'], fieldName: '#ShopName', stringValue: '#ShopName', skipIfEmpty: true }
-      ]
-    }
+        {
+          propertyNames: ['name'],
+          fieldName: '#ShopName',
+          stringValue: '#ShopName',
+          skipIfEmpty: true,
+        },
+      ],
+    },
   ],
-  replacesHandlers: ['MyComponent']  // какие handlers заменяет
+  replacesHandlers: ['MyComponent'], // какие handlers заменяет
 };
 ```
 
@@ -92,17 +101,21 @@ export var MY_COMPONENT_SCHEMA: ComponentSchema = {
 // src/handlers/registry.ts
 import { MY_COMPONENT_SCHEMA } from '../schema/my-component';
 
-this.register('MyComponent', (context: HandlerContext) => {
-  const { container, row, instanceCache } = context;
-  if (!container || !row || !instanceCache) return;
-  if (container.type !== 'INSTANCE' || container.removed) return;
-  applySchema(container as InstanceNode, row, MY_COMPONENT_SCHEMA, instanceCache);
-}, {
-  priority: HandlerPriority.VARIANTS,
-  mode: 'sync',
-  containers: ['MyComponent'],
-  description: 'MyComponent schema-based mapping'
-});
+this.register(
+  'MyComponent',
+  (context: HandlerContext) => {
+    const { container, row, instanceCache } = context;
+    if (!container || !row || !instanceCache) return;
+    if (container.type !== 'INSTANCE' || container.removed) return;
+    applySchema(container as InstanceNode, row, MY_COMPONENT_SCHEMA, instanceCache);
+  },
+  {
+    priority: HandlerPriority.VARIANTS,
+    mode: 'sync',
+    containers: ['MyComponent'],
+    description: 'MyComponent schema-based mapping',
+  },
+);
 ```
 
 ### Шаг 3: skipForContainers (если нужно)
@@ -112,7 +125,7 @@ this.register('MyComponent', (context: HandlerContext) => {
 ```typescript
 this.register('BrandLogic', handleBrandLogic, {
   // ...
-  skipForContainers: ['EShopItem', 'EOfferItem', 'MyComponent']  // добавить
+  skipForContainers: ['EShopItem', 'EOfferItem', 'MyComponent'], // добавить
 });
 ```
 
@@ -135,26 +148,26 @@ import { getCachedInstance, trySetProperty } from '../property-utils';
 
 /**
  * Обработчик для MyComponent
- * 
+ *
  * Управляет свойством myProperty на основе поля #MyField
  */
 export async function handleMyComponent(context: HandlerContext): Promise<void> {
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
-  
+
   // Получить значение из данных
   const hasFeature = row['#MyField'] === 'true';
-  
+
   // Найти инстанс компонента (используем кэш!)
   const myInstance = getCachedInstance(instanceCache!, 'MyComponent');
   if (!myInstance) {
     Logger.debug('[MyComponent] Инстанс не найден');
     return;
   }
-  
+
   // Установить свойство
   const success = trySetProperty(myInstance, ['myProperty', 'My Property'], hasFeature, '#MyField');
-  
+
   if (success) {
     Logger.debug(`[MyComponent] myProperty=${hasFeature}`);
   }
@@ -170,10 +183,10 @@ import { handleMyComponent } from './my-handlers';
 
 // В методе initialize()
 this.register('MyComponent', handleMyComponent, {
-  priority: HandlerPriority.VARIANTS,  // 10
+  priority: HandlerPriority.VARIANTS, // 10
   mode: 'async',
-  containers: ['EShopItem', 'EOfferItem'],  // опционально — ограничить контейнерами
-  description: 'Управление свойством myProperty'
+  containers: ['EShopItem', 'EOfferItem'], // опционально — ограничить контейнерами
+  description: 'Управление свойством myProperty',
 });
 ```
 
@@ -187,14 +200,14 @@ export { handleMyComponent } from './handlers/my-handlers';
 
 ### Приоритеты handlers
 
-| Приоритет | Когда использовать |
-|-----------|-------------------|
-| `CRITICAL (0)` | Структурные изменения, от которых зависят другие handlers |
-| `VARIANTS (10)` | Переключение variant properties |
-| `VISIBILITY (20)` | Показ/скрытие элементов |
-| `TEXT (30)` | Текстовые поля и значения |
-| `FALLBACK (40)` | Fallback-логика, выполняется последней |
-| `FINAL (50)` | Финальная пост-обработка |
+| Приоритет         | Когда использовать                                        |
+| ----------------- | --------------------------------------------------------- |
+| `CRITICAL (0)`    | Структурные изменения, от которых зависят другие handlers |
+| `VARIANTS (10)`   | Переключение variant properties                           |
+| `VISIBILITY (20)` | Показ/скрытие элементов                                   |
+| `TEXT (30)`       | Текстовые поля и значения                                 |
+| `FALLBACK (40)`   | Fallback-логика, выполняется последней                    |
+| `FINAL (50)`      | Финальная пост-обработка                                  |
 
 ### Пример: handleEMarketCheckoutLabel
 
@@ -205,7 +218,7 @@ export function handleEMarketCheckoutLabel(context: HandlerContext): void {
 
   const hasLabel = row['#EMarketCheckoutLabel'] === 'true';
   const labelInstance = getCachedInstance(instanceCache!, 'EMarketCheckoutLabel');
-  
+
   if (labelInstance) {
     try {
       labelInstance.visible = hasLabel;
@@ -228,10 +241,10 @@ export function handleEMarketCheckoutLabel(context: HandlerContext): void {
 
 export interface CSVFields {
   // ... существующие поля ...
-  
+
   /** Мое новое поле */
   '#MyNewField'?: string;
-  
+
   /** Булево поле */
   '#MyBooleanField'?: 'true' | 'false';
 }
@@ -243,13 +256,13 @@ export interface CSVFields {
 // Для булевых полей
 export const BOOLEAN_FIELDS: (keyof CSVFields)[] = [
   // ... существующие ...
-  '#MyBooleanField'
+  '#MyBooleanField',
 ];
 
 // Для изображений
 export const IMAGE_FIELDS: (keyof CSVFields)[] = [
   // ... существующие ...
-  '#MyImageField'
+  '#MyImageField',
 ];
 ```
 
@@ -321,14 +334,14 @@ if (sel) {
   console.log('Имя:', sel.name);
   console.log('ID:', sel.id);
   console.log('Тип:', sel.type);
-  
+
   if (sel.type === 'INSTANCE') {
     const main = sel.mainComponent;
     if (main) {
       console.log('Главный компонент:');
       console.log('  Имя:', main.name);
       console.log('  Key:', main.key);
-      
+
       if (main.parent?.type === 'COMPONENT_SET') {
         console.log('ComponentSet:');
         console.log('  Имя:', main.parent.name);
@@ -336,7 +349,7 @@ if (sel) {
       }
     }
   }
-  
+
   // Свойства
   if (sel.componentProperties) {
     console.log('Properties:');
@@ -354,13 +367,13 @@ if (sel) {
 
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
   // ... существующие ...
-  
-  'MyNewSnippetType': {
-    key: 'abc123def456...',  // Ключ из Figma
+
+  MyNewSnippetType: {
+    key: 'abc123def456...', // Ключ из Figma
     name: 'MyComponent',
     defaultVariant: {
-      'View': 'Default',
-      'Size': 'M'
+      View: 'Default',
+      Size: 'M',
     },
   },
 };
@@ -370,13 +383,13 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
 
 ```typescript
 // src/types/csv-fields.ts
-export type SnippetType = 
+export type SnippetType =
   | 'EShopItem'
   | 'MyNewSnippetType'  // Добавить
   | ...;
 
 // src/page-builder/types.ts
-export type SnippetType = 
+export type SnippetType =
   | 'EShopItem'
   | 'MyNewSnippetType'  // Добавить
   | ...;
@@ -388,7 +401,7 @@ export type SnippetType =
 // extension/content.js, функция getSnippetType()
 function getSnippetType(container) {
   const className = container.className || '';
-  
+
   if (className.includes('MyNewComponent')) return 'MyNewSnippetType';
   // ... остальные проверки ...
 }
@@ -401,9 +414,9 @@ function getSnippetType(container) {
 
 // В sortContentNodes(), добавить приоритет
 const priority: Record<string, number> = {
-  'EQuickFilters': -1,
-  'MyNewSnippetType': 5,  // Позиция в сортировке
-  'ESnippet': 10,
+  EQuickFilters: -1,
+  MyNewSnippetType: 5, // Позиция в сортировке
+  ESnippet: 10,
   // ...
 };
 ```
@@ -415,10 +428,10 @@ const priority: Record<string, number> = {
 
 async function createMyComponentPanel(
   node: StructureNode,
-  platform: 'desktop' | 'touch'
+  platform: 'desktop' | 'touch',
 ): Promise<FrameNode | null> {
   const data = node.data || {};
-  
+
   // Создаём контейнер
   const panel = figma.createFrame();
   panel.name = 'MyComponent';
@@ -426,14 +439,14 @@ async function createMyComponentPanel(
   panel.primaryAxisSizingMode = 'AUTO';
   panel.counterAxisSizingMode = 'AUTO';
   panel.itemSpacing = 8;
-  
+
   // Импортируем и создаём инстанс
   const config = MY_COMPONENT_CONFIG[platform];
   const component = await figma.importComponentByKeyAsync(config.key);
   if (component) {
     const instance = component.createInstance();
     panel.appendChild(instance);
-    
+
     // Установить текст напрямую
     const textNode = findTextNode(instance);
     if (textNode) {
@@ -441,7 +454,7 @@ async function createMyComponentPanel(
       textNode.characters = data['#MyField'] || '';
     }
   }
-  
+
   return panel;
 }
 
@@ -465,7 +478,7 @@ if (node.type === 'MyNewSnippetType') {
 
 ```typescript
 // Плохо
-instance.setProperties({ 'withDelivery': true }); // Ошибка!
+instance.setProperties({ withDelivery: true }); // Ошибка!
 
 // Хорошо
 trySetProperty(instance, ['withDelivery'], true, '#withDelivery');
@@ -504,9 +517,9 @@ if (textNode) {
 **Решение:** Проверять тип контейнера:
 
 ```typescript
-const containerName = ('name' in container) ? String(container.name) : '';
+const containerName = 'name' in container ? String(container.name) : '';
 const isProductSnippet = containerName === 'EProductSnippet';
-const hasBarometer = isProductSnippet ? false : (row['#flag'] === 'true');
+const hasBarometer = isProductSnippet ? false : row['#flag'] === 'true';
 ```
 
 ### Favicon URL некорректный
@@ -556,7 +569,7 @@ console.log(`[DEBUG] value=${value}`);
 
 // Обычное логирование
 Logger.info('Важное сообщение');
-Logger.debug('Отладка');  // Только при DEBUG уровне
+Logger.debug('Отладка'); // Только при DEBUG уровне
 Logger.warn('Предупреждение');
 Logger.error('Ошибка:', error);
 ```
@@ -577,7 +590,7 @@ if (sel?.componentProperties) {
 ```typescript
 import { debugComponentProperties } from './property-utils';
 
-debugComponentProperties(instance);  // Выведет все свойства в консоль
+debugComponentProperties(instance); // Выведет все свойства в консоль
 ```
 
 ---

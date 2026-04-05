@@ -40,6 +40,7 @@
 **Файлы:** `packages/plugin/src/ui/components/StatusBar.tsx`, `styles.css`
 
 **Фикс:**
+
 - Добавить `overflow-x: auto` или `flex-wrap: wrap` на `.status-bar`
 - ИЛИ (лучше): при expanded state скрывать лейблы "Инспектор"/"Логи" и показывать только иконки (⚙/≡), чтобы освободить место для статусных пиллов
 
@@ -74,6 +75,7 @@
 ### Проблемные места (полный список):
 
 **LogViewer.tsx:**
+
 - Строка 87: `← Back` → `← Назад`
 - Строка 88: `Logs` → `Логи`
 - Строка 99: `Errors only` → `Только ошибки`
@@ -85,6 +87,7 @@
 - Строка 120: `No log messages` → `Нет сообщений`
 
 **ComponentInspector.tsx:**
+
 - Строка 47: `Component Inspector` → `Инспектор компонентов`
 - Строка 50: `Copy All` → `Копировать всё` (уже из Фазы 0)
 - Строка 52: `Close` → `Закрыть` (уже из Фазы 0)
@@ -97,6 +100,7 @@
 - Строка 98: `Properties` → `Свойства`
 
 **LogViewer.tsx LEVEL_LABELS:**
+
 - Строка 24: `ERROR` → `ОШИБКА`
 - Строка 25: `INFO` → `ИНФО`
 - Строка 26: `VERBOSE` → `ПОДРОБНО`
@@ -138,16 +142,19 @@
 ### 2.1 — Единый BackButton
 
 **Проблема:** Три разных реализации кнопки "назад":
+
 1. **Гайды** (RelayGuide, ExtensionGuide): `btn-back` scoped в `.extension-guide--figma`, `border-radius: var(--btn-radius)`
 2. **LogViewer:** `btn-back-pill`, `border-radius: 16px`, другой padding
 3. **Inspector:** `btn-secondary` (после фазы 0), вообще другой паттерн — "Close" вместо "← Назад"
 
 **Файлы:**
+
 - Новый: `packages/plugin/src/ui/components/BackButton.tsx`
 - Изменить: `RelayGuide.tsx`, `ExtensionGuide.tsx`, `LogViewer.tsx`, `ComponentInspector.tsx`
 - CSS: `styles.css` — единый стиль `.btn-back`
 
 **Решение:** Создать `<BackButton onClick={onClose} />` с единым стилем:
+
 ```tsx
 export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   <button type="button" className="btn-back" onClick={onClick} aria-label="Назад">
@@ -167,6 +174,7 @@ export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
 **Решение:** LogViewer и Inspector должны **заменять** основной view целиком (как гайды). Используют Extended size tier. ReadyView скрывается когда открыт LogViewer или Inspector.
 
 В `ui.tsx` — rendering logic:
+
 ```tsx
 // Сейчас (плохо): ReadyView + LogViewer рендерятся одновременно
 // Нужно: если showLogs || showInspector → рендерить только панель, НЕ ReadyView
@@ -217,23 +225,24 @@ export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
 
 ```css
 :root {
-  --font-size-xs:  10px;   /* метаданные, таймстемпы, property types */
-  --font-size-sm:  11px;   /* лейблы, pills, secondary text */
-  --font-size-base: 12px;  /* body text, кнопки */
-  --font-size-lg:  13px;   /* emphasized body */
-  --font-size-xl:  14px;   /* section titles, dialog titles */
-  --font-size-2xl: 16px;   /* view titles */
-  --font-size-3xl: 18px;   /* primary view titles (ReadyView, SuccessView) */
+  --font-size-xs: 10px; /* метаданные, таймстемпы, property types */
+  --font-size-sm: 11px; /* лейблы, pills, secondary text */
+  --font-size-base: 12px; /* body text, кнопки */
+  --font-size-lg: 13px; /* emphasized body */
+  --font-size-xl: 14px; /* section titles, dialog titles */
+  --font-size-2xl: 16px; /* view titles */
+  --font-size-3xl: 18px; /* primary view titles (ReadyView, SuccessView) */
 }
 ```
 
 Убрать: `20px` и `32px` — заменить на `--font-size-3xl` (18px). Если нужен крупный icon text — использовать отдельный класс, не font-size token.
 
 **Font-weight — 3 значения:**
+
 ```css
 :root {
-  --font-weight-regular:  400;
-  --font-weight-medium:   500;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
 }
 ```
@@ -300,6 +309,7 @@ export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
 ### Проблема
 
 `onMouseEnter/onMouseLeave` для раскрытия статуса — хрупкий паттерн:
+
 - Нет способа проверить статус без hover
 - Touch-устройства: hover не работает
 - Overflow при expand (Фаза 0.2 — workaround, не решение)
@@ -316,11 +326,13 @@ export const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
 ```
 
 **Normal state (all connected):**
+
 - Зелёная точка + "Всё ОК" — всегда видно, без hover
 - Click → expand с деталями (MCP ✓, Relay ✓, Расширение ✓) — toggle, не hover
 - Inspector (⚙) и Logs (≡) — кнопки-иконки без текста (экономия места)
 
 **Error state (any disconnected):**
+
 - Жёлтая/красная точка + конкретное сообщение ("Relay офлайн")
 - Action button для фикса
 - Всегда expanded
@@ -377,9 +389,9 @@ inspector:      420 × 520
 
 ```ts
 export const UI_SIZES = {
-  compact:  { width: 320, height: 56 },   // checking only
-  standard: { width: 400, height: 400 },   // ready, confirming, processing, success
-  extended: { width: 420, height: 520 },   // guides, logs, inspector
+  compact: { width: 320, height: 56 }, // checking only
+  standard: { width: 400, height: 400 }, // ready, confirming, processing, success
+  extended: { width: 420, height: 520 }, // guides, logs, inspector
 } as const;
 ```
 
@@ -396,7 +408,7 @@ const STATE_TO_TIER: Record<string, keyof typeof UI_SIZES> = {
   relayGuide: 'extended',
   logsViewer: 'extended',
   inspector: 'extended',
-  whatsNew: 'extended',  // если ещё используется
+  whatsNew: 'extended', // если ещё используется
 };
 ```
 
@@ -599,6 +611,7 @@ const STATE_TO_TIER: Record<string, keyof typeof UI_SIZES> = {
 ```
 
 **Параллельные потоки:**
+
 - Поток A: 0 → 1 → 2 → 6 → 7
 - Поток B: 3 (в любой момент)
 - Поток C: 4 → 8.4 (после Фазы 2)
@@ -607,18 +620,18 @@ const STATE_TO_TIER: Record<string, keyof typeof UI_SIZES> = {
 
 ## Сводка
 
-| Фаза | Описание | Effort | Файлов |
-|------|----------|--------|--------|
-| 0 | Critical bugs (glass-button, overflow) | 30 мин | 3 |
-| 1 | Язык → русский | 1-2 ч | 2 |
-| 2 | Unified navigation + layout fix | 2-3 ч | 6 |
-| 3 | Design tokens (typography) | 2-3 ч | 1 + inline |
-| 4 | StatusBar UX (click, не hover) | 3-4 ч | 2 |
-| 5 | Window sizes (3 tier'а) | 4-6 ч | 5+ |
-| 6 | Setup wizard (единый stepper) | 6 ч | 5 |
-| 7 | Onboarding (first-time UX) | 3-4 ч | 3 |
-| 8 | Polish (confetti, contrast, WhatsNew, logs) | 1-2 ч | 5 |
-| **Итого** | | **~24-32 ч** | **~25 файлов** |
+| Фаза      | Описание                                    | Effort       | Файлов         |
+| --------- | ------------------------------------------- | ------------ | -------------- |
+| 0         | Critical bugs (glass-button, overflow)      | 30 мин       | 3              |
+| 1         | Язык → русский                              | 1-2 ч        | 2              |
+| 2         | Unified navigation + layout fix             | 2-3 ч        | 6              |
+| 3         | Design tokens (typography)                  | 2-3 ч        | 1 + inline     |
+| 4         | StatusBar UX (click, не hover)              | 3-4 ч        | 2              |
+| 5         | Window sizes (3 tier'а)                     | 4-6 ч        | 5+             |
+| 6         | Setup wizard (единый stepper)               | 6 ч          | 5              |
+| 7         | Onboarding (first-time UX)                  | 3-4 ч        | 3              |
+| 8         | Polish (confetti, contrast, WhatsNew, logs) | 1-2 ч        | 5              |
+| **Итого** |                                             | **~24-32 ч** | **~25 файлов** |
 
 ## Чеклист после каждого PR
 
@@ -630,6 +643,7 @@ npm run test                          # Тесты (если затронуты 
 ```
 
 Визуальная проверка:
+
 - [ ] Все стейты отображаются (ready, confirming, processing, success)
 - [ ] StatusBar читаем, не обрезается
 - [ ] Гайды / логи / инспектор открываются и закрываются

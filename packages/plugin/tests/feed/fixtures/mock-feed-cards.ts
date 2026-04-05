@@ -76,7 +76,8 @@ export const MOCK_FEED_CARDS: FeedCardRow[] = [
     ]),
     '#Feed_CarouselCount': '3',
     '#Feed_SourceName': 'belleyou.ru',
-    '#Feed_SourceAvatarUrl': 'https://avatars.mds.yandex.net/get-entity_search/example4_avatar/orig',
+    '#Feed_SourceAvatarUrl':
+      'https://avatars.mds.yandex.net/get-entity_search/example4_avatar/orig',
     '#Feed_Title': 'Весенние образы 2026: что носить этой весной',
     '#Feed_HasAiBadge': 'false',
     '#Feed_ImageRatio': '3:4',
@@ -90,7 +91,8 @@ export const MOCK_FEED_CARDS: FeedCardRow[] = [
     '#Feed_Index': '4',
     '#Feed_ImageUrl': 'https://avatars.mds.yandex.net/get-mpic/example5/orig',
     '#Feed_SourceName': 'BORK',
-    '#Feed_SourceAvatarUrl': 'https://avatars.mds.yandex.net/get-entity_search/example5_avatar/orig',
+    '#Feed_SourceAvatarUrl':
+      'https://avatars.mds.yandex.net/get-entity_search/example5_avatar/orig',
     '#Feed_HasVideo': 'true',
     '#Feed_HasSound': 'true',
     '#Feed_Title': 'Обзор кофемашины BORK C830',
@@ -134,7 +136,8 @@ export const MOCK_FEED_CARDS: FeedCardRow[] = [
     '#Feed_Platform': 'desktop',
     '#Feed_Index': '7',
     '#Feed_SourceName': 'Мария Иванова',
-    '#Feed_SourceAvatarUrl': 'https://avatars.mds.yandex.net/get-entity_search/example8_avatar/orig',
+    '#Feed_SourceAvatarUrl':
+      'https://avatars.mds.yandex.net/get-entity_search/example8_avatar/orig',
     '#Feed_Title': 'Лучшие гаджеты для кухни',
     '#Feed_CollectionSubtitle': 'Коллекция автора',
     '#Feed_ViewCount': '12,2 тыс.',

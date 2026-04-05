@@ -5,8 +5,10 @@ export function isInsideAdvProductGallery(container: Element): boolean {
   let parent: Element | null = container.parentElement;
 
   while (parent) {
-    if (parent.classList.contains('AdvProductGallery') ||
-        parent.className.includes('AdvProductGallery')) {
+    if (
+      parent.classList.contains('AdvProductGallery') ||
+      parent.className.includes('AdvProductGallery')
+    ) {
       return true;
     }
     parent = parent.parentElement;

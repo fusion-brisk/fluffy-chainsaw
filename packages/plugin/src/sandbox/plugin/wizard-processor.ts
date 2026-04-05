@@ -26,7 +26,7 @@ import type {
   WizardVideo,
   WizardComponentKeys,
   MarkdownVariant,
-  WizardProcessingResult
+  WizardProcessingResult,
 } from '../../types/wizard-types';
 
 // ============================================================================
@@ -68,12 +68,16 @@ async function ensureComponents(): Promise<void> {
         cachedEThumb = await figma.importComponentByKeyAsync(ETHUMB_CONFIG.manualVariantKey);
         Logger.debug(`[Wizard] EThumb component imported: ${cachedEThumb.name}`);
       } catch (eThumbErr) {
-        Logger.debug(`[Wizard] EThumb недоступен, wizard-картинки через fallback: ${eThumbErr instanceof Error ? eThumbErr.message : String(eThumbErr)}`);
+        Logger.debug(
+          `[Wizard] EThumb недоступен, wizard-картинки через fallback: ${eThumbErr instanceof Error ? eThumbErr.message : String(eThumbErr)}`,
+        );
         cachedEThumb = null;
       }
     }
   } catch (e) {
-    Logger.warn(`[Wizard] Библиотечные компоненты недоступны, используем fallback: ${e instanceof Error ? e.message : String(e)}`);
+    Logger.warn(
+      `[Wizard] Библиотечные компоненты недоступны, используем fallback: ${e instanceof Error ? e.message : String(e)}`,
+    );
     libraryAvailable = false;
     cachedMarkdown = null;
     cachedImg = null;
@@ -90,9 +94,11 @@ async function ensureComponents(): Promise<void> {
 function createMarkdownInstance(variant: MarkdownVariant): InstanceNode {
   const instance = cachedMarkdown!.createInstance();
   try {
-    instance.setProperties({ 'Type': variant });
+    instance.setProperties({ Type: variant });
   } catch (e) {
-    Logger.warn(`[Wizard] Не удалось установить Type=${variant}: ${e instanceof Error ? e.message : String(e)}`);
+    Logger.warn(
+      `[Wizard] Не удалось установить Type=${variant}: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
   return instance;
 }
@@ -157,8 +163,12 @@ function findContentTextNode(instance: InstanceNode): TextNode | null {
  * Предполагает, что шрифт Regular уже загружен в компоненте.
  * @param targetNode — если передан, пишет именно в него (не ищет через findTextNode)
  */
-async function fillInstanceSpans(instance: InstanceNode, spans: WizardSpan[], targetNode?: TextNode | null): Promise<TextNode | null> {
-  const fullText = spans.map(s => s.text).join('');
+async function fillInstanceSpans(
+  instance: InstanceNode,
+  spans: WizardSpan[],
+  targetNode?: TextNode | null,
+): Promise<TextNode | null> {
+  const fullText = spans.map((s) => s.text).join('');
   const textNode = targetNode || findContentTextNode(instance);
   if (!textNode) {
     Logger.warn(`[Wizard] Текстовый нод не найден в инстансе ${instance.name}`);
@@ -275,7 +285,10 @@ async function loadFallbackFonts(): Promise<void> {
       await figma.loadFontAsync(font);
     } catch {
       try {
-        await figma.loadFontAsync({ family: 'Inter', style: font.style === 'Bold' ? 'Bold' : 'Regular' });
+        await figma.loadFontAsync({
+          family: 'Inter',
+          style: font.style === 'Bold' ? 'Bold' : 'Regular',
+        });
       } catch {
         // last resort
       }
@@ -288,13 +301,13 @@ async function loadFallbackFonts(): Promise<void> {
 // ============================================================================
 
 function buildSpanText(spans: WizardSpan[]): string {
-  return spans.map(s => s.text).join('');
+  return spans.map((s) => s.text).join('');
 }
 
 async function createRichTextNode(
   spans: WizardSpan[],
   fontSize: number = 15,
-  lineHeight: number = 22
+  lineHeight: number = 22,
 ): Promise<TextNode> {
   const textNode = figma.createText();
   const fullText = buildSpanText(spans);
@@ -438,7 +451,7 @@ async function fallbackListItem(comp: WizardList, index: number): Promise<FrameN
 async function applyImageToFillableLayer(
   layer: SceneNode,
   url: string,
-  scaleMode: 'FIT' | 'FILL' = 'FIT'
+  scaleMode: 'FIT' | 'FILL' = 'FIT',
 ): Promise<boolean> {
   return fetchAndApplyImage(layer, url, scaleMode, '[Wizard]');
 }
@@ -538,7 +551,14 @@ async function renderHeading(comp: WizardHeading): Promise<SceneNode> {
  */
 async function renderParagraph(comp: WizardParagraph): Promise<SceneNode | null> {
   // Skip empty paragraphs
-  const text = comp.spans ? comp.spans.map(function(s) { return s.text; }).join('').trim() : '';
+  const text = comp.spans
+    ? comp.spans
+        .map(function (s) {
+          return s.text;
+        })
+        .join('')
+        .trim()
+    : '';
   if (!text && (!comp.footnotes || comp.footnotes.length === 0)) {
     return null;
   }
@@ -623,14 +643,16 @@ async function renderParagraph(comp: WizardParagraph): Promise<SceneNode | null>
           const faviconInst = findFaviconInstance(sourceInst);
           if (faviconInst) {
             try {
-              faviconInst.setProperties({ 'ID': 'Placeholder' });
+              faviconInst.setProperties({ ID: 'Placeholder' });
 
               const fillLayer = findFillableLayer(faviconInst);
               if (fillLayer) {
                 await fetchAndApplyImage(fillLayer, fn.iconUrl, 'FILL', '[Wizard favicon]');
               }
             } catch {
-              Logger.debug(`[Wizard] Не удалось загрузить favicon #${i + 1}: ${fn.iconUrl.substring(0, 60)}`);
+              Logger.debug(
+                `[Wizard] Не удалось загрузить favicon #${i + 1}: ${fn.iconUrl.substring(0, 60)}`,
+              );
             }
           }
         }
@@ -665,7 +687,7 @@ async function renderList(comp: WizardList): Promise<SceneNode[]> {
 
     try {
       const instance = createMarkdownInstance(variant);
-      const itemText = item.spans.map(s => s.text).join('');
+      const itemText = item.spans.map((s) => s.text).join('');
       instance.name = `${variant}: ${itemText.substring(0, 60)}`;
 
       // Заполняем текст пункта
@@ -675,7 +697,9 @@ async function renderList(comp: WizardList): Promise<SceneNode[]> {
 
       nodes.push(instance);
     } catch (e) {
-      Logger.warn(`[Wizard] List item #${i + 1} fallback: ${e instanceof Error ? e.message : String(e)}`);
+      Logger.warn(
+        `[Wizard] List item #${i + 1} fallback: ${e instanceof Error ? e.message : String(e)}`,
+      );
       nodes.push(await fallbackListItem(comp, i));
     }
   }
@@ -685,9 +709,9 @@ async function renderList(comp: WizardList): Promise<SceneNode[]> {
 
 /** EThumb property names with Figma hash suffixes */
 const ETHUMB_PROPS = {
-  'Label': 'Label#6083:9',
+  Label: 'Label#6083:9',
   'Dot indicator': 'Dot indicator#6083:11',
-  'Favorite': 'Favorite#9399:7',
+  Favorite: 'Favorite#9399:7',
   'White BG': 'White BG#6076:2',
   'Image Fill': 'Image Fill#6076:0',
 };
@@ -703,8 +727,8 @@ async function renderImage(comp: WizardImage): Promise<SceneNode> {
 
       try {
         instance.setProperties({
-          'Type': 'New; feb-26',
-          'Ratio': 'Manual',
+          Type: 'New; feb-26',
+          Ratio: 'Manual',
           [ETHUMB_PROPS['Label']]: false,
           [ETHUMB_PROPS['Dot indicator']]: false,
           [ETHUMB_PROPS['Favorite']]: false,
@@ -712,7 +736,9 @@ async function renderImage(comp: WizardImage): Promise<SceneNode> {
           [ETHUMB_PROPS['Image Fill']]: true,
         });
       } catch (e) {
-        Logger.debug(`[Wizard] EThumb setProperties: ${e instanceof Error ? e.message : String(e)}`);
+        Logger.debug(
+          `[Wizard] EThumb setProperties: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
 
       let imageLayer: SceneNode | null = null;
@@ -731,7 +757,9 @@ async function renderImage(comp: WizardImage): Promise<SceneNode> {
       if (imageLayer) {
         const applied = await applyImageToFillableLayer(imageLayer, comp.src, 'FIT');
         if (!applied) {
-          Logger.debug(`[Wizard] Не удалось загрузить изображение для EThumb: ${comp.src.substring(0, 80)}`);
+          Logger.debug(
+            `[Wizard] Не удалось загрузить изображение для EThumb: ${comp.src.substring(0, 80)}`,
+          );
         }
       }
       try {
@@ -749,11 +777,14 @@ async function renderImage(comp: WizardImage): Promise<SceneNode> {
       frame.fills = [];
       frame.appendChild(instance);
       if ('layoutSizingHorizontal' in instance) {
-        (instance as SceneNode & { layoutSizingHorizontal: string }).layoutSizingHorizontal = 'FILL';
+        (instance as SceneNode & { layoutSizingHorizontal: string }).layoutSizingHorizontal =
+          'FILL';
       }
       return frame;
     } catch (e) {
-      Logger.warn(`[Wizard] EThumb render failed, fallback: ${e instanceof Error ? e.message : String(e)}`);
+      Logger.warn(
+        `[Wizard] EThumb render failed, fallback: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
   return fallbackImage(comp);
@@ -773,7 +804,9 @@ async function renderVideo(comp: WizardVideo): Promise<SceneNode> {
 /**
  * Рендерит один WizardComponent → SceneNode или SceneNode[] (для списков).
  */
-async function renderWizardComponent(comp: WizardComponent): Promise<SceneNode | SceneNode[] | null> {
+async function renderWizardComponent(
+  comp: WizardComponent,
+): Promise<SceneNode | SceneNode[] | null> {
   switch (comp.type) {
     case 'h1':
     case 'h2':
@@ -806,7 +839,7 @@ async function renderWizardComponent(comp: WizardComponent): Promise<SceneNode |
  * Возвращает фрейм «Answer Content» с auto-layout вертикальным.
  */
 export async function renderWizardPayload(
-  wizard: WizardPayload
+  wizard: WizardPayload,
 ): Promise<{ frame: FrameNode; componentCount: number; errors: string[] }> {
   const errors: string[] = [];
   let componentCount = 0;
@@ -872,13 +905,13 @@ export async function renderWizardPayload(
  * Вызывается из page-creator для добавления в SERP-страницу.
  */
 export async function renderWizards(
-  wizards: WizardPayload[]
+  wizards: WizardPayload[],
 ): Promise<WizardProcessingResult & { frames: FrameNode[] }> {
   const result: WizardProcessingResult & { frames: FrameNode[] } = {
     wizardCount: 0,
     componentCount: 0,
     errors: [],
-    frames: []
+    frames: [],
   };
 
   if (!wizards || wizards.length === 0) return result;
@@ -901,7 +934,9 @@ export async function renderWizards(
     }
   }
 
-  Logger.info(`[Wizard] Готово: ${result.wizardCount} wizard, ${result.componentCount} компонентов, ${result.errors.length} ошибок`);
+  Logger.info(
+    `[Wizard] Готово: ${result.wizardCount} wizard, ${result.componentCount} компонентов, ${result.errors.length} ошибок`,
+  );
 
   return result;
 }

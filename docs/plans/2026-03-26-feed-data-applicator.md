@@ -13,51 +13,58 @@
 ## Property Map (from Figma inspection)
 
 ### Shared across all types
-| Child Instance Name | Property Key | Type | Feed Field |
-|---|---|---|---|
-| `Source Feed` | `Source Name#3435:2` | TEXT | `#Feed_SourceName` |
-| `Source Feed` | `Subtitle2#3435:3` | TEXT | `#Feed_SourceDomain` |
-| `Source Feed` | `Subtitle#3435:1` | BOOL | show if `#Feed_SourceDomain` |
-| `Source Feed` | `Follow Icon#3435:0` | BOOL | false |
+
+| Child Instance Name | Property Key         | Type | Feed Field                   |
+| ------------------- | -------------------- | ---- | ---------------------------- |
+| `Source Feed`       | `Source Name#3435:2` | TEXT | `#Feed_SourceName`           |
+| `Source Feed`       | `Subtitle2#3435:3`   | TEXT | `#Feed_SourceDomain`         |
+| `Source Feed`       | `Subtitle#3435:1`    | BOOL | show if `#Feed_SourceDomain` |
+| `Source Feed`       | `Follow Icon#3435:0` | BOOL | false                        |
 
 ### Image layers (by node name, RECTANGLE type)
-| Path Pattern | Feed Field | scaleMode |
-|---|---|---|
-| `Thumb > Image > Img` | `#Feed_ImageUrl` | `FILL` |
-| `Source Feed / Icon > Img` | `#Feed_SourceAvatarUrl` | `FILL` |
+
+| Path Pattern               | Feed Field              | scaleMode |
+| -------------------------- | ----------------------- | --------- |
+| `Thumb > Image > Img`      | `#Feed_ImageUrl`        | `FILL`    |
+| `Source Feed / Icon > Img` | `#Feed_SourceAvatarUrl` | `FILL`    |
 
 ### Market Production Snippet
-| Child Instance | Property Key | Type | Feed Field |
-|---|---|---|---|
-| `Price` | `Price#6097:0` | TEXT | `#Feed_Price` |
-| `Price` | `Old Price#6127:0` | BOOL | has `#Feed_OldPrice` |
+
+| Child Instance     | Property Key         | Type | Feed Field                   |
+| ------------------ | -------------------- | ---- | ---------------------------- |
+| `Price`            | `Price#6097:0`       | TEXT | `#Feed_Price`                |
+| `Price`            | `Old Price#6127:0`   | BOOL | has `#Feed_OldPrice`         |
 | `Image` (in Thumb) | `Placeholder#4004:1` | BOOL | false when image URL present |
 
 TEXT node (direct `characters` edit — needs `loadFontAsync`):
+
 - `Description > *` (first TEXT child) ← `#Feed_Title`
 
 ### Videos / Posts
-| Child Instance | Property Key | Type | Feed Field |
-|---|---|---|---|
-| `Description` (in Media Meta) | `Description#2984:0` | TEXT | `#Feed_Title` |
-| `Product` (in Tile / Media Content) | `Product Title#2773:20` | TEXT | `#Feed_Title` (product) |
-| `Product` (in Tile / Media Content) | `Product#2773:26` | BOOL | show if has products |
-| Price (in Product) | `Price#6097:0` | TEXT | `#Feed_Price` |
-| Price (in Product) | `Old Price#6127:0` | BOOL | has `#Feed_OldPrice` |
-| Media Meta | `Sound#3389:6` | BOOL | `#Feed_HasSound` |
-| `Image` (in Thumb) | `Placeholder#4004:1` | BOOL | false when image URL present |
+
+| Child Instance                      | Property Key            | Type | Feed Field                   |
+| ----------------------------------- | ----------------------- | ---- | ---------------------------- |
+| `Description` (in Media Meta)       | `Description#2984:0`    | TEXT | `#Feed_Title`                |
+| `Product` (in Tile / Media Content) | `Product Title#2773:20` | TEXT | `#Feed_Title` (product)      |
+| `Product` (in Tile / Media Content) | `Product#2773:26`       | BOOL | show if has products         |
+| Price (in Product)                  | `Price#6097:0`          | TEXT | `#Feed_Price`                |
+| Price (in Product)                  | `Old Price#6127:0`      | BOOL | has `#Feed_OldPrice`         |
+| Media Meta                          | `Sound#3389:6`          | BOOL | `#Feed_HasSound`             |
+| `Image` (in Thumb)                  | `Placeholder#4004:1`    | BOOL | false when image URL present |
 
 ### Ads Production Snippets
-| Child Instance | Property Key | Type | Feed Field |
-|---|---|---|---|
-| `Description` (in Product) | `Description#2984:0` | TEXT | `#Feed_Title` |
-| `Image` (in Product) | `Placeholder#4004:1` | BOOL | false when image URL present |
+
+| Child Instance             | Property Key         | Type | Feed Field                   |
+| -------------------------- | -------------------- | ---- | ---------------------------- |
+| `Description` (in Product) | `Description#2984:0` | TEXT | `#Feed_Title`                |
+| `Image` (in Product)       | `Placeholder#4004:1` | BOOL | false when image URL present |
 
 ---
 
 ## Task 1: Create feed-data-applicator.ts with text/boolean property mapping
 
 **Files:**
+
 - Create: `packages/plugin/src/sandbox/feed-page-builder/feed-data-applicator.ts`
 
 **Step 1: Create the module with `applyFeedData` function**
@@ -106,7 +113,11 @@ function findChildInstance(node: SceneNode, name: string, maxDepth: number): Ins
 /**
  * Find first RECTANGLE named "Img" inside a named container (for image fills).
  */
-function findImgRect(node: SceneNode, containerName: string, maxDepth: number): RectangleNode | null {
+function findImgRect(
+  node: SceneNode,
+  containerName: string,
+  maxDepth: number,
+): RectangleNode | null {
   var container = findChildByName(node, containerName, maxDepth);
   if (!container) return null;
   return findRectByName(container, 'Img', 4);
@@ -157,7 +168,7 @@ function setPropsOnChild(
   parent: SceneNode,
   childName: string,
   props: Record<string, string | boolean>,
-  label: string
+  label: string,
 ): void {
   var inst = findChildInstance(parent, childName, 6);
   if (!inst) {
@@ -168,7 +179,9 @@ function setPropsOnChild(
     inst.setProperties(props);
   } catch (e) {
     var msg = e instanceof Error ? e.message : String(e);
-    Logger.debug('[FeedApplicator] ' + label + ': setProperties failed on "' + childName + '": ' + msg);
+    Logger.debug(
+      '[FeedApplicator] ' + label + ': setProperties failed on "' + childName + '": ' + msg,
+    );
   }
 }
 
@@ -250,14 +263,18 @@ function applyVideoData(instance: InstanceNode, card: FeedCardRow): void {
   if (tile) {
     try {
       tile.setProperties({ 'Product#2773:26': hasProduct });
-    } catch (e) { /* prop may not exist */ }
+    } catch (e) {
+      /* prop may not exist */
+    }
 
     // Product title
     var product = findChildInstance(tile, 'Product', 4);
     if (product && productTitle) {
       try {
         product.setProperties({ 'Product Title#2773:20': productTitle });
-      } catch (e) { /* */ }
+      } catch (e) {
+        /* */
+      }
     }
 
     // Price inside Product
@@ -305,7 +322,9 @@ function applyPropToAnyChild(node: SceneNode, propKey: string, value: string): v
         patch[propKey] = value;
         node.setProperties(patch);
         return;
-      } catch (e) { /* continue searching */ }
+      } catch (e) {
+        /* continue searching */
+      }
     }
   }
   if (!('children' in node)) return;
@@ -330,7 +349,7 @@ function applyImages(instance: InstanceNode, card: FeedCardRow): Promise<void> {
 
   // Main image — find "Img" RECTANGLE inside "Thumb"
   if (imageUrl) {
-    chain = chain.then(function() {
+    chain = chain.then(function () {
       var thumbFrame = findChildByName(instance, 'Thumb', 4);
       if (!thumbFrame) {
         Logger.debug('[FeedApplicator] Thumb not found');
@@ -341,18 +360,18 @@ function applyImages(instance: InstanceNode, card: FeedCardRow): Promise<void> {
         Logger.debug('[FeedApplicator] Img rect not found in Thumb');
         return;
       }
-      return fetchAndApplyImage(imgRect, imageUrl, 'FILL', '[Feed/thumb]').then(function() {});
+      return fetchAndApplyImage(imgRect, imageUrl, 'FILL', '[Feed/thumb]').then(function () {});
     });
   }
 
   // Source avatar — find "Img" RECTANGLE inside "Source Feed / Icon"
   if (avatarUrl) {
-    chain = chain.then(function() {
+    chain = chain.then(function () {
       var sourceIcon = findChildByName(instance, 'Source Feed / Icon', 6);
       if (!sourceIcon) return;
       var imgRect = findRectByName(sourceIcon, 'Img', 3);
       if (!imgRect) return;
-      return fetchAndApplyImage(imgRect, avatarUrl, 'FILL', '[Feed/avatar]').then(function() {});
+      return fetchAndApplyImage(imgRect, avatarUrl, 'FILL', '[Feed/avatar]').then(function () {});
     });
   }
 
@@ -388,13 +407,19 @@ function applyMarketDescription(instance: InstanceNode, card: FeedCardRow): Prom
   var fn = textNode.fontName;
   if (!fn || fn === figma.mixed) return Promise.resolve();
 
-  return figma.loadFontAsync(fn as FontName).then(function() {
-    if (textNode) {
-      textNode.characters = title;
-    }
-  }).catch(function(e) {
-    Logger.debug('[FeedApplicator] Market description font load failed: ' + (e instanceof Error ? e.message : String(e)));
-  });
+  return figma
+    .loadFontAsync(fn as FontName)
+    .then(function () {
+      if (textNode) {
+        textNode.characters = title;
+      }
+    })
+    .catch(function (e) {
+      Logger.debug(
+        '[FeedApplicator] Market description font load failed: ' +
+          (e instanceof Error ? e.message : String(e)),
+      );
+    });
 }
 
 // ============================================================================
@@ -412,7 +437,13 @@ function applyMarketDescription(instance: InstanceNode, card: FeedCardRow): Prom
  */
 export function applyFeedData(instance: InstanceNode, card: FeedCardRow): Promise<void> {
   var cardType = card['#Feed_CardType'] || '';
-  Logger.debug('[FeedApplicator] Applying data: type=' + cardType + ', title="' + (card['#Feed_Title'] || '').substring(0, 30) + '"');
+  Logger.debug(
+    '[FeedApplicator] Applying data: type=' +
+      cardType +
+      ', title="' +
+      (card['#Feed_Title'] || '').substring(0, 30) +
+      '"',
+  );
 
   // Step 1: Apply text/boolean properties by card type
   switch (cardType) {
@@ -437,7 +468,7 @@ export function applyFeedData(instance: InstanceNode, card: FeedCardRow): Promis
 
   // Step 3: Market description (direct text edit, needs font loading)
   if (cardType === 'market') {
-    chain = chain.then(function() {
+    chain = chain.then(function () {
       return applyMarketDescription(instance, card);
     });
   }
@@ -456,11 +487,13 @@ Expected: No new errors in feed-data-applicator.ts
 ## Task 2: Wire applicator into feed-page-creator.ts
 
 **Files:**
+
 - Modify: `packages/plugin/src/sandbox/feed-page-builder/feed-page-creator.ts`
 
 **Step 1: Add import**
 
 At top of file, add:
+
 ```typescript
 import { applyFeedData } from './feed-data-applicator';
 ```
@@ -471,12 +504,13 @@ In `importAllCards()` function, after line 131 (`resizeToColumnWidth`), add data
 
 ```typescript
 // Inside the .then(function(component) { ... }) block, after resizeToColumnWidth:
-return applyFeedData(instance, card).then(function() {
+return applyFeedData(instance, card).then(function () {
   results.push({ instance: instance, index: idx });
 });
 ```
 
 The full modified block (lines ~128-132) becomes:
+
 ```typescript
 return importFeedComponent(card).then(function(component) {
   if (component) {
@@ -510,6 +544,7 @@ git commit -m "feat: add feed data applicator — fill cards with titles, prices
 ## Task 3: Add missing extension fields for complete data extraction
 
 **Files:**
+
 - Modify: `packages/extension/src/feed-parser.ts`
 
 The extension parser already extracts most fields but may be missing some. Verify these fields are extracted:
@@ -527,6 +562,7 @@ The extension parser already extracts most fields but may be missing some. Verif
 **Step 1: Check parsePostCard and parseVideoCard for missing fields**
 
 Ensure `parseVideoCard` extracts:
+
 ```typescript
 // Product preview title (from post-products-preview)
 var productPreview = element.querySelector(SEL.productsPreview);
@@ -559,6 +595,7 @@ git commit -m "fix: extract missing feed fields (product title, product price)"
 ## Task 4: Test end-to-end
 
 **Steps:**
+
 1. Rebuild all: `npm run build`
 2. Reload extension in Chrome (`chrome://extensions`)
 3. Open ya.ru (feed page)
@@ -570,6 +607,7 @@ git commit -m "fix: extract missing feed fields (product title, product price)"
    - Ads cards: description text
 
 **Debug:** If properties don't apply, check Figma console for `[FeedApplicator]` messages. Common issues:
+
 - Property key mismatch (hash suffix may differ between component versions)
 - `setProperties` silent failure (property not exposed at that level)
 - Image fetch CORS failure
@@ -579,6 +617,7 @@ git commit -m "fix: extract missing feed fields (product title, product price)"
 ## Task 5: Add unit test for applyFeedData property mapping
 
 **Files:**
+
 - Create: `packages/plugin/tests/feed/feed-data-applicator.test.ts`
 
 **Step 1: Write test**
@@ -630,7 +669,7 @@ describe('applyFeedData', () => {
     await applyFeedData(instance, card);
 
     expect(setProps).toHaveBeenCalledWith(
-      expect.objectContaining({ 'Source Name#3435:2': 'Яндекс Маркет' })
+      expect.objectContaining({ 'Source Name#3435:2': 'Яндекс Маркет' }),
     );
   });
 });

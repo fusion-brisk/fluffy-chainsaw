@@ -1,16 +1,17 @@
 module.exports = {
   presets: [
-    ['@babel/preset-env', {
-      targets: {
-        browsers: ['> 1%', 'last 2 versions']
+    [
+      '@babel/preset-env',
+      {
+        targets: {
+          browsers: ['> 1%', 'last 2 versions'],
+        },
+        useBuiltIns: 'usage',
+        corejs: 3,
       },
-      useBuiltIns: 'usage',
-      corejs: 3
-    }],
+    ],
     '@babel/preset-react',
-    '@babel/preset-typescript'
+    '@babel/preset-typescript',
   ],
-  plugins: [
-    '@babel/plugin-transform-async-to-generator'
-  ]
+  plugins: ['@babel/plugin-transform-async-to-generator'],
 };

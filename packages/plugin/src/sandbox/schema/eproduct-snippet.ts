@@ -18,27 +18,29 @@ export const EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
     {
       propertyNames: ['withDelivery', 'Delivery'],
       fieldName: '#withDelivery',
-      equals: { field: '#EDeliveryGroup', value: 'true' }
+      equals: { field: '#EDeliveryGroup', value: 'true' },
     },
     // withButton (boolean) — #EMarketCheckoutLabel ИЛИ #BUTTON
     {
       propertyNames: ['withButton', 'Button'],
       fieldName: '#withButton',
-      compute: function(row) { return computeProductWithButton(row); }
+      compute: function (row) {
+        return computeProductWithButton(row);
+      },
     },
     // organicTitle (string) — название товара
     {
       propertyNames: ['organicTitle', 'title', 'Title'],
       fieldName: '#OrganicTitle',
       stringValue: '#OrganicTitle',
-      skipIfEmpty: true
+      skipIfEmpty: true,
     },
     // brand (boolean) — показать бренд
     {
       propertyNames: ['brand', 'Brand'],
       fieldName: '#Brand',
-      hasValue: '#Brand'
-    }
+      hasValue: '#Brand',
+    },
   ],
 
   nestedInstances: [
@@ -50,15 +52,15 @@ export const EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
           propertyNames: ['name'],
           fieldName: '#ShopName',
           stringValue: '#ShopName',
-          skipIfEmpty: true
+          skipIfEmpty: true,
         },
         // isOfficial (boolean) — официальный магазин
         {
           propertyNames: ['isOfficial'],
           fieldName: '#OfficialShop',
-          equals: { field: '#OfficialShop', value: 'true' }
-        }
-      ]
+          equals: { field: '#OfficialShop', value: 'true' },
+        },
+      ],
     },
     {
       instanceName: 'ELabelGroup',
@@ -67,15 +69,13 @@ export const EPRODUCT_SNIPPET_SCHEMA: ComponentSchema = {
         {
           propertyNames: ['withRating'],
           fieldName: '#withRating',
-          compute: function(row) { return computeWithReviews(row); }
-        }
-      ]
-    }
+          compute: function (row) {
+            return computeWithReviews(row);
+          },
+        },
+      ],
+    },
   ],
 
-  replacesHandlers: [
-    'BrandLogic',
-    'MarketCheckoutButton',
-    'EProductSnippet'
-  ]
+  replacesHandlers: ['BrandLogic', 'MarketCheckoutButton', 'EProductSnippet'],
 };

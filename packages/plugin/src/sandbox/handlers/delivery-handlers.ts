@@ -3,7 +3,7 @@
  * - handleEDeliveryGroup — блок доставки (через withDelivery на контейнере)
  * - handleShopInfoBnpl — BNPL иконки (через withFintech на контейнере)
  * - handleShopInfoDeliveryBnplContainer — контейнер доставки/BNPL (через withMeta на контейнере)
- * 
+ *
  * Все visibility теперь через свойства родительского контейнера сниппета
  */
 
@@ -13,7 +13,7 @@ import {
   findFirstTextByPredicate,
   findAllNodesByName,
   findAllInstances,
-  safeSetTextNode
+  safeSetTextNode,
 } from '../../utils/node-search';
 import { getCachedInstance, getCachedInstanceByNames } from '../../utils/instance-cache';
 import { isSnippetContainer } from '../../utils/container-search';
@@ -43,7 +43,11 @@ function mapBnplLabelToType(value: string): string | null {
   if (cleaned.indexOf('плати частями') !== -1) return 'plati chastyami';
   if (cleaned.indexOf('мокка') !== -1) return 'mokka';
   if (cleaned.indexOf('подели') !== -1) return 'podeli';
-  if (cleaned.indexOf('мтс') !== -1 && (cleaned.indexOf('пэй') !== -1 || cleaned.indexOf('pay') !== -1)) return 'mts pay';
+  if (
+    cleaned.indexOf('мтс') !== -1 &&
+    (cleaned.indexOf('пэй') !== -1 || cleaned.indexOf('pay') !== -1)
+  )
+    return 'mts pay';
   return null;
 }
 
@@ -73,15 +77,17 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const containerName = container && 'name' in container ? String(container.name) : '';
   const itemCount = parseInt(row['#EDeliveryGroup-Count'] || '0', 10);
   const hasDeliveryData = row['#EDeliveryGroup'] === 'true' && itemCount > 0;
   const hasDeliveryList = !!(row['#DeliveryList'] && String(row['#DeliveryList']).trim() !== '');
   const isAbroad = row['#EDelivery_abroad'] === 'true';
   const hasDelivery = hasDeliveryData || hasDeliveryList || isAbroad;
-  
-  Logger.debug(`🚚 [EDeliveryGroup] container=${containerName}, hasDelivery=${hasDelivery}, isAbroad=${isAbroad}, itemCount=${itemCount}`);
-  
+
+  Logger.debug(
+    `🚚 [EDeliveryGroup] container=${containerName}, hasDelivery=${hasDelivery}, isAbroad=${isAbroad}, itemCount=${itemCount}`,
+  );
+
   // === Устанавливаем withDelivery на родительском контейнере ===
   if (isSnippetContainer(container) && container.type === 'INSTANCE' && !container.removed) {
     const instance = container as InstanceNode;
@@ -89,50 +95,65 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
       instance,
       ['withDelivery', 'Delivery', 'delivery', 'DELIVERY + FINTECH'],
       hasDelivery,
-      '#withDelivery'
+      '#withDelivery',
     );
-    Logger.debug(`🚚 [EDeliveryGroup] withDelivery=${hasDelivery} на "${containerName}", result=${withDeliverySet}`);
+    Logger.debug(
+      `🚚 [EDeliveryGroup] withDelivery=${hasDelivery} на "${containerName}", result=${withDeliverySet}`,
+    );
   }
-  
+
   // Если нет доставки — не заполняем items
   if (!hasDelivery) return;
-  
+
   // Получаем инстанс EDeliveryGroup
   const deliveryGroupInstance = getCachedInstance(instanceCache!, 'EDeliveryGroup');
   if (!deliveryGroupInstance) {
     Logger.debug(`🚚 [EDeliveryGroup] Instance NOT FOUND`);
     return;
   }
-  
+
   Logger.debug(`🚚 [EDeliveryGroup] Instance FOUND: "${deliveryGroupInstance.name}"`);
-  
+
   // Обработка abroad
   if (isAbroad) {
     try {
       deliveryGroupInstance.resetOverrides();
-      const abroadSet = trySetProperty(deliveryGroupInstance, ['withAbroad', 'abroad'], true, '#EDelivery_abroad');
+      const abroadSet = trySetProperty(
+        deliveryGroupInstance,
+        ['withAbroad', 'abroad'],
+        true,
+        '#EDelivery_abroad',
+      );
       Logger.debug(`✈️ [EDeliveryGroup] abroad=${abroadSet}`);
     } catch (e) {
       Logger.error(`✈️ [EDeliveryGroup] ERROR:`, e);
     }
     return;
   }
-  
+
   // === Устанавливаем видимость child-слотов через свойства (новые компоненты) ===
   const childSlotNames = ['first-child', 'second-child', 'third-child'];
   for (let i = 0; i < 3; i++) {
     const itemValue = (row as Record<string, string | undefined>)[`#EDeliveryGroup-Item-${i + 1}`];
-    const hasItem = !!(itemValue && String(itemValue).trim() !== '' && (i + 1) <= itemCount);
-    trySetProperty(deliveryGroupInstance, [childSlotNames[i]], hasItem, `#EDeliveryGroup-slot-${i + 1}`);
+    const hasItem = !!(itemValue && String(itemValue).trim() !== '' && i + 1 <= itemCount);
+    trySetProperty(
+      deliveryGroupInstance,
+      [childSlotNames[i]],
+      hasItem,
+      `#EDeliveryGroup-slot-${i + 1}`,
+    );
   }
   Logger.debug(`🚚 [EDeliveryGroup] child slots set: count=${itemCount}`);
 
   // Заполняем items доставки
   const itemLayers = findAllNodesByName(deliveryGroupInstance, '#EDeliveryGroup-Item');
-  const lineNodes = itemLayers.length === 0 ? findAllNodesByName(deliveryGroupInstance, 'Line') : [];
+  const lineNodes =
+    itemLayers.length === 0 ? findAllNodesByName(deliveryGroupInstance, 'Line') : [];
 
-  Logger.debug(`   📦 [EDeliveryGroup] items=${itemLayers.length}, lines=${lineNodes.length}, data=${itemCount}`);
-  
+  Logger.debug(
+    `   📦 [EDeliveryGroup] items=${itemLayers.length}, lines=${lineNodes.length}, data=${itemCount}`,
+  );
+
   // MODE A: legacy (named #EDeliveryGroup-Item targets)
   if (itemLayers.length > 0) {
     let visibleCounter = 0;
@@ -140,8 +161,10 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
     for (let i = 0; i < maxSlots; i++) {
       const layer = itemLayers[i];
       const dataIndex = i + 1;
-      const itemValue = (row as Record<string, string | undefined>)[`#EDeliveryGroup-Item-${dataIndex}`];
-      
+      const itemValue = (row as Record<string, string | undefined>)[
+        `#EDeliveryGroup-Item-${dataIndex}`
+      ];
+
       if (itemValue && dataIndex <= itemCount) {
         if (layer.type === 'TEXT') {
           const textNode = layer as TextNode;
@@ -173,7 +196,9 @@ export async function handleEDeliveryGroup(context: HandlerContext): Promise<voi
           (ln as InstanceNode).setProperties({ value: finalValue });
           valueSet++;
           Logger.debug(`      ✅ Line[${i}].value set: "${finalValue}"`);
-        } catch (_e) { Logger.debug('[EDeliveryGroup] Line[' + i + '].value set failed'); }
+        } catch (_e) {
+          Logger.debug('[EDeliveryGroup] Line[' + i + '].value set failed');
+        }
       }
     }
     if (valueSet > 0) return;
@@ -198,8 +223,8 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
   const { container, row, instanceCache } = context;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
-  
+  const containerName = container && 'name' in container ? String(container.name) : '';
+
   const shopCount = parseInt(row['#ShopInfo-Bnpl-Count'] || '0', 10);
   const shopHas = row['#ShopInfo-Bnpl'] === 'true' && shopCount > 0;
   const ebnplCount = parseInt(row['#EBnpl-Count'] || '0', 10);
@@ -209,7 +234,9 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
   const count = shopHas ? shopCount : ebnplCount;
   const hasFintech = (shopHas || ebnplHas || hasFintechFromPrice) && count > 0;
 
-  Logger.debug(`🧾 [ShopInfo-Bnpl] container=${containerName}, hasFintech=${hasFintech}, count=${count}`);
+  Logger.debug(
+    `🧾 [ShopInfo-Bnpl] container=${containerName}, hasFintech=${hasFintech}, count=${count}`,
+  );
 
   // === Устанавливаем withFintech на родительском контейнере ===
   if (isSnippetContainer(container) && container.type === 'INSTANCE' && !container.removed) {
@@ -218,9 +245,11 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
       instance,
       ['withFintech', 'Fintech', 'fintech'],
       hasFintech,
-      '#withFintech'
+      '#withFintech',
     );
-    Logger.debug(`🧾 [ShopInfo-Bnpl] withFintech=${hasFintech} на "${containerName}", result=${withFintechSet}`);
+    Logger.debug(
+      `🧾 [ShopInfo-Bnpl] withFintech=${hasFintech} на "${containerName}", result=${withFintechSet}`,
+    );
   }
 
   // Если нет финтеха — не настраиваем типы
@@ -228,7 +257,11 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
 
   // Ищем BNPL root — ОПТИМИЗИРОВАНО: используем instanceCache вместо deep traversal
   const bnplRoot: SceneNode | null =
-    getCachedInstanceByNames(instanceCache!, ['#ShopInfo-Bnpl', 'ShopInfo-Bnpl', 'Line / EBnpl Group']) ||
+    getCachedInstanceByNames(instanceCache!, [
+      '#ShopInfo-Bnpl',
+      'ShopInfo-Bnpl',
+      'Line / EBnpl Group',
+    ]) ||
     getCachedInstance(instanceCache!, 'EBnpl') ||
     // Fallback на deep traversal только если кэш не помог
     (findAllNodesByName(container, '#ShopInfo-Bnpl')[0] as SceneNode | undefined) ||
@@ -243,7 +276,9 @@ export async function handleShopInfoBnpl(context: HandlerContext): Promise<void>
   // Определяем типы BNPL
   const desiredTypes: string[] = [];
   for (let i = 1; i <= count && i <= 3; i++) {
-    const v = shopHas ? ((row as Record<string, string | undefined>)[`#ShopInfo-Bnpl-Item-${i}`] || '') : ((row as Record<string, string | undefined>)[`#EBnpl-Item-${i}`] || '');
+    const v = shopHas
+      ? (row as Record<string, string | undefined>)[`#ShopInfo-Bnpl-Item-${i}`] || ''
+      : (row as Record<string, string | undefined>)[`#EBnpl-Item-${i}`] || '';
     const mapped = mapBnplLabelToType(v);
     if (mapped && desiredTypes.indexOf(mapped) === -1) desiredTypes.push(mapped);
   }
@@ -294,7 +329,7 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
   const { container, row } = context;
   if (!container || !row) return;
 
-  const containerName = (container && 'name' in container) ? String(container.name) : '';
+  const containerName = container && 'name' in container ? String(container.name) : '';
 
   // Определяем наличие данных
   const deliveryCount = parseInt(row['#EDeliveryGroup-Count'] || '0', 10);
@@ -302,7 +337,8 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
   const hasDeliveryByList = !!(row['#DeliveryList'] && String(row['#DeliveryList']).trim() !== '');
   const hasDeliveryByOfferFlag = row['#EOfferItem_hasDelivery'] === 'true';
   const hasDeliveryAbroad = row['#EDelivery_abroad'] === 'true';
-  const hasDelivery = hasDeliveryByGroup || hasDeliveryByList || hasDeliveryByOfferFlag || hasDeliveryAbroad;
+  const hasDelivery =
+    hasDeliveryByGroup || hasDeliveryByList || hasDeliveryByOfferFlag || hasDeliveryAbroad;
 
   const shopCount = parseInt(row['#ShopInfo-Bnpl-Count'] || '0', 10);
   const shopHas = row['#ShopInfo-Bnpl'] === 'true' && shopCount > 0;
@@ -313,7 +349,9 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
 
   const hasMeta = hasDelivery || hasFintech;
 
-  Logger.debug(`🚚💳 [DeliveryBnplContainer] container=${containerName}, hasMeta=${hasMeta} (delivery=${hasDelivery}, fintech=${hasFintech})`);
+  Logger.debug(
+    `🚚💳 [DeliveryBnplContainer] container=${containerName}, hasMeta=${hasMeta} (delivery=${hasDelivery}, fintech=${hasFintech})`,
+  );
 
   // === Устанавливаем withMeta на родительском контейнере ===
   if (isSnippetContainer(container) && container.type === 'INSTANCE' && !container.removed) {
@@ -322,8 +360,10 @@ export function handleShopInfoDeliveryBnplContainer(context: HandlerContext): vo
       instance,
       ['withMeta', 'Meta', 'meta', 'DELIVERY + FINTECH', 'deliveryFintech'],
       hasMeta,
-      '#withMeta'
+      '#withMeta',
     );
-    Logger.debug(`🚚💳 [DeliveryBnplContainer] withMeta=${hasMeta} на "${containerName}", result=${withMetaSet}`);
+    Logger.debug(
+      `🚚💳 [DeliveryBnplContainer] withMeta=${hasMeta} на "${containerName}", result=${withMetaSet}`,
+    );
   }
 }

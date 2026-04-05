@@ -6,13 +6,13 @@ HTTP + WebSocket сервер на localhost:3847. Очередь данных �
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/index.ts` | Server entry point |
-| `src/queue.ts` | In-memory queue for parsed data |
-| `src/routes/` | HTTP route handlers |
-| `src/websocket.ts` | WebSocket for real-time push |
-| `src/types.ts` | Shared types |
+| File               | Role                            |
+| ------------------ | ------------------------------- |
+| `src/index.ts`     | Server entry point              |
+| `src/queue.ts`     | In-memory queue for parsed data |
+| `src/routes/`      | HTTP route handlers             |
+| `src/websocket.ts` | WebSocket for real-time push    |
+| `src/types.ts`     | Shared types                    |
 
 ## Architecture
 

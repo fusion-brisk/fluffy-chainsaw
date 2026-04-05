@@ -31,7 +31,7 @@ import {
   computeSnippetWithDeliveryBnpl,
   computeSnippetWithFintech,
   computeSnippetWithPromo,
-  computeImageVariant
+  computeImageVariant,
 } from '../../src/sandbox/schema/transforms';
 
 // Helper: create mock instance with Platform property
@@ -69,7 +69,9 @@ describe('isDesktopPlatform', () => {
   });
 
   it('handles Platform#123 key format', () => {
-    const inst = createMockInstance('Test', { 'Platform#123:0': 'Touch' }) as unknown as InstanceNode;
+    const inst = createMockInstance('Test', {
+      'Platform#123:0': 'Touch',
+    }) as unknown as InstanceNode;
     expect(isDesktopPlatform(inst)).toBe(false);
   });
 });
@@ -277,7 +279,9 @@ describe('ESnippet transforms — Organic override', () => {
   });
 
   it('computeSnippetWithFintech: false for Organic', () => {
-    expect(computeSnippetWithFintech({ ...organicRow, '#EPriceGroup_Fintech': 'true' })).toBe(false);
+    expect(computeSnippetWithFintech({ ...organicRow, '#EPriceGroup_Fintech': 'true' })).toBe(
+      false,
+    );
     expect(computeSnippetWithFintech({ ...shopRow, '#EPriceGroup_Fintech': 'true' })).toBe(true);
   });
 
@@ -451,7 +455,9 @@ describe('computeSnippetWithMeta (dedicated)', () => {
   });
 
   it('returns true with both delivery and BNPL', () => {
-    expect(computeSnippetWithMeta({ ...base, '#EDeliveryGroup': 'true', '#ShopInfo-Bnpl': 'true' })).toBe(true);
+    expect(
+      computeSnippetWithMeta({ ...base, '#EDeliveryGroup': 'true', '#ShopInfo-Bnpl': 'true' }),
+    ).toBe(true);
   });
 
   it('returns false without delivery or BNPL', () => {
@@ -601,11 +607,15 @@ describe('computeImageVariant', () => {
   });
 
   it('prefers group over single when both present', () => {
-    expect(computeImageVariant({ '#imageType': 'EThumbGroup', '#withThumb': 'true' } as CSVRow)).toBe('group');
+    expect(
+      computeImageVariant({ '#imageType': 'EThumbGroup', '#withThumb': 'true' } as CSVRow),
+    ).toBe('group');
   });
 
   it('returns "single" when #imageType is EThumb', () => {
-    expect(computeImageVariant({ '#imageType': 'EThumb', '#withThumb': 'true' } as CSVRow)).toBe('single');
+    expect(computeImageVariant({ '#imageType': 'EThumb', '#withThumb': 'true' } as CSVRow)).toBe(
+      'single',
+    );
   });
 
   it('returns "none" when #withThumb is false', () => {

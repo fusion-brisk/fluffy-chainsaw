@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseVariantSyntax,
   detectPropertyType,
-  normalizeVariantValue
+  normalizeVariantValue,
 } from '../../src/sandbox/variant-parser';
 
 // ============================================================================
@@ -17,35 +17,35 @@ describe('parseVariantSyntax', () => {
   it('parses simple "Key=Value"', () => {
     expect(parseVariantSyntax('Platform=Desktop')).toEqual({
       propName: 'Platform',
-      propValue: 'Desktop'
+      propValue: 'Desktop',
     });
   });
 
   it('trims surrounding whitespace', () => {
     expect(parseVariantSyntax('  Platform=Desktop  ')).toEqual({
       propName: 'Platform',
-      propValue: 'Desktop'
+      propValue: 'Desktop',
     });
   });
 
   it('trims whitespace around equals sign', () => {
     expect(parseVariantSyntax('Platform = Desktop')).toEqual({
       propName: 'Platform',
-      propValue: 'Desktop'
+      propValue: 'Desktop',
     });
   });
 
   it('handles value with spaces', () => {
     expect(parseVariantSyntax('Label=Some Long Text')).toEqual({
       propName: 'Label',
-      propValue: 'Some Long Text'
+      propValue: 'Some Long Text',
     });
   });
 
   it('handles value containing equals sign', () => {
     expect(parseVariantSyntax('Formula=a=b')).toEqual({
       propName: 'Formula',
-      propValue: 'a=b'
+      propValue: 'a=b',
     });
   });
 
@@ -89,40 +89,50 @@ describe('parseVariantSyntax', () => {
 
 describe('detectPropertyType', () => {
   it('returns VARIANT_WITH_OPTIONS when options array is non-empty', () => {
-    expect(detectPropertyType({
-      type: 'VARIANT',
-      value: 'Desktop',
-      options: ['Desktop', 'Touch']
-    })).toBe('VARIANT_WITH_OPTIONS');
+    expect(
+      detectPropertyType({
+        type: 'VARIANT',
+        value: 'Desktop',
+        options: ['Desktop', 'Touch'],
+      }),
+    ).toBe('VARIANT_WITH_OPTIONS');
   });
 
   it('returns VARIANT_NO_OPTIONS for VARIANT type without options', () => {
-    expect(detectPropertyType({
-      type: 'VARIANT',
-      value: 'Desktop'
-    })).toBe('VARIANT_NO_OPTIONS');
+    expect(
+      detectPropertyType({
+        type: 'VARIANT',
+        value: 'Desktop',
+      }),
+    ).toBe('VARIANT_NO_OPTIONS');
   });
 
   it('returns VARIANT_NO_OPTIONS for VARIANT with empty options array', () => {
-    expect(detectPropertyType({
-      type: 'VARIANT',
-      value: 'Desktop',
-      options: []
-    })).toBe('VARIANT_NO_OPTIONS');
+    expect(
+      detectPropertyType({
+        type: 'VARIANT',
+        value: 'Desktop',
+        options: [],
+      }),
+    ).toBe('VARIANT_NO_OPTIONS');
   });
 
   it('returns BOOLEAN when value is boolean true', () => {
-    expect(detectPropertyType({
-      type: 'BOOLEAN',
-      value: true
-    })).toBe('BOOLEAN');
+    expect(
+      detectPropertyType({
+        type: 'BOOLEAN',
+        value: true,
+      }),
+    ).toBe('BOOLEAN');
   });
 
   it('returns BOOLEAN when value is boolean false', () => {
-    expect(detectPropertyType({
-      type: 'BOOLEAN',
-      value: false
-    })).toBe('BOOLEAN');
+    expect(
+      detectPropertyType({
+        type: 'BOOLEAN',
+        value: false,
+      }),
+    ).toBe('BOOLEAN');
   });
 
   it('returns UNKNOWN for null', () => {
@@ -139,19 +149,23 @@ describe('detectPropertyType', () => {
   });
 
   it('returns UNKNOWN for unrecognized type without boolean value', () => {
-    expect(detectPropertyType({
-      type: 'TEXT',
-      value: 'hello'
-    })).toBe('UNKNOWN');
+    expect(
+      detectPropertyType({
+        type: 'TEXT',
+        value: 'hello',
+      }),
+    ).toBe('UNKNOWN');
   });
 
   it('prioritizes VARIANT_WITH_OPTIONS over other checks', () => {
     // Has options AND boolean value — options win
-    expect(detectPropertyType({
-      type: 'VARIANT',
-      value: true,
-      options: ['true', 'false']
-    })).toBe('VARIANT_WITH_OPTIONS');
+    expect(
+      detectPropertyType({
+        type: 'VARIANT',
+        value: true,
+        options: ['true', 'false'],
+      }),
+    ).toBe('VARIANT_WITH_OPTIONS');
   });
 });
 

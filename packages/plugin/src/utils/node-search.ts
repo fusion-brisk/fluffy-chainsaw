@@ -1,7 +1,7 @@
 /**
  * Утилиты для поиска узлов в Figma документе
  * Выделено из component-handlers.ts для переиспользования
- * 
+ *
  * Container-cache отключен для экономии памяти — используем прямой поиск
  */
 
@@ -32,14 +32,14 @@ export function findInstanceByName(node: BaseNode, name: string): InstanceNode |
   if (node.type === 'INSTANCE' && node.name === name && !node.removed) {
     return node as InstanceNode;
   }
-  
+
   if ('children' in node && node.children) {
     for (const child of node.children) {
       const found = findInstanceByName(child, name);
       if (found) return found;
     }
   }
-  
+
   return null;
 }
 
@@ -51,14 +51,14 @@ export function findTextLayerByName(node: BaseNode, name: string): TextNode | nu
   if (node.type === 'TEXT' && node.name === name && !node.removed) {
     return node as TextNode;
   }
-  
+
   if ('children' in node && node.children) {
     for (const child of node.children) {
       const found = findTextLayerByName(child, name);
       if (found) return found;
     }
   }
-  
+
   return null;
 }
 
@@ -68,7 +68,7 @@ export function findTextLayerByName(node: BaseNode, name: string): TextNode | nu
 export function findFirstNodeByName(node: BaseNode, name: string): BaseNode | null {
   if (!node || (node as SceneNode).removed) return null;
   totalSearchCalls++;
-  
+
   if ('name' in node && node.name === name && !(node as SceneNode).removed) {
     return node;
   }
@@ -84,7 +84,10 @@ export function findFirstNodeByName(node: BaseNode, name: string): BaseNode | nu
 /**
  * Поиск первого TEXT узла по предикату (рекурсивно)
  */
-export function findFirstTextByPredicate(node: BaseNode, predicate: (t: TextNode) => boolean): TextNode | null {
+export function findFirstTextByPredicate(
+  node: BaseNode,
+  predicate: (t: TextNode) => boolean,
+): TextNode | null {
   if (!node || (node as SceneNode).removed) return null;
   if (node.type === 'TEXT' && !node.removed) {
     const t = node as TextNode;
@@ -114,14 +117,14 @@ export function findGroupByName(node: BaseNode, name: string): GroupNode | Frame
   if ((node.type === 'GROUP' || node.type === 'FRAME') && node.name === name && !node.removed) {
     return node as GroupNode | FrameNode;
   }
-  
+
   if ('children' in node && node.children) {
     for (const child of node.children) {
       const found = findGroupByName(child, name);
       if (found) return found;
     }
   }
-  
+
   return null;
 }
 
@@ -130,17 +133,17 @@ export function findGroupByName(node: BaseNode, name: string): GroupNode | Frame
  */
 export function findAllNodesByName(node: BaseNode, name: string): SceneNode[] {
   const results: SceneNode[] = [];
-  
+
   if ('name' in node && node.name === name && !node.removed) {
     results.push(node as SceneNode);
   }
-  
+
   if ('children' in node && node.children) {
     for (const child of node.children) {
       results.push(...findAllNodesByName(child, name));
     }
   }
-  
+
   return results;
 }
 
@@ -149,9 +152,9 @@ export function findAllNodesByName(node: BaseNode, name: string): SceneNode[] {
  */
 export function findAllNodesByNameContains(node: BaseNode, needle: string): SceneNode[] {
   if (!node || (node as SceneNode).removed) return [];
-  
+
   const results: SceneNode[] = [];
-  
+
   try {
     if ('name' in node && typeof node.name === 'string') {
       if (node.name.indexOf(needle) !== -1 && !(node as SceneNode).removed) {
@@ -176,13 +179,17 @@ export function findAllNodesByNameContains(node: BaseNode, needle: string): Scen
 export function findNearestNamedAncestor(
   node: SceneNode,
   stopAt: BaseNode,
-  ancestorName: string
+  ancestorName: string,
 ): SceneNode | null {
   let cur: BaseNode | null = node;
   while (cur && cur !== stopAt) {
     const parent = (cur as SceneNode).parent as BaseNode | null;
     if (!parent) break;
-    if ('name' in parent && (parent as SceneNode).name === ancestorName && !(parent as SceneNode).removed) {
+    if (
+      'name' in parent &&
+      (parent as SceneNode).name === ancestorName &&
+      !(parent as SceneNode).removed
+    ) {
       return parent as SceneNode;
     }
     cur = parent;
@@ -195,7 +202,7 @@ export function findNearestNamedAncestor(
  */
 export function findAllInstances(node: BaseNode): InstanceNode[] {
   if (!node || (node as SceneNode).removed) return [];
-  
+
   const out: InstanceNode[] = [];
   if ((node as SceneNode).type === 'INSTANCE') out.push(node as InstanceNode);
   if ('children' in node && node.children) {
@@ -251,7 +258,7 @@ function getFontKey(fontName: FontName): string {
 async function loadFontCached(fontName: FontName): Promise<void> {
   const key = getFontKey(fontName);
   if (loadedFontsCache.has(key)) return;
-  
+
   await figma.loadFontAsync(fontName);
   loadedFontsCache.add(key);
 }
@@ -305,4 +312,3 @@ export function safeGetLayerType(layer: SceneNode): string | null {
     return null;
   }
 }
-

@@ -8,7 +8,7 @@
 export * from './types';
 
 // Component mapping
-export { 
+export {
   SNIPPET_COMPONENT_MAP,
   GROUP_COMPONENT_MAP,
   LAYOUT_COMPONENT_MAP,
@@ -26,10 +26,7 @@ export {
 } from './component-map';
 
 // Structure parsing (serpItemId grouping)
-export {
-  groupSnippetsBySerpItem,
-  buildSerpStructure,
-} from './structure-parser';
+export { groupSnippetsBySerpItem, buildSerpStructure } from './structure-parser';
 
 // Structure building (new)
 export {
@@ -47,4 +44,3 @@ export {
   validateComponentKeys,
   clearComponentCache,
 } from './page-creator';
-

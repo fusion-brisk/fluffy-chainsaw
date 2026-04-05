@@ -15,6 +15,7 @@
 ### Task 1: Relay — Add sourceType to Payload Types
 
 **Files:**
+
 - Modify: `packages/relay/src/types.ts`
 - Modify: `packages/relay/src/routes/push.ts`
 
@@ -25,6 +26,7 @@ Read `packages/relay/src/types.ts` to understand `QueueEntryPayload` and `WsNewD
 **Step 2: Extend QueueEntryPayload**
 
 Add to `QueueEntryPayload`:
+
 ```typescript
 /** 'serp' (default) or 'feed' — determines plugin handler routing */
 sourceType?: 'serp' | 'feed';
@@ -36,6 +38,7 @@ feedCards?: Array<Record<string, string>>;
 **Step 3: Extend WsNewDataMessage**
 
 Add to WebSocket broadcast message:
+
 ```typescript
 sourceType?: 'serp' | 'feed';
 feedCardCount?: number;
@@ -44,11 +47,11 @@ feedCardCount?: number;
 **Step 4: Update push.ts logging**
 
 In POST /push handler, update the log line to show sourceType:
+
 ```typescript
 const sourceType = payload.sourceType || 'serp';
-const itemCount = sourceType === 'feed'
-  ? (payload.feedCards || []).length
-  : (payload.rawRows || []).length;
+const itemCount =
+  sourceType === 'feed' ? (payload.feedCards || []).length : (payload.rawRows || []).length;
 Logger.info(`[Push] ${sourceType}: ${itemCount} items`);
 ```
 
@@ -77,6 +80,7 @@ git commit -m "feat(relay): add sourceType and feedCards to payload types"
 ### Task 2: Extension — Integrate Feed Parser
 
 **Files:**
+
 - Create: `packages/extension/src/feed-parser.ts` (copy from Downloads, adapt)
 - Modify: `packages/extension/src/content.ts` (add feed detection + parsing)
 
@@ -89,6 +93,7 @@ Note: The parser file imports types from `./feed-card-types`. Since the canonica
 **Step 2: Add feed page detection**
 
 In `content.ts`, add a detection function:
+
 ```typescript
 function isFeedPage(): boolean {
   // ya.ru home feed has masonry layout
@@ -99,6 +104,7 @@ function isFeedPage(): boolean {
 **Step 3: Integrate into extraction flow**
 
 In the main extraction logic (where `extractSnippets()` is called), add:
+
 ```typescript
 if (isFeedPage()) {
   const { extractFeedCards } = await import('./feed-parser');
@@ -117,6 +123,7 @@ if (isFeedPage()) {
 **Step 4: Update payload sent to relay**
 
 In the background script where `POST /push` is called, check for feed data:
+
 ```typescript
 const isFeed = result.sourceType === 'feed';
 const payload = {
@@ -146,6 +153,7 @@ git commit -m "feat(extension): add feed parser and detection for ya.ru rhythm f
 ### Task 3: Plugin UI — Route Feed Payload
 
 **Files:**
+
 - Modify: `packages/plugin/src/ui/hooks/useRelayConnection.ts`
 - Modify: `packages/plugin/src/ui/hooks/useImportFlow.ts` (if exists)
 - Modify: `packages/plugin/src/ui/components/ImportConfirmDialog.tsx`
@@ -157,6 +165,7 @@ Read `useRelayConnection.ts` to understand how `peekRelayData()` parses relay re
 **Step 2: Detect feed sourceType in relay hook**
 
 When peeking relay data, check `payload.sourceType`:
+
 ```typescript
 const sourceType = payload.sourceType || 'serp';
 const isFeed = sourceType === 'feed';
@@ -172,15 +181,18 @@ return {
 **Step 3: Update confirm dialog**
 
 In ImportConfirmDialog, show different label for feed:
+
 ```typescript
-const itemLabel = data.sourceType === 'feed'
-  ? `${data.feedCards.length} карточек фида`
-  : `${data.rows.length} сниппетов`;
+const itemLabel =
+  data.sourceType === 'feed'
+    ? `${data.feedCards.length} карточек фида`
+    : `${data.rows.length} сниппетов`;
 ```
 
 **Step 4: Route confirm action to correct handler**
 
 When user clicks "Артборд" (confirm), send different message based on sourceType:
+
 ```typescript
 if (data.sourceType === 'feed') {
   sendMessageToPlugin({
@@ -217,6 +229,7 @@ git commit -m "feat(plugin-ui): route feed payload to apply-feed-payload handler
 ### Task 4: Extension Manifest — URL Matching (if needed)
 
 **Files:**
+
 - Check: `packages/extension/manifest.json`
 
 **Step 1: Verify ya.ru is in host_permissions**
@@ -252,6 +265,7 @@ git commit -m "feat(extension): extend URL matching to include ya.ru feed pages"
 9. Verify: "Feed Page" frame with masonry grid of DC Feed library components
 
 **Known limitations for v1:**
+
 - No schema mappings yet (cards appear with default data, not filled)
 - No image loading (thumbnails empty)
 - Variant selection is deterministic (first in range)
@@ -261,12 +275,12 @@ git commit -m "feat(extension): extend URL matching to include ya.ru feed pages"
 
 ## Summary
 
-| Task | Package | What |
-|------|---------|------|
-| 1 | relay | sourceType + feedCards in payload types |
-| 2 | extension | Feed parser + page detection |
-| 3 | plugin UI | Route feed data to apply-feed-payload |
-| 4 | extension | URL matching for ya.ru |
-| 5 | all | End-to-end smoke test |
+| Task | Package   | What                                    |
+| ---- | --------- | --------------------------------------- |
+| 1    | relay     | sourceType + feedCards in payload types |
+| 2    | extension | Feed parser + page detection            |
+| 3    | plugin UI | Route feed data to apply-feed-payload   |
+| 4    | extension | URL matching for ya.ru                  |
+| 5    | all       | End-to-end smoke test                   |
 
 **Dependencies:** Task 1 → Task 2 → Task 3 (sequential). Task 4 is independent. Task 5 is last.

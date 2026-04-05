@@ -26,12 +26,14 @@ const BannerItem: React.FC<BannerItemProps> = memo(({ label, update, onDismiss }
   const isCritical = update.critical;
 
   return (
-    <div className={`update-banner ${isCritical ? 'update-banner--critical' : 'update-banner--warning'}`}>
+    <div
+      className={`update-banner ${isCritical ? 'update-banner--critical' : 'update-banner--warning'}`}
+    >
       <div className="update-banner-content">
         <span className="update-banner-icon">{isCritical ? '⚠' : '↑'}</span>
         <span className="update-banner-text">
-          {isCritical ? 'Требуется обновление' : 'Доступно обновление'}
-          {' '}{label}: {update.current} → {update.latest}
+          {isCritical ? 'Требуется обновление' : 'Доступно обновление'} {label}: {update.current} →{' '}
+          {update.latest}
         </span>
         <a
           className="update-banner-link"
@@ -62,32 +64,21 @@ const BannerItem: React.FC<BannerItemProps> = memo(({ label, update, onDismiss }
 
 BannerItem.displayName = 'BannerItem';
 
-export const UpdateBanner: React.FC<UpdateBannerProps> = memo(({
-  relayUpdate,
-  extensionUpdate,
-  onDismissRelay,
-  onDismissExtension,
-}) => {
-  if (!relayUpdate && !extensionUpdate) return null;
+export const UpdateBanner: React.FC<UpdateBannerProps> = memo(
+  ({ relayUpdate, extensionUpdate, onDismissRelay, onDismissExtension }) => {
+    if (!relayUpdate && !extensionUpdate) return null;
 
-  return (
-    <div className="update-banner-container">
-      {relayUpdate && (
-        <BannerItem
-          label="Relay"
-          update={relayUpdate}
-          onDismiss={onDismissRelay}
-        />
-      )}
-      {extensionUpdate && (
-        <BannerItem
-          label="Расширение"
-          update={extensionUpdate}
-          onDismiss={onDismissExtension}
-        />
-      )}
-    </div>
-  );
-});
+    return (
+      <div className="update-banner-container">
+        {relayUpdate && (
+          <BannerItem label="Relay" update={relayUpdate} onDismiss={onDismissRelay} />
+        )}
+        {extensionUpdate && (
+          <BannerItem label="Расширение" update={extensionUpdate} onDismiss={onDismissExtension} />
+        )}
+      </div>
+    );
+  },
+);
 
 UpdateBanner.displayName = 'UpdateBanner';

@@ -8,7 +8,7 @@ export {
   fetchWithRetry,
   convertImageToBase64,
   processCSVRows,
-  createSheetFromParsedData
+  createSheetFromParsedData,
 } from './network';
 
 // Plugin bridge utilities
@@ -16,20 +16,15 @@ export {
   log,
   sendMessageToPlugin,
   closePlugin,
-  shuffleArray
+  shuffleArray,
   // loadPagesList, loadSheetsList - not used, kept internal for future use
 } from './plugin-bridge';
 
 // DOM utilities
-export {
-  isInsideAdvProductGallery
-} from './dom-utils';
+export { isInsideAdvProductGallery } from './dom-utils';
 
 // Price extraction utilities
-export {
-  extractPrices,
-  formatPriceWithThinSpace
-} from './price-extractor';
+export { extractPrices, formatPriceWithThinSpace } from './price-extractor';
 export type { PriceResult } from './price-extractor';
 
 // Component properties cache (property lookup optimization)
@@ -40,7 +35,7 @@ export {
   validateVariantValue,
   resetComponentCache,
   logComponentCacheStats,
-  getCachedPropertyNames
+  getCachedPropertyNames,
 } from './component-cache';
 export type { PropertyMetadata, ComponentPropertyInfo } from './component-cache';
 
@@ -49,7 +44,7 @@ export {
   getSnippetType,
   detectPlatform,
   CONTAINER_SELECTORS,
-  ADV_SELECTORS
+  ADV_SELECTORS,
 } from './yandex-shared';
 
 // Layer search utilities
@@ -71,7 +66,7 @@ export type { ParsedRelayData } from './relay-payload';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function debounce<T extends (...args: any[]) => void>(
   fn: T,
-  delay: number
+  delay: number,
 ): (...args: Parameters<T>) => void {
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
 

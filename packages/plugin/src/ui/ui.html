@@ -1,57 +1,68 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), clipboard-write=(), display-capture=()">
-  <!-- Блокируем зум жестами и устанавливаем правильный вьюпорт -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Contentify</title>
-  <!-- Шрифт Inter — стандарт интерфейса Figma -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    /* Базовые стили до загрузки React и CSS-файла */
-    body { 
-      margin: 0; 
-      font-family: 'Inter', sans-serif; 
-      /* Используем CSS-переменные Figma для нативной темы сразу */
-      background-color: var(--figma-color-bg, #ffffff); 
-      color: var(--figma-color-text, #333333);
-      cursor: default;
-      user-select: none;
-    }
-    /* Initial splash mimics checking-view */
-    #loading-splash { 
-      display: flex; 
-      align-items: center; 
-      justify-content: center;
-      gap: 10px;
-      height: 56px;
-      padding: 8px 20px;
-      font-size: 11px; 
-      color: var(--figma-color-text-secondary, #888); 
-    }
-    #loading-splash .spinner {
-      width: 14px;
-      height: 14px;
-      border: 2px solid rgba(128, 128, 128, 0.2);
-      border-top-color: var(--figma-color-text-secondary, #888);
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-    }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-  </style>
-</head>
-<body>
-  <div id="react-page">
-    <!-- Initial splash matches checking-view layout -->
-    <div id="loading-splash">
-      <div class="spinner"></div>
-      <span>Подключение...</span>
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Permissions-Policy"
+      content="camera=(), microphone=(), clipboard-write=(), display-capture=()"
+    />
+    <!-- Блокируем зум жестами и устанавливаем правильный вьюпорт -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Contentify</title>
+    <!-- Шрифт Inter — стандарт интерфейса Figma -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      /* Базовые стили до загрузки React и CSS-файла */
+      body {
+        margin: 0;
+        font-family: 'Inter', sans-serif;
+        /* Используем CSS-переменные Figma для нативной темы сразу */
+        background-color: var(--figma-color-bg, #ffffff);
+        color: var(--figma-color-text, #333333);
+        cursor: default;
+        user-select: none;
+      }
+      /* Initial splash mimics checking-view */
+      #loading-splash {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        height: 56px;
+        padding: 8px 20px;
+        font-size: 11px;
+        color: var(--figma-color-text-secondary, #888);
+      }
+      #loading-splash .spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(128, 128, 128, 0.2);
+        border-top-color: var(--figma-color-text-secondary, #888);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="react-page">
+      <!-- Initial splash matches checking-view layout -->
+      <div id="loading-splash">
+        <div class="spinner"></div>
+        <span>Подключение...</span>
+      </div>
     </div>
-  </div>
-  <script src="ui.js"></script>
-</body>
+    <script src="ui.js"></script>
+  </body>
 </html>

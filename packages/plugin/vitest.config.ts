@@ -10,10 +10,9 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       include: ['src/sandbox/handlers/**/*.ts', 'src/types/**/*.ts'],
-      exclude: ['**/*.test.ts', '**/index.ts']
+      exclude: ['**/*.test.ts', '**/index.ts'],
     },
     // Мок Figma API загружается автоматически
-    setupFiles: ['./tests/setup.ts']
-  }
+    setupFiles: ['./tests/setup.ts'],
+  },
 });
-

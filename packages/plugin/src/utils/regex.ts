@@ -27,13 +27,18 @@ export const FAVICON_V2_URL_REGEX = /favicon\.yandex\.net\/favicon\/v2\/(.+)/i;
 export const FAVICON_HOST_REGEX = /\/favicon\/v2\/([^?/;]+)/;
 
 // CSS sprite rules
-export const SPRITE_URL_REGEX = /url\s*\(\s*["']?([^"')]*favicon\.yandex\.net\/favicon\/v2\/[^"')]+)["']?\s*\)/gi;
+export const SPRITE_URL_REGEX =
+  /url\s*\(\s*["']?([^"')]*favicon\.yandex\.net\/favicon\/v2\/[^"')]+)["']?\s*\)/gi;
 
 // Raw HTML sprite patterns
-export const RAW_HTML_SPRITE_HREF_REGEX = /href\s*=\s*["']([^"']*favicon\.yandex\.net\/favicon\/v2\/[^"']+)["']/gi;
-export const RAW_HTML_SPRITE_URL_REGEX = /url\s*\(\s*["']?([^"')]*favicon\.yandex\.net\/favicon\/v2\/[^"')]+)["']?\s*\)/gi;
-export const RAW_HTML_SPRITE_QUOTED_REGEX = /["']([^"']*favicon\.yandex\.net\/favicon\/v2\/[^"']+)["']/gi;
-export const RAW_HTML_SPRITE_PLAIN_REGEX = /(https?:\/\/[^\s"'>]*favicon\.yandex\.net\/favicon\/v2\/[^\s"'>]+)/gi;
+export const RAW_HTML_SPRITE_HREF_REGEX =
+  /href\s*=\s*["']([^"']*favicon\.yandex\.net\/favicon\/v2\/[^"']+)["']/gi;
+export const RAW_HTML_SPRITE_URL_REGEX =
+  /url\s*\(\s*["']?([^"')]*favicon\.yandex\.net\/favicon\/v2\/[^"')]+)["']?\s*\)/gi;
+export const RAW_HTML_SPRITE_QUOTED_REGEX =
+  /["']([^"']*favicon\.yandex\.net\/favicon\/v2\/[^"']+)["']/gi;
+export const RAW_HTML_SPRITE_PLAIN_REGEX =
+  /(https?:\/\/[^\s"'>]*favicon\.yandex\.net\/favicon\/v2\/[^\s"'>]+)/gi;
 export const QUERY_PARAMS_REGEX = /\?[^"')]+/;
 
 // Text/string cleanup
@@ -60,12 +65,14 @@ export const CURRENCY_USD_REGEX = /\$/i;
 export const CURRENCY_EUR_REGEX = /€/;
 // DISCOUNT_VALUE_REGEX требует наличие минуса ИЛИ процента, чтобы не захватить цену
 // Минусы: U+2212 (−), U+002D (-), U+2013 (–), U+2014 (—)
-export const DISCOUNT_VALUE_REGEX = /[\u2212\u002D\u2013\u2014]\s*([\d\s\u2009\u00A0,]+)\s*%?|([\d\s\u2009\u00A0,]+)\s*%/;
+export const DISCOUNT_VALUE_REGEX =
+  /[\u2212\u002D\u2013\u2014]\s*([\d\s\u2009\u00A0,]+)\s*%?|([\d\s\u2009\u00A0,]+)\s*%/;
 export const RATING_REGEX = /([\d,]+)/;
 export const REVIEWS_REGEX = /([\d\s,]+)\s*К?\s*(?:отзыв|review)/i;
 
 // JSON parsing from noframes
-export const NOFRAMES_JSON_REGEX = /<noframes[^>]*id=["']lazy-react-state-post-search["'][^>]*>([\s\S]*?)<\/noframes>/i;
+export const NOFRAMES_JSON_REGEX =
+  /<noframes[^>]*id=["']lazy-react-state-post-search["'][^>]*>([\s\S]*?)<\/noframes>/i;
 
 // Rating validation (should not start with minus signs)
 export const RATING_INVALID_START_REGEX = /^[\u2212\u002D\u2013\u2014]/;

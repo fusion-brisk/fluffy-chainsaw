@@ -16,7 +16,7 @@ export {
   DISCOUNT_VALUE_REGEX,
   RATING_REGEX,
   REVIEWS_REGEX,
-  RATING_INVALID_START_REGEX
+  RATING_INVALID_START_REGEX,
 } from './regex';
 
 /**
@@ -27,7 +27,7 @@ export {
 export const CONTAINER_SELECTORS = [
   'li.serp-item',
   'div.serp-item.serp-list__card',
-  '.main__carousel-item > .serp-item'
+  '.main__carousel-item > .serp-item',
 ];
 
 /**
@@ -39,7 +39,7 @@ export const ADV_SELECTORS = [
   '.AdvLabel',
   '.OrganicAdvLabel',
   '.AdvProductGallery',
-  '.AdvProductGalleryCard'
+  '.AdvProductGalleryCard',
 ];
 
 /**
@@ -56,10 +56,7 @@ export const ADV_SELECTORS = [
  * - extension/content.js → getSnippetType(container)
  * - src/utils/snippet-parser.ts → extractRowData()
  */
-export function getSnippetType(
-  className: string,
-  hasChild: (selector: string) => boolean
-): string {
+export function getSnippetType(className: string, hasChild: (selector: string) => boolean): string {
   // EOfferItem — оффер с ценой (проверяем ПЕРВЫМ, может быть вложен)
   if (className.includes('EOfferItem')) return 'EOfferItem';
 
@@ -81,20 +78,17 @@ export function getSnippetType(
   if (className.includes('ProductTile-Item')) return 'ProductTile-Item';
 
   // ESnippet — товарный сниппет (по классу или вложенным элементам)
-  if (className.includes('ESnippet') ||
-      hasChild('.ESnippet, .ESnippet-Title, .ESnippet-Price')) {
+  if (className.includes('ESnippet') || hasChild('.ESnippet, .ESnippet-Title, .ESnippet-Price')) {
     return 'ESnippet';
   }
 
   // Organic_Adv — промо-сниппет с AdvLabel
-  if (className.includes('Organic_withAdvLabel') ||
-      className.includes('Organic_withPromoOffer')) {
+  if (className.includes('Organic_withAdvLabel') || className.includes('Organic_withPromoOffer')) {
     return 'Organic_Adv';
   }
 
   // Промо по наличию AdvLabel внутри
-  if (className.includes('Organic') &&
-      hasChild('.AdvLabel, .OrganicAdvLabel')) {
+  if (className.includes('Organic') && hasChild('.AdvLabel, .OrganicAdvLabel')) {
     return 'Organic_Adv';
   }
 
