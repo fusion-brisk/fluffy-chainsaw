@@ -1,13 +1,13 @@
 {
   "relay": {
-    "latest": "2.5.1",
+    "latest": "2.6.0",
     "minimum": "2.5.0",
     "downloadUrl": "https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/Contentify-Installer.zip"
   },
   "extension": {
-    "latest": "2.5.1",
+    "latest": "2.6.0",
     "minimum": "1.4.0",
     "downloadUrl": "https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx"
   },
-  "releasedAt": "2026-04-02T18:57:12Z"
+  "releasedAt": "2026-04-05T10:56:29Z"
 }
