@@ -56,16 +56,17 @@ function findChildByName(node: SceneNode, name: string, maxDepth: number): Scene
 }
 
 /**
- * Find first RECTANGLE with a given name inside a subtree.
+ * Find first node with a given name that supports image fills.
+ * Matches any node type that has a `fills` property (RECTANGLE, FRAME, ELLIPSE, etc.).
  */
-function findRectByName(node: SceneNode, name: string, maxDepth: number): RectangleNode | null {
+function findFillableByName(node: SceneNode, name: string, maxDepth: number): SceneNode | null {
   if (maxDepth <= 0) return null;
-  if (node.type === 'RECTANGLE' && node.name === name) return node as RectangleNode;
+  if (node.name === name && 'fills' in node) return node;
   if (!('children' in node)) return null;
 
   const children = (node as ChildrenMixin).children;
   for (let i = 0; i < children.length; i++) {
-    const found = findRectByName(children[i], name, maxDepth - 1);
+    const found = findFillableByName(children[i], name, maxDepth - 1);
     if (found) return found;
   }
   return null;
@@ -149,12 +150,7 @@ function applyPrice(parent: SceneNode, card: FeedCardRow, label: string): void {
 function applyMarketData(instance: InstanceNode, card: FeedCardRow): void {
   applySource(instance, card);
   applyPrice(instance, card, 'market');
-
-  // Placeholder off when image is available
-  const hasImage = !!card['#Feed_ImageUrl'];
-  if (hasImage) {
-    setPropsOnChild(instance, 'Image', { 'Placeholder#4004:1': false }, 'market/thumb');
-  }
+  // Placeholder is turned off in applyImages (shared across all card types)
 }
 
 function applyVideoData(instance: InstanceNode, card: FeedCardRow): void {
@@ -167,9 +163,10 @@ function applyVideoData(instance: InstanceNode, card: FeedCardRow): void {
     applyPropToAnyChild(instance, 'Description#2984:0', description);
   }
 
-  // Product info
+  // Product info — only show Product section when there is a price
+  // (enabling it with only a title shows the component's default price)
   const productTitle = card['#Feed_Title'] || '';
-  const hasProduct = !!(card['#Feed_Price'] || productTitle);
+  const hasProduct = !!card['#Feed_Price'];
 
   // Find Tile / Media Content for Product toggle
   const tile = findChildInstance(instance, 'Tile / Media Content', 4);
@@ -196,11 +193,7 @@ function applyVideoData(instance: InstanceNode, card: FeedCardRow): void {
     }
   }
 
-  // Placeholder off when image is available
-  const hasImage = !!card['#Feed_ImageUrl'];
-  if (hasImage) {
-    setPropsOnChild(instance, 'Image', { 'Placeholder#4004:1': false }, 'video/thumb');
-  }
+  // Placeholder is turned off in applyImages (shared across all card types)
 }
 
 function applyPostData(instance: InstanceNode, card: FeedCardRow): void {
@@ -215,11 +208,7 @@ function applyAdsData(instance: InstanceNode, card: FeedCardRow): void {
     applyPropToAnyChild(instance, 'Description#2984:0', title);
   }
 
-  // Placeholder
-  const hasImage = !!card['#Feed_ImageUrl'];
-  if (hasImage) {
-    setPropsOnChild(instance, 'Image', { 'Placeholder#4004:1': false }, 'ads/thumb');
-  }
+  // Placeholder is turned off in applyImages (shared across all card types)
 }
 
 /**
@@ -255,36 +244,127 @@ function applyPropToAnyChild(node: SceneNode, propKey: string, value: string): v
  * Apply images (thumbnail + source avatar) to a feed card instance.
  * Returns a Promise chain (ES5-safe).
  */
-function applyImages(instance: InstanceNode, card: FeedCardRow): Promise<void> {
+function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: string): Promise<void> {
   const imageUrl = card['#Feed_ImageUrl'] || '';
   const avatarUrl = card['#Feed_SourceAvatarUrl'] || '';
   let chain = Promise.resolve();
 
-  // Main image — find "Img" RECTANGLE inside "Thumb"
+  // Main image — path: instance > ... > Thumb > Image (INSTANCE) > Img (fill target)
   if (imageUrl) {
     chain = chain.then(function () {
-      const thumbFrame = findChildByName(instance, 'Thumb', 4);
-      if (!thumbFrame) {
-        Logger.debug('[FeedApplicator] Thumb not found');
+      // Debug: dump tree to find Image and Img
+      var debugPath: string[] = [];
+      function dumpTree(n: SceneNode, depth: number, prefix: string): void {
+        if (depth > 6) return;
+        var info = prefix + n.name + ' [' + n.type + ']' + ('fills' in n ? ' +fills' : '');
+        debugPath.push(info);
+        if ('children' in n) {
+          var ch = (n as ChildrenMixin).children;
+          for (var ci = 0; ci < ch.length; ci++) {
+            dumpTree(ch[ci], depth + 1, prefix + '  ');
+          }
+        }
+      }
+      // Dump from Thumb level
+      var thumbForDebug = findChildByName(instance, 'Thumb', 8);
+      if (thumbForDebug) {
+        dumpTree(thumbForDebug, 0, '');
+        Logger.info('[FeedApplicator] Tree from Thumb:\n' + debugPath.join('\n'));
+      } else {
+        Logger.info(
+          '[FeedApplicator] Thumb NOT FOUND in ' + instance.name + ' (type=' + instance.type + ')',
+        );
+      }
+
+      // Step 1: Find Image instance
+      var imageInst = findChildInstance(instance, 'Image', 8);
+
+      // Step 2: Set props on Image
+      if (imageInst) {
+        var imageProps: Record<string, string | boolean> = { 'Placeholder#4004:1': false };
+        var ratio = card['#Feed_ImageRatio'];
+        if (ratio) {
+          imageProps['Ratio'] = ratio;
+        }
+        try {
+          imageInst.setProperties(imageProps);
+        } catch (e) {
+          Logger.debug(
+            '[FeedApplicator] Image setProperties: ' + (e instanceof Error ? e.message : String(e)),
+          );
+        }
+      }
+
+      // Step 3: Find Img — try multiple paths
+      var imgNode: SceneNode | null = null;
+
+      // Path A: inside Image instance
+      if (imageInst) {
+        imgNode = findFillableByName(imageInst, 'Img', 4);
+        Logger.info(
+          '[FeedApplicator] Path A (Image>Img): ' +
+            (imgNode ? imgNode.type + ' id=' + imgNode.id : 'NOT FOUND'),
+        );
+      }
+
+      // Path B: inside Thumb
+      if (!imgNode && thumbForDebug) {
+        imgNode = findFillableByName(thumbForDebug, 'Img', 6);
+        Logger.info(
+          '[FeedApplicator] Path B (Thumb>Img): ' +
+            (imgNode ? imgNode.type + ' id=' + imgNode.id : 'NOT FOUND'),
+        );
+      }
+
+      // Path C: any child named Img from root
+      if (!imgNode) {
+        imgNode = findFillableByName(instance, 'Img', 10);
+        Logger.info(
+          '[FeedApplicator] Path C (root>Img): ' +
+            (imgNode ? imgNode.type + ' id=' + imgNode.id : 'NOT FOUND'),
+        );
+      }
+
+      if (!imgNode) {
+        Logger.info('[FeedApplicator] ❌ Img not found anywhere in ' + instance.name);
         return;
       }
-      const imgRect = findRectByName(thumbFrame, 'Img', 4);
-      if (!imgRect) {
-        Logger.debug('[FeedApplicator] Img rect not found in Thumb');
-        return;
-      }
-      return fetchAndApplyImage(imgRect, imageUrl, 'FILL', '[Feed/thumb]').then(function () {});
+
+      Logger.info(
+        '[FeedApplicator] ✅ Applying image to ' +
+          imgNode.name +
+          ' type=' +
+          imgNode.type +
+          ' url=' +
+          imageUrl.substring(0, 60),
+      );
+      return fetchAndApplyImage(imgNode, imageUrl, 'FILL', '[Feed/thumb]', relayUrl).then(
+        function (ok) {
+          Logger.info('[FeedApplicator] fetchAndApplyImage result: ' + ok);
+        },
+      );
     });
   }
 
-  // Source avatar — find "Img" RECTANGLE inside "Source Feed / Icon"
+  // Source avatar — find "Img" inside "Source Feed / Icon"
   if (avatarUrl) {
     chain = chain.then(function () {
-      const sourceIcon = findChildByName(instance, 'Source Feed / Icon', 6);
-      if (!sourceIcon) return;
-      const imgRect = findRectByName(sourceIcon, 'Img', 3);
-      if (!imgRect) return;
-      return fetchAndApplyImage(imgRect, avatarUrl, 'FILL', '[Feed/avatar]').then(function () {});
+      const sourceIcon = findChildByName(instance, 'Source Feed / Icon', 8);
+      if (!sourceIcon) {
+        Logger.debug('[FeedApplicator] Source Feed / Icon not found in ' + instance.name);
+        return;
+      }
+      const imgNode = findFillableByName(sourceIcon, 'Img', 4);
+      if (!imgNode) return;
+      // Hide "Placeholder" child layer inside Source Feed / Icon
+      // (this component doesn't expose Placeholder as a property — it's a direct child)
+      var placeholder = findChildByName(sourceIcon, 'Placeholder', 2);
+      if (placeholder) {
+        placeholder.visible = false;
+      }
+      return fetchAndApplyImage(imgNode, avatarUrl, 'FILL', '[Feed/avatar]', relayUrl).then(
+        function () {},
+      );
     });
   }
 
@@ -348,7 +428,11 @@ function applyMarketDescription(instance: InstanceNode, card: FeedCardRow): Prom
  * @param instance  The feed card instance (already created)
  * @param card      Parsed feed card data from extension
  */
-export function applyFeedData(instance: InstanceNode, card: FeedCardRow): Promise<void> {
+export function applyFeedData(
+  instance: InstanceNode,
+  card: FeedCardRow,
+  relayUrl?: string,
+): Promise<void> {
   const cardType = card['#Feed_CardType'] || '';
   Logger.debug(
     '[FeedApplicator] Applying data: type=' +
@@ -376,8 +460,8 @@ export function applyFeedData(instance: InstanceNode, card: FeedCardRow): Promis
       Logger.debug('[FeedApplicator] Unknown card type: ' + cardType);
   }
 
-  // Step 2: Apply images (async)
-  let chain = applyImages(instance, card);
+  // Step 2: Apply images (async) — pass relayUrl for CORS-blocked proxy fallback
+  let chain = applyImages(instance, card, relayUrl);
 
   // Step 3: Market description (direct text edit, needs font loading)
   if (cardType === 'market') {

@@ -86,6 +86,7 @@ export async function fetchAndApplyImage(
   url: string,
   scaleMode?: 'FIT' | 'FILL' | 'CROP' | 'TILE',
   logPrefix?: string,
+  proxyBaseUrl?: string,
 ): Promise<boolean> {
   const mode = scaleMode || 'FIT';
   const prefix = logPrefix || '[fetchAndApplyImage]';
@@ -143,16 +144,44 @@ export async function fetchAndApplyImage(
       return false;
     }
 
-    // Fetch image (with timeout to prevent pipeline stalls)
-    const response = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
-    if (!response.ok) {
-      Logger.debug(prefix + ' HTTP ' + response.status + ' for ' + normalizedUrl.substring(0, 60));
-      return false;
+    // Fetch image — try direct first, fallback to relay proxy (for CORS-blocked URLs)
+    var arrayBuffer: ArrayBuffer | null = null;
+
+    try {
+      var directRes = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
+      if (directRes.ok) {
+        arrayBuffer = await directRes.arrayBuffer();
+      } else {
+        Logger.debug(prefix + ' Direct HTTP ' + directRes.status + ', trying proxy');
+      }
+    } catch (directErr) {
+      Logger.debug(prefix + ' Direct fetch failed, trying proxy');
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    if (arrayBuffer.byteLength === 0) {
-      Logger.debug(prefix + ' Empty response for ' + normalizedUrl.substring(0, 60));
+    // Fallback: relay image-proxy (handles CORS-blocked CDNs like get-inspire)
+    if ((!arrayBuffer || arrayBuffer.byteLength === 0) && proxyBaseUrl) {
+      try {
+        var proxyUrl = proxyBaseUrl + '/image-proxy?url=' + encodeURIComponent(normalizedUrl);
+        var proxyRes = await withTimeout(fetch(proxyUrl), IMAGE_FETCH_TIMEOUT);
+        if (proxyRes.ok) {
+          arrayBuffer = await proxyRes.arrayBuffer();
+          Logger.debug(
+            prefix + ' Proxy OK, ' + (arrayBuffer ? arrayBuffer.byteLength : 0) + ' bytes',
+          );
+        } else {
+          Logger.debug(prefix + ' Proxy HTTP ' + proxyRes.status);
+        }
+      } catch (proxyErr) {
+        Logger.debug(
+          prefix +
+            ' Proxy failed: ' +
+            (proxyErr instanceof Error ? proxyErr.message : String(proxyErr)),
+        );
+      }
+    }
+
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      Logger.debug(prefix + ' No image data for ' + normalizedUrl.substring(0, 60));
       return false;
     }
 

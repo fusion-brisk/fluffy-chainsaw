@@ -359,7 +359,11 @@ const SCROLL_SETTLE_MS = 500; // Wait for lazy-load + respect captureVisibleTab 
  * Resizes viewport to match Figma layout width and hides sticky header / technical UI.
  * Returns { screenshots: [dataUrl, ...], totalHeight, viewportHeight, viewportWidth, devicePixelRatio }
  */
-async function captureFullPage(tabId: number, platform: string): Promise<ScreenshotResult> {
+async function captureFullPage(
+  tabId: number,
+  platform: string,
+  maxContentHeight?: number,
+): Promise<ScreenshotResult> {
   const targetWidth = platform === 'touch' ? 393 : 1440;
 
   // --- Resize window to match Figma layout width ---
@@ -438,17 +442,20 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
   });
 
   // Measure how much content shifted up after hiding header
-  const [{ result: newScrollHeight }] = await chrome.scripting.executeScript({
+  const [{ result: rawNewScrollHeight }] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => document.documentElement.scrollHeight,
   });
-  const headerOffset = scrollHeight - (newScrollHeight as number);
+  const headerOffset = scrollHeight - (rawNewScrollHeight as number);
+
+  // Clamp to maxContentHeight if provided (feed pages — only capture rendered cards)
+  const effectiveScrollHeight = maxContentHeight
+    ? Math.min(rawNewScrollHeight as number, maxContentHeight - headerOffset)
+    : (rawNewScrollHeight as number);
 
   // Remaining segments: adjust scroll to account for hidden header
   const remainingCount = Math.min(
-    Math.ceil(
-      Math.max(0, (newScrollHeight as number) - (innerHeight - headerOffset)) / innerHeight,
-    ),
+    Math.ceil(Math.max(0, effectiveScrollHeight - (innerHeight - headerOffset)) / innerHeight),
     MAX_CAPTURES - 1,
   );
 
@@ -487,7 +494,7 @@ async function captureFullPage(tabId: number, platform: string): Promise<Screens
 
   return {
     screenshots,
-    totalHeight: scrollHeight,
+    totalHeight: maxContentHeight ? Math.min(scrollHeight, maxContentHeight) : scrollHeight,
     viewportHeight: innerHeight,
     viewportWidth: innerWidth,
     devicePixelRatio,
@@ -562,15 +569,45 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     const wizards = parseResult.wizards || [];
     const productCard = parseResult.productCard || null;
 
-    // Capture full-page screenshot (scroll + capture loop)
-    // Skip for feed pages (masonry layout) and when user disabled screenshots
+    // Capture screenshot
     let screenshots: string[] = [];
     let screenshotMeta: Record<string, unknown> | null = null;
     const { captureScreenshots = true } = await chrome.storage.local.get('captureScreenshots');
-    if (!isFeed && captureScreenshots) {
-      const platform = rows.find((r) => r['#platform'])?.['#platform'] || 'desktop';
+    if (captureScreenshots) {
+      const platform = isFeed
+        ? 'desktop'
+        : rows.find((r) => r['#platform'])?.['#platform'] || 'desktop';
+
+      // Feed: measure rendered content height and use as scroll limit
+      let maxContentHeight: number | undefined;
+      if (isFeed) {
+        try {
+          const [{ result: feedHeight }] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id! },
+            func: () => {
+              const feed = document.querySelector('[class*="masonry-feed--rythm-feed"]');
+              if (!feed) return 0;
+              const items = feed.querySelectorAll('[class*="masonry-feed__item--rythm-feed"]');
+              let maxBottom = 0;
+              items.forEach((item) => {
+                // Skip skeleton/placeholder cards
+                if (item.querySelector('[data-test-id="skeleton-card"]')) return;
+                const rect = item.getBoundingClientRect();
+                const absBottom = rect.bottom + window.scrollY;
+                if (absBottom > maxBottom) maxBottom = absBottom;
+              });
+              return Math.ceil(maxBottom);
+            },
+          });
+          maxContentHeight = (feedHeight as number) || undefined;
+          console.log(`[Screenshot] Feed rendered content height: ${maxContentHeight}px`);
+        } catch (e: unknown) {
+          console.log('[Screenshot] Feed height measurement failed:', (e as Error).message);
+        }
+      }
+
       try {
-        const result = await captureFullPage(tab.id!, platform);
+        const result = await captureFullPage(tab.id!, platform, maxContentHeight);
         screenshots = result.screenshots;
         screenshotMeta = {
           totalHeight: result.totalHeight,
@@ -602,7 +639,11 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       payload.rawRows = rows;
       payload.wizards = wizards;
       payload.productCard = productCard;
-      if (screenshots.length > 0) payload.screenshots = screenshots;
+    }
+
+    // Screenshots — common for both SERP and feed
+    if (screenshots.length > 0) {
+      payload.screenshots = screenshots;
       if (screenshotMeta) payload.screenshotMeta = screenshotMeta;
     }
 

@@ -35,6 +35,7 @@ import debugLogRoutes from './routes/debug-log';
 import comparisonRoutes from './routes/comparison';
 import versionsRoutes from './routes/versions';
 import buildHashRoutes from './routes/build-hash';
+import imageProxyRoutes from './routes/image-proxy';
 import { getQueue } from './queue';
 
 const app = express();
@@ -63,6 +64,7 @@ app.use(resultRoutes);
 app.use(screenshotRoutes);
 app.use(healthRoutes);
 app.use(buildHashRoutes);
+app.use(imageProxyRoutes);
 app.use(updateRoutes);
 app.use(debugRoutes);
 app.use(debugLogRoutes);

@@ -35,7 +35,8 @@ const SEL = {
   productsPreview: '[class*="post-products-preview"]',
 
   // --- Данные карточки ---
-  cardImage: '[class*="card-content__image--rythm-feed"] img, [class*="card-content__image--rythm-feed"]',
+  cardImage:
+    '[class*="card-content__image--rythm-feed"] img, [class*="card-content__image--rythm-feed"]',
   cardTitle: '[class*="card-actions__description--rythm-feed"]',
 
   // --- Product info ---
@@ -149,6 +150,34 @@ function extractPrice(text: string): string {
   return digits || '';
 }
 
+/**
+ * Get clean price text from a price container.
+ * Prefers .Price-Value (clean formatted text) over parent container
+ * which may include doubled accessibility-hidden text.
+ */
+function getPriceText(parent: Element, selector: string): string {
+  const container = parent.querySelector(selector);
+  if (!container) return '';
+  // Try leaf-level .Price-Value first (avoids "222600 ₽222 600 ₽" duplication)
+  var leaf = container.querySelector('.Price-Value');
+  if (leaf) return leaf.textContent?.trim() || '';
+  return container.textContent?.trim() || '';
+}
+
+/**
+ * Map image natural dimensions to closest standard Figma ratio value.
+ * Component "Image Ratio" accepts: '1:1', '3:4', '4:3', '9:16', '16:9'
+ */
+function detectRatio(width: number, height: number): string {
+  var r = width / height;
+  // Sorted by distance from common ratios
+  if (r >= 1.5) return '16:9'; // >= 1.5 → landscape
+  if (r >= 1.1) return '4:3'; // 1.1–1.5 → slightly wide
+  if (r >= 0.85) return '1:1'; // 0.85–1.1 → square-ish
+  if (r >= 0.6) return '3:4'; // 0.6–0.85 → portrait
+  return '9:16'; // < 0.6 → tall portrait (video)
+}
+
 // ============================================================================
 // CARD PARSERS
 // ============================================================================
@@ -163,7 +192,15 @@ function parseMarketCard(element: Element, index: number): FeedCardRow {
 
   row['#Feed_ImageUrl'] = getImageUrl(element, SEL.marketImage);
 
-  var titleEl = element.querySelector('.EcomFeedMarketCard-Title') || element.querySelector('.EcomFeedMarketCard h3 a');
+  // Detect image ratio from natural dimensions
+  var marketImg = element.querySelector('.EcomFeedMarketCard img') as HTMLImageElement | null;
+  if (marketImg && marketImg.naturalWidth && marketImg.naturalHeight) {
+    row['#Feed_ImageRatio'] = detectRatio(marketImg.naturalWidth, marketImg.naturalHeight);
+  }
+
+  var titleEl =
+    element.querySelector('.EcomFeedMarketCard-Title') ||
+    element.querySelector('.EcomFeedMarketCard h3 a');
   row['#Feed_Title'] = titleEl?.textContent?.trim() || '';
 
   row['#Feed_SourceName'] = 'Яндекс Маркет';
@@ -207,6 +244,15 @@ function parsePostCard(element: Element, index: number): FeedCardRow {
 
   row['#Feed_ImageUrl'] = getImageUrl(element, SEL.cardImage);
 
+  // Detect image ratio from natural dimensions
+  var contentImg = element.querySelector(SEL.cardImage) as HTMLImageElement | null;
+  if (contentImg && contentImg.tagName !== 'IMG') {
+    contentImg = contentImg.querySelector('img') as HTMLImageElement | null;
+  }
+  if (contentImg && contentImg.naturalWidth && contentImg.naturalHeight) {
+    row['#Feed_ImageRatio'] = detectRatio(contentImg.naturalWidth, contentImg.naturalHeight);
+  }
+
   const dots = element.querySelectorAll('[class*="Dot"]');
   if (dots.length > 1) {
     row['#Feed_CarouselCount'] = String(dots.length);
@@ -215,7 +261,7 @@ function parsePostCard(element: Element, index: number): FeedCardRow {
   const sliderImages = element.querySelectorAll('.EcomFeedSlider img');
   if (sliderImages.length > 0) {
     const urls = Array.from(sliderImages)
-      .map(img => (img as HTMLImageElement).src)
+      .map((img) => (img as HTMLImageElement).src)
       .filter(Boolean);
     if (urls.length > 0) {
       row['#Feed_CarouselImages'] = JSON.stringify(urls);
@@ -224,7 +270,7 @@ function parsePostCard(element: Element, index: number): FeedCardRow {
 
   row['#Feed_Title'] = getText(element, SEL.cardTitle);
 
-  const priceText = getText(element, SEL.price);
+  const priceText = getPriceText(element, SEL.price);
   if (priceText) {
     row['#Feed_Price'] = extractPrice(priceText);
     row['#Feed_Currency'] = '₽';
@@ -242,8 +288,12 @@ function parsePostCard(element: Element, index: number): FeedCardRow {
 
   const sourceEl = element.querySelector(SEL.source);
   if (sourceEl) {
-    row['#Feed_SourceName'] = getText(element, '.EcomFeedCardSource-Name') || getText(element, SEL.source + ' a');
-    row['#Feed_SourceAvatarUrl'] = getImageUrl(element, '.EcomFeedCardSource-Avatar, ' + SEL.source + ' img');
+    row['#Feed_SourceName'] =
+      getText(element, '.EcomFeedCardSource-Name') || getText(element, SEL.source + ' a');
+    row['#Feed_SourceAvatarUrl'] = getImageUrl(
+      element,
+      '.EcomFeedCardSource-Avatar, ' + SEL.source + ' img',
+    );
     var sourceDomain = sourceEl.getAttribute('href') || '';
     if (sourceDomain) {
       var domainMatch = sourceDomain.match(/businesses\/@([^?]+)/);
@@ -286,9 +336,12 @@ function parseAdvertCard(element: Element, index: number): FeedCardRow {
 
   const sourceText = getText(element, '[class*="card-actions__info"]');
   if (sourceText) {
-    const lines = sourceText.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = sourceText
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
     row['#Feed_SourceDomain'] = lines[0] || '';
-    row['#Feed_SourceLabel'] = lines.find(l => l === 'Реклама') || 'Реклама';
+    row['#Feed_SourceLabel'] = lines.find((l) => l === 'Реклама') || 'Реклама';
     row['#Feed_SourceName'] = lines[0] || '';
   }
 
@@ -348,11 +401,12 @@ export function extractFeedCards(root: Document | Element = document): FeedCardR
     rows.push(row);
   });
 
-  console.log(`[Contentify Feed] Extracted ${rows.length} cards:`,
+  console.log(
+    `[Contentify Feed] Extracted ${rows.length} cards:`,
     rows.reduce((acc: Record<string, number>, r) => {
       acc[r['#Feed_CardType']] = (acc[r['#Feed_CardType']] || 0) + 1;
       return acc;
-    }, {})
+    }, {}),
   );
 
   return rows;

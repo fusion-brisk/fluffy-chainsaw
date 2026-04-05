@@ -28,6 +28,7 @@ export interface FeedPageOptions {
   platform?: FeedPlatform;
   frameName?: string;
   masonry?: Partial<FeedMasonryConfig>;
+  relayUrl?: string;
 }
 
 export interface FeedPageResult {
@@ -112,6 +113,7 @@ export function createFeedPage(
   const platform: FeedPlatform = options && options.platform ? options.platform : 'desktop';
   const frameName: string = options && options.frameName ? options.frameName : 'Feed Page';
   const masonryOverrides = options && options.masonry;
+  const relayUrl = options && options.relayUrl;
   const config = buildMasonryConfig(platform, masonryOverrides);
 
   const errors: string[] = [];
@@ -129,6 +131,12 @@ export function createFeedPage(
         chain = chain.then(function () {
           const card = cards[idx];
           const cardType = card['#Feed_CardType'] || 'unknown';
+
+          // Skip advert cards with no content (RTB iframes are empty in DOM)
+          if (cardType === 'advert' && !card['#Feed_Title'] && !card['#Feed_ImageUrl']) {
+            Logger.debug('[FeedPageCreator] Skipping empty advert card ' + idx);
+            return;
+          }
           postProgress(
             idx + 1,
             total,
@@ -140,7 +148,7 @@ export function createFeedPage(
               if (component) {
                 const instance = component.createInstance();
                 resizeToColumnWidth(instance, config.columnWidth);
-                return applyFeedData(instance, card).then(function () {
+                return applyFeedData(instance, card, relayUrl).then(function () {
                   results.push({ instance: instance, index: idx });
                 });
               } else {

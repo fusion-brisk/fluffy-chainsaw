@@ -535,6 +535,7 @@ figma.ui.onmessage = async (msg) => {
       try {
         const feedResult = await createFeedPage(feedCards, {
           platform: feedPayload.platform || 'desktop',
+          relayUrl: RELAY_URL,
         });
 
         figma.ui.postMessage({
@@ -560,7 +561,13 @@ figma.ui.onmessage = async (msg) => {
             '✅ Feed "' + feedResult.frame.name + '": ' + feedResult.createdCount + ' карточек',
           );
 
-          // No secondary async ops for feed — signal immediately
+          // Place screenshot next to feed frame (same as SERP pipeline)
+          try {
+            await placeScreenshotSegments(feedResult.frame, feedPayload.platform || 'ya.ru feed');
+          } catch (err) {
+            Logger.error('Feed screenshot placement failed:', err);
+          }
+
           figma.ui.postMessage({ type: 'all-operations-complete' });
         } else {
           const feedErrorMsg =

@@ -522,6 +522,7 @@ async function renderStructureNode(
       containerFrame.fills = [];
       wrapper.appendChild(containerFrame);
       containerFrame.layoutSizingHorizontal = 'FILL';
+      containerFrame.layoutSizingVertical = 'HUG';
 
       // Create column frames
       const columnFrames: FrameNode[] = [];
@@ -536,6 +537,7 @@ async function renderStructureNode(
         colFrame.fills = [];
         containerFrame.appendChild(colFrame);
         colFrame.layoutSizingHorizontal = 'FILL';
+        colFrame.layoutSizingVertical = 'HUG';
         columnFrames.push(colFrame);
       }
 
@@ -679,6 +681,7 @@ async function renderStructureNode(
       const containerFrame = createContainerFrame(containerConfig);
       wrapper.appendChild(containerFrame);
       containerFrame.layoutSizingHorizontal = 'FILL';
+      containerFrame.layoutSizingVertical = 'HUG';
 
       // Рендерим дочерние узлы
       if (node.children) {
