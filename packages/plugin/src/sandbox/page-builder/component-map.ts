@@ -134,10 +134,8 @@ export const VARIABLE_KEYS = {
 /**
  * Маппинг типов сниппетов на конфигурацию компонентов
  *
- * TODO(2026-03): Fill with real component keys from DC • ECOM library
- * Ключи можно получить:
- * 1. Через Dev Console в Figma (см. scripts/get-component-keys.js)
- * 2. Из URL компонента (Copy link → node-id=XXX:YYY)
+ * Keys sourced from DC • Ecom and DC • Cubes libraries via Figma MCP (2026-04-05).
+ * To re-fetch: search_design_system → importComponentSetByKeyAsync → variant.key
  */
 /**
  * Node IDs компонентов в библиотеке DC • ECOM (секция Organisms)
@@ -173,7 +171,7 @@ export const COMPONENT_NODE_IDS = {
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
   ESnippet: {
     key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Platform=Desktop
-    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91', // Platform=Touch — TODO: update key
+    keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91', // Platform=Touch, image=single
     name: 'ESnippet',
     defaultVariant: {
       Platform: 'Desktop',
@@ -293,7 +291,8 @@ export const LAYOUT_COMPONENT_MAP: Record<LayoutElementType, ComponentConfig> = 
   },
 
   Footer: {
-    key: '', // TODO(2026-03): Update Footer component key
+    key: '613e88ddf7078ead49e2573bae4929880bf3e770', // Block / Footer, Platform=Desktop (DC Cubes)
+    keyTouch: 'b9a5b3a68ea666aae0cb1b0c6f27500fda95d0b6', // Block / Footer, Platform=Touch (DC Cubes)
     name: 'Footer',
     defaultVariant: {
       Platform: 'Desktop',

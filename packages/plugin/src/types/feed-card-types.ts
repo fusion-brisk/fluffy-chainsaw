@@ -230,8 +230,7 @@ export const FEED_BOOLEAN_FIELDS: (keyof FeedCardFields)[] = [
  *   Ads Ex:      5868:71590
  *   Products:    5618:44663
  *
- * TODO: заполнить реальные component keys через Figma REST API
- *       GET /v1/files/{fileKey}/components
+ * Keys filled in feed-component-map.ts (FEED_COMPONENT_SET_KEYS).
  */
 export interface FeedComponentVariant {
   /** Figma component key (для importComponentByKeyAsync) */
