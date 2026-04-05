@@ -1,6 +1,7 @@
 # Dead Code Audit Plan
 
 ## Scope
+
 Monorepo: plugin, extension, relay. Code, dependencies, docs, build artifacts.
 
 ## Phase 1 — Unused Source Files (verify & delete)
@@ -10,35 +11,38 @@ Monorepo: plugin, extension, relay. Code, dependencies, docs, build artifacts.
 Each file below needs **grep confirmation** that it's truly unreferenced before deletion.
 
 ### Plugin UI components (5 files)
-| File | Status | Notes |
-|------|--------|-------|
-| `src/ui/components/BackButton.tsx` | ✅ deleted | not imported in any .tsx |
-| `src/ui/components/Icons.tsx` | ✅ deleted | confirmed no imports |
-| `src/ui/components/OnboardingHint.tsx` | ✅ deleted | not imported |
-| `src/ui/components/StatusBar.tsx` | ✅ deleted | replaced by CompactStrip |
+
+| File                                   | Status     | Notes                            |
+| -------------------------------------- | ---------- | -------------------------------- |
+| `src/ui/components/BackButton.tsx`     | ✅ deleted | not imported in any .tsx         |
+| `src/ui/components/Icons.tsx`          | ✅ deleted | confirmed no imports             |
+| `src/ui/components/OnboardingHint.tsx` | ✅ deleted | not imported                     |
+| `src/ui/components/StatusBar.tsx`      | ✅ deleted | replaced by CompactStrip         |
 | `src/ui/components/WhatsNewBanner.tsx` | ✅ deleted | WhatsNewDialog exists separately |
 
 ### Plugin utils (2 files)
-| File | Status | Notes |
-|------|--------|-------|
-| `src/utils/notifications.ts` | ✅ deleted | Browser Notifications API, not used in Figma sandbox |
-| `src/sandbox/text-handlers.ts` | ✅ deleted | loadFonts/trySetVariantProperty not called |
+
+| File                           | Status     | Notes                                                |
+| ------------------------------ | ---------- | ---------------------------------------------------- |
+| `src/utils/notifications.ts`   | ✅ deleted | Browser Notifications API, not used in Figma sandbox |
+| `src/sandbox/text-handlers.ts` | ✅ deleted | loadFonts/trySetVariantProperty not called           |
 
 ### Extension (1 file)
-| File | Status | Notes |
-|------|--------|-------|
+
+| File                 | Status     | Notes                                             |
+| -------------------- | ---------- | ------------------------------------------------- |
 | `src/feed-parser.ts` | ✅ deleted | not in manifest entry points, no indirect imports |
 
 ## Phase 2 — Unused Dependencies (verify & remove)
 
 **Status: COMPLETED** — all 4 packages removed.
 
-| Package | Workspace | Action |
-|---------|-----------|--------|
-| `canvas` | plugin | ✅ removed |
-| `icojs` | plugin | ✅ removed |
-| `papaparse` | plugin | ✅ removed (CSV → JSON-only) |
-| `uuid` | relay | ✅ removed |
+| Package     | Workspace | Action                       |
+| ----------- | --------- | ---------------------------- |
+| `canvas`    | plugin    | ✅ removed                   |
+| `icojs`     | plugin    | ✅ removed                   |
+| `papaparse` | plugin    | ✅ removed (CSV → JSON-only) |
+| `uuid`      | relay     | ✅ removed                   |
 
 After verification: `npm uninstall <pkg> -w packages/<ws>`
 
@@ -55,26 +59,29 @@ Action: delete all `ui-*.html` except `ui-embedded.html`. Add to `.gitignore` if
 
 **Status: COMPLETED** — commit `a4895e2` (2026-04-05).
 
-| Path | Content | Action |
-|------|---------|--------|
-| `/src/` (root) | empty | ✅ deleted |
-| `/examples/` | only .DS_Store | ✅ deleted |
-| `/shared/` | only README.md | ✅ deleted (stub placeholder) |
+| Path           | Content        | Action                        |
+| -------------- | -------------- | ----------------------------- |
+| `/src/` (root) | empty          | ✅ deleted                    |
+| `/examples/`   | only .DS_Store | ✅ deleted                    |
+| `/shared/`     | only README.md | ✅ deleted (stub placeholder) |
 
 ## Phase 5 — Docs Audit
 
 **Status: COMPLETED** — commit `a4895e2` (2026-04-05).
 
 Remaining tracked docs (18 files) were all verified as live:
+
 - All are referenced from `docs/README.md`, `docs/ARCHITECTURE.md`, or source code.
 - `docs/VALIDATION-AGENT-PROMPT.md` and `docs/WIZARD_AGENT_PROMPT.md` — linked from `docs/README.md`, actively used as agent prompts.
 - `docs/COVERAGE.md` — in `.gitignore`, auto-generated, not tracked.
 
 Deleted in commit `a4895e2`:
+
 - `docs/UI_REFACTOR_PLAN_v2.md` — superseded by v3 design doc
 - `docs/plans/` — 9 archived implementation plans (all completed work)
 
 Spec candidates that were already gone before audit (removed in earlier sessions):
+
 - `docs/UI_REFACTOR_PLAN.md` (original v1) — gone
 - `docs/ESNIPPET_*.md` (3 files) — gone
 - `docs/DOCS_AUDIT.md` — gone
@@ -84,6 +91,7 @@ Spec candidates that were already gone before audit (removed in earlier sessions
 **Status: COMPLETED** — commit `a4895e2` confirmed `native-host/` absent from git tree. Directory was removed in an earlier session as superseded by `tools/Contentify Installer.app`.
 
 This appears to be a legacy pre-relay macOS app. Check:
+
 - Is `native-host/Contentify Relay.app/` still referenced anywhere?
 - Does `install-macos.sh` duplicate `tools/install-relay.sh`?
 - If superseded by `tools/Contentify Installer.app`, consider deleting entire dir.
