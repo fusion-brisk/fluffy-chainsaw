@@ -83,6 +83,10 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     }, []);
 
     const goToStep = useCallback((stepIndex: number) => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
       setAutoSkipMessage(null);
       setCurrentStep(stepIndex);
     }, []);
@@ -176,7 +180,12 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
             </div>
           ) : (
             <>
-              <button type="button" className="btn-primary" onClick={handleDownloadRelay}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleDownloadRelay}
+                aria-label="Скачать установщик Relay"
+              >
                 Скачать установщик
               </button>
               <p className="setup-flow__hint">Проверяем подключение...</p>
@@ -191,7 +200,12 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
             </div>
           ) : (
             <>
-              <button type="button" className="btn-primary" onClick={handleDownloadExtension}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleDownloadExtension}
+                aria-label="Скачать расширение браузера"
+              >
                 Скачать расширение
               </button>
               <p className="setup-flow__hint">
@@ -233,17 +247,32 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
 
         <div className="setup-flow__footer">
           {currentStep > 0 && (
-            <button type="button" className="btn-text" onClick={handlePrev}>
+            <button
+              type="button"
+              className="btn-text"
+              onClick={handlePrev}
+              aria-label="Предыдущий шаг"
+            >
               &#8592; Назад
             </button>
           )}
           <div className="setup-flow__footer-right">
             {!isLastStep && (
-              <button type="button" className="btn-text" onClick={handleSkip}>
+              <button
+                type="button"
+                className="btn-text"
+                onClick={handleSkip}
+                aria-label="Пропустить шаг"
+              >
                 Пропустить
               </button>
             )}
-            <button type="button" className="btn-primary setup-flow__btn-next" onClick={handleNext}>
+            <button
+              type="button"
+              className="btn-primary setup-flow__btn-next"
+              onClick={handleNext}
+              aria-label={isLastStep ? 'Начать работу' : 'Следующий шаг'}
+            >
               {isLastStep ? 'Начать' : 'Далее \u2192'}
             </button>
           </div>

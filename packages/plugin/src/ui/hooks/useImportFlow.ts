@@ -209,7 +209,9 @@ export function useImportFlow(
   const cancel = useCallback(() => {
     const cancelledEntryId = pending?.entryId;
     if (cancelledEntryId) {
-      relay.blockEntry(cancelledEntryId);
+      // Ack the entry on the server so it's removed from the queue,
+      // allowing newer entries to be served via /peek
+      relay.ackData(cancelledEntryId);
     }
 
     setPending(null);

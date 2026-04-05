@@ -60,6 +60,23 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
           onCancel();
         } else if (e.key === 'Enter') {
           handleConfirm();
+        } else if (e.key === 'Tab') {
+          // Focus trap: cycle through focusable elements within dialog
+          const dialog = document.querySelector('.confirm-dialog');
+          if (!dialog) return;
+          const focusable = dialog.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])',
+          );
+          if (focusable.length === 0) return;
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
         }
       };
       window.addEventListener('keydown', handleKeyDown);
@@ -99,12 +116,19 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
     }
 
     return (
-      <div className="confirm-dialog">
+      <div
+        className="confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="import-dialog-title"
+      >
         {/* Content */}
         <div className="confirm-dialog__content">
           {/* Title + Query */}
           <div className="confirm-dialog__header">
-            <h2 className="confirm-dialog__title">Импорт данных</h2>
+            <h2 id="import-dialog-title" className="confirm-dialog__title">
+              Импорт данных
+            </h2>
             {query && (
               <div className="confirm-dialog__query" title={query}>
                 {`\u00AB${query}\u00BB`}

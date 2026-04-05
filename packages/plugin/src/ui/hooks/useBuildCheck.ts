@@ -23,7 +23,8 @@ export function useBuildCheck(relayUrl: string, enabled: boolean): UseBuildCheck
 
   useEffect(() => {
     // Don't poll if disabled, already stale, or hash is the raw placeholder
-    if (!enabled || buildStale || BUILD_HASH === '__BUILD_HASH__') return;
+    // Split the placeholder so @rollup/plugin-replace doesn't substitute it
+    if (!enabled || buildStale || BUILD_HASH === '__BUILD_' + 'HASH__') return;
 
     const check = async () => {
       try {

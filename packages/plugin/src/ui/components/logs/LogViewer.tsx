@@ -55,7 +55,8 @@ const LogFooter: React.FC<{
     <select
       className="scope-select log-footer__filter"
       value={minLevel}
-      onChange={e => onLevelChange(Number(e.target.value) as LogLevel)}
+      onChange={(e) => onLevelChange(Number(e.target.value) as LogLevel)}
+      aria-label="Фильтр уровня логов"
     >
       <option value={LogLevel.ERROR}>Только ошибки</option>
       <option value={LogLevel.SUMMARY}>Сводка+</option>
@@ -63,10 +64,10 @@ const LogFooter: React.FC<{
       <option value={LogLevel.DEBUG}>Всё (отладка)</option>
     </select>
     <div className="log-footer__actions">
-      <button type="button" className="btn-text-sm" onClick={onExport}>
+      <button type="button" className="btn-text-sm" onClick={onExport} aria-label="Экспорт логов">
         Экспорт
       </button>
-      <button type="button" className="btn-text-sm" onClick={onClear}>
+      <button type="button" className="btn-text-sm" onClick={onClear} aria-label="Очистить логи">
         Очистить
       </button>
     </div>
@@ -79,7 +80,7 @@ export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, on
   const listRef = useRef<HTMLDivElement>(null);
   const autoScrollRef = useRef(true);
 
-  const filtered = messages.filter(m => m.level <= minLevel);
+  const filtered = messages.filter((m) => m.level <= minLevel);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -117,19 +118,12 @@ export const LogViewer: React.FC<LogViewerProps> = memo(({ messages, onClose, on
 
   return (
     <PanelLayout title="Логи" onBack={onClose} footer={footer}>
-      <div
-        className="log-list"
-        ref={listRef}
-        onScroll={handleScroll}
-      >
+      <div className="log-list" ref={listRef} onScroll={handleScroll}>
         {filtered.length === 0 ? (
           <div className="log-list__empty">Нет сообщений</div>
         ) : (
           filtered.map((msg, i) => (
-            <div
-              key={i}
-              className={`log-entry ${LEVEL_CSS[msg.level] || ''}`}
-            >
+            <div key={i} className={`log-entry ${LEVEL_CSS[msg.level] || ''}`}>
               <span className="log-entry__time">{formatTime(msg.timestamp)}</span>
               <span className="log-entry__level">{LEVEL_LABELS[msg.level] || '?'}</span>
               <span className="log-entry__msg">{msg.message}</span>

@@ -160,13 +160,27 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [menuOpen, platform, closeMenu]);
 
-    // Escape key closes menu
+    // Escape key closes menu, arrow keys navigate menu items
     useEffect(() => {
       if (!menuOpen) return;
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           e.preventDefault();
           closeMenu();
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const items = containerRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+          if (!items || items.length === 0) return;
+          const current = document.activeElement as HTMLElement;
+          const idx = Array.from(items).indexOf(current);
+          if (e.key === 'ArrowDown') {
+            const next = idx < items.length - 1 ? idx + 1 : 0;
+            items[next].focus();
+          } else {
+            const prev = idx > 0 ? idx - 1 : items.length - 1;
+            items[prev].focus();
+          }
         }
       };
       document.addEventListener('keydown', handleKeyDown);
@@ -200,7 +214,11 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     const handleMenuItemClick = useCallback(
       (action: string) => {
         setMenuOpen(false);
-        onRequestResize(baseHeight);
+        // Panel-opening actions handle their own resize — skip intermediate shrink to avoid flicker
+        const panelActions = ['logs', 'inspector', 'setup'];
+        if (!panelActions.includes(action)) {
+          onRequestResize(baseHeight);
+        }
         onMenuAction(action);
       },
       [onMenuAction, baseHeight, onRequestResize],
