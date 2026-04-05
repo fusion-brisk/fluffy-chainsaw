@@ -35,8 +35,9 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
+import { PanelLayout } from './components/PanelLayout';
 import { LogLevel } from '../logger';
-import { PORTS } from '../config';
+import { PORTS, PLUGIN_VERSION } from '../config';
 
 // Default relay URL
 const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
@@ -218,7 +219,7 @@ const App: React.FC = () => {
         importFlow.finishProcessing('cancel');
       },
       onWhatsNewStatus: () => {
-        // TODO: wire up WhatsNew panel when UI is ready
+        panels.openPanel('whatsNew');
       },
       onDebugReport: (report) => {
         try {
@@ -303,6 +304,10 @@ const App: React.FC = () => {
   const handleCloseSetup = useCallback(() => panels.closePanel(), [panels]);
   const handleCloseLogViewer = useCallback(() => panels.closePanel(), [panels]);
   const handleCloseInspector = useCallback(() => panels.closePanel(), [panels]);
+  const handleCloseWhatsNew = useCallback(() => {
+    sendMessageToPlugin({ type: 'mark-whats-new-seen', version: PLUGIN_VERSION });
+    panels.closePanel();
+  }, [panels]);
 
   const handleClearLogs = useCallback(() => {
     setLogMessages([]);
@@ -322,7 +327,7 @@ const App: React.FC = () => {
           panels.openPanel('setup');
           break;
         case 'whatsNew':
-          // TODO: open whatsNew panel when UI is ready
+          panels.openPanel('whatsNew');
           break;
         case 'clearQueue':
           importFlow.clearQueue();
@@ -462,6 +467,11 @@ const App: React.FC = () => {
           onClose={handleCloseLogViewer}
           onClear={handleClearLogs}
         />
+      )}
+      {panels.activePanel === 'whatsNew' && (
+        <PanelLayout title="Что нового" onBack={handleCloseWhatsNew}>
+          {/* TODO: replace with <WhatsNewContent /> when component is ready */}
+        </PanelLayout>
       )}
     </div>
   );

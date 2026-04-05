@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react';
 import type { AppState } from '../../types';
 
-export type PanelName = 'setup' | 'logs' | 'inspector';
+export type PanelName = 'setup' | 'logs' | 'inspector' | 'whatsNew';
 
 /** Size tier keys used when opening panels */
 const PANEL_SIZE_TIER: Record<PanelName, string> = {
   setup: 'extensionGuide',
   logs: 'logsViewer',
   inspector: 'inspector',
+  whatsNew: 'whatsNew',
 };
 
 export interface PanelManager {
