@@ -1,6 +1,6 @@
 # Spec: Remove @ts-nocheck from Extension
 
-**Status:** in-progress
+**Status:** done
 **Target:** `packages/extension/src/` (4 files, ~579 TS errors)
 
 ## Goal

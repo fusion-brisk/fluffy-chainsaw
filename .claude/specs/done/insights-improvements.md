@@ -1,5 +1,7 @@
 # План доработок по результатам Insights Report
 
+**Status:** phases 1-3 done, phase 4 deferred (needs >80% test coverage)
+
 > Источник: /insights от 2026-04-02, 70 сессий, 834 сообщения
 
 ## Статус покрытия CLAUDE.md

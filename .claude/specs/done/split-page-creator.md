@@ -1,6 +1,7 @@
 # Spec: Split page-creator.ts into Modules
 
-**Status:** in-progress
+**Status:** done
+**Note:** Final LOC: 1664 (target 530 was underestimated — renderStructureNode is 697 LOC vs estimated 392). All 5 extraction phases complete.
 **Target:** `packages/plugin/src/sandbox/page-builder/page-creator.ts` (2753 LOC → ~530 LOC)
 
 ## Goal
