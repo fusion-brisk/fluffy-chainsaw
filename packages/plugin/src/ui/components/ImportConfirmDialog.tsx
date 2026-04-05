@@ -59,6 +59,8 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
         if (e.key === 'Escape') {
           onCancel();
         } else if (e.key === 'Enter') {
+          const active = document.activeElement;
+          if (active && (active as HTMLElement).tagName === 'INPUT') return;
           handleConfirm();
         } else if (e.key === 'Tab') {
           // Focus trap: cycle through focusable elements within dialog

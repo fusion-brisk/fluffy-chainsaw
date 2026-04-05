@@ -84,13 +84,11 @@ export function useImportFlow(
   const relayPayloadRef = useRef<RelayPayload | null>(null);
   const pendingEntryIdRef = useRef<string | null>(null);
 
-  // Track mount state
-  // (useEffect for mount/unmount is handled in the component that calls this hook,
-  //  but we keep isMountedRef here since finishProcessing depends on it)
-  // The parent component sets isMountedRef via the returned ref — but actually,
-  // let's just manage it internally with a simple pattern:
-  // We rely on the setTimeout guard; if component unmounts mid-timeout,
-  // React state setters become no-ops anyway. So isMountedRef is a safety net.
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const finishProcessing = useCallback(
     (type: 'success' | 'error' | 'cancel') => {

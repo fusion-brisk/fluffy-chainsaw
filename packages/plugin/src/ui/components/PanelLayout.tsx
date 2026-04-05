@@ -16,7 +16,7 @@ interface PanelLayoutProps {
 
 export const PanelLayout: React.FC<PanelLayoutProps> = memo(
   ({ title, onBack, footer, children }) => (
-    <div className="panel-layout" role="dialog" aria-label={title}>
+    <div className="panel-layout" role="dialog" aria-modal="true" aria-label={title}>
       <div className="panel-layout__header">
         <button type="button" className="panel-layout__back" onClick={onBack} aria-label="Назад">
           &larr; Назад

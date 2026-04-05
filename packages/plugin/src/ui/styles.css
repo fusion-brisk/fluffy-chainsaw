@@ -324,7 +324,9 @@ button {
 
 button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text):not(
     .confirm-dialog__btn-primary
-  ):not(.confirm-dialog__btn-secondary):not(.confirm-dialog__btn-danger):not(.update-banner-close) {
+  ):not(.confirm-dialog__btn-secondary):not(.confirm-dialog__btn-danger):not(
+    .update-banner-close
+  ):not(.compact-strip__menu-btn):not(.compact-strip__menu-item):not(.panel-layout__back) {
   background-color: var(--figma-color-bg-hover, #f5f5f5);
 }
 

@@ -213,6 +213,11 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
 
     const handleMenuItemClick = useCallback(
       (action: string) => {
+        // Cancel auto-dismiss timer on any manual action
+        if (autoDismissRef.current) {
+          clearTimeout(autoDismissRef.current);
+          autoDismissRef.current = null;
+        }
         setMenuOpen(false);
         // Panel-opening actions handle their own resize — skip intermediate shrink to avoid flicker
         const panelActions = ['logs', 'inspector', 'setup'];
