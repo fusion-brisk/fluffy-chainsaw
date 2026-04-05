@@ -591,6 +591,9 @@ async function renderStructureNode(
         titleDefault: query ? 'Популярные товары по запросу «' + query + '»' : 'Популярные товары',
         node: node,
         childSizing: platform === 'touch' ? 'FILL' : 'config',
+        containerPostConfig: function (frame) {
+          frame.layoutSizingVertical = 'HUG';
+        },
         showAll: {
           dataField: '#ProductsTilesShowAll',
           textDataField: '#ProductsTilesShowAllText',

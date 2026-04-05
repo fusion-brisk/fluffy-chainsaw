@@ -809,10 +809,9 @@ interface WrappedContainerOptions {
   containerConfig: ContainerConfig;
   titleDataField: string;
   titleDefault: string;
-  query?: string;
   node: StructureNode;
   childSizing: 'FILL' | 'config';
-  containerPostConfig?: (frame: FrameNode, platform: 'desktop' | 'touch') => void;
+  containerPostConfig?: (frame: FrameNode) => void;
   showAll?: {
     dataField: string;
     textDataField: string;
@@ -907,10 +906,7 @@ export async function createWrappedContainer(
     firstChild && firstChild.data
       ? (firstChild.data as Record<string, string | undefined>)[opts.titleDataField]
       : undefined;
-  let titleText = customTitle || opts.titleDefault;
-  if (!customTitle && opts.query) {
-    titleText = opts.titleDefault;
-  }
+  const titleText = customTitle || opts.titleDefault;
   const titleInstance = await createTitleInstance(titleText);
   if (titleInstance) {
     wrapper.appendChild(titleInstance);
@@ -920,11 +916,10 @@ export async function createWrappedContainer(
   // Container
   const containerFrame = createContainerFrame(opts.containerConfig);
   if (opts.containerPostConfig) {
-    opts.containerPostConfig(containerFrame, 'desktop');
+    opts.containerPostConfig(containerFrame);
   }
   wrapper.appendChild(containerFrame);
   containerFrame.layoutSizingHorizontal = 'FILL';
-  containerFrame.layoutSizingVertical = 'HUG';
 
   // Children
   let count = 0;
