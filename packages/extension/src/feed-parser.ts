@@ -194,8 +194,12 @@ function parseMarketCard(element: Element, index: number): FeedCardRow {
 
   // Detect image ratio from natural dimensions
   var marketImg = element.querySelector('.EcomFeedMarketCard img') as HTMLImageElement | null;
-  if (marketImg && marketImg.naturalWidth && marketImg.naturalHeight) {
-    row['#Feed_ImageRatio'] = detectRatio(marketImg.naturalWidth, marketImg.naturalHeight);
+  if (marketImg) {
+    var w = marketImg.naturalWidth || marketImg.clientWidth;
+    var h = marketImg.naturalHeight || marketImg.clientHeight;
+    if (w && h) {
+      row['#Feed_ImageRatio'] = detectRatio(w, h);
+    }
   }
 
   var titleEl =
@@ -249,8 +253,12 @@ function parsePostCard(element: Element, index: number): FeedCardRow {
   if (contentImg && contentImg.tagName !== 'IMG') {
     contentImg = contentImg.querySelector('img') as HTMLImageElement | null;
   }
-  if (contentImg && contentImg.naturalWidth && contentImg.naturalHeight) {
-    row['#Feed_ImageRatio'] = detectRatio(contentImg.naturalWidth, contentImg.naturalHeight);
+  if (contentImg) {
+    var cw = contentImg.naturalWidth || contentImg.clientWidth;
+    var ch = contentImg.naturalHeight || contentImg.clientHeight;
+    if (cw && ch) {
+      row['#Feed_ImageRatio'] = detectRatio(cw, ch);
+    }
   }
 
   const dots = element.querySelectorAll('[class*="Dot"]');

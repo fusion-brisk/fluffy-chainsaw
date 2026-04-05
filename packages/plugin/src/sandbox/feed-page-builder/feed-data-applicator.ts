@@ -9,6 +9,7 @@
 
 import { Logger } from '../../logger';
 import { FeedCardRow } from '../../types/feed-card-types';
+import { safeSetVisible } from '../handlers/visibility-handlers';
 import { fetchAndApplyImage } from '../image-apply';
 
 // ============================================================================
@@ -252,34 +253,10 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
   // Main image — path: instance > ... > Thumb > Image (INSTANCE) > Img (fill target)
   if (imageUrl) {
     chain = chain.then(function () {
-      // Debug: dump tree to find Image and Img
-      var debugPath: string[] = [];
-      function dumpTree(n: SceneNode, depth: number, prefix: string): void {
-        if (depth > 6) return;
-        var info = prefix + n.name + ' [' + n.type + ']' + ('fills' in n ? ' +fills' : '');
-        debugPath.push(info);
-        if ('children' in n) {
-          var ch = (n as ChildrenMixin).children;
-          for (var ci = 0; ci < ch.length; ci++) {
-            dumpTree(ch[ci], depth + 1, prefix + '  ');
-          }
-        }
-      }
-      // Dump from Thumb level
-      var thumbForDebug = findChildByName(instance, 'Thumb', 8);
-      if (thumbForDebug) {
-        dumpTree(thumbForDebug, 0, '');
-        Logger.info('[FeedApplicator] Tree from Thumb:\n' + debugPath.join('\n'));
-      } else {
-        Logger.info(
-          '[FeedApplicator] Thumb NOT FOUND in ' + instance.name + ' (type=' + instance.type + ')',
-        );
-      }
+      var thumb = findChildByName(instance, 'Thumb', 8);
 
-      // Step 1: Find Image instance
+      // Step 1: Find Image instance and set properties
       var imageInst = findChildInstance(instance, 'Image', 8);
-
-      // Step 2: Set props on Image
       if (imageInst) {
         var imageProps: Record<string, string | boolean> = { 'Placeholder#4004:1': false };
         var ratio = card['#Feed_ImageRatio'];
@@ -295,54 +272,29 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
         }
       }
 
-      // Step 3: Find Img — try multiple paths
+      // Step 2: Find Img fill target — try multiple paths
       var imgNode: SceneNode | null = null;
 
       // Path A: inside Image instance
       if (imageInst) {
         imgNode = findFillableByName(imageInst, 'Img', 4);
-        Logger.info(
-          '[FeedApplicator] Path A (Image>Img): ' +
-            (imgNode ? imgNode.type + ' id=' + imgNode.id : 'NOT FOUND'),
-        );
       }
-
       // Path B: inside Thumb
-      if (!imgNode && thumbForDebug) {
-        imgNode = findFillableByName(thumbForDebug, 'Img', 6);
-        Logger.info(
-          '[FeedApplicator] Path B (Thumb>Img): ' +
-            (imgNode ? imgNode.type + ' id=' + imgNode.id : 'NOT FOUND'),
-        );
+      if (!imgNode && thumb) {
+        imgNode = findFillableByName(thumb, 'Img', 6);
       }
-
       // Path C: any child named Img from root
       if (!imgNode) {
         imgNode = findFillableByName(instance, 'Img', 10);
-        Logger.info(
-          '[FeedApplicator] Path C (root>Img): ' +
-            (imgNode ? imgNode.type + ' id=' + imgNode.id : 'NOT FOUND'),
-        );
       }
 
       if (!imgNode) {
-        Logger.info('[FeedApplicator] ❌ Img not found anywhere in ' + instance.name);
+        Logger.debug('[FeedApplicator] Img not found in ' + instance.name);
         return;
       }
 
-      Logger.info(
-        '[FeedApplicator] ✅ Applying image to ' +
-          imgNode.name +
-          ' type=' +
-          imgNode.type +
-          ' url=' +
-          imageUrl.substring(0, 60),
-      );
-      return fetchAndApplyImage(imgNode, imageUrl, 'FILL', '[Feed/thumb]', relayUrl).then(
-        function (ok) {
-          Logger.info('[FeedApplicator] fetchAndApplyImage result: ' + ok);
-        },
-      );
+      Logger.debug('[FeedApplicator] Applying image to ' + imgNode.name + ' in ' + instance.name);
+      return fetchAndApplyImage(imgNode, imageUrl, 'FILL', '[Feed/thumb]', relayUrl);
     });
   }
 
@@ -357,10 +309,9 @@ function applyImages(instance: InstanceNode, card: FeedCardRow, relayUrl?: strin
       const imgNode = findFillableByName(sourceIcon, 'Img', 4);
       if (!imgNode) return;
       // Hide "Placeholder" child layer inside Source Feed / Icon
-      // (this component doesn't expose Placeholder as a property — it's a direct child)
       var placeholder = findChildByName(sourceIcon, 'Placeholder', 2);
       if (placeholder) {
-        placeholder.visible = false;
+        safeSetVisible(placeholder, false, sourceIcon);
       }
       return fetchAndApplyImage(imgNode, avatarUrl, 'FILL', '[Feed/avatar]', relayUrl).then(
         function () {},
