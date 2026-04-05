@@ -82,7 +82,7 @@ export interface CSVFields {
   '#discount'?: string;
   /** Флаг наличия скидки (legacy) */
   '#Discount'?: 'true' | 'false';
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — needs EPriceGroup handler integration (prefix text before discount value) */
   '#DiscountPrefix'?: string;
 
   // === EPriceGroup ===
@@ -140,7 +140,7 @@ export interface CSVFields {
   '#ButtonView'?: string;
   /** Тип кнопки */
   '#ButtonType'?: 'checkout' | 'shop' | string;
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — may be redundant with #BUTTON → withButton mapping; verify with extension output */
   '#EButton_visible'?: 'true' | 'false';
   /** Лейбл checkout */
   '#EMarketCheckoutLabel'?: 'true' | 'false';
@@ -164,7 +164,7 @@ export interface CSVFields {
   '#EBnpl'?: 'true' | 'false';
 
   // === EOfferItem специфичные ===
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — needs Figma component property for default offer highlight */
   '#EOfferItem_defaultOffer'?: 'true' | 'false';
   /** Есть ли кнопка в EOfferItem */
   '#EOfferItem_hasButton'?: 'true' | 'false';
@@ -234,7 +234,7 @@ export interface CSVFields {
   '#withThumb'?: 'true' | 'false';
   /** Есть ли сайтлинки */
   '#Sitelinks'?: 'true' | 'false';
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — sitelinks hooks use #Sitelinks boolean; count could control individual #Sitelink_N visibility */
   '#SitelinksCount'?: string;
   /** @deprecated — not parsed, not used (sitelinks handled via #Sitelinks boolean + hooks) */
   '#Sitelink_1'?: string;
@@ -252,21 +252,21 @@ export interface CSVFields {
   '#PromoLink'?: string;
   /** Есть ли промо-блок */
   '#withPromo'?: 'true' | 'false';
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — needs Figma component property for ad label text */
   '#AdvLabel'?: string;
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — needs Figma component property for verification badge type */
   '#VerifiedType'?: string;
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — needs Figma component property for verification badge */
   '#isVerified'?: 'true' | 'false';
 
   // === Валюта ===
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — needs Figma component property addition for currency display */
   '#Currency'?: string;
 
   // === Изображения (доп.) ===
   /** Тип изображения (EThumb, EThumbGroup) */
   '#imageType'?: string;
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @future — image handlers use #imageType for variant; count could set individual thumb visibility */
   '#ThumbGroupCount'?: string;
   /** Есть ли цитата из отзывов */
   '#withQuotes'?: 'true' | 'false';
@@ -328,7 +328,7 @@ export interface CSVFields {
   '#Contacts'?: string;
 
   // === InfoIcon ===
-  /** @future — parsed by extension, not yet mapped to schema/handlers */
+  /** @deprecated — auto-managed via withFintech on EPriceGroup, no explicit mapping needed */
   '#InfoIcon'?: 'true' | 'false';
 
   // === EQuickFilters (панель быстрых фильтров) ===
