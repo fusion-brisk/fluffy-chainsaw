@@ -46,13 +46,6 @@ jobs:
           ls -la pkg-dist/
         working-directory: packages/relay
 
-      - name: Build relay binary (x64)
-        run: |
-          npm run build:pkg:x64
-          mv pkg-dist/contentify-relay pkg-dist/contentify-relay-host-x64
-          chmod +x pkg-dist/contentify-relay-host-x64
-        working-directory: packages/relay
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -60,7 +53,6 @@ jobs:
           files: |
             contentify.crx
             packages/relay/pkg-dist/contentify-relay-host-arm64
-            packages/relay/pkg-dist/contentify-relay-host-x64
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

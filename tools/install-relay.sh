@@ -21,14 +21,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # === Определяем архитектуру ===
-ARCH=$(uname -m)
-if [ "$ARCH" = "arm64" ]; then
-  BINARY_NAME="contentify-relay-host-arm64"
-  echo "📱 Платформа: Apple Silicon (arm64)"
-else
-  BINARY_NAME="contentify-relay-host-x64"
-  echo "💻 Платформа: Intel (x64)"
-fi
+BINARY_NAME="contentify-relay-host-arm64"
+echo "📱 Платформа: Apple Silicon (arm64)"
 echo ""
 
 # === Создаём директорию установки ===
