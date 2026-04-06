@@ -35,7 +35,7 @@ function buildEmbeddedHtml() {
   // 1. Вставляем CSS. replace со строкой безопасен для CSS (обычно)
   // Но лучше использовать callback, чтобы $& не интерпретировались
   let html = template.replace(
-    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*>/,
+    /<link\s+rel="stylesheet"\s+href="styles\.css"\s*\/?>/,
     () => `<style>\n${css}\n</style>`,
   );
 

@@ -36,6 +36,7 @@ import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
 import { PanelLayout } from './components/PanelLayout';
+import { WhatsNewContent } from './components/WhatsNewContent';
 import { LogLevel } from '../logger';
 import { PORTS, PLUGIN_VERSION } from '../config';
 
@@ -65,10 +66,11 @@ const App: React.FC = () => {
   const [setupResolved, setSetupResolved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [progressData, setProgressData] = useState<ProgressData>({ current: 0, total: 0 });
+  const [pendingWhatsNew, setPendingWhatsNew] = useState(false);
 
   // === HOOKS ===
   const platform = usePlatform();
-  const resizeUI = useResizeUI();
+  const { resize: resizeUI, setSize } = useResizeUI();
   const panels = usePanelManager(appState, resizeUI);
 
   const importFlowRef = useRef<import('./hooks/useImportFlow').ImportFlow>(null!);
@@ -218,8 +220,10 @@ const App: React.FC = () => {
         importFlow.clearPendingEntry();
         importFlow.finishProcessing('cancel');
       },
-      onWhatsNewStatus: () => {
-        panels.openPanel('whatsNew');
+      onWhatsNewStatus: (data) => {
+        if (data.shouldShow) {
+          setPendingWhatsNew(true);
+        }
       },
       onDebugReport: (report) => {
         try {
@@ -278,22 +282,34 @@ const App: React.FC = () => {
     }
   }, [appState, relay.connected, resizeUI]);
 
+  // Show What's New panel after reaching ready state (deferred from init)
+  useEffect(() => {
+    if (pendingWhatsNew && appState === 'ready' && !panels.isPanelOpen) {
+      setPendingWhatsNew(false);
+      panels.openPanel('whatsNew');
+    }
+  }, [pendingWhatsNew, appState, panels]);
+
   // === COMPACT STRIP RESIZE (for menu) ===
   const bannerCount = (versionCheck.relayUpdate ? 1 : 0) + (versionCheck.extensionUpdate ? 1 : 0);
-  // Each banner: ~30px (padding 6×2 + text ~18px) + 4px gap between banners + 8px container padding-top
-  const bannerHeight = bannerCount > 0 ? bannerCount * 30 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
+  // Each banner: 26px (6+12+6 padding + 2 border) + container 8px top padding + 4px gap between
+  const bannerHeight = bannerCount > 0 ? bannerCount * 26 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
   const compactBaseHeight = 56 + bannerHeight;
 
-  const handleRequestResize = useCallback((height: number) => {
-    sendMessageToPlugin({ type: 'resize-ui', width: 320, height });
-  }, []);
+  const handleRequestResize = useCallback(
+    (height: number) => {
+      setSize(320, height);
+    },
+    [setSize],
+  );
 
-  // Resize window when update banners appear or are dismissed
+  // Resize window when update banners appear or are dismissed.
+  // Uses setSize to cancel any running animation and jump to the correct height.
   useEffect(() => {
-    if (appState === 'ready') {
-      sendMessageToPlugin({ type: 'resize-ui', width: 320, height: compactBaseHeight });
+    if (appState === 'ready' && !panels.isPanelOpen) {
+      setSize(320, compactBaseHeight);
     }
-  }, [appState, bannerCount, compactBaseHeight]);
+  }, [appState, panels.isPanelOpen, compactBaseHeight, setSize]);
 
   // Send platform info to sandbox (for future use)
   useEffect(() => {
@@ -470,8 +486,7 @@ const App: React.FC = () => {
       )}
       {panels.activePanel === 'whatsNew' && (
         <PanelLayout title="Что нового" onBack={handleCloseWhatsNew}>
-          {/* TODO: replace with <WhatsNewContent /> when component is ready */}
-          <div className="panel-layout__placeholder" />
+          <WhatsNewContent />
         </PanelLayout>
       )}
     </div>

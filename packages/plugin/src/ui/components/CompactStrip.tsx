@@ -220,7 +220,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         }
         setMenuOpen(false);
         // Panel-opening actions handle their own resize — skip intermediate shrink to avoid flicker
-        const panelActions = ['logs', 'inspector', 'setup'];
+        const panelActions = ['logs', 'inspector', 'setup', 'whatsNew'];
         if (!panelActions.includes(action)) {
           onRequestResize(baseHeight);
         }
