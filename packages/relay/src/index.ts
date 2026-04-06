@@ -1,3 +1,16 @@
+import path from 'path';
+import { runSetup } from './setup';
+
+// Auto-setup: if run with --setup flag OR from outside ~/.contentify/
+const INSTALL_DIR = path.join(process.env.HOME || '/tmp', '.contentify');
+const isSetupFlag = process.argv.includes('--setup');
+const isInstalledLocation = path.resolve(process.execPath).startsWith(path.resolve(INSTALL_DIR));
+
+if (isSetupFlag || !isInstalledLocation) {
+  runSetup();
+  process.exit(0);
+}
+
 /**
  * Contentify Relay Server -- with WebSocket
  *

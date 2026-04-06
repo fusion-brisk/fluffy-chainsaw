@@ -15,11 +15,14 @@ All must be updated together:
 
 ## Release Artifacts (GitHub Actions, on tag `v*`)
 
-| Artifact                      | Description                   |
-| ----------------------------- | ----------------------------- |
-| `contentify.crx`              | Chrome extension (signed CRX) |
-| `Contentify-Installer.zip`    | macOS installer               |
-| `contentify-relay-host-arm64` | Relay binary (Apple Silicon)  |
+| Artifact                      | Description                  |
+| ----------------------------- | ---------------------------- |
+| `contentify.crx`              | Chrome extension (signed)    |
+| `contentify-relay-host-arm64` | Relay binary (Apple Silicon) |
+| `contentify-relay-host-x64`   | Relay binary (Intel)         |
+
+Relay binaries are self-installing: when run from outside `~/.contentify/`,
+they auto-run setup (kill old process, copy to install dir, configure LaunchAgent, start in background).
 
 ## Steps
 

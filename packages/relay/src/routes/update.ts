@@ -121,7 +121,6 @@ const RELAY_BINARY_PATH = path.join(process.env.HOME || '/tmp', '.contentify', '
 /** Download new binary, replace current, and restart via launchctl */
 async function downloadAndReplace(update: UpdateInfo): Promise<void> {
   const binaryPath = RELAY_BINARY_PATH;
-  const backupPath = binaryPath + '.backup';
   const tempPath = binaryPath + '.new';
 
   console.log(`[update] Downloading v${update.version}...`);
@@ -142,12 +141,12 @@ async function downloadAndReplace(update: UpdateInfo): Promise<void> {
     await fs.writeFile(tempPath, buffer);
     await fs.chmod(tempPath, 0o755);
 
+    // Replace binary directly (no backup — old version is in GitHub Releases if needed)
     try {
-      await fs.unlink(backupPath);
+      await fs.unlink(binaryPath);
     } catch {
-      /* no backup yet */
+      /* doesn't exist */
     }
-    await fs.rename(binaryPath, backupPath);
     await fs.rename(tempPath, binaryPath);
 
     // Re-sign with ad-hoc signature — macOS kills unsigned/invalid-signed binaries
