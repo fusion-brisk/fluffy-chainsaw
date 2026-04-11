@@ -203,20 +203,6 @@ export function getCachedGroup(cache: DeepCache, name: string): FrameNode | Grou
   return cache.groups.get(name) ?? null;
 }
 
-/**
- * Получает GROUP/FRAME ноду из кэша, пробуя несколько вариантов имени
- */
-export function getCachedGroupByNames(
-  cache: DeepCache,
-  names: string[],
-): FrameNode | GroupNode | null {
-  for (const name of names) {
-    const group = cache.groups.get(name);
-    if (group) return group;
-  }
-  return null;
-}
-
 // ==================== EMPTY GROUP VISIBILITY HELPERS ====================
 
 /**

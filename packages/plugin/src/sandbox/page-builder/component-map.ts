@@ -137,35 +137,6 @@ export const VARIABLE_KEYS = {
  * Keys sourced from DC • Ecom and DC • Cubes libraries via Figma MCP (2026-04-05).
  * To re-fetch: search_design_system → importComponentSetByKeyAsync → variant.key
  */
-/**
- * Node IDs компонентов в библиотеке DC • ECOM (секция Organisms)
- * Используй scripts/get-component-keys.js чтобы получить .key из этих nodeId
- */
-export const COMPONENT_NODE_IDS = {
-  // EOfferItem ComponentSet
-  EOfferItem: {
-    desktop_btnRight: '22275:104394',
-    desktop_btnDown: '22275:104613',
-    touch_btnRight: '15029:574539',
-    touch_btnDown: '22266:215796',
-  },
-  // EShopItem ComponentSet
-  EShopItem: {
-    desktop: '22266:253481',
-    touch: '22266:253420',
-  },
-  // EProductSnippet2 ComponentSet
-  EProductSnippet2: {
-    default: '22275:120573',
-    withPadding: '22275:120677',
-    withBtn: '23256:276424',
-  },
-  // ESnippet ComponentSet
-  ESnippet: {
-    desktop: '21938:180822',
-    touch: '15390:158563',
-  },
-} as const;
 
 /** Maps snippet type names (e.g. 'ESnippet', 'EOfferItem') to Figma library component keys and default variant properties. */
 export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {

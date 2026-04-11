@@ -17,13 +17,6 @@ export const PLUGIN_VERSION = '2.6.0';
 // Format: "<short-git-hash>-<timestamp>"
 export const BUILD_HASH = '__BUILD_HASH__';
 
-// Сообщение о необходимости обновления библиотеки
-export const LIBRARY_UPDATE_NOTICE = {
-  show: true,
-  libraryName: 'DC • ECOM',
-  message: 'Для корректной работы плагина обновите библиотеку DC • ECOM до актуальной версии',
-};
-
 // Список изменений для What's New экрана
 // Последние изменения сверху
 export const CHANGELOG: ChangelogEntry[] = [
