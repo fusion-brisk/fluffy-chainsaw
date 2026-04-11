@@ -1,0 +1,3046 @@
+[
+  {
+    "figmaName": "ELabelGroup",
+    "figmaSetKey": "64a4f1e3450f7753b2237dcd721befad9abd2701",
+    "figmaNodeId": "21935:139724",
+    "section": "Atoms",
+    "reactName": "LabelGroup",
+    "importPath": "@oceania/depot/components/LabelGroup",
+    "source": "code-connect",
+    "variantProps": [
+      {
+        "name": "Label Order Variant",
+        "type": "VARIANT",
+        "defaultValue": "b-r-m",
+        "options": [
+          "b-r-m",
+          "r-b-m",
+          "r-m-b",
+          "snippet-new"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "withBarometer",
+      "withCheckout",
+      "withDiscount",
+      "withRating"
+    ],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "ELabelRating",
+    "figmaSetKey": "5c1d3fe8f97d7cdb8d0b9ca80146b69b3383fa38",
+    "figmaNodeId": "21856:152036",
+    "section": "Atoms",
+    "reactName": "ELabelRating",
+    "importPath": "@oceania/depot/components/ELabelRating",
+    "snippet": "<ELabelRating size=\"xs\" view=\"white\" value={4.5}/>",
+    "source": "code-connect",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "m",
+        "options": [
+          "m",
+          "s",
+          "xs",
+          "2xs",
+          "3xs"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "white",
+        "options": [
+          "default",
+          "primary",
+          "white",
+          "dark"
+        ]
+      },
+      {
+        "name": "weight",
+        "type": "VARIANT",
+        "defaultValue": "regular",
+        "options": [
+          "regular",
+          "medium",
+          "bold"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [
+      "value"
+    ],
+    "variantCount": 60
+  },
+  {
+    "figmaName": "EPriceBarometer",
+    "figmaSetKey": "901a0be0640b4dbdab39cd569ca5b6473a804b71",
+    "figmaNodeId": "21931:151500",
+    "section": "Atoms",
+    "reactName": "EPriceBarometer",
+    "importPath": "@oceania/depot/components/EPriceBarometer",
+    "snippet": "<EPriceBarometer/>",
+    "source": "code-connect",
+    "variantProps": [
+      {
+        "name": "isCompact",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "false",
+          "true"
+        ]
+      },
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "3xs",
+        "options": [
+          "3xs",
+          "2xs"
+        ]
+      },
+      {
+        "name": "theme",
+        "type": "VARIANT",
+        "defaultValue": "default",
+        "options": [
+          "default",
+          "white"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "below-market",
+        "options": [
+          "above-market",
+          "below-market",
+          "in-market"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 24
+  },
+  {
+    "figmaName": "EDeliveryGroup",
+    "figmaSetKey": "14b22661c666d3c94e6784132e85ad5800b59553",
+    "figmaNodeId": "22086:155615",
+    "section": "Molecules",
+    "reactName": "EDeliveryGroup",
+    "importPath": "@oceania/depot/components/EDeliveryGroup",
+    "source": "code-connect",
+    "variantProps": [
+      {
+        "name": "abroad",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "false",
+          "true"
+        ]
+      },
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "s",
+        "options": [
+          "s",
+          "m",
+          "m-vstack",
+          "l"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "first-child",
+      "second-child",
+      "third-child"
+    ],
+    "textProps": [],
+    "variantCount": 7
+  },
+  {
+    "figmaName": "Line",
+    "figmaSetKey": "a57c4be711e225fd6d831c49165254da56bcee9c",
+    "figmaNodeId": "6163:12166",
+    "section": "Molecules",
+    "reactName": "Line",
+    "importPath": "@oceania/depot/components/Line",
+    "snippet": "<Line weight=\"regular\">Курьер</Line>",
+    "source": "code-connect",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "l",
+        "options": [
+          "l",
+          "m",
+          "s",
+          "xs"
+        ]
+      },
+      {
+        "name": "textStyle",
+        "type": "VARIANT",
+        "defaultValue": "regular",
+        "options": [
+          "medium",
+          "regular"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [
+      "value"
+    ],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "Line / EQuote",
+    "figmaSetKey": "1455429345c136c2d7de69c6b754432a384b2d5d",
+    "figmaNodeId": "22086:159804",
+    "section": "Molecules",
+    "reactName": "EQuote",
+    "importPath": "@oceania/depot/components/EQuote",
+    "source": "code-connect",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "s",
+        "options": [
+          "s",
+          "m"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "EProductSnippet2",
+    "figmaSetKey": "e24519cf32330e75dea90aaeebd14a27a3a37edf",
+    "figmaNodeId": "22275:120511",
+    "section": "Organisms",
+    "reactName": "EProductSnippet2",
+    "importPath": "@oceania/depot/components/EProductSnippet2",
+    "snippet": "<EProductSnippet2 linkProps={{ url: \"https://yandex.ru/products/\" }} thumbProps={{ images: [] }} />",
+    "source": "user-confirmed",
+    "variantProps": [
+      {
+        "name": "selected",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "false",
+          "true"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "organic",
+        "options": [
+          "organic",
+          "Checkout",
+          "advGallery",
+          "fill; alice"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "brand",
+      "withDelivery"
+    ],
+    "textProps": [
+      "organicTitle"
+    ],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "Control / EProductTabs",
+    "figmaSetKey": "cfd6056764d8ac0a76fe9e2f332a883f66bedfde",
+    "figmaNodeId": "6008:158139",
+    "section": "Atoms",
+    "reactName": "EProductTabs",
+    "importPath": "@oceania/depot/components/EProductTabs",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "State",
+        "type": "VARIANT",
+        "defaultValue": "Active",
+        "options": [
+          "Inactive",
+          "Active"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Control / Favorite",
+    "figmaSetKey": "cbf43672a1023ab76f6c58ab2f3555f63e6e5947",
+    "figmaNodeId": "9399:463739",
+    "section": "Atoms",
+    "reactName": "Favorite",
+    "importPath": "@oceania/depot/components/Favorite",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "State",
+        "type": "VARIANT",
+        "defaultValue": "Default",
+        "options": [
+          "Default",
+          "Hover",
+          "Pressed"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "EBnpl",
+    "figmaSetKey": "3187b1020fc4459d29613e10361040104f32d127",
+    "figmaNodeId": "22086:164505",
+    "section": "Atoms",
+    "reactName": "EBnpl",
+    "importPath": "@oceania/depot/components/EBnpl",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "s",
+        "options": [
+          "l",
+          "s",
+          "m"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "split",
+        "options": [
+          "split",
+          "yandex-pay",
+          "yandex-plus",
+          "dolyami",
+          "podeli",
+          "plait",
+          "plati-chastyami",
+          "mokka",
+          "t-pay",
+          "mts-pay"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 30
+  },
+  {
+    "figmaName": "EButton",
+    "figmaSetKey": "d114ec46803a4905ee6ca2d31ed3209cf60cd2c3",
+    "figmaNodeId": "6478:400440",
+    "section": "Atoms",
+    "reactName": "EButton",
+    "importPath": "@oceania/depot/components/EButton",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "M",
+        "options": [
+          "M",
+          "L"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "secondary",
+        "options": [
+          "secondary",
+          "primaryLong",
+          "white",
+          "primaryShort"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "ELabelPlus",
+    "figmaSetKey": "3a9ad6ffab0da58420bb9f8b800b6aea897a04cf",
+    "figmaNodeId": "26403:251648",
+    "section": "Atoms",
+    "reactName": "ELabelPlus",
+    "importPath": "@oceania/depot/components/ELabelPlus",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Mode",
+        "type": "VARIANT",
+        "defaultValue": "Light",
+        "options": [
+          "Light",
+          "Dark"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "2XS",
+        "options": [
+          "3XS",
+          "2XS"
+        ]
+      },
+      {
+        "name": "Value",
+        "type": "VARIANT",
+        "defaultValue": "Absolute",
+        "options": [
+          "Absolute",
+          "Percent"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "EMarketCheckoutLabel",
+    "figmaSetKey": "1761aeb672923d7c3cfc2c51bdf4c649d4d4f64b",
+    "figmaNodeId": "21931:144603",
+    "section": "Atoms",
+    "reactName": "EMarketCheckoutLabel",
+    "importPath": "@oceania/depot/components/EMarketCheckoutLabel",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "L",
+        "options": [
+          "L",
+          "M",
+          "S",
+          "XS"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Accent Fill",
+        "options": [
+          "Light Fill • Always",
+          "Accent Fill",
+          "Dark Fill • Always"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 12
+  },
+  {
+    "figmaName": "EPrice",
+    "figmaSetKey": "734a311660904f8b3fd25df96b5f2d60a6f94f51",
+    "figmaNodeId": "6008:156929",
+    "section": "Atoms",
+    "reactName": "EPrice",
+    "importPath": "@oceania/depot/components/EPrice",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "2xl (not in storybook)",
+        "options": [
+          "2xl (not in storybook)",
+          "xl",
+          "l",
+          "m",
+          "s",
+          "xs"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "undefined",
+        "options": [
+          "undefined",
+          "special",
+          "old"
+        ]
+      },
+      {
+        "name": "weight",
+        "type": "VARIANT",
+        "defaultValue": "bold",
+        "options": [
+          "regular",
+          "medium",
+          "bold"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "footnote",
+      "lineThrough",
+      "range"
+    ],
+    "textProps": [
+      "value"
+    ],
+    "variantCount": 30
+  },
+  {
+    "figmaName": "EPrice / Barometer Description",
+    "figmaSetKey": "ef725e91853269d8bca0a568a4e8260205b9a43a",
+    "figmaNodeId": "22136:233069",
+    "section": "Atoms",
+    "reactName": "EPrice / Barometer Description",
+    "importPath": "@oceania/depot/components/EPrice / Barometer Description",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Variant",
+        "type": "VARIANT",
+        "defaultValue": "below-market",
+        "options": [
+          "below-market",
+          "in-market",
+          "above-market"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "EPriceBarometerLegend",
+    "figmaSetKey": "1ef30b962be626fa972287edd8cc6f483fefee9a",
+    "figmaNodeId": "10725:197657",
+    "section": "Atoms",
+    "reactName": "EPriceBarometerLegend",
+    "importPath": "@oceania/depot/components/EPriceBarometerLegend",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Сollapsed",
+        "type": "VARIANT",
+        "defaultValue": "true",
+        "options": [
+          "false",
+          "true"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Fintech",
+    "figmaSetKey": "938c922fa93e5c3cafb7002f8a1db0e9f7039226",
+    "figmaNodeId": "28698:12745",
+    "section": "Atoms",
+    "reactName": "Fintech",
+    "importPath": "@oceania/depot/components/Fintech",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "s (not in storybook)",
+        "options": [
+          "s (not in storybook)",
+          "m",
+          "l"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "pay",
+        "options": [
+          "pay",
+          "yandexPay",
+          "split",
+          "ozon",
+          "alfaCard",
+          "vtbCard"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "default",
+        "options": [
+          "default",
+          "extra-short",
+          "short",
+          "long",
+          "extra-long"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 90
+  },
+  {
+    "figmaName": "Image Overlay Controller",
+    "figmaSetKey": "87f45dfb069135320e7674cd2ae1a1e2e4a1b9f7",
+    "figmaNodeId": "6079:125611",
+    "section": "Atoms",
+    "reactName": "Image Overlay Controller",
+    "importPath": "@oceania/depot/components/Image Overlay Controller",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Padding",
+        "type": "VARIANT",
+        "defaultValue": "S",
+        "options": [
+          "M",
+          "S",
+          "XS"
+        ]
+      },
+      {
+        "name": "Type",
+        "type": "VARIANT",
+        "defaultValue": "Label",
+        "options": [
+          "Label",
+          "Action",
+          "Dot Indicator"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "withButton"
+    ],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Image Placeholder",
+    "figmaSetKey": "b3a12009da25baed59450056b349b9f5c7ab0c4f",
+    "figmaNodeId": "6109:130879",
+    "section": "Atoms",
+    "reactName": "ImagePlaceholder",
+    "importPath": "@oceania/depot/components/ImagePlaceholder",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "64",
+        "options": [
+          "64",
+          "56",
+          "52",
+          "48",
+          "44",
+          "40",
+          "36",
+          "32",
+          "28",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 14
+  },
+  {
+    "figmaName": "Image Ratio",
+    "figmaSetKey": "af3a1fb1f2d02dbefdddd45b3f83db371e6fcbf9",
+    "figmaNodeId": "6179:179195",
+    "section": "Atoms",
+    "reactName": "ImageRatio",
+    "importPath": "@oceania/depot/components/ImageRatio",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Ratio",
+        "type": "VARIANT",
+        "defaultValue": "Manual",
+        "options": [
+          "1:1",
+          "2:3",
+          "3:2",
+          "3:4",
+          "4:3",
+          "9:16",
+          "16:9",
+          "Manual"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "Label",
+    "figmaSetKey": "add5e3c94f3c27dff30954b05c99d165111ccf1b",
+    "figmaNodeId": "21856:149771",
+    "section": "Atoms",
+    "reactName": "Label",
+    "importPath": "@oceania/depot/components/Label",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "m",
+        "options": [
+          "m",
+          "s",
+          "xs",
+          "2xs",
+          "3xs"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "default",
+        "options": [
+          "default",
+          "light",
+          "outlinePrimary",
+          "special",
+          "outlineSecondary",
+          "white",
+          "dark"
+        ]
+      },
+      {
+        "name": "weight",
+        "type": "VARIANT",
+        "defaultValue": "regular",
+        "options": [
+          "regular",
+          "medium",
+          "bold"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "after",
+      "before",
+      "label (reverse OnlyAddons)"
+    ],
+    "textProps": [
+      "value"
+    ],
+    "variantCount": 105
+  },
+  {
+    "figmaName": "LabelDiscount",
+    "figmaSetKey": "7a49d5a998b1dc63026cf7edd9f2668b19f7eb70",
+    "figmaNodeId": "21856:150411",
+    "section": "Atoms",
+    "reactName": "LabelDiscount",
+    "importPath": "@oceania/depot/components/LabelDiscount",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "m",
+        "options": [
+          "m",
+          "s",
+          "xs",
+          "2xs",
+          "3xs"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "outlinePrimary",
+        "options": [
+          "outlinePrimary",
+          "outlineSpecial",
+          "special",
+          "textPrimary",
+          "textSpecial"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 25
+  },
+  {
+    "figmaName": "SkeletonElement",
+    "figmaSetKey": "30348d5e776424f5e85858ca524691b46f51c488",
+    "figmaNodeId": "30417:83783",
+    "section": "Atoms",
+    "reactName": "SkeletonElement",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "animState",
+        "type": "VARIANT",
+        "defaultValue": "start",
+        "options": [
+          "start",
+          "end"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Graphic / Alfa-Bank",
+    "figmaSetKey": "7f37465cc1abf2888a552259fcb9865f3d633329",
+    "figmaNodeId": "18069:80825",
+    "section": "Graphics",
+    "reactName": "Graphic / Alfa-Bank",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Filled",
+        "type": "VARIANT",
+        "defaultValue": "On",
+        "options": [
+          "On",
+          "Off"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "16",
+        "options": [
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Color",
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Graphic / Alfa-Pay",
+    "figmaSetKey": "af2c228b41f271121ea3bbfd6553298b8da99a84",
+    "figmaNodeId": "17076:89462",
+    "section": "Graphics",
+    "reactName": "Graphic / Alfa-Pay",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "16",
+        "options": [
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Black & White",
+        "options": [
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Graphic / BNPL / Dolyame",
+    "figmaSetKey": "79dbc31acdb62250e407f040bc3359fc963e522f",
+    "figmaNodeId": "6076:33946",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Dolyame",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "Graphic / BNPL / Mokka",
+    "figmaSetKey": "6838b31c0253719f0fa6adec059d815aba564ec0",
+    "figmaNodeId": "6076:27808",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Mokka",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "16",
+        "options": [
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Black & White",
+        "options": [
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Graphic / BNPL / MTS Pay",
+    "figmaSetKey": "b2e701ba87a3695d7ebf5837047ff966b97bdc88",
+    "figmaNodeId": "6074:34196",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / MTS Pay",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "Graphic / BNPL / Plait",
+    "figmaSetKey": "6cd30ad495079263b9db9caac24f9200ee481d54",
+    "figmaNodeId": "6074:34152",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Plait",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "Graphic / BNPL / Plati Chastyami",
+    "figmaSetKey": "17f74165f6d0abdfc592602e2210ef078b21afd4",
+    "figmaNodeId": "6074:34257",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Plati Chastyami",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "Graphic / BNPL / Plus",
+    "figmaSetKey": "5e9b895f568cbf1600b46aefb7c9eb50a48febe7",
+    "figmaNodeId": "6074:33990",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Plus",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Color",
+        "type": "VARIANT",
+        "defaultValue": "Gradient",
+        "options": [
+          "Gradient",
+          "Black",
+          "White"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "24",
+        "options": [
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 15
+  },
+  {
+    "figmaName": "Graphic / BNPL / Podeli",
+    "figmaSetKey": "01dec7a2ec3c1b77e95ab9768874606a244f1d86",
+    "figmaNodeId": "6074:34223",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Podeli",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "Graphic / BNPL / Sber",
+    "figmaSetKey": "e31ae2f28d42dd3ab0f70856756b6fc3b809d9f7",
+    "figmaNodeId": "13518:75738",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Sber",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Graphic / BNPL / SBP",
+    "figmaSetKey": "93cd25a876da35bf6979b0f3ca042783cc29d77b",
+    "figmaNodeId": "13522:75838",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / SBP",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "14",
+          "16",
+          "20"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Color",
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "Graphic / BNPL / Split",
+    "figmaSetKey": "77659ffb991aaa1654bdc91449ca311c14c6319b",
+    "figmaNodeId": "6076:34134",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Split",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "Graphic / BNPL / T-Bank",
+    "figmaSetKey": "07294d3b0857cfbb93afa1a8a9cff2ddd3dcd7a7",
+    "figmaNodeId": "13526:75794",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / T-Bank",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "14",
+          "16",
+          "20"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Graphic / BNPL / Yandex Pay",
+    "figmaSetKey": "696fd40abb8735f3d60c6accf7b4644b51d1a61a",
+    "figmaNodeId": "6076:34065",
+    "section": "Graphics",
+    "reactName": "Graphic / BNPL / Yandex Pay",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "20",
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Black & White",
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Graphic / Robokassa",
+    "figmaSetKey": "552181b3d33b8f4d3d3aa3640de834b85b25063a",
+    "figmaNodeId": "17085:84111",
+    "section": "Graphics",
+    "reactName": "Graphic / Robokassa",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "16",
+        "options": [
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Black & White",
+        "options": [
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Graphic / T-Pay",
+    "figmaSetKey": "869b4418448aca2ad1c0930b9b05d3cf9e659807",
+    "figmaNodeId": "17041:86091",
+    "section": "Graphics",
+    "reactName": "Graphic / T-Pay",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "16",
+        "options": [
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Black & White",
+        "options": [
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Graphic / Various / Cursors",
+    "figmaSetKey": "4b3e86add5edf190b3022f37ad4c107b86e2161f",
+    "figmaNodeId": "22136:232667",
+    "section": "Graphics",
+    "reactName": "Graphic / Various / Cursors",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Type",
+        "type": "VARIANT",
+        "defaultValue": "Hand",
+        "options": [
+          "Hand",
+          "Arrow",
+          "Drag",
+          "Text"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "Hint"
+    ],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Graphic / Various / Ecom Favicon",
+    "figmaSetKey": "be871d9f9e0c42949e7d2fef92e534a8a160acd7",
+    "figmaNodeId": "22560:126148",
+    "section": "Graphics",
+    "reactName": "Graphic / Various / Ecom Favicon",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Color",
+        "options": [
+          "Color"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Graphic / Various / Point",
+    "figmaSetKey": "4f1c24922aba2851296b5c72505e114bb50b8050",
+    "figmaNodeId": "22136:232557",
+    "section": "Graphics",
+    "reactName": "Graphic / Various / Point",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Variant",
+        "type": "VARIANT",
+        "defaultValue": "Neutral",
+        "options": [
+          "Neutral",
+          "Positive",
+          "Negative"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Graphic / Various / Range Line",
+    "figmaSetKey": "311fc049a051579f7d9e98c661d7e7a7f708c936",
+    "figmaNodeId": "22136:232566",
+    "section": "Graphics",
+    "reactName": "Graphic / Various / Range Line",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Variant",
+        "type": "VARIANT",
+        "defaultValue": "Neutral",
+        "options": [
+          "Neutral",
+          "Positive",
+          "Negative"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Graphic / YandexPayNew",
+    "figmaSetKey": "c6279c284162b696933a99f3845faf0924718200",
+    "figmaNodeId": "28137:27274",
+    "section": "Graphics",
+    "reactName": "Graphic / YandexPayNew",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "color",
+        "type": "VARIANT",
+        "defaultValue": "red & black",
+        "options": [
+          "transparent",
+          "black",
+          "red & black",
+          "red & white"
+        ]
+      },
+      {
+        "name": "lang",
+        "type": "VARIANT",
+        "defaultValue": "ru",
+        "options": [
+          "ru",
+          "en"
+        ]
+      },
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "20",
+        "options": [
+          "14",
+          "16",
+          "20"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 24
+  },
+  {
+    "figmaName": "Graphic / Юkassa",
+    "figmaSetKey": "c666cb55d3388387464e19a513aea0c8775e9016",
+    "figmaNodeId": "17085:84170",
+    "section": "Graphics",
+    "reactName": "Graphic / Юkassa",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "16",
+        "options": [
+          "16",
+          "14"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Black & White",
+        "options": [
+          "Black & White"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Graphics / Illustration",
+    "figmaSetKey": "4b8dfa4b63aaae43be3b8bb2cb5bf3aac853d101",
+    "figmaNodeId": "6008:158109",
+    "section": "Graphics",
+    "reactName": "Graphics / Illustration",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Type",
+        "type": "VARIANT",
+        "defaultValue": "Still-Thumb",
+        "options": [
+          "404",
+          "No-Still",
+          "Still",
+          "Still-Thumb"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Icon / ArrowLong Down",
+    "figmaSetKey": "af1e9f932cad24ba6259b2dd03ab9cf13a919e4e",
+    "figmaNodeId": "21931:151634",
+    "section": "Graphics",
+    "reactName": "Icon / ArrowLong Down",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Fill",
+        "type": "VARIANT",
+        "defaultValue": "Off",
+        "options": [
+          "Off"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "10",
+          "24",
+          "20"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Icon / ArrowLong Up",
+    "figmaSetKey": "2f2757352c3c2211926e835eaf1f409d1970cbd8",
+    "figmaNodeId": "21931:151668",
+    "section": "Graphics",
+    "reactName": "Icon / ArrowLong Up",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Fill",
+        "type": "VARIANT",
+        "defaultValue": "Off",
+        "options": [
+          "Off"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "10",
+          "24",
+          "20"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Icon / Cargo",
+    "figmaSetKey": "b8600ac90e5d3f99d7f7248062ade7b818d7f741",
+    "figmaNodeId": "31125:76303",
+    "section": "Graphics",
+    "reactName": "Icon / Cargo",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "20",
+          "24",
+          "32"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Icon / Cart",
+    "figmaSetKey": "4a90158b7de25576e354fd9125612b771001072f",
+    "figmaNodeId": "6068:72700",
+    "section": "Graphics",
+    "reactName": "Icon / Cart",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Comments",
+    "figmaSetKey": "b325afe78ca1e2c0e5fb84952da34c4ab4cafb5b",
+    "figmaNodeId": "27969:118788",
+    "section": "Graphics",
+    "reactName": "Icon / Comments",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Crossborder",
+    "figmaSetKey": "191e641fe2e78fd3d789c1c306c800a28d012994",
+    "figmaNodeId": "23731:124483",
+    "section": "Graphics",
+    "reactName": "Icon / Crossborder",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / ItemGrid",
+    "figmaSetKey": "57b0a79dc7372dbc1d734d81beffe7252bb8acb0",
+    "figmaNodeId": "23400:384247",
+    "section": "Graphics",
+    "reactName": "Icon / ItemGrid",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Fill",
+        "type": "VARIANT",
+        "defaultValue": "Off",
+        "options": [
+          "Off"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "16",
+          "20",
+          "24",
+          "32"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Icon / ItemList",
+    "figmaSetKey": "fb852c26bc0e9c7527f61d86bc98dfc2a4067906",
+    "figmaNodeId": "23400:384266",
+    "section": "Graphics",
+    "reactName": "Icon / ItemList",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Fill",
+        "type": "VARIANT",
+        "defaultValue": "Off",
+        "options": [
+          "Off"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Icon / Lock",
+    "figmaSetKey": "e22ff2e166571e777859a4b2e74a82506cf84a8a",
+    "figmaNodeId": "26349:28519",
+    "section": "Graphics",
+    "reactName": "Icon / Lock",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Multiplication",
+    "figmaSetKey": "e50fef371a24a3b2e95b684c261c86cf41ab991b",
+    "figmaNodeId": "6068:72734",
+    "section": "Graphics",
+    "reactName": "Icon / Multiplication",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Official Shop",
+    "figmaSetKey": "773c8d159cdaec0e8a66502be2be2135bc465ec0",
+    "figmaNodeId": "6068:34481",
+    "section": "Graphics",
+    "reactName": "Icon / Official Shop",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Purchases",
+    "figmaSetKey": "39f2b38455a1d6f793d66d3ab8fd05c38a96a8cd",
+    "figmaNodeId": "22088:78414",
+    "section": "Graphics",
+    "reactName": "Icon / Purchases",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Star",
+    "figmaSetKey": "4a43adfa1145a3e6e7bdcad897509370c8a6c865",
+    "figmaNodeId": "6079:126025",
+    "section": "Graphics",
+    "reactName": "Icon / Star",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Fill",
+        "type": "VARIANT",
+        "defaultValue": "Off",
+        "options": [
+          "On",
+          "Off"
+        ]
+      },
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12",
+          "10"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 11
+  },
+  {
+    "figmaName": "Icon / Van",
+    "figmaSetKey": "7ea3c18059d7f36cf83c769e6194b6df5ae78dbf",
+    "figmaNodeId": "6068:160068",
+    "section": "Graphics",
+    "reactName": "Icon / Van",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Icon / Wallet",
+    "figmaSetKey": "4a6e08e070bf77e34b49be9bd16f16fa8eff1f98",
+    "figmaNodeId": "6068:160088",
+    "section": "Graphics",
+    "reactName": "Icon / Wallet",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "32",
+        "options": [
+          "32",
+          "24",
+          "20",
+          "16",
+          "14",
+          "12"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "Mini Illustaration",
+    "figmaSetKey": "1dc8e0bbbf31e3949b6a12585c2ebad6ffb38ea9",
+    "figmaNodeId": "22088:78634",
+    "section": "Graphics",
+    "reactName": "MiniIllustration",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Variant",
+        "type": "VARIANT",
+        "defaultValue": "Variant12",
+        "options": [
+          "11",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "Variant12",
+          "13"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 13
+  },
+  {
+    "figmaName": "[Beta] / ListItem",
+    "figmaSetKey": "f87cf724851aab6bb7060768627a9e4669673431",
+    "figmaNodeId": "7037:28551",
+    "section": "Molecules",
+    "reactName": "ListItem",
+    "importPath": "@oceania/depot/components/ListItem",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "skeleton",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "true",
+          "false"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Empty State",
+    "figmaSetKey": "b51e56378ac76e3969e22197fe690786fa933173",
+    "figmaNodeId": "17342:122213",
+    "section": "Molecules",
+    "reactName": "EmptyState",
+    "importPath": "@oceania/depot/components/EmptyState",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "illustration"
+    ],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "EPriceGroup",
+    "figmaSetKey": "90f26a9468b99cc5efa99b19c336feeaefa1c143",
+    "figmaNodeId": "15029:474826",
+    "section": "Molecules",
+    "reactName": "EPriceGroup",
+    "importPath": "@oceania/depot/components/EPriceGroup",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "m",
+        "options": [
+          "m",
+          "l",
+          "L2"
+        ]
+      },
+      {
+        "name": "Сombining Elements",
+        "type": "VARIANT",
+        "defaultValue": "None",
+        "options": [
+          "None",
+          "Discount + Old Price"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "[EXP] Calculation",
+      "Plus Cashback",
+      "withBarometer",
+      "withDisclaimer",
+      "withFintech",
+      "withLabelDiscount",
+      "withPriceOld"
+    ],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "EShopName",
+    "figmaSetKey": "f3c1ebef0cf18512c67f50b6332583bf0e794190",
+    "figmaNodeId": "22085:156620",
+    "section": "Molecules",
+    "reactName": "EShopName",
+    "importPath": "@oceania/depot/components/EShopName",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "xs",
+        "options": [
+          "xs",
+          "s",
+          "m",
+          "l",
+          "xl",
+          "xxl"
+        ]
+      },
+      {
+        "name": "weight",
+        "type": "VARIANT",
+        "defaultValue": "medium",
+        "options": [
+          "regular",
+          "medium",
+          "bold"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "favicon",
+      "isOfficial"
+    ],
+    "textProps": [
+      "name"
+    ],
+    "variantCount": 12
+  },
+  {
+    "figmaName": "EThumb",
+    "figmaSetKey": "8faefce0c971aee23cd154f600a4dfa1ae6cb50c",
+    "figmaNodeId": "6076:34286",
+    "section": "Molecules",
+    "reactName": "EThumb",
+    "importPath": "@oceania/depot/components/EThumb",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Ratio",
+        "type": "VARIANT",
+        "defaultValue": "Nested",
+        "options": [
+          "Nested",
+          "1:1",
+          "2:3",
+          "3:2",
+          "3:4",
+          "4:3",
+          "9:16",
+          "16:9",
+          "Manual"
+        ]
+      },
+      {
+        "name": "Type",
+        "type": "VARIANT",
+        "defaultValue": "current-default",
+        "options": [
+          "current-default",
+          "current-selected",
+          "EThumbGroup",
+          "New; feb-26"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "Dot indicator",
+      "Favorite",
+      "Image Fill",
+      "Label",
+      "White BG"
+    ],
+    "textProps": [],
+    "variantCount": 11
+  },
+  {
+    "figmaName": "Image Gallery / Preview",
+    "figmaSetKey": "31d48aaf3cefe5caa99e79ec60c4e45bae3bb9de",
+    "figmaNodeId": "6173:152879",
+    "section": "Molecules",
+    "reactName": "Image Gallery / Preview",
+    "importPath": "@oceania/depot/components/Image Gallery / Preview",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "State",
+        "type": "VARIANT",
+        "defaultValue": "Default",
+        "options": [
+          "Default",
+          "Hover"
+        ]
+      },
+      {
+        "name": "View",
+        "type": "VARIANT",
+        "defaultValue": "Image",
+        "options": [
+          "Image",
+          "Overflow"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "Image Gallery",
+    "figmaSetKey": "57eff0fbe1a75bdfa9ff3cf2559696bcf8a95810",
+    "figmaNodeId": "6173:152321",
+    "section": "Molecules",
+    "reactName": "ImageGallery",
+    "importPath": "@oceania/depot/components/ImageGallery",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "SIze",
+        "type": "VARIANT",
+        "defaultValue": "XL",
+        "options": [
+          "XL",
+          "L",
+          "M"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Info block",
+    "figmaSetKey": "81bd255e5103a5f68357d75344e2b1cbd7e0db15",
+    "figmaNodeId": "9301:105131",
+    "section": "Molecules",
+    "reactName": "InfoBlock",
+    "importPath": "@oceania/depot/components/InfoBlock",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "Line / Combo",
+    "figmaSetKey": "f9c30b37fa48af0b86294e5e0c085d7e3f35cb25",
+    "figmaNodeId": "22086:163765",
+    "section": "Molecules",
+    "reactName": "LineCombo",
+    "importPath": "@oceania/depot/components/LineCombo",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "Line",
+        "options": [
+          "Line"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "withDelivery"
+    ],
+    "textProps": [],
+    "variantCount": 1
+  },
+  {
+    "figmaName": "Line / Official Shop",
+    "figmaSetKey": "0bca28e4891c5e091c828e064e5202ad97f014a4",
+    "figmaNodeId": "22086:159623",
+    "section": "Molecules",
+    "reactName": "LineOfficialShop",
+    "importPath": "@oceania/depot/components/LineOfficialShop",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "m",
+        "options": [
+          "m",
+          "l"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "PreviewGallery",
+    "figmaSetKey": "3cc78d7f7db8431384cc2ca4a6d049f991cb6e7a",
+    "figmaNodeId": "30269:91433",
+    "section": "Molecules",
+    "reactName": "PreviewGallery",
+    "importPath": "@oceania/depot/components/PreviewGallery",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      },
+      {
+        "name": "posOverflow",
+        "type": "VARIANT",
+        "defaultValue": "right",
+        "options": [
+          "right",
+          "both",
+          "left",
+          "none"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 7
+  },
+  {
+    "figmaName": "PreviewSingle",
+    "figmaSetKey": "75426e3499bf1da4d60721fb62fa2687db7cf417",
+    "figmaNodeId": "30269:101639",
+    "section": "Molecules",
+    "reactName": "PreviewSingle",
+    "importPath": "@oceania/depot/components/PreviewSingle",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "touch",
+          "desktop"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "ShopInfo-Bnpl",
+    "figmaSetKey": "79718d224067e2a9c7ff8310cf377ff09e7b7b63",
+    "figmaNodeId": "22086:157739",
+    "section": "Molecules",
+    "reactName": "ShopInfoBnpl",
+    "importPath": "@oceania/depot/components/ShopInfoBnpl",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "xs",
+        "options": [
+          "xs",
+          "s",
+          "m"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "first-child",
+      "second-child",
+      "third-child"
+    ],
+    "textProps": [],
+    "variantCount": 3
+  },
+  {
+    "figmaName": "Title",
+    "figmaSetKey": "cd47767eeadd916860f6c7c0222a63a8f4b3c5b9",
+    "figmaNodeId": "6962:283636",
+    "section": "Molecules",
+    "reactName": "Title",
+    "importPath": "@oceania/depot/components/Title",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Size",
+        "type": "VARIANT",
+        "defaultValue": "L",
+        "options": [
+          "L",
+          "M",
+          "S",
+          "XS"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "1-Action",
+      "2-Action",
+      "3-Action",
+      "ACTION ICON",
+      "ADV Text Label",
+      "Chevron",
+      "Favicon",
+      "Grid | List Control",
+      "Subtitle"
+    ],
+    "textProps": [
+      "titleText"
+    ],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "AdvProductGallery",
+    "figmaSetKey": "bd498bf39e896fbe71a4c6871ec8427977e50bf6",
+    "figmaNodeId": "30416:77135",
+    "section": "Organisms",
+    "reactName": "AdvProductGallery",
+    "importPath": "@oceania/depot/components/AdvProductGallery",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "fullWidth",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "false",
+          "true"
+        ]
+      },
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      },
+      {
+        "name": "screenWidth",
+        "type": "VARIANT",
+        "defaultValue": "-1252px",
+        "options": [
+          "-1252px",
+          "≥1252px"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "overflow"
+    ],
+    "textProps": [],
+    "variantCount": 5
+  },
+  {
+    "figmaName": "EOfferItem",
+    "figmaSetKey": "11ffaf051b8bde5eefafb6879556d72039e17b0a",
+    "figmaNodeId": "15029:572619",
+    "section": "Organisms",
+    "reactName": "EOfferItem",
+    "importPath": "@oceania/depot/components/EOfferItem",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "offerMain",
+        "options": [
+          "offerMain",
+          "offerPrices"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "Brand",
+      "Price Disclaimer",
+      "withButton",
+      "withData",
+      "withDelivery",
+      "withEcomMeta",
+      "withFavoritesButton",
+      "withFintech",
+      "withReviews",
+      "withTitle"
+    ],
+    "textProps": [
+      "organicTitle"
+    ],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "EProductSnippetExp",
+    "figmaSetKey": "686d259e95227248cc00d1a6207cf0a49fd56b7e",
+    "figmaNodeId": "32397:125318",
+    "section": "Organisms",
+    "reactName": "EProductSnippetExp",
+    "importPath": "@oceania/depot/components/EProductSnippetExp",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "state",
+        "type": "VARIANT",
+        "defaultValue": "resting",
+        "options": [
+          "resting",
+          "hovered",
+          "selected"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "product",
+        "options": [
+          "product",
+          "product-promo",
+          "from-images",
+          "from-rhytm",
+          "skeleton",
+          "banner-promo"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [
+      "SourceMeta",
+      "SourceName"
+    ],
+    "variantCount": 18
+  },
+  {
+    "figmaName": "EProductSpecs, EProductSpecsFull",
+    "figmaSetKey": "7da7f674771a376fff28f23852fbda56cc1a9c04",
+    "figmaNodeId": "6959:101173",
+    "section": "Organisms",
+    "reactName": "EProductSpecs",
+    "importPath": "@oceania/depot/components/EProductSpecs",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      },
+      {
+        "name": "wrapped",
+        "type": "VARIANT",
+        "defaultValue": "true",
+        "options": [
+          "false",
+          "true"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "EQuickFilters",
+    "figmaSetKey": "54fe3a8d49af9087312106a10ea1aaca78d81c51",
+    "figmaNodeId": "30609:49365",
+    "section": "Organisms",
+    "reactName": "EQuickFilters",
+    "importPath": "@oceania/depot/components/EQuickFilters",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "filtered",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "false",
+          "true"
+        ]
+      },
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "wide",
+        "options": [
+          "wide",
+          "narrow"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "filterBrand",
+      "filterPrice",
+      "overflowLeft",
+      "overflowRight",
+      "priceSort↑",
+      "priceSort↓",
+      "suggests"
+    ],
+    "textProps": [],
+    "variantCount": 8
+  },
+  {
+    "figmaName": "EShopItem",
+    "figmaSetKey": "d9657bdc53db8b0810549920a9fd56d663b8c23a",
+    "figmaNodeId": "22266:253348",
+    "section": "Organisms",
+    "reactName": "EShopItem",
+    "importPath": "@oceania/depot/components/EShopItem",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "withButton",
+      "withDelivery",
+      "withDisclaimer",
+      "withFavoritesButton",
+      "withFintech",
+      "withHostLink",
+      "withMeta",
+      "withReviews"
+    ],
+    "textProps": [
+      "organicText",
+      "organicTitle"
+    ],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "ESnippet",
+    "figmaSetKey": "7fafeb63cea8a0b0b52e8082b877188573d3d89c",
+    "figmaNodeId": "7196:103341",
+    "section": "Organisms",
+    "reactName": "ESnippet",
+    "importPath": "@oceania/depot/components/ESnippet",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "image",
+        "type": "VARIANT",
+        "defaultValue": "none",
+        "options": [
+          "none",
+          "group",
+          "single"
+        ]
+      },
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "isOfficial",
+      "showKebab",
+      "withAddress",
+      "withButton",
+      "withData",
+      "withDelivery",
+      "withDeliveryBnpl",
+      "withFintech",
+      "withOnboarding",
+      "withPrice",
+      "withPromo",
+      "withQuotes",
+      "withReviews",
+      "withSitelinks"
+    ],
+    "textProps": [
+      "organicHost",
+      "organicPath",
+      "organicText",
+      "organicTitle"
+    ],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "FuturisProductReview",
+    "figmaSetKey": "6ec13d47921c5283a302818691705700dc883297",
+    "figmaNodeId": "29606:60028",
+    "section": "Organisms",
+    "reactName": "FuturisProductReview",
+    "importPath": "@oceania/depot/components/FuturisProductReview",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      },
+      {
+        "name": "wrapped",
+        "type": "VARIANT",
+        "defaultValue": "true",
+        "options": [
+          "false",
+          "true"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "FuturisProductsChat",
+    "figmaSetKey": "947172ffe57bf729caa868675b4bba11db245400",
+    "figmaNodeId": "6959:103695",
+    "section": "Organisms",
+    "reactName": "FuturisProductsChat",
+    "importPath": "@oceania/depot/components/FuturisProductsChat",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "dialog",
+        "type": "VARIANT",
+        "defaultValue": "false",
+        "options": [
+          "false",
+          "true"
+        ]
+      },
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 4
+  },
+  {
+    "figmaName": "InfoCard, Onboarding",
+    "figmaSetKey": "5ce4fb4f7f5c7d344279418bc0531555e7360959",
+    "figmaNodeId": "22088:79172",
+    "section": "Organisms",
+    "reactName": "InfoCard",
+    "importPath": "@oceania/depot/components/InfoCard",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "feature",
+        "type": "VARIANT",
+        "defaultValue": "barometer",
+        "options": [
+          "checkout",
+          "barometer"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "miniCardVertical-v1",
+        "options": [
+          "miniCardVertical-v1",
+          "miniCardVertical-v2",
+          "miniCardHorizontal",
+          "fullWidth-v1",
+          "fullWidth-v2"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 6
+  },
+  {
+    "figmaName": "ReviewSummarization",
+    "figmaSetKey": "635d1640777da6018df79de1b863769bbeb3a112",
+    "figmaNodeId": "6962:29748",
+    "section": "Organisms",
+    "reactName": "ReviewSummarization",
+    "importPath": "@oceania/depot/components/ReviewSummarization",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 2
+  },
+  {
+    "figmaName": "FintechAlice",
+    "figmaSetKey": "9ed68be5e00d151cd83f3d71fa508cb20c9cb6bc",
+    "figmaNodeId": "32122:79006",
+    "section": "Section",
+    "reactName": "FintechAlice",
+    "importPath": "@oceania/depot/components/FintechAlice",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "Fintech",
+        "type": "VARIANT",
+        "defaultValue": "PayBox",
+        "options": [
+          "Alfa",
+          "PayBox",
+          "Split",
+          "PayCard",
+          "VTB",
+          "Ozon",
+          "WB"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 7
+  },
+  {
+    "figmaName": "TestFintech",
+    "figmaSetKey": "5b7a10e39882d10ddcd22b0990efc31ab085470b",
+    "figmaNodeId": "32122:79073",
+    "section": "Section",
+    "reactName": "TestFintech",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "s (not in storybook)",
+        "options": [
+          "s (not in storybook)",
+          "m",
+          "l"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "payBox",
+        "options": [
+          "payBox",
+          "payCard",
+          "split",
+          "alpha",
+          "ozon",
+          "vtb"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "default",
+        "options": [
+          "default",
+          "extra-short",
+          "short",
+          "long",
+          "extra-long"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 90
+  },
+  {
+    "figmaName": "Как сейчас",
+    "figmaSetKey": "2408d2d183407359214a37c411b76b3d8b91cd65",
+    "figmaNodeId": "32122:79390",
+    "section": "Section",
+    "reactName": "Как сейчас",
+    "importPath": "(graphic — not a React component)",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "size",
+        "type": "VARIANT",
+        "defaultValue": "s (not in storybook)",
+        "options": [
+          "s (not in storybook)",
+          "m",
+          "l"
+        ]
+      },
+      {
+        "name": "type",
+        "type": "VARIANT",
+        "defaultValue": "pay",
+        "options": [
+          "pay",
+          "yandexPay",
+          "split",
+          "alphaCard",
+          "ozon",
+          "vtb"
+        ]
+      },
+      {
+        "name": "view",
+        "type": "VARIANT",
+        "defaultValue": "default",
+        "options": [
+          "default",
+          "extra-short",
+          "short",
+          "long",
+          "extra-long"
+        ]
+      }
+    ],
+    "booleanProps": [],
+    "textProps": [],
+    "variantCount": 90
+  },
+  {
+    "figmaName": "EProductCard",
+    "figmaSetKey": "fdb83fe5b0732a1d0228187e78c5cc8702bf8785",
+    "figmaNodeId": "6478:465408",
+    "section": "Templates",
+    "reactName": "EProductCard",
+    "importPath": "@oceania/depot/components/EProductCard",
+    "source": "inferred",
+    "variantProps": [
+      {
+        "name": "platform",
+        "type": "VARIANT",
+        "defaultValue": "desktop",
+        "options": [
+          "desktop",
+          "touch"
+        ]
+      }
+    ],
+    "booleanProps": [
+      "alice",
+      "avgPrice",
+      "defaultOffer",
+      "findCheaper",
+      "prices",
+      "specs",
+      "ugc"
+    ],
+    "textProps": [],
+    "variantCount": 2
+  }
+]
