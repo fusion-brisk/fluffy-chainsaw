@@ -8,7 +8,8 @@
   "workspaces": [
     "packages/plugin",
     "packages/extension",
-    "packages/relay"
+    "packages/relay",
+    "packages/jsx-emitter"
   ],
   "scripts": {
     "build": "npm run build -w packages/plugin",
