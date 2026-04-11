@@ -174,30 +174,6 @@ export function findAllNodesByNameContains(node: BaseNode, needle: string): Scen
 }
 
 /**
- * Поиск ближайшего предка с указанным именем до stopAt
- */
-export function findNearestNamedAncestor(
-  node: SceneNode,
-  stopAt: BaseNode,
-  ancestorName: string,
-): SceneNode | null {
-  let cur: BaseNode | null = node;
-  while (cur && cur !== stopAt) {
-    const parent = (cur as SceneNode).parent as BaseNode | null;
-    if (!parent) break;
-    if (
-      'name' in parent &&
-      (parent as SceneNode).name === ancestorName &&
-      !(parent as SceneNode).removed
-    ) {
-      return parent as SceneNode;
-    }
-    cur = parent;
-  }
-  return null;
-}
-
-/**
  * Поиск всех инстансов внутри узла (рекурсивно)
  */
 export function findAllInstances(node: BaseNode): InstanceNode[] {

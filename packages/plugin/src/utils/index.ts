@@ -53,30 +53,3 @@ export { findFillableLayer } from './layer-search';
 // Relay payload parsing
 export { extractRowsFromPayload } from './relay-payload';
 export type { ParsedRelayData } from './relay-payload';
-
-// ============================================
-// UI Utilities
-// ============================================
-
-/**
- * Creates a debounced version of a function
- * @param fn Function to debounce
- * @param delay Delay in milliseconds
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function debounce<T extends (...args: any[]) => void>(
-  fn: T,
-  delay: number,
-): (...args: Parameters<T>) => void {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-  return (...args: Parameters<T>) => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    timeoutId = setTimeout(() => {
-      fn(...args);
-      timeoutId = null;
-    }, delay);
-  };
-}
