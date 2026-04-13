@@ -1324,6 +1324,7 @@ declare global {
       else if (cls.includes('Fintech_type_mtsPay')) row['#Fintech_Type'] = 'MTS Pay';
       else if (cls.includes('Fintech_type_tPay')) row['#Fintech_Type'] = 'T-Pay';
       else if (cls.includes('Fintech_type_alfa')) row['#Fintech_Type'] = 'alfaCard';
+      else if (cls.includes('Fintech_type_vtb')) row['#Fintech_Type'] = 'vtbCard';
       else if (cls.includes('Fintech_type_wildberries')) row['#Fintech_Type'] = 'Wildberries';
 
       // View — full mapping matching snippet-parser.ts (including extra-long)
@@ -3436,8 +3437,18 @@ declare global {
     if (fintechEl) {
       row['#EPriceGroup_Fintech'] = 'true';
       var cls = fintechEl.className || '';
-      if (cls.includes('yandexPay')) row['#Fintech_Type'] = 'yandexPay';
-      else if (cls.includes('split')) row['#Fintech_Type'] = 'split';
+      if (cls.includes('Fintech_type_split') || cls.includes('split'))
+        row['#Fintech_Type'] = 'split';
+      else if (cls.includes('Fintech_type_yandexPay') || cls.includes('yandexPay'))
+        row['#Fintech_Type'] = 'yandexPay';
+      else if (cls.includes('Fintech_type_pay') || cls.includes('pay'))
+        row['#Fintech_Type'] = 'pay';
+      else if (cls.includes('Fintech_type_ozon') || cls.includes('ozon'))
+        row['#Fintech_Type'] = 'ozon';
+      else if (cls.includes('Fintech_type_alfa') || cls.includes('alfa'))
+        row['#Fintech_Type'] = 'alfaCard';
+      else if (cls.includes('Fintech_type_vtb') || cls.includes('vtb'))
+        row['#Fintech_Type'] = 'vtbCard';
       else if (cls.includes('dolyami')) row['#Fintech_Type'] = 'dolyami';
     }
 
