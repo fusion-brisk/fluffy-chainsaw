@@ -193,6 +193,15 @@ export const SNIPPET_COMPONENT_MAP: Record<SnippetType, ComponentConfig> = {
     },
   },
 
+  EProductSnippetExp: {
+    key: '686d259e95227248cc00d1a6207cf0a49fd56b7e', // EProductSnippetExp ComponentSet (DC · Ecom)
+    name: 'EProductSnippetExp',
+    defaultVariant: {
+      type: 'product',
+      state: 'resting',
+    },
+  },
+
   Organic: {
     key: '17bada92cf5316683fa815df4ad6bf6b650acf28', // Maps to ESnippet (Desktop)
     keyTouch: 'fd4c85bc57a4b46b9587247035a5fd01b5df4a91',
@@ -555,8 +564,8 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
       bottom: 0,
       left: 0,
     },
-    childTypes: ['EProductSnippet2'],
-    childWidth: 248, // default for 2-col masonry; overridden by #gridColumns
+    childTypes: ['EProductSnippetExp'],
+    childWidth: 152, // EProductSnippetExp default width
   },
 
   EntityOffers: {
@@ -722,6 +731,7 @@ export const CSS_CLASS_TO_SNIPPET_TYPE: Record<string, SnippetType> = {
   EOfferItem: 'EOfferItem',
   EShopItem: 'EShopItem',
   EProductSnippet2: 'EProductSnippet2',
+  EProductSnippetExp: 'EProductSnippetExp',
   Organic: 'Organic',
   Organic_withOfferInfo: 'Organic_withOfferInfo',
   'ProductTile-Item': 'ProductTile-Item',

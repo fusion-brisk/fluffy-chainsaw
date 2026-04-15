@@ -122,6 +122,7 @@ import { applySchema } from '../schema/engine';
 import { ESHOP_ITEM_SCHEMA } from '../schema/eshop-item';
 import { EOFFER_ITEM_SCHEMA } from '../schema/eoffer-item';
 import { EPRODUCT_SNIPPET_SCHEMA } from '../schema/eproduct-snippet';
+import { EPRODUCT_SNIPPET_EXP_SCHEMA } from '../schema/eproduct-snippet-exp';
 import { ESNIPPET_SCHEMA } from '../schema/esnippet';
 import { handleESnippetStructural } from '../schema/esnippet-hooks';
 
@@ -318,6 +319,23 @@ class HandlerRegistry {
         mode: 'sync',
         containers: ['EProductSnippet', 'EProductSnippet2'],
         description: 'EProductSnippet schema-based property mapping',
+      },
+    );
+
+    // EProductSnippetExp — schema engine (masonry grid карточки)
+    this.register(
+      'EProductSnippetExp',
+      (context: HandlerContext) => {
+        const { container, row, instanceCache } = context;
+        if (!container || !row || !instanceCache) return;
+        if (container.type !== 'INSTANCE' || container.removed) return;
+        applySchema(container as InstanceNode, row, EPRODUCT_SNIPPET_EXP_SCHEMA, instanceCache);
+      },
+      {
+        priority: HandlerPriority.VARIANTS,
+        mode: 'sync',
+        containers: ['EProductSnippetExp'],
+        description: 'EProductSnippetExp schema-based property mapping',
       },
     );
 

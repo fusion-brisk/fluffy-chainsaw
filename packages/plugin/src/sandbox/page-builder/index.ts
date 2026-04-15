@@ -43,4 +43,5 @@ export {
   createSerpPage,
   validateComponentKeys,
   clearComponentCache,
+  handleSlotPostProcess,
 } from './page-creator';

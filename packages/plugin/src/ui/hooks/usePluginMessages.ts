@@ -97,6 +97,12 @@ export function usePluginMessages({
       const msg = event.data?.pluginMessage as PluginMessage;
       if (!msg || !msg.type) return;
 
+      // Slot post-process echo — untyped roundtrip message
+      if ((msg as { type: string }).type === 'slot-postprocess-echo') {
+        parent.postMessage({ pluginMessage: { type: 'slot-postprocess-execute' } }, '*');
+        return;
+      }
+
       const h = handlersRef.current;
 
       switch (msg.type) {

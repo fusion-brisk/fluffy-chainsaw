@@ -60,10 +60,18 @@ export function buildInstanceCache(container: BaseNode): DeepCache {
 
   const traverse = (node: BaseNode): void => {
     if (!node || (node as SceneNode).removed) return;
-    cache.stats.nodeCount++;
 
-    const nodeType = node.type;
-    const nodeName = 'name' in node ? node.name : '';
+    // Slot-internal nodes may throw on property access — skip gracefully
+    let nodeType: string;
+    let nodeName: string;
+    try {
+      nodeType = node.type;
+      nodeName = 'name' in node ? node.name : '';
+    } catch {
+      return; // Broken sublayer inside a slot — skip
+    }
+
+    cache.stats.nodeCount++;
 
     // Кэшируем INSTANCE ноды
     if (nodeType === 'INSTANCE') {
@@ -96,7 +104,11 @@ export function buildInstanceCache(container: BaseNode): DeepCache {
     // Рекурсивно обходим детей
     if ('children' in node && node.children) {
       for (const child of node.children) {
-        traverse(child);
+        try {
+          traverse(child);
+        } catch {
+          // Skip broken slot sublayer children
+        }
       }
     }
   };

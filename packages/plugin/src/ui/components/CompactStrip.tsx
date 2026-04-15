@@ -89,6 +89,11 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     // Build menu items
     const menuItems: MenuItem[] = useMemo(
       () => [
+        {
+          id: 'reimport',
+          label: 'Повторить импорт',
+          icon: '\u21BB',
+        },
         { id: 'logs', label: 'Логи', icon: '\u2261' },
         { id: 'inspector', label: 'Инспектор', icon: '\u2699' },
         { id: 'setup', label: 'Настройки', icon: '\u2638' },

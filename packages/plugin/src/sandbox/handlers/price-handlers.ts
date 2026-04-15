@@ -65,8 +65,15 @@ export async function handleEPriceGroup(context: HandlerContext): Promise<void> 
   // === Boolean свойства EPriceGroup ===
 
   // withLabelDiscount — показать лейбл скидки
+  // EProductSnippetExp: discount label moved to EThumb/ELabelGroup — always hide in EPriceGroup
   const hasDiscount = row['#EPriceGroup_Discount'] === 'true' || row['#Discount'] === 'true';
-  trySetProperty(ePriceGroupInstance, ['withLabelDiscount'], hasDiscount, '#EPriceGroup_Discount');
+  const showLabelDiscount = containerName === 'EProductSnippetExp' ? false : hasDiscount;
+  trySetProperty(
+    ePriceGroupInstance,
+    ['withLabelDiscount'],
+    showLabelDiscount,
+    '#EPriceGroup_Discount',
+  );
 
   // withPriceOld — показать старую цену
   const hasOldPrice = row['#EPriceGroup_OldPrice'] === 'true' || hasDiscount;

@@ -2576,10 +2576,13 @@ declare global {
           row['#serpItemId'] = serpItemId;
           row['#containerType'] = 'ProductsMixedGrid';
 
-          // Extract aspect ratio from closest ProductCard wrapper
+          // Extract aspect ratio — CSS var may be on ProductCard or its parent wrapper
           const productCard = product.closest('.ProductsImagesMixedGrid-ProductCard');
           if (productCard) {
-            const styleAttr = productCard.getAttribute('style') || '';
+            let styleAttr = productCard.getAttribute('style') || '';
+            if (!styleAttr.includes('--local-e-thumb-aspect-ratio') && productCard.parentElement) {
+              styleAttr = productCard.parentElement.getAttribute('style') || '';
+            }
             const ratioMatch = styleAttr.match(/--local-e-thumb-aspect-ratio:\s*([\d.]+)/);
             if (ratioMatch) {
               row['#ThumbAspectRatio'] = ratioMatch[1];
@@ -2588,6 +2591,14 @@ declare global {
             // Detect image-only cards
             if (productCard.classList.contains('ProductsImagesMixedGrid-ProductCard_image')) {
               row['#MixedGridImageOnly'] = 'true';
+            }
+
+            // Detect promo/ad cards (AdvLabel inside ProductCard)
+            if (
+              productCard.querySelector('.AdvLabel, .OrganicAdvLabel, [class*="AdvLabel"]') ||
+              productCard.classList.contains('ProductsImagesMixedGrid-ProductCard_adv')
+            ) {
+              row['#isPromoCard'] = 'true';
             }
           }
 

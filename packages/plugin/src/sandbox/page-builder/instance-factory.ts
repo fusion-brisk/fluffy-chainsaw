@@ -31,8 +31,8 @@ export async function createInstanceForElement(
 
   const componentKey = platform === 'touch' && config.keyTouch ? config.keyTouch : config.key;
 
-  // Импортируем компонент
-  const component = await loadComponent(componentKey);
+  // Импортируем компонент (defaultVariant used for ComponentSet key → variant selection)
+  const component = await loadComponent(componentKey, config.defaultVariant);
   if (!component) {
     Logger.warn('[PageCreator] Component not found, using placeholder: ' + element.type);
     return createPlaceholder(element.type, 360, 120);

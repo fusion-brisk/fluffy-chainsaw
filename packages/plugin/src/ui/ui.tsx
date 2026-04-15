@@ -345,6 +345,9 @@ const App: React.FC = () => {
         case 'whatsNew':
           panels.openPanel('whatsNew');
           break;
+        case 'reimport':
+          relay.reimport();
+          break;
         case 'clearQueue':
           importFlow.clearQueue();
           break;
@@ -361,7 +364,7 @@ const App: React.FC = () => {
           break;
       }
     },
-    [panels, importFlow, setAppState, resizeUI],
+    [panels, importFlow, setAppState, resizeUI, relay],
   );
 
   // === KEYBOARD SHORTCUTS ===

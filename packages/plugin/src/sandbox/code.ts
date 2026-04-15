@@ -10,7 +10,7 @@
 import { Logger, LogLevel } from '../logger';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { handleSimpleMessage, CSVRow } from './plugin';
-import { createSerpPage } from './page-builder';
+import { createSerpPage, handleSlotPostProcess } from './page-builder';
 import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
@@ -301,6 +301,12 @@ figma.on('selectionchange', () => {
 // Главный обработчик сообщений
 figma.ui.onmessage = async (msg) => {
   try {
+    // === Slot post-processing roundtrip (UI echoed back) ===
+    if (msg.type === 'slot-postprocess-execute') {
+      await handleSlotPostProcess();
+      return;
+    }
+
     // === Resize UI (silent) ===
     if (msg.type === 'resize-ui') {
       const { width, height } = msg;

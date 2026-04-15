@@ -56,6 +56,9 @@ import {
 // Re-export clearComponentCache so index.ts can import from page-creator (backwards compat)
 export { clearComponentCache } from './component-import';
 
+// handleSlotPostProcess — no longer needed (EPriceGroup moved out of slot)
+export async function handleSlotPostProcess(): Promise<void> {}
+
 /**
  * Дефолтные настройки создания страницы
  */
@@ -110,7 +113,7 @@ async function createSnippetInstance(
     `[PageCreator] ${node.type}: platform=${platform}, key=${componentKey.substring(0, 16)}...`,
   );
 
-  const component = await loadComponent(componentKey);
+  const component = await loadComponent(componentKey, config.defaultVariant);
   if (!component) {
     Logger.warn('[PageCreator] Component not found, using placeholder: ' + node.type);
     return createPlaceholder(node.type, 360, 120);
@@ -222,10 +225,9 @@ async function createSnippetInstance(
 
   // Применяем данные через handlers
   if (node.data && Object.keys(node.data).length > 0) {
+    const rowData = node.data as Record<string, string | undefined>;
     try {
-      // Bulk preload all fonts in instance before handler execution
       await preloadInstanceFonts(instance);
-
       const instanceCache = buildInstanceCache(instance);
       const context: HandlerContext = {
         container: instance,
@@ -234,17 +236,186 @@ async function createSnippetInstance(
         instanceCache,
       };
       await handlerRegistry.executeAll(context);
-
-      // Применяем изображения
-      await applySnippetImages(instance, node.data as Record<string, string | undefined>);
-
-      // Применяем фавиконку
-      await applyFavicon(instance, node.data as Record<string, string | undefined>);
-
-      // Применяем аватар автора цитаты
-      await applyQuoteAvatar(instance, node.data as Record<string, string | undefined>);
+      await applySnippetImages(instance, rowData);
+      await applyFavicon(instance, rowData);
+      await applyQuoteAvatar(instance, rowData);
     } catch (e) {
-      Logger.debug(`[PageCreator] Ошибка применения данных: ${e}`);
+      Logger.debug('[PageCreator] Data apply error (non-fatal): ' + e);
+    }
+
+    // EProductSnippetExp: special handling for slot content, thumb ratio, discount
+    if (node.type === 'EProductSnippetExp') {
+      const rowData = node.data as Record<string, string | undefined>;
+
+      // EThumb Ratio: match parsed aspect ratio to nearest EThumb variant
+      const thumbRatio = parseFloat(rowData['#ThumbAspectRatio'] || '0');
+      if (thumbRatio > 0) {
+        try {
+          const ethumb = (instance as InstanceNode).findOne(function (n) {
+            try {
+              return n.type === 'INSTANCE' && n.name === 'EThumb';
+            } catch {
+              return false;
+            }
+          }) as InstanceNode | null;
+          if (ethumb) {
+            // EThumb Ratio variants: width:height → numeric ratio (width/height)
+            const RATIOS: Array<[string, number]> = [
+              ['9:16', 9 / 16], // 0.5625
+              ['2:3', 2 / 3], // 0.667
+              ['3:4', 3 / 4], // 0.75
+              ['1:1', 1], // 1.0
+              ['4:3', 4 / 3], // 1.333
+              ['3:2', 3 / 2], // 1.5
+              ['16:9', 16 / 9], // 1.778
+            ];
+            let best = '3:4'; // default
+            let bestDist = Infinity;
+            for (const [name, val] of RATIOS) {
+              const dist = Math.abs(thumbRatio - val);
+              if (dist < bestDist) {
+                bestDist = dist;
+                best = name;
+              }
+            }
+            try {
+              ethumb.setProperties({ Ratio: best });
+            } catch {
+              // Ratio might have hash suffix — resolve via componentProperties
+              try {
+                const props = ethumb.componentProperties;
+                for (const k in props) {
+                  if (k.split('#')[0] === 'Ratio' && props[k].type === 'VARIANT') {
+                    ethumb.setProperties({ [k]: best });
+                    break;
+                  }
+                }
+              } catch {
+                /* skip */
+              }
+            }
+          }
+        } catch {
+          /* skip */
+        }
+      }
+
+      // withButton on Image Overlay Controller (checkout button on EThumb)
+      // Show only when data has #BUTTON or #EMarketCheckoutLabel
+      const hasButton =
+        rowData['#BUTTON'] === 'true' || rowData['#EMarketCheckoutLabel'] === 'true';
+      try {
+        // Image Overlay Controller is the first IOC child of EThumb (Type=Label)
+        const iocs = (instance as InstanceNode).findAll(function (n) {
+          try {
+            return n.type === 'INSTANCE' && n.name === 'Image Overlay Controller';
+          } catch {
+            return false;
+          }
+        }) as InstanceNode[];
+        // The first IOC (Type=Label) controls labels + checkout button
+        if (iocs.length > 0) {
+          try {
+            iocs[0].setProperties({ 'withButton#32461:19': hasButton });
+          } catch {
+            // Fallback: resolve key via componentProperties
+            try {
+              const props = iocs[0].componentProperties;
+              for (const k in props) {
+                if (k.split('#')[0] === 'withButton' && props[k].type === 'BOOLEAN') {
+                  iocs[0].setProperties({ [k]: hasButton });
+                  break;
+                }
+              }
+            } catch {
+              /* skip */
+            }
+          }
+        }
+      } catch {
+        /* skip */
+      }
+
+      // type=from-images: hide Offer Block (no price/source, image only)
+      if (rowData['#MixedGridImageOnly'] === 'true') {
+        try {
+          const offerBlock = (instance as InstanceNode).findOne(function (n) {
+            try {
+              return n.type === 'FRAME' && n.name === 'Offer Block';
+            } catch {
+              return false;
+            }
+          }) as FrameNode | null;
+          if (offerBlock) offerBlock.visible = false;
+        } catch {
+          /* skip */
+        }
+      }
+
+      // Title is inside a SLOT — set via findOne(TEXT) + .characters
+      const title = rowData['#OrganicTitle'];
+      if (title) {
+        try {
+          const titleNode = (instance as InstanceNode).findOne(function (n) {
+            try {
+              return n.type === 'TEXT' && n.name === '#OrganicTitle';
+            } catch {
+              return false;
+            }
+          }) as TextNode | null;
+          if (titleNode) {
+            await figma.loadFontAsync(titleNode.fontName as FontName);
+            titleNode.characters = title;
+          }
+        } catch {
+          /* slot text not accessible */
+        }
+      }
+
+      // Discount value: ELabelGroup > Label has value property with default "–10%"
+      // Set actual discount from parsed data (e.g. "–7%")
+      const discountText = rowData['#discount'];
+      if (discountText) {
+        try {
+          // Find ELabelGroup, then its child Label to set discount value
+          const elg = (instance as InstanceNode).findOne(function (n) {
+            try {
+              return n.type === 'INSTANCE' && n.name === 'ELabelGroup';
+            } catch {
+              return false;
+            }
+          }) as InstanceNode | null;
+          if (elg) {
+            const label = elg.findOne(function (n) {
+              try {
+                return n.type === 'INSTANCE' && n.name === 'Label';
+              } catch {
+                return false;
+              }
+            }) as InstanceNode | null;
+            if (label) {
+              try {
+                label.setProperties({ 'value#29154:59': discountText });
+              } catch {
+                // Fallback: try via componentProperties key resolution
+                try {
+                  const props = label.componentProperties;
+                  for (const k in props) {
+                    if (k.split('#')[0] === 'value' && props[k].type === 'TEXT') {
+                      label.setProperties({ [k]: discountText });
+                      break;
+                    }
+                  }
+                } catch {
+                  /* skip */
+                }
+              }
+            }
+          }
+        } catch {
+          /* skip */
+        }
+      }
     }
   }
 
@@ -519,15 +690,15 @@ async function renderStructureNode(
         columnFrames.push(colFrame);
       }
 
-      // Track column heights for greedy shortest-column distribution
-      const colHeights: number[] = [];
-      for (let ch = 0; ch < masonryCols; ch++) {
-        colHeights.push(0);
-      }
-
-      // Render children and distribute into shortest column
+      // Column-major distribution: fill columns top-to-bottom, left-to-right
+      // (matches production CSS multi-column layout: 1 3 5 / 2 4 6)
       if (node.children) {
-        for (const child of node.children) {
+        const totalItems = node.children.length;
+        const itemsPerCol = Math.ceil(totalItems / masonryCols);
+
+        for (let i = 0; i < totalItems; i++) {
+          const colIdx = Math.floor(i / itemsPerCol);
+          const child = node.children[i];
           const result = await renderStructureNode(
             child,
             platform,
@@ -536,22 +707,10 @@ async function renderStructureNode(
             query,
           );
           if (result.element) {
-            // Find shortest column
-            let shortestCol = 0;
-            for (let sc = 1; sc < colHeights.length; sc++) {
-              if (colHeights[sc] < colHeights[shortestCol]) shortestCol = sc;
-            }
-
-            columnFrames[shortestCol].appendChild(result.element);
+            const targetCol = Math.min(colIdx, columnFrames.length - 1);
+            columnFrames[targetCol].appendChild(result.element);
             const instance = result.element as InstanceNode;
             instance.layoutSizingHorizontal = 'FILL';
-
-            // Estimate card height for column balancing
-            const aspectRatio = parseFloat(child.data?.['#ThumbAspectRatio'] || '1') || 1;
-            const thumbHeight = Math.round(cardW / aspectRatio);
-            const isImageOnly = child.data?.['#MixedGridImageOnly'] === 'true';
-            const contentHeight = isImageOnly ? 55 : 90;
-            colHeights[shortestCol] += thumbHeight + contentHeight + masonryGap;
 
             count += result.count;
           }
@@ -732,6 +891,10 @@ async function renderStructureNode(
   try {
     const instance = await createSnippetInstance(node, platform, parentContainerType);
     if (instance) {
+      // Slot content: EPriceGroup inside EProductSnippetExp slot requires
+      // full property keys. Process separately after main handlers.
+      // Note: slot processing for EProductSnippetExp happens in masonry grid loop
+      // AFTER appendChild, because Figma doesn't resolve slot sublayers for detached nodes.
       count = 1;
       return { element: instance, count };
     } else {
@@ -1296,6 +1459,9 @@ export async function createSerpPage(
   } catch (e) {
     Logger.debug('[PageCreator] Debug report postMessage failed');
   }
+
+  // EPriceGroup is now OUTSIDE slot (inside regular FRAME "Offer Block").
+  // Standard handlers (handleEPriceGroup) via buildInstanceCache work normally.
 
   return {
     success: errors.length === 0 || createdCount > 0,

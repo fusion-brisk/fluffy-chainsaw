@@ -39,6 +39,9 @@ export function resetNodeIdCounter(): void {
 export function detectSnippetType(row: CSVRow): SnippetType {
   const type = row['#SnippetType'] || '';
 
+  // ProductsMixedGrid cards → EProductSnippetExp (new masonry component)
+  if (row['#containerType'] === 'ProductsMixedGrid') return 'EProductSnippetExp';
+
   // Прямое совпадение
   if (type === 'EOfferItem') return 'EOfferItem';
   if (type === 'EProductSnippet2') return 'EProductSnippet2';

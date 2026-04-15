@@ -74,6 +74,7 @@ export type SnippetType =
   | 'EOfferItem' // Оффер в списке
   | 'EShopItem' // Магазин в списке
   | 'EProductSnippet2' // Карточка товара в галерее
+  | 'EProductSnippetExp' // Карточка товара в masonry grid (новый формат)
   | 'Organic' // Органический результат
   | 'Organic_withOfferInfo'
   | 'Organic_Adv' // Рекламный органический сниппет

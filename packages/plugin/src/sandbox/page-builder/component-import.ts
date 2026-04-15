@@ -20,35 +20,96 @@ export function clearComponentCache(): void {
   componentCache.clear();
 }
 
+function withTimeout<T>(promise: Promise<T>): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>(function (_, reject) {
+      setTimeout(function () {
+        reject(new Error('Import timeout after ' + IMPORT_TIMEOUT + 'ms'));
+      }, IMPORT_TIMEOUT);
+    }),
+  ]);
+}
+
 /**
- * Импортировать компонент из библиотеки с кэшированием
+ * Find a variant in a ComponentSet matching the given props.
+ * Falls back to first child if no exact match.
  */
-export async function loadComponent(key: string): Promise<ComponentNode | null> {
+function findVariant(
+  componentSet: ComponentSetNode,
+  variantProps?: Record<string, string | boolean>,
+): ComponentNode | null {
+  if (!variantProps) {
+    const first = componentSet.children[0] as ComponentNode | undefined;
+    return first && first.type === 'COMPONENT' ? first : null;
+  }
+
+  for (let i = 0; i < componentSet.children.length; i++) {
+    const child = componentSet.children[i];
+    if (child.type !== 'COMPONENT') continue;
+    const props = (child as ComponentNode).variantProperties;
+    if (!props) continue;
+    let match = true;
+    const keys = Object.keys(variantProps);
+    for (let k = 0; k < keys.length; k++) {
+      if (props[keys[k]] !== String(variantProps[keys[k]])) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return child as ComponentNode;
+  }
+
+  // Fallback: first variant
+  const first = componentSet.children[0] as ComponentNode | undefined;
+  return first && first.type === 'COMPONENT' ? first : null;
+}
+
+/**
+ * Импортировать компонент из библиотеки с кэшированием.
+ * Tries importComponentByKeyAsync first (variant key),
+ * then importComponentSetByKeyAsync (set key) with variant selection.
+ */
+export async function loadComponent(
+  key: string,
+  variantProps?: Record<string, string | boolean>,
+): Promise<ComponentNode | null> {
   if (!key) {
     Logger.warn('[PageCreator] Пустой ключ компонента');
     return null;
   }
 
-  // Проверяем кэш
-  if (componentCache.has(key)) {
-    return componentCache.get(key)!;
+  const cacheKey = variantProps ? key + ':' + JSON.stringify(variantProps) : key;
+  if (componentCache.has(cacheKey)) {
+    return componentCache.get(cacheKey)!;
   }
 
   try {
-    const component = await Promise.race([
-      figma.importComponentByKeyAsync(key),
-      new Promise<never>(function (_, reject) {
-        setTimeout(function () {
-          reject(new Error('Import timeout after ' + IMPORT_TIMEOUT + 'ms'));
-        }, IMPORT_TIMEOUT);
-      }),
-    ]);
-    componentCache.set(key, component);
-    Logger.debug(`[PageCreator] Импортирован компонент: ${component.name} (key=${key})`);
+    const component = await withTimeout(figma.importComponentByKeyAsync(key));
+    componentCache.set(cacheKey, component);
+    Logger.debug('[PageCreator] Импортирован компонент: ' + component.name + ' (key=' + key + ')');
     return component;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    Logger.error(`[PageCreator] Ошибка импорта компонента (key=${key}): ${msg}`);
+  } catch (_e1) {
+    // Fallback: try as ComponentSet key → find variant by props
+    try {
+      const componentSet = await withTimeout(figma.importComponentSetByKeyAsync(key));
+      const variant = findVariant(componentSet, variantProps);
+      if (variant) {
+        componentCache.set(cacheKey, variant);
+        Logger.debug(
+          '[PageCreator] Импортирован через ComponentSet: ' +
+            variant.name +
+            ' (setKey=' +
+            key +
+            ')',
+        );
+        return variant;
+      }
+    } catch (_e2) {
+      // Both methods failed
+    }
+    const msg = _e1 instanceof Error ? _e1.message : String(_e1);
+    Logger.error('[PageCreator] Ошибка импорта компонента (key=' + key + '): ' + msg);
     return null;
   }
 }
