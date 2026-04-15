@@ -410,12 +410,13 @@ figma.ui.onmessage = async (msg) => {
         );
 
         // Создаём SERP страницу из библиотечных компонентов
+        // leftPadding не указан — используется default из createSerpPage
+        // (desktop=110 для выравнивания с EQuickFilters, touch=0)
         const result = await createSerpPage(rows, {
           query: query || undefined,
           platform,
           contentLeftWidth: platform === 'desktop' ? 792 : undefined,
           contentGap: 0,
-          leftPadding: platform === 'desktop' ? 100 : 0,
           wizards,
         });
 

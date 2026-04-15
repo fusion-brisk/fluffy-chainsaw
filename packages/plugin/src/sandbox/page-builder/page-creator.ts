@@ -582,7 +582,9 @@ async function renderStructureNode(
         wrapperName: 'productTilesWrapper',
         wrapperStyle: {
           padding: { top: 16, bottom: 16, left: 15, right: 15 },
-          itemSpacing: 0,
+          // itemSpacing: 12 для симметричных зазоров Title→grid→button
+          // (совпадает со стилем eShopListWrapper/advProductGalleryWrapper)
+          itemSpacing: 12,
           cornerRadius: 16,
           fillVariable: 'Background/Primary',
         },
@@ -796,7 +798,9 @@ export async function createSerpPage(
   const query = options.query || rows[0]?.['#query'] || rows[0]?.['#OrganicTitle'] || 'query';
   const contentLeftWidth = options.contentLeftWidth || 792;
   const contentGap = options.contentGap ?? 0;
-  const leftPadding = isTouch ? 0 : options.leftPadding || 100;
+  // Desktop: 110px aligns with EQuickFilters paddingLeft (set below),
+  // matching Yandex SERP content column left margin.
+  const leftPadding = isTouch ? 0 : options.leftPadding || 110;
   const wizards = options.wizards || [];
 
   // Размеры для разных платформ

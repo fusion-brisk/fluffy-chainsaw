@@ -530,8 +530,9 @@ export const CONTAINER_CONFIG_MAP: Record<ContainerType, ContainerConfig> = {
     itemSpacing: 8, // gap между карточками по горизонтали
     counterAxisSpacing: 8, // gap между строками
     clipsContent: true, // overflow hidden
+    // Без собственных paddings: отступы Title→grid→button задаёт productTilesWrapper.itemSpacing
     padding: {
-      top: 16, // верхний паддинг для отступа от Title
+      top: 0,
       right: 0,
       bottom: 0,
       left: 0,
