@@ -8,16 +8,6 @@
 
 // Re-exports для удобства (plugin-сторона импортирует отсюда)
 export { formatPriceWithThinSpace } from './price-extractor';
-export {
-  PRICE_DIGITS_REGEX,
-  CURRENCY_RUB_REGEX,
-  CURRENCY_USD_REGEX,
-  CURRENCY_EUR_REGEX,
-  DISCOUNT_VALUE_REGEX,
-  RATING_REGEX,
-  REVIEWS_REGEX,
-  RATING_INVALID_START_REGEX,
-} from './regex';
 
 /**
  * CSS-селекторы контейнеров сниппетов.
