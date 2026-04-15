@@ -1,12 +1,12 @@
 // Price extraction utilities
 
 import { Logger } from '../logger';
-import {
-  PRICE_DIGITS_REGEX,
-  CURRENCY_RUB_REGEX,
-  CURRENCY_USD_REGEX,
-  CURRENCY_EUR_REGEX,
-} from './regex';
+
+// Price/number extraction regexes (inlined after ./regex module removal)
+const PRICE_DIGITS_REGEX = /[^0-9]/g;
+const CURRENCY_RUB_REGEX = /₽|руб/i;
+const CURRENCY_USD_REGEX = /\$/i;
+const CURRENCY_EUR_REGEX = /€/;
 
 export interface PriceResult {
   price: string;
