@@ -32,12 +32,13 @@ import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog } from './components/ImportConfirmDialog';
 import { SetupFlow } from './components/SetupFlow';
 import { UpdateBanner } from './components/UpdateBanner';
+import { RelayOfflineBanner } from './components/RelayOfflineBanner';
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
 import { PanelLayout } from './components/PanelLayout';
 import { WhatsNewContent } from './components/WhatsNewContent';
-import { LogLevel } from '../logger';
+import { LogLevel, Logger } from '../logger';
 import { PORTS, PLUGIN_VERSION } from '../config';
 
 // Default relay URL
@@ -67,6 +68,9 @@ const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [progressData, setProgressData] = useState<ProgressData>({ current: 0, total: 0 });
   const [pendingWhatsNew, setPendingWhatsNew] = useState(false);
+  // Relay offline banner: dismissed-this-session flag. Resets whenever relay reconnects,
+  // so a second disconnect shows the banner again.
+  const [relayBannerDismissed, setRelayBannerDismissed] = useState(false);
 
   // === HOOKS ===
   const platform = usePlatform();
@@ -241,6 +245,20 @@ const App: React.FC = () => {
       onComponentInfo: (components) => {
         setInspectorData(components);
       },
+      onExportHtmlResult: (data: { html: string; fileName: string }) => {
+        const blob = new Blob([data.html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      },
+      onExportHtmlError: (data: { message: string }) => {
+        Logger.error('Export HTML error: ' + data.message);
+      },
       onAllOperationsComplete: () => {
         if (buildStale) {
           setTimeout(() => {
@@ -290,11 +308,35 @@ const App: React.FC = () => {
     }
   }, [pendingWhatsNew, appState, panels]);
 
+  // Clear dismissal when relay reconnects — next disconnect should show banner again.
+  // Deps include relayBannerDismissed only to satisfy exhaustive-deps; the guard is
+  // idempotent (setState only when transition relayConnected=true + dismissed=true happens).
+  useEffect(() => {
+    if (relayConnected && relayBannerDismissed) {
+      setRelayBannerDismissed(false);
+    }
+  }, [relayConnected, relayBannerDismissed]);
+
+  // Relay offline banner visibility: shown in compact states when relay is down AND user
+  // hasn't dismissed it this session AND we're past setup.
+  //   extensionInstalled as "past setup" proxy: setup flow (appState='setup') is the only
+  //   flow that can transition to extensionInstalled=true, and once set it stays true for
+  //   the session. If extensionInstalled detection breaks, banner stops showing — an
+  //   acceptable tradeoff vs. showing a noisy banner DURING the setup wizard.
+  const showRelayOfflineBanner =
+    !relayConnected &&
+    !relayBannerDismissed &&
+    extensionInstalled &&
+    (appState === 'ready' || appState === 'checking' || appState === 'error');
+
   // === COMPACT STRIP RESIZE (for menu) ===
   const bannerCount = (versionCheck.relayUpdate ? 1 : 0) + (versionCheck.extensionUpdate ? 1 : 0);
-  // Each banner: 26px (6+12+6 padding + 2 border) + container 8px top padding + 4px gap between
-  const bannerHeight = bannerCount > 0 ? bannerCount * 26 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
-  const compactBaseHeight = 56 + bannerHeight;
+  // Each update banner: 26px (6+12+6 padding + 2 border) + container 8px top padding + 4px gap
+  const updateBannerHeight = bannerCount > 0 ? bannerCount * 26 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
+  // Relay offline banner measured height: ~148px (header 18 + desc 20 + cmd 30 + actions 28
+  //   + 3×8 gap + 20 padding + 8 margin-top + 2 border)
+  const relayOfflineBannerHeight = showRelayOfflineBanner ? 148 : 0;
+  const compactBaseHeight = 56 + updateBannerHeight + relayOfflineBannerHeight;
 
   const handleRequestResize = useCallback(
     (height: number) => {
@@ -353,6 +395,9 @@ const App: React.FC = () => {
           break;
         case 'resetSnippets':
           sendMessageToPlugin({ type: 'reset-snippets', scope: 'page' });
+          break;
+        case 'exportHtml':
+          sendMessageToPlugin({ type: 'export-html' });
           break;
         case 'dismiss-success':
           importFlow.completeSuccess();
@@ -420,6 +465,15 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* Relay offline banner — actionable recovery path when localhost:3847 is unreachable */}
+      {!panels.isPanelOpen && (
+        <RelayOfflineBanner
+          visible={showRelayOfflineBanner}
+          onRetry={relay.checkNow}
+          onDismiss={() => setRelayBannerDismissed(true)}
+        />
+      )}
+
       {/* Compact strip — checking, ready, processing, success, error */}
       {isCompactState && !panels.isPanelOpen && (
         <CompactStrip
@@ -434,6 +488,7 @@ const App: React.FC = () => {
           lastImportCount={lastImportCount}
           lastImportTime={lastImportTime}
           hasPendingData={importFlow.pending !== null}
+          hasSelection={hasSelection}
           platform={platform}
           baseHeight={compactBaseHeight}
           onRequestResize={handleRequestResize}

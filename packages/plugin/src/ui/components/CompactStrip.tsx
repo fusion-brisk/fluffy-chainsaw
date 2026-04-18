@@ -35,6 +35,7 @@ interface CompactStripProps {
   lastImportCount?: number;
   lastImportTime?: number;
   hasPendingData?: boolean;
+  hasSelection?: boolean;
   platform: PluginPlatform;
   /** Total window height when menu is closed (includes banners above strip) */
   baseHeight?: number;
@@ -75,6 +76,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     lastImportCount,
     lastImportTime,
     hasPendingData,
+    hasSelection,
     platform,
     baseHeight = STRIP_HEIGHT,
     onRequestResize,
@@ -98,6 +100,12 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         { id: 'inspector', label: 'Инспектор', icon: '\u2699' },
         { id: 'setup', label: 'Настройки', icon: '\u2638' },
         { id: 'whatsNew', label: 'Что нового', icon: '\u2726' },
+        {
+          id: 'exportHtml',
+          label: 'Экспортировать HTML',
+          icon: '\u2913',
+          condition: !!hasSelection,
+        },
         // Danger zone
         {
           id: 'clearQueue',
@@ -108,7 +116,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         },
         { id: 'resetSnippets', label: 'Сбросить сниппеты', icon: '\u21BA', danger: true },
       ],
-      [hasPendingData],
+      [hasPendingData, hasSelection],
     );
 
     // Compute menu height for desktop resize
