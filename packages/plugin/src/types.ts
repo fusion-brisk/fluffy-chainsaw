@@ -187,7 +187,9 @@ export type UIMessage =
   // === UI RESIZE ===
   | { type: 'resize-ui'; width: number; height: number } // Resize plugin window
   // === PLATFORM ===
-  | { type: 'set-platform'; platform: 'desktop' | 'mobile' }; // UI platform info
+  | { type: 'set-platform'; platform: 'desktop' | 'mobile' } // UI platform info
+  // === HTML EXPORT ===
+  | { type: 'export-html' };
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
@@ -238,7 +240,10 @@ export type CodeMessage =
   // === DEBUG ===
   | { type: 'debug-report'; report: unknown } // Debug report from page-creator
   // === COMPONENT INSPECTOR ===
-  | { type: 'component-info'; components: ComponentInspectorData[] }; // Selected component info
+  | { type: 'component-info'; components: ComponentInspectorData[] } // Selected component info
+  // === HTML EXPORT ===
+  | { type: 'export-html-result'; html: string; fileName: string }
+  | { type: 'export-html-error'; message: string };
 
 /** Combined message type for window.onmessage handler */
 export type PluginMessage = UIMessage | CodeMessage;
