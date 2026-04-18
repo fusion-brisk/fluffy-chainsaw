@@ -26,6 +26,18 @@ const TYPE_ICONS: Record<ChangeEntry['type'], string> = {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: '2.7.0',
+    date: 'Апрель 2026',
+    changes: [
+      { text: 'Export HTML — экспорт выделения в HTML с JSX-кодом и превью', type: 'feat' },
+      { text: 'JSX-эмиттер — генерация React-кода из Figma-компонентов', type: 'feat' },
+      { text: 'EProductSnippetExp — masonry-сниппет для ProductsMixedGrid', type: 'feat' },
+      { text: 'VtbCard парсинг + расширенное покрытие Fintech типов', type: 'fix' },
+      { text: 'Выравнивание SERP-колонки и spacing productTilesWrapper', type: 'fix' },
+      { text: 'Удалено 305 строк мёртвого кода', type: 'refactor' },
+    ],
+  },
+  {
     version: '2.6.0',
     date: 'Апрель 2026',
     changes: [
