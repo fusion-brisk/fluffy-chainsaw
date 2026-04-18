@@ -6,6 +6,11 @@ import terser from '@rollup/plugin-terser';
 import replace from '@rollup/plugin-replace';
 import { execFileSync } from 'child_process';
 import { writeFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, resolve as pathResolve } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 function buildHash() {
   const gitHash = execFileSync('git', ['rev-parse', '--short', 'HEAD']).toString().trim();
@@ -63,7 +68,28 @@ export default [
       sourcemap: false,
     },
     plugins: [
+      {
+        name: 'resolve-jsx-emitter',
+        resolveId(source, importer) {
+          // Resolve export-handler's imports to jsx-emitter
+          if (source.includes('packages/jsx-emitter/src/')) {
+            const file = source.split('/').pop();
+            return pathResolve(__dirname, '../jsx-emitter/src/' + file + '.ts');
+          }
+          // Resolve jsx-emitter's internal relative imports
+          if (importer && importer.includes('jsx-emitter/src/') && source.startsWith('./')) {
+            const dir = dirname(importer);
+            return pathResolve(dir, source + '.ts');
+          }
+          return null;
+        },
+      },
       replace({ preventAssignment: true, __BUILD_HASH__: JSON.stringify(buildHash()) }),
+      resolve({
+        browser: true,
+        preferBuiltins: false,
+      }),
+      commonjs(),
       typescript({
         tsconfig: './tsconfig.json',
         declaration: false,
