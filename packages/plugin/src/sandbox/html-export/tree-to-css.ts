@@ -40,7 +40,7 @@ export interface FigmaBoundingBox {
 }
 
 export interface CssNodeProps {
-  layoutMode?: string;
+  layoutMode?: 'HORIZONTAL' | 'VERTICAL' | 'NONE';
   itemSpacing?: number;
   paddingTop?: number;
   paddingBottom?: number;
@@ -48,8 +48,8 @@ export interface CssNodeProps {
   paddingRight?: number;
   primaryAxisAlignItems?: string;
   counterAxisAlignItems?: string;
-  layoutSizingHorizontal?: string;
-  layoutSizingVertical?: string;
+  layoutSizingHorizontal?: 'FIXED' | 'HUG' | 'FILL';
+  layoutSizingVertical?: 'FIXED' | 'HUG' | 'FILL';
   fills?: FigmaPaint[];
   strokes?: FigmaPaint[];
   strokeWeight?: number;

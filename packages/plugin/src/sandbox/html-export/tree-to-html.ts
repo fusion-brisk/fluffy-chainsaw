@@ -13,6 +13,7 @@ export interface HtmlNode extends CssNodeProps {
   characters?: string;
   children?: HtmlNode[];
   fills?: (FigmaPaint & { imageRef?: string })[];
+  componentProperties?: Record<string, { type: string; value: string | boolean }>;
 }
 
 export type ImageMap = Record<string, string>;
