@@ -100,8 +100,8 @@ const INLINE_JS = [
  * No external URLs — works fully offline.
  */
 export function assembleHtml(input: AssembleHtmlInput): string {
-  var title = escapeHtml(input.title);
-  var escapedJsx = escapeHtml(input.jsxCode);
+  const title = escapeHtml(input.title);
+  const escapedJsx = escapeHtml(input.jsxCode);
 
   return (
     '<!DOCTYPE html>\n' +

@@ -39,23 +39,23 @@ function sanitizeFileName(name: string): string {
  */
 export function buildExportHtml(node: HtmlNode, imageMap?: ImageMap): ExportHtmlResult {
   // Step 1 — build ComponentTree
-  var tree = walkTree(node);
+  const tree = walkTree(node);
 
   // Step 2 — emit JSX
-  var emitted = emitJSX(tree, {
+  const emitted = emitJSX(tree, {
     rootWrapper: 'none',
     includeStyles: false,
     includeTodos: true,
   });
 
   // Combine imports + JSX into one code block
-  var jsxCode = emitted.imports.length > 0 ? emitted.imports + '\n\n' + emitted.jsx : emitted.jsx;
+  const jsxCode = emitted.imports.length > 0 ? emitted.imports + '\n\n' + emitted.jsx : emitted.jsx;
 
   // Step 3 — render preview HTML
-  var previewHtml = nodeToHtml(node, imageMap);
+  const previewHtml = nodeToHtml(node, imageMap);
 
   // Step 4 — assemble final document
-  var html = assembleHtml({
+  const html = assembleHtml({
     title: node.name,
     jsxCode: jsxCode,
     previewHtml: previewHtml,

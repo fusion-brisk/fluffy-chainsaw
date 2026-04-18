@@ -3,7 +3,7 @@ import { buildExportHtml } from '../../src/sandbox/html-export/export-handler';
 
 describe('buildExportHtml', () => {
   it('produces valid HTML from a simple frame', () => {
-    var result = buildExportHtml({
+    const result = buildExportHtml({
       id: '1:1',
       name: 'TestCard',
       type: 'FRAME',
@@ -16,7 +16,7 @@ describe('buildExportHtml', () => {
   });
 
   it('includes JSX imports for mapped components', () => {
-    var result = buildExportHtml({
+    const result = buildExportHtml({
       id: '2:1',
       name: 'Card',
       type: 'FRAME',
@@ -34,7 +34,7 @@ describe('buildExportHtml', () => {
   });
 
   it('includes both code and preview panels', () => {
-    var result = buildExportHtml({
+    const result = buildExportHtml({
       id: '3:1',
       name: 'Layout',
       type: 'FRAME',
@@ -45,7 +45,7 @@ describe('buildExportHtml', () => {
   });
 
   it('sanitizes file name', () => {
-    var result = buildExportHtml({
+    const result = buildExportHtml({
       id: '4:1',
       name: 'My Frame / Slashes & Stuff!',
       type: 'FRAME',
@@ -55,7 +55,7 @@ describe('buildExportHtml', () => {
   });
 
   it('embeds base64 images from imageMap', () => {
-    var result = buildExportHtml(
+    const result = buildExportHtml(
       {
         id: '5:1',
         name: 'WithImage',
