@@ -6,7 +6,9 @@ import { Logger, LogLevel } from '../../logger';
 import { PLUGIN_VERSION } from '../../config';
 import { ParsingRulesManager } from '../../parsing-rules-manager';
 import { resetAllSnippets } from './global-handlers';
+import { buildExportHtml } from '../html-export/export-handler';
 import type { UserSettings } from '../../types';
+import type { HtmlNode } from '../html-export/tree-to-html';
 
 // Ключ для хранения последней просмотренной версии
 const WHATS_NEW_STORAGE_KEY = 'contentify_whats_new_seen_version';
@@ -282,6 +284,167 @@ export async function handleSimpleMessage(
     return true;
   }
 
+  // === Export HTML ===
+  if (type === 'export-html') {
+    const selection = figma.currentPage.selection;
+    if (selection.length === 0) {
+      figma.ui.postMessage({ type: 'export-html-error', message: 'Выберите фрейм для экспорта' });
+      return true;
+    }
+
+    const rootNode = selection[0];
+    Logger.debug('Export HTML: ' + rootNode.name + ' (' + rootNode.type + ')');
+
+    try {
+      const nodeCount = countExportNodes(rootNode);
+      if (nodeCount > 100) {
+        figma.ui.postMessage({
+          type: 'export-html-error',
+          message: 'Слишком большой выбор (' + nodeCount + ' нод). Максимум 100.',
+        });
+        return true;
+      }
+
+      // Collect and export images
+      const imageEntries = collectExportImages(rootNode);
+      const imageMap: Record<string, string> = {};
+      const limit = Math.min(imageEntries.length, 20);
+      for (let i = 0; i < limit; i++) {
+        try {
+          const bytes = await imageEntries[i].node.exportAsync({
+            format: 'PNG',
+            constraint: { type: 'SCALE', value: 2 },
+          });
+          imageMap[imageEntries[i].imageRef] = 'data:image/png;base64,' + figma.base64Encode(bytes);
+        } catch (imgErr) {
+          Logger.debug('Image export failed: ' + imageEntries[i].imageRef);
+        }
+      }
+
+      const serialized = serializeExportNode(rootNode);
+      const result = buildExportHtml(serialized as unknown as HtmlNode, imageMap);
+
+      figma.ui.postMessage({
+        type: 'export-html-result',
+        html: result.html,
+        fileName: result.fileName,
+      });
+      figma.notify('HTML exported: ' + result.fileName);
+    } catch (e) {
+      Logger.error('Export HTML error:', e);
+      figma.ui.postMessage({
+        type: 'export-html-error',
+        message: 'Ошибка экспорта: ' + String(e),
+      });
+    }
+    return true;
+  }
+
   // Not handled
   return false;
+}
+
+function countExportNodes(node: SceneNode): number {
+  let count = 1;
+  if ('children' in node) {
+    const ch = (node as FrameNode).children;
+    for (let i = 0; i < ch.length; i++) {
+      count += countExportNodes(ch[i]);
+    }
+  }
+  return count;
+}
+
+function collectExportImages(node: SceneNode): Array<{ node: SceneNode; imageRef: string }> {
+  let results: Array<{ node: SceneNode; imageRef: string }> = [];
+  if ('fills' in node) {
+    const fills = (node as GeometryMixin).fills;
+    if (Array.isArray(fills)) {
+      for (let i = 0; i < fills.length; i++) {
+        if (fills[i].type === 'IMAGE' && (fills[i] as ImagePaint).imageHash) {
+          results.push({ node: node, imageRef: (fills[i] as ImagePaint).imageHash! });
+          break;
+        }
+      }
+    }
+  }
+  if ('children' in node) {
+    const ch = (node as FrameNode).children;
+    for (let i = 0; i < ch.length; i++) {
+      results = results.concat(collectExportImages(ch[i]));
+    }
+  }
+  return results;
+}
+
+function serializeExportNode(node: SceneNode): Record<string, unknown> {
+  const obj: Record<string, unknown> = { id: node.id, name: node.name, type: node.type };
+
+  if ('layoutMode' in node) {
+    const f = node as FrameNode;
+    obj.layoutMode = f.layoutMode;
+    obj.primaryAxisAlignItems = f.primaryAxisAlignItems;
+    obj.counterAxisAlignItems = f.counterAxisAlignItems;
+    obj.itemSpacing = f.itemSpacing;
+    obj.paddingTop = f.paddingTop;
+    obj.paddingRight = f.paddingRight;
+    obj.paddingBottom = f.paddingBottom;
+    obj.paddingLeft = f.paddingLeft;
+    obj.clipsContent = f.clipsContent;
+  }
+
+  obj.absoluteBoundingBox = { x: node.x, y: node.y, width: node.width, height: node.height };
+
+  if ('layoutSizingHorizontal' in node) {
+    obj.layoutSizingHorizontal = (node as FrameNode).layoutSizingHorizontal;
+    obj.layoutSizingVertical = (node as FrameNode).layoutSizingVertical;
+  }
+  if ('fills' in node && Array.isArray((node as GeometryMixin).fills)) {
+    obj.fills = (node as GeometryMixin).fills;
+  }
+  if ('strokes' in node) {
+    obj.strokes = (node as GeometryMixin).strokes;
+    obj.strokeWeight = (node as GeometryMixin).strokeWeight;
+  }
+  if ('effects' in node) {
+    obj.effects = (node as BlendMixin).effects;
+  }
+  if ('cornerRadius' in node) {
+    obj.cornerRadius = (node as RectangleNode).cornerRadius;
+  }
+  if ('opacity' in node) {
+    obj.opacity = (node as BlendMixin).opacity;
+  }
+
+  if (node.type === 'TEXT') {
+    const t = node as TextNode;
+    obj.characters = t.characters;
+    obj.style = {
+      fontFamily: typeof t.fontName !== 'symbol' ? (t.fontName as FontName).family : undefined,
+      fontSize: typeof t.fontSize === 'number' ? t.fontSize : undefined,
+      fontWeight: typeof t.fontWeight === 'number' ? t.fontWeight : undefined,
+      lineHeightPx:
+        typeof t.lineHeight !== 'symbol' && (t.lineHeight as LineHeight).unit === 'PIXELS'
+          ? (t.lineHeight as LineHeight).value
+          : undefined,
+      textAlignHorizontal: t.textAlignHorizontal,
+    };
+  }
+
+  if (node.type === 'INSTANCE') {
+    obj.componentProperties = (node as InstanceNode).componentProperties;
+  }
+
+  if ('children' in node) {
+    const children: Record<string, unknown>[] = [];
+    const ch = (node as FrameNode).children;
+    for (let i = 0; i < ch.length; i++) {
+      if (ch[i].visible !== false) {
+        children.push(serializeExportNode(ch[i]));
+      }
+    }
+    obj.children = children;
+  }
+
+  return obj;
 }

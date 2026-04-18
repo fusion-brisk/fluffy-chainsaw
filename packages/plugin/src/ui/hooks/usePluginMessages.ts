@@ -69,6 +69,10 @@ export interface PluginMessageHandlers {
 
   // All operations complete (safe to close if build is stale)
   onAllOperationsComplete?: () => void;
+
+  // Export HTML
+  onExportHtmlResult?: (data: { html: string; fileName: string }) => void;
+  onExportHtmlError?: (data: { message: string }) => void;
 }
 
 interface UsePluginMessagesOptions {
@@ -252,6 +256,18 @@ export function usePluginMessages({
           if (h.onAllOperationsComplete) {
             h.onAllOperationsComplete();
           }
+          break;
+
+        // === EXPORT HTML ===
+        case 'export-html-result':
+          if (h.onExportHtmlResult)
+            h.onExportHtmlResult(
+              msg as { type: 'export-html-result'; html: string; fileName: string },
+            );
+          break;
+        case 'export-html-error':
+          if (h.onExportHtmlError)
+            h.onExportHtmlError(msg as { type: 'export-html-error'; message: string });
           break;
       }
     };
