@@ -246,18 +246,36 @@ const App: React.FC = () => {
         setInspectorData(components);
       },
       onExportHtmlResult: (data: { html: string; fileName: string }) => {
-        const blob = new Blob([data.html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = data.fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        try {
+          // Figma plugin iframe is sandboxed — a.click() with download attribute
+          // doesn't work. Use data URI + window.open as fallback.
+          const blob = new Blob([data.html], { type: 'text/html;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = data.fileName;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+
+          // Fallback: if click didn't trigger download (sandboxed iframe),
+          // open in new tab
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }, 1000);
+        } catch (e) {
+          // Last resort: copy HTML to clipboard
+          navigator.clipboard.writeText(data.html).then(() => {
+            Logger.debug('HTML copied to clipboard (download blocked by iframe sandbox)');
+          });
+        }
       },
       onExportHtmlError: (data: { message: string }) => {
         Logger.error('Export HTML error: ' + data.message);
+        // The sandbox already calls figma.notify for user-visible errors
       },
       onAllOperationsComplete: () => {
         if (buildStale) {

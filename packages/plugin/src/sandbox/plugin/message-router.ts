@@ -288,7 +288,9 @@ export async function handleSimpleMessage(
   if (type === 'export-html') {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
-      figma.ui.postMessage({ type: 'export-html-error', message: 'Выберите фрейм для экспорта' });
+      const errorMsg = 'Выберите фрейм для экспорта';
+      figma.notify(errorMsg, { error: true });
+      figma.ui.postMessage({ type: 'export-html-error', message: errorMsg });
       return true;
     }
 
@@ -297,11 +299,12 @@ export async function handleSimpleMessage(
 
     try {
       const nodeCount = countExportNodes(rootNode);
-      if (nodeCount > 100) {
-        figma.ui.postMessage({
-          type: 'export-html-error',
-          message: 'Слишком большой выбор (' + nodeCount + ' нод). Максимум 100.',
-        });
+      const MAX_NODES = 5000;
+      if (nodeCount > MAX_NODES) {
+        const errorMsg =
+          'Слишком большой выбор (' + nodeCount + ' нод). Максимум ' + MAX_NODES + '.';
+        figma.notify(errorMsg, { error: true });
+        figma.ui.postMessage({ type: 'export-html-error', message: errorMsg });
         return true;
       }
 
@@ -332,10 +335,9 @@ export async function handleSimpleMessage(
       figma.notify('HTML exported: ' + result.fileName);
     } catch (e) {
       Logger.error('Export HTML error:', e);
-      figma.ui.postMessage({
-        type: 'export-html-error',
-        message: 'Ошибка экспорта: ' + String(e),
-      });
+      const errorMsg = 'Ошибка экспорта: ' + String(e);
+      figma.notify(errorMsg, { error: true });
+      figma.ui.postMessage({ type: 'export-html-error', message: errorMsg });
     }
     return true;
   }
