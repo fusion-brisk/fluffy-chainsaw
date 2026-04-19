@@ -1,13 +1,13 @@
 {
   "relay": {
-    "latest": "2.6.0",
+    "latest": "2.7.0",
     "minimum": "2.5.0",
     "downloadUrl": "https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest"
   },
   "extension": {
-    "latest": "2.6.0",
+    "latest": "2.7.0",
     "minimum": "1.4.0",
     "downloadUrl": "https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx"
   },
-  "releasedAt": "2026-04-06T09:00:00Z"
+  "releasedAt": "2026-04-19T07:08:31Z"
 }
