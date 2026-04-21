@@ -45,3 +45,11 @@ export {
   clearComponentCache,
   handleSlotPostProcess,
 } from './page-creator';
+
+// Breakpoint skeletons (principle layouts for each SERP breakpoint)
+export { createBreakpointSkeletons, BREAKPOINTS } from './breakpoint-skeletons';
+export type {
+  BreakpointName,
+  BreakpointSpec,
+  BreakpointSkeletonsResult,
+} from './breakpoint-skeletons';

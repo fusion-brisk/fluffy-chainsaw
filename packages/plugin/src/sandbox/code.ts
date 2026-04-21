@@ -10,7 +10,7 @@
 import { Logger, LogLevel } from '../logger';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { handleSimpleMessage, CSVRow } from './plugin';
-import { createSerpPage, handleSlotPostProcess } from './page-builder';
+import { createSerpPage, handleSlotPostProcess, createBreakpointSkeletons } from './page-builder';
 import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
@@ -189,6 +189,12 @@ async function checkRulesUpdates(): Promise<void> {
     checkRulesUpdates().catch(function (err) {
       Logger.error('Ошибка проверки обновлений правил:', err);
     });
+
+    // Отправляем начальный статус выделения (selectionchange не стреляет при открытии плагина)
+    figma.ui.postMessage({
+      type: 'selection-status',
+      hasSelection: figma.currentPage.selection.length > 0,
+    });
   } catch (error) {
     Logger.error('❌ Ошибка при инициализации плагина:', error);
     figma.notify('❌ Ошибка загрузки плагина');
@@ -325,6 +331,43 @@ figma.ui.onmessage = async (msg) => {
     // === Close plugin with toast ===
     if (msg.type === 'close-plugin') {
       figma.closePlugin(msg.message || undefined);
+      return;
+    }
+
+    // === Build breakpoint skeletons (principle layouts for each SERP breakpoint) ===
+    if (msg.type === 'build-breakpoint-skeletons') {
+      Logger.info('🧩 Building breakpoint skeletons...');
+      figma.ui.postMessage({
+        type: 'progress',
+        current: 5,
+        total: 100,
+        message: 'Создание макетов брейкпоинтов...',
+        operationType: 'breakpoint-skeletons',
+      });
+      try {
+        const result = await createBreakpointSkeletons();
+        if (result.success) {
+          figma.notify(
+            '✅ Breakpoint skeletons созданы (' + result.createdBreakpoints.length + ')',
+          );
+        } else if (result.createdBreakpoints.length > 0) {
+          figma.notify(
+            '⚠️ Создано частично: ' +
+              result.createdBreakpoints.length +
+              '/4 (ошибок: ' +
+              result.errors.length +
+              ')',
+          );
+        } else {
+          figma.notify('❌ Не удалось создать макеты — проверьте подключение к библиотеке');
+        }
+        figma.ui.postMessage({ type: 'done', count: result.createdBreakpoints.length });
+      } catch (e) {
+        Logger.error('Breakpoint skeletons failed:', e);
+        const msg_ = e instanceof Error ? e.message : String(e);
+        figma.notify('❌ Ошибка: ' + msg_);
+        figma.ui.postMessage({ type: 'error', message: msg_ });
+      }
       return;
     }
 

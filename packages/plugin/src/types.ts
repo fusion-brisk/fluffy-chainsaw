@@ -189,7 +189,9 @@ export type UIMessage =
   // === PLATFORM ===
   | { type: 'set-platform'; platform: 'desktop' | 'mobile' } // UI platform info
   // === HTML EXPORT ===
-  | { type: 'export-html' };
+  | { type: 'export-html' }
+  // === BREAKPOINT SKELETONS ===
+  | { type: 'build-breakpoint-skeletons' };
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
