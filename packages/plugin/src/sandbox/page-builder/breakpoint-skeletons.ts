@@ -13,9 +13,22 @@
 import { Logger } from '../../logger';
 import { SNIPPET_COMPONENT_MAP, LAYOUT_COMPONENT_MAP } from './component-map';
 import { loadComponent, createPlaceholder } from './component-import';
-import { createEQuickFiltersPanel } from './panel-builders';
+import { createEQuickFiltersPanel, createAsideFiltersPanel } from './panel-builders';
 import type { StructureNode } from './types';
 import type { CSVRow } from '../../types';
+
+/** Ширина content__aside в Yandex SERP (соответствует `createAsideFiltersPanel`). */
+const ASIDE_WIDTH = 230;
+
+/**
+ * Левый gutter, когда на странице есть content__aside. Совпадает с `effectiveLeftPadding`
+ * в существующем `createSerpPage` (page-creator.ts) и уводит сайдбар на безопасное
+ * расстояние от края вне зависимости от ширины брейкпоинта.
+ */
+const ASIDE_MODE_LEFT_PADDING = 64;
+
+/** Зазор между content__aside и content__left в горизонтальной обёртке. */
+const ASIDE_GAP = 16;
 
 export type BreakpointName = '5col' | '4col' | '3col' | 'touch';
 
@@ -28,9 +41,16 @@ export interface BreakpointSpec {
   leftColWidth: number;
   /**
    * Offset content__left от левого края фрейма в px. Соответствует
-   * измеренной `.content__left.x` на реальной выдаче Яндекса.
+   * измеренной `.content__left.x` на реальной выдаче Яндекса (products_mode=1,
+   * без EAsideFilters). Когда `hasAsideFilters=true`, реальный padding заменяется
+   * на `ASIDE_MODE_LEFT_PADDING`, чтобы вместить сайдбар.
    */
   leftPaddingX: number;
+  /**
+   * Показывать ли content__aside (EAsideFilters) слева от content__left.
+   * Desktop — true, touch — false (на мобильной выдаче боковых фильтров нет).
+   */
+  hasAsideFilters: boolean;
   platform: 'desktop' | 'touch';
   gridCols: number;
   tileWidth: number;
@@ -50,6 +70,7 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     frameWidth: 1920,
     leftColWidth: 984,
     leftPaddingX: 372,
+    hasAsideFilters: true,
     platform: 'desktop',
     gridCols: 5,
     tileWidth: 184,
@@ -62,6 +83,7 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     frameWidth: 1440,
     leftColWidth: 792,
     leftPaddingX: 272,
+    hasAsideFilters: true,
     platform: 'desktop',
     gridCols: 4,
     tileWidth: 184,
@@ -74,6 +96,7 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     frameWidth: 1024,
     leftColWidth: 568,
     leftPaddingX: 236,
+    hasAsideFilters: true,
     platform: 'desktop',
     gridCols: 3,
     tileWidth: 172,
@@ -86,6 +109,7 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     frameWidth: 390,
     leftColWidth: 360,
     leftPaddingX: 15,
+    hasAsideFilters: false,
     platform: 'touch',
     gridCols: 1,
     tileWidth: 360,
@@ -182,9 +206,15 @@ async function createProductTile(
 }
 
 /**
- * Создать Header-инстанс на ширину FILL.
+ * Создать Header-инстанс. Выставляет горизонтальный padding так, чтобы
+ * внутренний контент (лого, поиск, иконки) выравнивался с `content__left`
+ * снизу. Работает только если у библиотечного Header включён auto-layout —
+ * в противном случае задание paddingLeft молча игнорируется.
  */
-async function createHeader(platform: 'desktop' | 'touch'): Promise<SceneNode | null> {
+async function createHeader(
+  platform: 'desktop' | 'touch',
+  contentStartX: number,
+): Promise<SceneNode | null> {
   const cfg = LAYOUT_COMPONENT_MAP.Header;
   if (!cfg.key) return null;
   const component = await loadComponent(cfg.key);
@@ -194,6 +224,18 @@ async function createHeader(platform: 'desktop' | 'touch'): Promise<SceneNode | 
     instance.setProperties({ Desktop: platform === 'desktop' ? 'True' : 'False' });
   } catch (e) {
     Logger.debug('[BreakpointSkeletons] Header setProperties ignored: ' + String(e));
+  }
+  // Выравниваем внутренний padding Header с левым краем контента.
+  // Header в библиотеке — auto-layout фрейм, paddingLeft/Right можно выставить.
+  try {
+    if ('layoutMode' in instance && instance.layoutMode !== 'NONE') {
+      instance.paddingLeft = contentStartX;
+      // Правый padding не трогаем — у Header справа свой встроенный блок (иконки
+      // пользователя), и симметрия contentStartX справа в реальном Yandex не
+      // соблюдается.
+    }
+  } catch (e) {
+    Logger.debug('[BreakpointSkeletons] Header paddingLeft override ignored: ' + String(e));
   }
   return instance;
 }
@@ -248,6 +290,54 @@ async function createFilterPanel(platform: 'desktop' | 'touch'): Promise<FrameNo
 }
 
 /**
+ * Мок-данные для EAsideFilters — покрывают все 4 типа фильтров, поддерживаемых
+ * существующим `createAsideFiltersPanel`: categories, number (range), enum, boolean.
+ */
+const ASIDE_FILTERS_MOCK_JSON = JSON.stringify({
+  filters: [
+    {
+      title: 'Категория',
+      type: 'categories',
+      items: ['Фены', 'Фены-щётки', 'Выпрямители', 'Стайлеры'],
+    },
+    {
+      title: 'Цена, ₽',
+      type: 'number',
+      placeholderFrom: 'от',
+      placeholderTo: 'до',
+    },
+    {
+      title: 'Бренд',
+      type: 'enum',
+      items: ['Dyson', 'Philips', 'Rowenta', 'Remington', 'Braun'],
+      hasMore: true,
+    },
+    {
+      title: 'С бесплатной доставкой',
+      type: 'boolean',
+    },
+  ],
+});
+
+/**
+ * Собрать панель боковых фильтров через существующий билдер.
+ */
+async function createAsidePanel(platform: 'desktop' | 'touch'): Promise<FrameNode | null> {
+  const node: StructureNode = {
+    id: 'aside-filters',
+    type: 'EAsideFilters',
+    data: { '#AsideFilters_data': ASIDE_FILTERS_MOCK_JSON } as CSVRow,
+    order: 0,
+  };
+  try {
+    return await createAsideFiltersPanel(node, platform);
+  } catch (e) {
+    Logger.warn('[BreakpointSkeletons] createAsideFiltersPanel failed: ' + String(e));
+    return null;
+  }
+}
+
+/**
  * Построить один breakpoint-фрейм: Header (FILL) → вертикальная колонка с
  * filters + gallery + tiles + ESnippet, сдвинутая от левого края на leftPaddingX.
  */
@@ -259,8 +349,14 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }],
   });
 
-  // Header — fill width (растянут на всю ширину фрейма)
-  const header = await createHeader(spec.platform);
+  // Когда есть сайдбар, левый gutter сжимается до ASIDE_MODE_LEFT_PADDING
+  // (чтобы вместить aside), иначе используется измеренный leftPaddingX.
+  const effectiveLeftPadding = spec.hasAsideFilters ? ASIDE_MODE_LEFT_PADDING : spec.leftPaddingX;
+
+  // Header — fill width, с paddingLeft = effectiveLeftPadding, чтобы лого
+  // и поисковая строка внутри Header начинались с той же x-координаты,
+  // что и контент в content__aside / content__left.
+  const header = await createHeader(spec.platform, effectiveLeftPadding);
   if (header) {
     root.appendChild(header);
     if ('layoutSizingHorizontal' in header) {
@@ -268,15 +364,33 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     }
   }
 
-  // contentRow — горизонтальная обёртка с paddingLeft = leftPaddingX, чтобы
-  // content__left оказалась на нужном offset от левого края фрейма.
+  // contentRow — горизонтальная обёртка.
   const contentRow = createAutoFrame('contentRow', 'HORIZONTAL', {
     widthFill: true,
-    itemSpacing: 0,
-    padding: { top: spec.gapY, right: 0, bottom: 0, left: spec.leftPaddingX },
+    itemSpacing: spec.hasAsideFilters ? ASIDE_GAP : 0,
+    padding: { top: spec.gapY, right: 0, bottom: 0, left: effectiveLeftPadding },
   });
   root.appendChild(contentRow);
   contentRow.layoutSizingHorizontal = 'FILL';
+
+  // content__aside — боковые фильтры (только desktop)
+  if (spec.hasAsideFilters) {
+    const aside = await createAsidePanel(spec.platform);
+    if (aside) {
+      contentRow.appendChild(aside);
+      // ширина панели уже выставлена билдером (230px FIXED)
+    } else {
+      // fallback-плейсхолдер, чтобы раскладка не схлопывалась, если библиотека
+      // недоступна
+      const stub = createAutoFrame('EAsideFilters (fallback)', 'VERTICAL', {
+        fixedWidth: ASIDE_WIDTH,
+        padding: { top: 16, right: 0, bottom: 16, left: 0 },
+        fills: [{ type: 'SOLID', color: { r: 0.95, g: 0.95, b: 0.97 } }],
+      });
+      stub.resize(ASIDE_WIDTH, 200);
+      contentRow.appendChild(stub);
+    }
+  }
 
   // content__left — вертикальная колонка фиксированной ширины
   const contentWrap = createAutoFrame('content__left', 'VERTICAL', {

@@ -68,4 +68,21 @@ describe('BREAKPOINTS', () => {
       }
     }
   });
+
+  it('hasAsideFilters is true on desktop, false on touch', () => {
+    for (const bp of BREAKPOINTS) {
+      expect(bp.hasAsideFilters).toBe(bp.platform === 'desktop');
+    }
+  });
+
+  it('aside + content fits inside frame at ASIDE_MODE_LEFT_PADDING=64', () => {
+    const ASIDE_W = 230;
+    const ASIDE_GAP = 16;
+    const ASIDE_LEFT = 64;
+    for (const bp of BREAKPOINTS) {
+      if (!bp.hasAsideFilters) continue;
+      const needed = ASIDE_LEFT + ASIDE_W + ASIDE_GAP + bp.leftColWidth;
+      expect(needed).toBeLessThanOrEqual(bp.frameWidth);
+    }
+  });
 });
