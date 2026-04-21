@@ -949,6 +949,15 @@ export async function createSerpPage(
     contentLeftWidth?: number;
     contentGap?: number;
     leftPadding?: number;
+    /** Override the default page frame width (1440 desktop / 393 touch). */
+    frameWidth?: number;
+    /** Override the frame name (defaults to the search query). */
+    frameName?: string;
+    /**
+     * Skip canvas positioning, selection, and scrollAndZoomIntoView at the end.
+     * Used when the caller places the result into an autolayout wrapper.
+     */
+    skipViewportFocus?: boolean;
     wizards?: import('../../types/wizard-types').WizardPayload[];
   } = {},
 ): Promise<PageCreationResult> {
@@ -967,7 +976,7 @@ export async function createSerpPage(
   const wizards = options.wizards || [];
 
   // Размеры для разных платформ
-  const pageWidth = isTouch ? 393 : 1440;
+  const pageWidth = options.frameWidth ?? (isTouch ? 393 : 1440);
 
   Logger.info(
     `[PageCreator] Создание SERP страницы: "${query}", ${rows.length} сниппетов + ${wizards.length} wizard, platform=${platform}`,
@@ -983,7 +992,7 @@ export async function createSerpPage(
 
   // === 1. Основной контейнер ===
   const pageFrame = figma.createFrame();
-  pageFrame.name = String(query);
+  pageFrame.name = options.frameName ?? String(query);
   pageFrame.layoutMode = 'VERTICAL';
   pageFrame.primaryAxisSizingMode = 'AUTO'; // hug height
   pageFrame.counterAxisSizingMode = 'FIXED';
@@ -1001,9 +1010,11 @@ export async function createSerpPage(
     pageFrame.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
   }
 
-  // Позиционируем
-  pageFrame.x = figma.viewport.center.x - pageWidth / 2;
-  pageFrame.y = figma.viewport.center.y;
+  // Позиционируем (skip when caller re-parents into an autolayout wrapper)
+  if (!options.skipViewportFocus) {
+    pageFrame.x = figma.viewport.center.x - pageWidth / 2;
+    pageFrame.y = figma.viewport.center.y;
+  }
 
   // === 2. Header (и headerWrapper для touch) ===
   let headerWrapper: FrameNode | null = null;
@@ -1357,8 +1368,10 @@ export async function createSerpPage(
   }
 
   // === 9. Финализация ===
-  figma.currentPage.selection = [pageFrame];
-  figma.viewport.scrollAndZoomIntoView([pageFrame]);
+  if (!options.skipViewportFocus) {
+    figma.currentPage.selection = [pageFrame];
+    figma.viewport.scrollAndZoomIntoView([pageFrame]);
+  }
 
   const creationTime = Date.now() - startTime;
 

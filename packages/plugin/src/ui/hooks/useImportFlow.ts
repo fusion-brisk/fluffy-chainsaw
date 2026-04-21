@@ -151,7 +151,12 @@ export function useImportFlow(
 
       const { mode } = options;
       const { rows, query, entryId, sourceType, feedCards } = pending;
-      const scope = mode === 'selection' ? 'selection' : 'page';
+      // mode → scope mapping:
+      //   artboard     → 'page'         (default — один новый SERP)
+      //   selection    → 'selection'    (заполнить выделенный фрейм)
+      //   breakpoints  → 'breakpoints'  (развернуть данные по всем брейкпоинтам)
+      const scope: 'page' | 'selection' | 'breakpoints' =
+        mode === 'selection' ? 'selection' : mode === 'breakpoints' ? 'breakpoints' : 'page';
       const isFeed = sourceType === 'feed';
       const itemCount = isFeed ? feedCards?.length || 0 : rows.length;
 

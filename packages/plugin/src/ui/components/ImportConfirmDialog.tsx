@@ -16,7 +16,7 @@ import React, { memo, useEffect, useState, useCallback } from 'react';
 import type { ImportSummaryData } from '../../types';
 import { pluralize } from '../../utils/format';
 
-export type ImportMode = 'artboard' | 'selection';
+export type ImportMode = 'artboard' | 'selection' | 'breakpoints';
 
 export interface ImportOptions {
   mode: ImportMode;
@@ -159,6 +159,17 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
                 onChange={() => setMode('artboard')}
               />
               <span>Новый артборд</span>
+            </label>
+            <label className="confirm-dialog__radio">
+              <input
+                type="radio"
+                name="importMode"
+                value="breakpoints"
+                checked={mode === 'breakpoints'}
+                onChange={() => setMode('breakpoints')}
+                disabled={isFeed}
+              />
+              <span>Все брейкпоинты</span>
             </label>
             <label className="confirm-dialog__radio">
               <input
