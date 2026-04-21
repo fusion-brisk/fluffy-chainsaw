@@ -122,14 +122,16 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
   },
   {
     name: 'touch',
-    label: 'Touch · 1 col · <820',
+    label: 'Touch · 2 col · <820',
     frameWidth: 390,
     leftColWidth: 360,
     leftPaddingX: 15,
     hasAsideFilters: false,
     platform: 'touch',
-    gridCols: 1,
-    tileWidth: 360,
+    gridCols: 2,
+    // (360 − 8 gap) / 2 ≈ 176 — начальный хинт, окончательную ширину задаст
+    // FLEX-трек grid'а при FILL-плитке.
+    tileWidth: 176,
     galleryVariant: 'top',
     gapY: 12,
   },
@@ -442,8 +444,10 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
   // gridColumnCount. Треки по умолчанию FLEX — ячейки распределяются равномерно
   // по ширине контейнера. Плитки получают FILL по обеим осям, чтобы занять всю
   // ячейку. Позицию каждой плитки ставим явно через setGridChildPosition.
-  const totalTiles = spec.platform === 'touch' ? 4 : spec.gridCols * 2;
-  const rowCount = Math.ceil(totalTiles / spec.gridCols);
+  // 2 ряда плиток на всех брейкпоинтах: touch (2×2), 3col (2×3), 4col (2×4),
+  // 5col (2×5). Достаточно, чтобы увидеть поведение сетки без простыни.
+  const rowCount = 2;
+  const totalTiles = spec.gridCols * rowCount;
   const GRID_GAP = 8;
 
   const tiles = figma.createFrame();
