@@ -45,7 +45,9 @@ describe('BREAKPOINTS', () => {
     expect(byName['4col'].tileWidth).toBe(184);
     expect(byName['3col'].tileWidth).toBe(172);
     expect(byName['3col-narrow'].tileWidth).toBe(172);
-    expect(byName['touch'].tileWidth).toBe(360);
+    // touch is a 2-col grid; (360 − 8 gap) / 2 ≈ 176 as the starting hint,
+    // final width is determined by the FLEX track and FILL child.
+    expect(byName['touch'].tileWidth).toBe(176);
   });
 
   it('leftPaddingX values are measured from regular Yandex SERP', () => {
@@ -66,11 +68,11 @@ describe('BREAKPOINTS', () => {
     }
   });
 
-  it('touch breakpoint uses top-aligned gallery and 1-column grid', () => {
+  it('touch breakpoint uses top-aligned gallery and 2-column grid', () => {
     const touch = BREAKPOINTS.find((b) => b.name === 'touch');
     expect(touch).toBeDefined();
     expect(touch!.galleryVariant).toBe('top');
-    expect(touch!.gridCols).toBe(1);
+    expect(touch!.gridCols).toBe(2);
     expect(touch!.platform).toBe('touch');
   });
 
