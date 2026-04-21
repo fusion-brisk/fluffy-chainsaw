@@ -10,7 +10,12 @@
 import { Logger, LogLevel } from '../logger';
 import { ParsingRulesManager } from '../parsing-rules-manager';
 import { handleSimpleMessage, CSVRow } from './plugin';
-import { createSerpPage, handleSlotPostProcess, createBreakpointSkeletons } from './page-builder';
+import {
+  createSerpPage,
+  handleSlotPostProcess,
+  createBreakpointSkeletons,
+  createSerpAtAllBreakpoints,
+} from './page-builder';
 import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
@@ -458,16 +463,40 @@ figma.ui.onmessage = async (msg) => {
           `[Relay] Определена платформа: ${platform} (из данных: ${firstRowPlatform || 'не указана'})`,
         );
 
-        // Создаём SERP страницу из библиотечных компонентов
-        // leftPadding не указан — используется default из createSerpPage
-        // (desktop=110 для выравнивания с EQuickFilters, touch=0)
-        const result = await createSerpPage(rows, {
-          query: query || undefined,
-          platform,
-          contentLeftWidth: platform === 'desktop' ? 792 : undefined,
-          contentGap: 0,
-          wizards,
-        });
+        // Scope определяет, куда идут данные:
+        //   'page'         → одна страница (default)
+        //   'selection'    → заполнить выделенный фрейм (отдельный путь, не здесь)
+        //   'breakpoints'  → развернуть одни и те же данные во все 5 канонических брейкпоинтов
+        const scope = (msg.scope as string) || 'page';
+
+        let result: Awaited<ReturnType<typeof createSerpPage>>;
+        if (scope === 'breakpoints') {
+          Logger.info('[Relay] Mode=breakpoints — рендер во все брейкпоинты');
+          const multi = await createSerpAtAllBreakpoints(rows, {
+            query: query || undefined,
+            wizards,
+          });
+          // Адаптируем под общий тип, чтобы остальной код ниже (progress, ack,
+          // productCard, screenshots) мог работать с единым result.frame.
+          result = {
+            success: multi.success,
+            frame: multi.wrapper,
+            createdCount: multi.totalCreatedElements,
+            errors: multi.errors,
+            creationTime: 0,
+          };
+        } else {
+          // Создаём SERP страницу из библиотечных компонентов
+          // leftPadding не указан — используется default из createSerpPage
+          // (desktop=110 для выравнивания с EQuickFilters, touch=0)
+          result = await createSerpPage(rows, {
+            query: query || undefined,
+            platform,
+            contentLeftWidth: platform === 'desktop' ? 792 : undefined,
+            contentGap: 0,
+            wizards,
+          });
+        }
 
         // Отправляем progress: завершение
         figma.ui.postMessage({

@@ -53,3 +53,7 @@ export type {
   BreakpointSpec,
   BreakpointSkeletonsResult,
 } from './breakpoint-skeletons';
+
+// Multi-breakpoint SERP import (same data rendered at every breakpoint)
+export { createSerpAtAllBreakpoints } from './serp-multi-breakpoint';
+export type { SerpMultiBreakpointResult } from './serp-multi-breakpoint';
