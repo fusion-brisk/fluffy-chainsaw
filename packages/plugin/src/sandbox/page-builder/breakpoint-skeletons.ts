@@ -438,40 +438,49 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     gallery.appendChild(tile);
   }
 
-  // ProductsTiles — явная row-based сетка: вертикальный контейнер со строками,
-  // в каждой строке gridCols плиток шириной FILL. Это даёт настоящий grid: если
-  // content__left меняет ширину, плитки автоматически перераспределяются.
-  // Альтернатива (HORIZONTAL+WRAP с фиксированным tileWidth) тоже работает, но
-  // плитки не растягиваются под свой контейнер.
+  // ProductsTiles — нативный Figma grid: layoutMode='GRID' с gridRowCount/
+  // gridColumnCount. Треки по умолчанию FLEX — ячейки распределяются равномерно
+  // по ширине контейнера. Плитки получают FILL по обеим осям, чтобы занять всю
+  // ячейку. Позицию каждой плитки ставим явно через setGridChildPosition.
   const totalTiles = spec.platform === 'touch' ? 4 : spec.gridCols * 2;
   const rowCount = Math.ceil(totalTiles / spec.gridCols);
   const GRID_GAP = 8;
 
-  const tiles = createAutoFrame('ProductsTiles', 'VERTICAL', {
-    widthFill: true,
-    itemSpacing: GRID_GAP,
-    padding: { top: 0, right: 0, bottom: 0, left: 0 },
-  });
+  const tiles = figma.createFrame();
+  tiles.name = 'ProductsTiles';
+  tiles.layoutMode = 'GRID';
+  tiles.gridColumnCount = spec.gridCols;
+  tiles.gridRowCount = rowCount;
+  tiles.gridColumnGap = GRID_GAP;
+  tiles.gridRowGap = GRID_GAP;
+  tiles.paddingTop = 0;
+  tiles.paddingRight = 0;
+  tiles.paddingBottom = 0;
+  tiles.paddingLeft = 0;
+  tiles.fills = [];
   contentWrap.appendChild(tiles);
   tiles.layoutSizingHorizontal = 'FILL';
+  tiles.layoutSizingVertical = 'HUG';
 
   let placed = 0;
   for (let r = 0; r < rowCount; r++) {
-    const row = createAutoFrame('ProductsTiles-Row', 'HORIZONTAL', {
-      widthFill: true,
-      itemSpacing: GRID_GAP,
-      padding: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
-    tiles.appendChild(row);
-    row.layoutSizingHorizontal = 'FILL';
-
     const colsInRow = Math.min(spec.gridCols, totalTiles - placed);
     for (let c = 0; c < colsInRow; c++) {
-      // Начальная ширина только как хинт — FILL на строке перераспределит её.
+      // Начальная ширина — только хинт; grid перераспределит FLEX-треки.
       const tile = await createProductTile('Default', spec.tileWidth);
-      row.appendChild(tile);
+      tiles.appendChild(tile);
+      try {
+        if ('setGridChildPosition' in tile) {
+          (tile as FrameNode).setGridChildPosition(r, c);
+        }
+      } catch (e) {
+        Logger.debug('[BreakpointSkeletons] setGridChildPosition ignored: ' + String(e));
+      }
       if ('layoutSizingHorizontal' in tile) {
         (tile as FrameNode).layoutSizingHorizontal = 'FILL';
+      }
+      if ('layoutSizingVertical' in tile) {
+        (tile as FrameNode).layoutSizingVertical = 'HUG';
       }
       placed += 1;
     }
