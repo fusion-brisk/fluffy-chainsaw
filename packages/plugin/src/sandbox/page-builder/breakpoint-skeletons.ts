@@ -2,10 +2,10 @@
  * Breakpoint Skeletons — принципиальные макеты SERP под каждый брейкпоинт.
  *
  * Создаёт 4 вертикальных фрейма (5col, 4col, 3col, touch) в горизонтальной
- * обёртке на текущей странице. Каждый фрейм содержит Header, AdvProductGallery,
- * ProductsTiles и один ESnippet — инстансы библиотеки без данных, просто
- * разложенные в autolayout. Используется для отладки адаптивного поведения
- * без реальных данных из relay.
+ * обёртке на текущей странице. Каждый фрейм содержит Header, EQuickFilters,
+ * AdvProductGallery, ProductsTiles и один ESnippet — инстансы библиотеки
+ * без данных, разложенные в autolayout. Используется для отладки адаптивного
+ * поведения без реальных данных из relay.
  *
  * Источник брейкпоинтов: docs/BREAKPOINTS.md и замеры 2026-04-21.
  */
@@ -13,19 +13,28 @@
 import { Logger } from '../../logger';
 import { SNIPPET_COMPONENT_MAP, LAYOUT_COMPONENT_MAP } from './component-map';
 import { loadComponent, createPlaceholder } from './component-import';
+import { createEQuickFiltersPanel } from './panel-builders';
+import type { StructureNode } from './types';
+import type { CSVRow } from '../../types';
 
 export type BreakpointName = '5col' | '4col' | '3col' | 'touch';
 
 export interface BreakpointSpec {
   name: BreakpointName;
   label: string;
+  /** Ширина всего фрейма брейкпоинта (= ширина окна в Яндексе). */
   frameWidth: number;
+  /** Ширина `.content__left` — колонки, где лежат плитки/сниппеты. */
   leftColWidth: number;
+  /**
+   * Offset content__left от левого края фрейма в px. Соответствует
+   * измеренной `.content__left.x` на реальной выдаче Яндекса.
+   */
+  leftPaddingX: number;
   platform: 'desktop' | 'touch';
   gridCols: number;
   tileWidth: number;
   galleryVariant: 'left' | 'top';
-  paddingX: number;
   gapY: number;
 }
 
@@ -40,11 +49,11 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     label: 'Desktop · 5 col · ≥1560',
     frameWidth: 1920,
     leftColWidth: 984,
+    leftPaddingX: 372,
     platform: 'desktop',
     gridCols: 5,
     tileWidth: 184,
     galleryVariant: 'left',
-    paddingX: 16,
     gapY: 16,
   },
   {
@@ -52,11 +61,11 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     label: 'Desktop · 4 col · 1252–1559',
     frameWidth: 1440,
     leftColWidth: 792,
+    leftPaddingX: 272,
     platform: 'desktop',
     gridCols: 4,
     tileWidth: 184,
     galleryVariant: 'left',
-    paddingX: 16,
     gapY: 16,
   },
   {
@@ -64,11 +73,11 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     label: 'Desktop · 3 col · 820–1251',
     frameWidth: 1024,
     leftColWidth: 568,
+    leftPaddingX: 236,
     platform: 'desktop',
     gridCols: 3,
     tileWidth: 172,
     galleryVariant: 'left',
-    paddingX: 16,
     gapY: 16,
   },
   {
@@ -76,11 +85,11 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     label: 'Touch · 1 col · <820',
     frameWidth: 390,
     leftColWidth: 360,
+    leftPaddingX: 15,
     platform: 'touch',
     gridCols: 1,
     tileWidth: 360,
     galleryVariant: 'top',
-    paddingX: 15,
     gapY: 12,
   },
 ];
@@ -201,17 +210,56 @@ async function createESnippet(platform: 'desktop' | 'touch'): Promise<SceneNode 
 }
 
 /**
- * Построить один breakpoint-фрейм: вертикальный autolayout с Header, галереей, сеткой, 1 ESnippet.
+ * Мок-данные для EQuickFilters — 5 обычных фильтров + "Все фильтры".
+ * Конкретные имена не важны; скелетон иллюстрирует раскладку.
+ */
+const FILTER_MOCK_DATA: CSVRow = {
+  '#FilterButtonsCount': '5',
+  '#FilterButton_1': 'Цена',
+  '#FilterButton_2': 'Бренд',
+  '#FilterButton_3': 'Мощность',
+  '#FilterButton_4': 'Доставка',
+  '#FilterButton_5': 'Рейтинг',
+  '#FilterButtonType_1': 'dropdown',
+  '#FilterButtonType_2': 'dropdown',
+  '#FilterButtonType_3': 'dropdown',
+  '#FilterButtonType_4': 'dropdown',
+  '#FilterButtonType_5': 'sort',
+  '#AllFiltersButton': 'true',
+};
+
+/**
+ * Собрать панель быстрых фильтров через существующий билдер.
+ * Возвращает null, если библиотечные компоненты не подгрузились.
+ */
+async function createFilterPanel(platform: 'desktop' | 'touch'): Promise<FrameNode | null> {
+  const node: StructureNode = {
+    id: 'filter-panel',
+    type: 'EQuickFilters',
+    data: FILTER_MOCK_DATA,
+    order: 0,
+  };
+  try {
+    return await createEQuickFiltersPanel(node, platform);
+  } catch (e) {
+    Logger.warn('[BreakpointSkeletons] createEQuickFiltersPanel failed: ' + String(e));
+    return null;
+  }
+}
+
+/**
+ * Построить один breakpoint-фрейм: Header (FILL) → вертикальная колонка с
+ * filters + gallery + tiles + ESnippet, сдвинутая от левого края на leftPaddingX.
  */
 async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
   const root = createAutoFrame(spec.label, 'VERTICAL', {
     fixedWidth: spec.frameWidth,
-    itemSpacing: spec.gapY,
+    itemSpacing: 0,
     padding: { top: 0, right: 0, bottom: 24, left: 0 },
     fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }],
   });
 
-  // Header — fill width
+  // Header — fill width (растянут на всю ширину фрейма)
   const header = await createHeader(spec.platform);
   if (header) {
     root.appendChild(header);
@@ -220,13 +268,30 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     }
   }
 
-  // content__left — колонка центрируется внутри фрейма с фиксированной шириной
+  // contentRow — горизонтальная обёртка с paddingLeft = leftPaddingX, чтобы
+  // content__left оказалась на нужном offset от левого края фрейма.
+  const contentRow = createAutoFrame('contentRow', 'HORIZONTAL', {
+    widthFill: true,
+    itemSpacing: 0,
+    padding: { top: spec.gapY, right: 0, bottom: 0, left: spec.leftPaddingX },
+  });
+  root.appendChild(contentRow);
+  contentRow.layoutSizingHorizontal = 'FILL';
+
+  // content__left — вертикальная колонка фиксированной ширины
   const contentWrap = createAutoFrame('content__left', 'VERTICAL', {
     fixedWidth: spec.leftColWidth,
     itemSpacing: spec.gapY,
-    padding: { top: 0, right: spec.paddingX, bottom: 0, left: spec.paddingX },
+    padding: { top: 0, right: 0, bottom: 0, left: 0 },
   });
-  root.appendChild(contentWrap);
+  contentRow.appendChild(contentWrap);
+
+  // EQuickFilters — панель фильтров над сеткой
+  const filterPanel = await createFilterPanel(spec.platform);
+  if (filterPanel) {
+    contentWrap.appendChild(filterPanel);
+    filterPanel.layoutSizingHorizontal = 'FILL';
+  }
 
   // AdvProductGallery — горизонтальная карусель
   const galleryTileCount = spec.platform === 'touch' ? 4 : 2;
@@ -236,7 +301,6 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     itemSpacing: 8,
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
   });
-  // Gallery ширина = fill родителя (сам контейнер хранит карточки фиксированной ширины)
   gallery.primaryAxisSizingMode = 'AUTO';
   gallery.counterAxisSizingMode = 'AUTO';
   gallery.clipsContent = false;
@@ -246,7 +310,7 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     gallery.appendChild(tile);
   }
 
-  // ProductsTiles — сетка товаров (WRAP для desktop, VERTICAL для touch)
+  // ProductsTiles — сетка товаров (WRAP для desktop, 1 колонка для touch)
   const tilesCount = spec.platform === 'touch' ? 4 : spec.gridCols * 2;
   const tiles = createAutoFrame('ProductsTiles', 'HORIZONTAL', {
     widthFill: true,
