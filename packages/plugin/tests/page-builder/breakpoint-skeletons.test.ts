@@ -37,6 +37,22 @@ describe('BREAKPOINTS', () => {
     expect(byName['touch'].tileWidth).toBe(360);
   });
 
+  it('leftPaddingX values are measured from production', () => {
+    const byName = Object.fromEntries(BREAKPOINTS.map((b) => [b.name, b]));
+    // Values measured from .content__left.x on yandex.ru/search?products_mode=1
+    expect(byName['5col'].leftPaddingX).toBe(372);
+    expect(byName['4col'].leftPaddingX).toBe(272);
+    expect(byName['3col'].leftPaddingX).toBe(236);
+    expect(byName['touch'].leftPaddingX).toBe(15);
+  });
+
+  it('content column fits inside frame with its left padding', () => {
+    for (const bp of BREAKPOINTS) {
+      // leftPadding + leftColWidth must not exceed frameWidth (no overflow)
+      expect(bp.leftPaddingX + bp.leftColWidth).toBeLessThanOrEqual(bp.frameWidth);
+    }
+  });
+
   it('touch breakpoint uses top-aligned gallery and 1-column grid', () => {
     const touch = BREAKPOINTS.find((b) => b.name === 'touch');
     expect(touch).toBeDefined();
@@ -50,14 +66,6 @@ describe('BREAKPOINTS', () => {
       if (bp.platform === 'desktop') {
         expect(bp.galleryVariant).toBe('left');
       }
-    }
-  });
-
-  it('leftColWidth fits inside frameWidth with reasonable gutter', () => {
-    for (const bp of BREAKPOINTS) {
-      expect(bp.leftColWidth).toBeLessThanOrEqual(bp.frameWidth);
-      // At least 4px of combined side gutter (sanity, no negative gutters)
-      expect(bp.frameWidth - bp.leftColWidth).toBeGreaterThanOrEqual(0);
     }
   });
 });
