@@ -81,6 +81,10 @@ export async function createSerpAtAllBreakpoints(
         leftPadding: bp.leftPaddingX,
         frameName: String(query) + ' · ' + bp.name,
         skipViewportFocus: true,
+        // Per-breakpoint GRID: ProductsTiles renders with this many columns
+        // and FLEX tracks, so tiles split the content column evenly at each
+        // breakpoint (instead of the historical fixed 184px tile width).
+        gridCols: bp.gridCols,
         wizards: options.wizards,
       });
       if (result.frame) {

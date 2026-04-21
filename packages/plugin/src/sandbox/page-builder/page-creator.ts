@@ -584,6 +584,11 @@ export async function createPageFromRows(
  * @param errors - массив ошибок для накопления
  * @param parentContainerType - тип родительского контейнера
  * @param query - поисковый запрос (для заголовков)
+ * @param gridCols - если задан, ProductsTiles рендерится как native Figma GRID
+ *                   с gridColumnCount = gridCols (используется при
+ *                   multi-breakpoint импорте для разных сеток на каждом BP).
+ *                   Пробрасывается только в ProductsTiles-ветку; вложенные
+ *                   вызовы renderStructureNode идут без gridCols.
  */
 async function renderStructureNode(
   node: StructureNode,
@@ -591,6 +596,7 @@ async function renderStructureNode(
   errors: PageCreationError[],
   parentContainerType?: ContainerType,
   query?: string,
+  gridCols?: number,
 ): Promise<{ element: SceneNode | null; count: number }> {
   let count = 0;
 
@@ -752,6 +758,11 @@ async function renderStructureNode(
         titleDefault: query ? 'Популярные товары по запросу «' + query + '»' : 'Популярные товары',
         node: node,
         childSizing: platform === 'touch' ? 'FILL' : 'config',
+        // gridCols приходит извне (из createSerpPage options → renderStructureNode).
+        // При multi-breakpoint импорте каждый вызов createSerpPage получает свой
+        // gridCols. В single-импорте undefined — createWrappedContainer
+        // откатится к старой WRAP-логике с фиксированным childWidth.
+        gridCols: gridCols,
         containerPostConfig: function (frame) {
           frame.layoutSizingVertical = 'HUG';
         },
@@ -958,6 +969,12 @@ export async function createSerpPage(
      * Used when the caller places the result into an autolayout wrapper.
      */
     skipViewportFocus?: boolean;
+    /**
+     * If set, ProductsTiles renders as native Figma GRID with this many
+     * columns (FLEX tracks, FILL children). Otherwise falls back to the
+     * historical WRAP + fixed childWidth layout.
+     */
+    gridCols?: number;
     wizards?: import('../../types/wizard-types').WizardPayload[];
   } = {},
 ): Promise<PageCreationResult> {
@@ -1248,7 +1265,14 @@ export async function createSerpPage(
       operationType: 'relay-import',
     });
 
-    const result = await renderStructureNode(node, platform, errors, undefined, String(query));
+    const result = await renderStructureNode(
+      node,
+      platform,
+      errors,
+      undefined,
+      String(query),
+      options.gridCols,
+    );
 
     if (result.element) {
       // Touch: EQuickFilters добавляем в headerWrapper вместо snippetsContainer
