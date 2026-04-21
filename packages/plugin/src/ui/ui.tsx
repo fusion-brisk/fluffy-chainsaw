@@ -417,6 +417,9 @@ const App: React.FC = () => {
         case 'exportHtml':
           sendMessageToPlugin({ type: 'export-html' });
           break;
+        case 'breakpointSkeletons':
+          sendMessageToPlugin({ type: 'build-breakpoint-skeletons' });
+          break;
         case 'dismiss-success':
           importFlow.completeSuccess();
           break;

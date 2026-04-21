@@ -47,6 +47,10 @@ skills-lock.json
 .claude/settings.local.json
 .claude/specs/in-progress/*
 !.claude/specs/in-progress/.gitkeep.md
+.claude/worktrees/
+
+# Playwright MCP scratch snapshots
+.playwright-mcp/
 
 # Editor directories and files
 .idea

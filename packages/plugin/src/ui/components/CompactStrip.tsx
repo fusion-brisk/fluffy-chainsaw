@@ -101,6 +101,11 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         { id: 'setup', label: 'Настройки', icon: '\u2638' },
         { id: 'whatsNew', label: 'Что нового', icon: '\u2726' },
         {
+          id: 'breakpointSkeletons',
+          label: 'Макеты брейкпоинтов',
+          icon: '\u25A6',
+        },
+        {
           id: 'exportHtml',
           label: 'Экспортировать HTML',
           icon: '\u2913',
