@@ -23,7 +23,7 @@ const ASIDE_WIDTH = 230;
 /** Зазор между content__aside и content__left в горизонтальной обёртке. */
 const ASIDE_GAP = 16;
 
-export type BreakpointName = '5col' | '4col' | '3col' | 'touch';
+export type BreakpointName = '5col' | '4col' | '3col' | '3col-narrow' | 'touch';
 
 export interface BreakpointSpec {
   name: BreakpointName;
@@ -53,16 +53,17 @@ export interface BreakpointSpec {
 }
 
 /**
- * Каноничные брейкпоинты Яндекс SERP. Замеры `leftPaddingX` и `leftColWidth`
- * сняты с регулярной выдачи (yandex.ru/search без products_mode):
- *   - 1920: leftCol 792 × 124
- *   - 1700: leftCol 792 × 124
- *   - 1440: leftCol 792 × 100
- *   - 1024: leftCol 568 × 100
- * leftPaddingX переключается 124↔100 в районе ≈1700. gridCols/tileWidth
- * взяты с products_mode=1 — это отдельная раскладка, где плитки
- * выстраиваются в сетку (5/4/3 колонки), в остальной своей геометрии
- * совпадающая с регулярной выдачей.
+ * Каноничные брейкпоинты Яндекс SERP. Все переходы сняты с регулярной выдачи
+ * (yandex.ru/search без products_mode) — это четыре разных плато левого
+ * гуттера, переходы совпадают с CSS-правилами Яндекса:
+ *   - ≥1560       → gutter 124, leftCol 792 (5 колонок в products_mode)
+ *   - 1252–1559   → gutter 100, leftCol 792 (4 колонки)
+ *   - 991–1251    → gutter 100, leftCol 568 (3 колонки)
+ *   - 820–990     → gutter  28, leftCol 568 (3 колонки, узкий chrome)
+ *   - <820        → horizontal scroll на desktop, ниже 390 — touch-шаблон
+ * gridCols/tileWidth берутся из products_mode=1 — в регулярной выдаче плиточной
+ * сетки нет, но переходы grid (5↔4 при 1560, 4↔3 при 1252) совпадают с
+ * переходами leftCol.w, поэтому одна конфигурация описывает оба контекста.
  */
 export const BREAKPOINTS: readonly BreakpointSpec[] = [
   {
@@ -93,11 +94,26 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
   },
   {
     name: '3col',
-    label: 'Desktop · 3 col · 820–1251',
-    frameWidth: 1024,
+    label: 'Desktop · 3 col · 991–1251',
+    frameWidth: 1100,
     leftColWidth: 568,
     leftPaddingX: 100,
     hasAsideFilters: true,
+    platform: 'desktop',
+    gridCols: 3,
+    tileWidth: 172,
+    galleryVariant: 'left',
+    gapY: 16,
+  },
+  {
+    name: '3col-narrow',
+    label: 'Desktop · 3 col · 820–990',
+    // Узкий chrome: gutter схлопывается со 100 до 28, сайдбар Яндекс обычно
+    // скрывает при max-width: 990, поэтому aside отключён.
+    frameWidth: 900,
+    leftColWidth: 568,
+    leftPaddingX: 28,
+    hasAsideFilters: false,
     platform: 'desktop',
     gridCols: 3,
     tileWidth: 172,
