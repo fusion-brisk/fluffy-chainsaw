@@ -438,20 +438,43 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     gallery.appendChild(tile);
   }
 
-  // ProductsTiles — сетка товаров (WRAP для desktop, 1 колонка для touch)
-  const tilesCount = spec.platform === 'touch' ? 4 : spec.gridCols * 2;
-  const tiles = createAutoFrame('ProductsTiles', 'HORIZONTAL', {
+  // ProductsTiles — явная row-based сетка: вертикальный контейнер со строками,
+  // в каждой строке gridCols плиток шириной FILL. Это даёт настоящий grid: если
+  // content__left меняет ширину, плитки автоматически перераспределяются.
+  // Альтернатива (HORIZONTAL+WRAP с фиксированным tileWidth) тоже работает, но
+  // плитки не растягиваются под свой контейнер.
+  const totalTiles = spec.platform === 'touch' ? 4 : spec.gridCols * 2;
+  const rowCount = Math.ceil(totalTiles / spec.gridCols);
+  const GRID_GAP = 8;
+
+  const tiles = createAutoFrame('ProductsTiles', 'VERTICAL', {
     widthFill: true,
-    itemSpacing: 8,
-    counterAxisSpacing: 8,
-    wrap: spec.platform === 'desktop',
+    itemSpacing: GRID_GAP,
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
   });
   contentWrap.appendChild(tiles);
   tiles.layoutSizingHorizontal = 'FILL';
-  for (let i = 0; i < tilesCount; i++) {
-    const tile = await createProductTile('Default', spec.tileWidth);
-    tiles.appendChild(tile);
+
+  let placed = 0;
+  for (let r = 0; r < rowCount; r++) {
+    const row = createAutoFrame('ProductsTiles-Row', 'HORIZONTAL', {
+      widthFill: true,
+      itemSpacing: GRID_GAP,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+    tiles.appendChild(row);
+    row.layoutSizingHorizontal = 'FILL';
+
+    const colsInRow = Math.min(spec.gridCols, totalTiles - placed);
+    for (let c = 0; c < colsInRow; c++) {
+      // Начальная ширина только как хинт — FILL на строке перераспределит её.
+      const tile = await createProductTile('Default', spec.tileWidth);
+      row.appendChild(tile);
+      if ('layoutSizingHorizontal' in tile) {
+        (tile as FrameNode).layoutSizingHorizontal = 'FILL';
+      }
+      placed += 1;
+    }
   }
 
   // Organic ESnippet — один под сеткой
