@@ -817,6 +817,13 @@ interface WrappedContainerOptions {
     textDataField: string;
     defaultText: string;
   };
+  /**
+   * When set (> 0), the container frame switches to Figma native
+   * `layoutMode: 'GRID'` with this many columns; children are placed via
+   * setGridChildPosition and get layoutSizingHorizontal='FILL'. Overrides
+   * `childSizing` and `containerConfig.childWidth` for child sizing.
+   */
+  gridCols?: number;
   renderChild: (child: StructureNode) => Promise<{ element: SceneNode | null; count: number }>;
 }
 
@@ -918,18 +925,48 @@ export async function createWrappedContainer(
   if (opts.containerPostConfig) {
     opts.containerPostConfig(containerFrame);
   }
+
+  // When gridCols is specified, switch the container to native Figma GRID.
+  // Overrides layoutMode from ContainerConfig (WRAP/HORIZONTAL). Cells use
+  // FLEX tracks by default, so tiles split width evenly.
+  const useGrid = typeof opts.gridCols === 'number' && opts.gridCols > 0;
+  const childCount = opts.node.children ? opts.node.children.length : 0;
+  if (useGrid) {
+    containerFrame.layoutMode = 'GRID';
+    containerFrame.gridColumnCount = opts.gridCols as number;
+    containerFrame.gridRowCount = Math.max(1, Math.ceil(childCount / (opts.gridCols as number)));
+    containerFrame.gridColumnGap = opts.containerConfig.itemSpacing ?? 8;
+    containerFrame.gridRowGap = opts.containerConfig.counterAxisSpacing ?? 8;
+  }
+
   wrapper.appendChild(containerFrame);
   containerFrame.layoutSizingHorizontal = 'FILL';
 
   // Children
   let count = 0;
+  let gridPlaced = 0;
   if (opts.node.children) {
     for (let i = 0; i < opts.node.children.length; i++) {
       const child = opts.node.children[i];
       const result = await opts.renderChild(child);
       if (result.element) {
         containerFrame.appendChild(result.element);
-        if (opts.childSizing === 'FILL') {
+        if (useGrid) {
+          // Explicit row/column so nothing depends on append order quirks.
+          try {
+            if ('setGridChildPosition' in result.element) {
+              const cols = opts.gridCols as number;
+              const row = Math.floor(gridPlaced / cols);
+              const col = gridPlaced % cols;
+              (result.element as FrameNode).setGridChildPosition(row, col);
+            }
+          } catch (e) {
+            Logger.debug('[PanelBuilders] setGridChildPosition ignored: ' + String(e));
+          }
+          (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
+          (result.element as InstanceNode).layoutSizingVertical = 'HUG';
+          gridPlaced += 1;
+        } else if (opts.childSizing === 'FILL') {
           (result.element as InstanceNode).layoutSizingHorizontal = 'FILL';
         } else if (typeof opts.containerConfig.childWidth === 'number') {
           (result.element as InstanceNode).resize(
