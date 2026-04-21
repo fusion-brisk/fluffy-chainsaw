@@ -14,27 +14,29 @@ import {
 } from '../../src/sandbox/page-builder/breakpoint-skeletons';
 
 describe('BREAKPOINTS', () => {
-  it('has exactly four canonical breakpoints', () => {
-    expect(BREAKPOINTS).toHaveLength(4);
+  it('has exactly five canonical breakpoints', () => {
+    expect(BREAKPOINTS).toHaveLength(5);
     const names = BREAKPOINTS.map((b) => b.name);
-    expect(names).toEqual<BreakpointName[]>(['5col', '4col', '3col', 'touch']);
+    expect(names).toEqual<BreakpointName[]>(['5col', '4col', '3col', '3col-narrow', 'touch']);
   });
 
-  it('desktop frameWidth and gridCols decrease monotonically', () => {
+  it('desktop frameWidth decreases monotonically, gridCols non-increasing', () => {
     const desktops = BREAKPOINTS.filter((b) => b.platform === 'desktop');
     for (let i = 1; i < desktops.length; i++) {
       expect(desktops[i].frameWidth).toBeLessThan(desktops[i - 1].frameWidth);
-      expect(desktops[i].gridCols).toBeLessThan(desktops[i - 1].gridCols);
+      // 3col and 3col-narrow share 3 cols, others decrease strictly
+      expect(desktops[i].gridCols).toBeLessThanOrEqual(desktops[i - 1].gridCols);
     }
   });
 
-  it('leftColWidth is 792 on wide desktop, drops to 568 on narrow desktop', () => {
+  it('leftColWidth matches Yandex regular SERP plateaus', () => {
     const byName = Object.fromEntries(BREAKPOINTS.map((b) => [b.name, b]));
-    // Matches Yandex's own behaviour on regular SERP: content__left stays 792px
-    // from 1440 upward, shrinks to 568 at ~1024 and below.
+    // Yandex transitions at min-width: 1252 — above keeps leftCol=792,
+    // below collapses to 568. The 820-990 narrow variant keeps 568.
     expect(byName['5col'].leftColWidth).toBe(792);
     expect(byName['4col'].leftColWidth).toBe(792);
     expect(byName['3col'].leftColWidth).toBe(568);
+    expect(byName['3col-narrow'].leftColWidth).toBe(568);
   });
 
   it('tile widths match Yandex production measurements', () => {
@@ -42,18 +44,18 @@ describe('BREAKPOINTS', () => {
     expect(byName['5col'].tileWidth).toBe(184);
     expect(byName['4col'].tileWidth).toBe(184);
     expect(byName['3col'].tileWidth).toBe(172);
+    expect(byName['3col-narrow'].tileWidth).toBe(172);
     expect(byName['touch'].tileWidth).toBe(360);
   });
 
   it('leftPaddingX values are measured from regular Yandex SERP', () => {
     const byName = Object.fromEntries(BREAKPOINTS.map((b) => [b.name, b]));
-    // Values measured from .content__left.x on yandex.ru/search (no products_mode):
-    //   - 1920/1700 → 124
-    //   - 1440/1024 → 100
-    //   - touch → 15
+    // Values measured from .content__left.x on yandex.ru/search (no products_mode).
+    // Transitions: 1560 (124→100), 1252 (leftCol.w 792→568), 990 (100→28).
     expect(byName['5col'].leftPaddingX).toBe(124);
     expect(byName['4col'].leftPaddingX).toBe(100);
     expect(byName['3col'].leftPaddingX).toBe(100);
+    expect(byName['3col-narrow'].leftPaddingX).toBe(28);
     expect(byName['touch'].leftPaddingX).toBe(15);
   });
 
@@ -80,10 +82,14 @@ describe('BREAKPOINTS', () => {
     }
   });
 
-  it('hasAsideFilters is true on desktop, false on touch', () => {
-    for (const bp of BREAKPOINTS) {
-      expect(bp.hasAsideFilters).toBe(bp.platform === 'desktop');
-    }
+  it('hasAsideFilters is enabled on wide desktop, disabled below 990px threshold and on touch', () => {
+    const byName = Object.fromEntries(BREAKPOINTS.map((b) => [b.name, b]));
+    // Yandex typically hides aside below the 990px CSS threshold
+    expect(byName['5col'].hasAsideFilters).toBe(true);
+    expect(byName['4col'].hasAsideFilters).toBe(true);
+    expect(byName['3col'].hasAsideFilters).toBe(true);
+    expect(byName['3col-narrow'].hasAsideFilters).toBe(false);
+    expect(byName['touch'].hasAsideFilters).toBe(false);
   });
 
   it('aside + content fits inside frame at the measured leftPaddingX', () => {
