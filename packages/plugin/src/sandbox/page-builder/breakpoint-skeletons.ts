@@ -20,13 +20,6 @@ import type { CSVRow } from '../../types';
 /** Ширина content__aside в Yandex SERP (соответствует `createAsideFiltersPanel`). */
 const ASIDE_WIDTH = 230;
 
-/**
- * Левый gutter, когда на странице есть content__aside. Совпадает с `effectiveLeftPadding`
- * в существующем `createSerpPage` (page-creator.ts) и уводит сайдбар на безопасное
- * расстояние от края вне зависимости от ширины брейкпоинта.
- */
-const ASIDE_MODE_LEFT_PADDING = 64;
-
 /** Зазор между content__aside и content__left в горизонтальной обёртке. */
 const ASIDE_GAP = 16;
 
@@ -40,10 +33,11 @@ export interface BreakpointSpec {
   /** Ширина `.content__left` — колонки, где лежат плитки/сниппеты. */
   leftColWidth: number;
   /**
-   * Offset content__left от левого края фрейма в px. Соответствует
-   * измеренной `.content__left.x` на реальной выдаче Яндекса (products_mode=1,
-   * без EAsideFilters). Когда `hasAsideFilters=true`, реальный padding заменяется
-   * на `ASIDE_MODE_LEFT_PADDING`, чтобы вместить сайдбар.
+   * Offset content__left от левого края фрейма в px — замер с реальной
+   * обычной выдачи Яндекса (yandex.ru/search без products_mode). Этот же
+   * padding применяется к Header и к contentRow независимо от того,
+   * отображается ли сайдбар — в обычной выдаче Яндекса гуттер не меняется
+   * при появлении aside.
    */
   leftPaddingX: number;
   /**
@@ -59,17 +53,24 @@ export interface BreakpointSpec {
 }
 
 /**
- * Каноничные брейкпоинты Яндекс SERP (products_mode=1).
- * Ширина фрейма — референсная из каждого диапазона, leftColWidth — фактическая
- * ширина `.content__left` на этой ширине.
+ * Каноничные брейкпоинты Яндекс SERP. Замеры `leftPaddingX` и `leftColWidth`
+ * сняты с регулярной выдачи (yandex.ru/search без products_mode):
+ *   - 1920: leftCol 792 × 124
+ *   - 1700: leftCol 792 × 124
+ *   - 1440: leftCol 792 × 100
+ *   - 1024: leftCol 568 × 100
+ * leftPaddingX переключается 124↔100 в районе ≈1700. gridCols/tileWidth
+ * взяты с products_mode=1 — это отдельная раскладка, где плитки
+ * выстраиваются в сетку (5/4/3 колонки), в остальной своей геометрии
+ * совпадающая с регулярной выдачей.
  */
 export const BREAKPOINTS: readonly BreakpointSpec[] = [
   {
     name: '5col',
     label: 'Desktop · 5 col · ≥1560',
     frameWidth: 1920,
-    leftColWidth: 984,
-    leftPaddingX: 372,
+    leftColWidth: 792,
+    leftPaddingX: 124,
     hasAsideFilters: true,
     platform: 'desktop',
     gridCols: 5,
@@ -82,7 +83,7 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     label: 'Desktop · 4 col · 1252–1559',
     frameWidth: 1440,
     leftColWidth: 792,
-    leftPaddingX: 272,
+    leftPaddingX: 100,
     hasAsideFilters: true,
     platform: 'desktop',
     gridCols: 4,
@@ -95,7 +96,7 @@ export const BREAKPOINTS: readonly BreakpointSpec[] = [
     label: 'Desktop · 3 col · 820–1251',
     frameWidth: 1024,
     leftColWidth: 568,
-    leftPaddingX: 236,
+    leftPaddingX: 100,
     hasAsideFilters: true,
     platform: 'desktop',
     gridCols: 3,
@@ -349,14 +350,11 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     fills: [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }],
   });
 
-  // Когда есть сайдбар, левый gutter сжимается до ASIDE_MODE_LEFT_PADDING
-  // (чтобы вместить aside), иначе используется измеренный leftPaddingX.
-  const effectiveLeftPadding = spec.hasAsideFilters ? ASIDE_MODE_LEFT_PADDING : spec.leftPaddingX;
-
-  // Header — fill width, с paddingLeft = effectiveLeftPadding, чтобы лого
-  // и поисковая строка внутри Header начинались с той же x-координаты,
-  // что и контент в content__aside / content__left.
-  const header = await createHeader(spec.platform, effectiveLeftPadding);
+  // Header — fill width, с paddingLeft = leftPaddingX, чтобы лого и
+  // поисковая строка внутри Header начинались с той же x-координаты,
+  // что и контент ниже. В обычной выдаче Яндекса левый gutter одинаковый
+  // для Header и content — 124px на широком десктопе, 100px в узкой зоне.
+  const header = await createHeader(spec.platform, spec.leftPaddingX);
   if (header) {
     root.appendChild(header);
     if ('layoutSizingHorizontal' in header) {
@@ -364,11 +362,11 @@ async function buildBreakpointFrame(spec: BreakpointSpec): Promise<FrameNode> {
     }
   }
 
-  // contentRow — горизонтальная обёртка.
+  // contentRow — горизонтальная обёртка с тем же leftPaddingX.
   const contentRow = createAutoFrame('contentRow', 'HORIZONTAL', {
     widthFill: true,
     itemSpacing: spec.hasAsideFilters ? ASIDE_GAP : 0,
-    padding: { top: spec.gapY, right: 0, bottom: 0, left: effectiveLeftPadding },
+    padding: { top: spec.gapY, right: 0, bottom: 0, left: spec.leftPaddingX },
   });
   root.appendChild(contentRow);
   contentRow.layoutSizingHorizontal = 'FILL';

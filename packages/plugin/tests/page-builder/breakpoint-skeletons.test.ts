@@ -20,13 +20,21 @@ describe('BREAKPOINTS', () => {
     expect(names).toEqual<BreakpointName[]>(['5col', '4col', '3col', 'touch']);
   });
 
-  it('desktop breakpoints decrease in width and column count', () => {
+  it('desktop frameWidth and gridCols decrease monotonically', () => {
     const desktops = BREAKPOINTS.filter((b) => b.platform === 'desktop');
     for (let i = 1; i < desktops.length; i++) {
       expect(desktops[i].frameWidth).toBeLessThan(desktops[i - 1].frameWidth);
       expect(desktops[i].gridCols).toBeLessThan(desktops[i - 1].gridCols);
-      expect(desktops[i].leftColWidth).toBeLessThan(desktops[i - 1].leftColWidth);
     }
+  });
+
+  it('leftColWidth is 792 on wide desktop, drops to 568 on narrow desktop', () => {
+    const byName = Object.fromEntries(BREAKPOINTS.map((b) => [b.name, b]));
+    // Matches Yandex's own behaviour on regular SERP: content__left stays 792px
+    // from 1440 upward, shrinks to 568 at ~1024 and below.
+    expect(byName['5col'].leftColWidth).toBe(792);
+    expect(byName['4col'].leftColWidth).toBe(792);
+    expect(byName['3col'].leftColWidth).toBe(568);
   });
 
   it('tile widths match Yandex production measurements', () => {
@@ -37,12 +45,15 @@ describe('BREAKPOINTS', () => {
     expect(byName['touch'].tileWidth).toBe(360);
   });
 
-  it('leftPaddingX values are measured from production', () => {
+  it('leftPaddingX values are measured from regular Yandex SERP', () => {
     const byName = Object.fromEntries(BREAKPOINTS.map((b) => [b.name, b]));
-    // Values measured from .content__left.x on yandex.ru/search?products_mode=1
-    expect(byName['5col'].leftPaddingX).toBe(372);
-    expect(byName['4col'].leftPaddingX).toBe(272);
-    expect(byName['3col'].leftPaddingX).toBe(236);
+    // Values measured from .content__left.x on yandex.ru/search (no products_mode):
+    //   - 1920/1700 → 124
+    //   - 1440/1024 → 100
+    //   - touch → 15
+    expect(byName['5col'].leftPaddingX).toBe(124);
+    expect(byName['4col'].leftPaddingX).toBe(100);
+    expect(byName['3col'].leftPaddingX).toBe(100);
     expect(byName['touch'].leftPaddingX).toBe(15);
   });
 
@@ -75,13 +86,12 @@ describe('BREAKPOINTS', () => {
     }
   });
 
-  it('aside + content fits inside frame at ASIDE_MODE_LEFT_PADDING=64', () => {
+  it('aside + content fits inside frame at the measured leftPaddingX', () => {
     const ASIDE_W = 230;
     const ASIDE_GAP = 16;
-    const ASIDE_LEFT = 64;
     for (const bp of BREAKPOINTS) {
       if (!bp.hasAsideFilters) continue;
-      const needed = ASIDE_LEFT + ASIDE_W + ASIDE_GAP + bp.leftColWidth;
+      const needed = bp.leftPaddingX + ASIDE_W + ASIDE_GAP + bp.leftColWidth;
       expect(needed).toBeLessThanOrEqual(bp.frameWidth);
     }
   });
