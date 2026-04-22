@@ -22,6 +22,7 @@ npm run deploy                        # bash scripts/deploy.sh — deploys to YC
 ## Dependencies
 
 - [`ydb-sdk`](https://www.npmjs.com/package/ydb-sdk) — official Yandex Database client for Node.js. Pinned to `^5.11.1` (verified on npm at scaffold time; the plan originally guessed `^6.0.0`, but `6.x` is not yet published).
+- [`@yandex-cloud/nodejs-sdk`](https://www.npmjs.com/package/@yandex-cloud/nodejs-sdk) — **required peer** for `ydb-sdk`'s metadata-token auth used inside Cloud Functions. Pinned to `^2.9.3` because `ydb-sdk@5.11.1` declares `peerOptional @yandex-cloud/nodejs-sdk@^2.0.0` — installing `3.x` fails `npm install` inside the function build.
 
 ## ES5 constraint does NOT apply
 
@@ -34,22 +35,36 @@ Unlike `packages/plugin/src/sandbox/`, this package runs on Node.js 22 in the cl
 ### One-time YC setup
 
 1. **Install `yc` CLI** — https://cloud.yandex.com/docs/cli/quickstart.
-2. **Authenticate** — `yc config set token <your-oauth-token>` (or `yc init` for interactive OAuth).
+2. **Authenticate** — `yc config set token <your-oauth-token>` (or `yc init` for interactive OAuth). Also set `cloud-id` + `folder-id` in the yc config, or pass `--folder-id` on each command.
 3. **Create a Service Account** with role `ydb.editor` in your folder:
    ```bash
    yc iam service-account create --name contentify-relay-sa
-   # Grant folder-level role:
    yc resource-manager folder add-access-binding <folder-id> \
-     --service-account-name contentify-relay-sa \
+     --service-account-id <sa-id> \
      --role ydb.editor
    ```
-4. **Create a serverless YDB database** via Web Console (Managed Databases → YDB → Create → Serverless). Record its `Endpoint` and `Database path`.
-5. **Put secrets in `packages/cloud-relay/.env`** (gitignored):
+4. **Create a serverless YDB database**:
+   ```bash
+   yc ydb database create contentify-ydb --serverless --sls-storage-size 10GB
+   ```
+   Record its `endpoint` and the database path (shown in `yc ydb database get contentify-ydb`).
+5. **Create an API Gateway** (one-time — gives the stable public URL used by the extension/plugin). The `openapi.yaml` in this package has a catch-all `/{proxy+}` route that forwards every request to the function:
+   ```bash
+   # After the function exists (see "Deploy a new version" below, run once):
+   yc serverless api-gateway create --name contentify-gateway --spec=openapi.yaml
+   ```
+   Record the returned `domain`.
+   > Direct-invoke URL (`https://functions.yandexcloud.net/<function-id>`) does **not** support path-based routing. The API Gateway is what preserves `/health`, `/push`, `/peek`, etc. in `event.path`-like fields.
+6. **Put secrets in `packages/cloud-relay/.env`** (gitignored):
    ```env
-   SA_ID=ajEXAMPLEEXAMPLE
+   FOLDER_ID=b1g...
+   SA_ID=aj...
    YDB_ENDPOINT=grpcs://ydb.serverless.yandexcloud.net:2135
    YDB_DATABASE=/ru-central1/b1g.../etn...
-   # For bootstrap from your laptop (not used by the deployed function):
+   FUNCTION_ID=d4e...
+   GATEWAY_ID=d5d...
+   GATEWAY_URL=https://d5d....628pfjdx.apigw.yandexcloud.net
+   # For bootstrap-ydb run from your laptop (not used by the deployed function):
    YC_TOKEN=y0__your_oauth_or_iam_token
    ```
 

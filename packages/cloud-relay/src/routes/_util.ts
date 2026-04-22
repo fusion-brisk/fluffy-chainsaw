@@ -15,7 +15,15 @@ import type { YcHttpEvent } from '../types';
 export function parseBody<T>(event: YcHttpEvent): T | null {
   if (!event.body) return null;
   try {
-    return JSON.parse(event.body) as T;
+    // API Gateway sets isBase64Encoded=true and encodes the raw bytes.
+    const raw = event.isBase64Encoded
+      ? Buffer.from(event.body, 'base64').toString('utf-8')
+      : event.body;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Reject primitives / arrays — routes expect a plain object.
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed as T;
   } catch {
     return null;
   }

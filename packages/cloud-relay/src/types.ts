@@ -54,7 +54,19 @@ export interface QueueStatus {
 
 export interface YcHttpEvent {
   httpMethod: string;
+  /**
+   * When invoked via YC API Gateway with a `{proxy+}` route, `path` is the
+   * route template (e.g. `"/{proxy+}"`) and the actual captured segment lives
+   * in `params.proxy` or `pathParams.proxy`. For path-based dispatch use
+   * `extractRequestPath(event)` from `session.ts` (or inline the same logic).
+   */
   path?: string;
+  /** Direct-invoke path (plus query). Set by API Gateway. */
+  url?: string;
+  /** Captured path variables from OpenAPI spec, e.g. `{ proxy: "peek" }`. */
+  params?: Record<string, string>;
+  /** Same as `params` — some YC SDK snapshots use this name. */
+  pathParams?: Record<string, string>;
   queryStringParameters?: Record<string, string>;
   headers?: Record<string, string>;
   body?: string;

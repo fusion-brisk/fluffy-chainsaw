@@ -10,6 +10,7 @@
     "bootstrap-ydb": "node scripts/bootstrap-ydb.mjs"
   },
   "dependencies": {
+    "@yandex-cloud/nodejs-sdk": "^2.9.3",
     "ydb-sdk": "^5.11.1"
   },
   "devDependencies": {

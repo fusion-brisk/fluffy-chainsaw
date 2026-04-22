@@ -76,7 +76,11 @@ export async function handler(event: YcHttpEvent): Promise<YcHttpResponse> {
     return cors({ statusCode: 204 });
   }
 
-  const path = event.path || '/';
+  // API Gateway with `{proxy+}` puts the actual captured path segment in
+  // `params.proxy` or `pathParams.proxy` (e.g. "peek"). Direct invoke puts
+  // the path in `event.path`. Handle both for local-test flexibility.
+  const proxy = event.params?.proxy ?? event.pathParams?.proxy;
+  const path = proxy ? `/${proxy}` : event.path || '/';
 
   if (path === '/health') {
     const result = await health(event, '');
