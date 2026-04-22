@@ -7,7 +7,7 @@
  * - extended (420×520): setup, logs, inspector, whatsNew
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CSVRow, AppState } from '../types';
 import type { RelayPayload, ProgressData } from '../types';
@@ -39,22 +39,20 @@ import { ComponentInspector } from './components/ComponentInspector';
 import { PanelLayout } from './components/PanelLayout';
 import { WhatsNewContent } from './components/WhatsNewContent';
 import { LogLevel, Logger } from '../logger';
-import { PORTS, PLUGIN_VERSION } from '../config';
-
-// Default relay URL
-const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
+import { CLOUD_RELAY_URL, PLUGIN_VERSION } from '../config';
 
 // Main App Component
 const App: React.FC = () => {
   // === CORE STATE ===
   const [appState, setAppState] = useState<AppState>('setup');
-  const [relayUrl] = useState(() => {
-    try {
-      return localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
-    } catch {
-      return DEFAULT_RELAY_URL;
-    }
-  });
+  // Session code — loaded once from figma.clientStorage on mount.
+  // Null means "not configured yet" → setup flow blocks until generated.
+  const [sessionCode, setSessionCode] = useState<string | null>(null);
+  const [sessionCodeResolved, setSessionCodeResolved] = useState(false);
+  const relayUrl = useMemo(
+    () => (sessionCode ? `${CLOUD_RELAY_URL}?session=${sessionCode}` : CLOUD_RELAY_URL),
+    [sessionCode],
+  );
   const [hasSelection, setHasSelection] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>(
@@ -94,7 +92,11 @@ const App: React.FC = () => {
 
   const relay = useRelayConnection({
     relayUrl,
-    enabled: appState !== 'setup' && appState !== 'processing' && appState !== 'confirming',
+    enabled:
+      !!sessionCode &&
+      appState !== 'setup' &&
+      appState !== 'processing' &&
+      appState !== 'confirming',
     onDataReceived: useCallback(
       (data: RelayDataEvent) => {
         if (!extensionInstalled) {
@@ -167,15 +169,17 @@ const App: React.FC = () => {
         setSetupResolved(true);
         if (skipped) {
           setExtensionInstalled(true);
-          if (appState === 'setup') {
-            setAppState('checking');
-            resizeUI('checking');
-          }
-        } else {
-          if (appState === 'setup') {
-            resizeUI('setup');
-          }
+          // Don't auto-advance past setup if sessionCode is still missing — the wizard
+          // still needs to run to generate/save a code. The transition to 'checking'
+          // is gated on both setupResolved AND sessionCodeResolved (see effect below).
         }
+        if (appState === 'setup') {
+          resizeUI('setup');
+        }
+      },
+      onSessionCodeLoaded: (code) => {
+        setSessionCode(code);
+        setSessionCodeResolved(true);
       },
       onLog: (message) => {
         let level = LogLevel.SUMMARY;
@@ -230,9 +234,10 @@ const App: React.FC = () => {
         }
       },
       onDebugReport: (report) => {
+        // Cloud relay does not expose /debug in MVP (Phase 2 feature). Calls will 404
+        // gracefully — we still fire-and-forget so local dev endpoints keep working.
         try {
-          const debugRelayUrl = localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
-          fetch(`${debugRelayUrl}/debug`, {
+          fetch(`${CLOUD_RELAY_URL}/debug`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(report || {}),
@@ -295,8 +300,25 @@ const App: React.FC = () => {
   useEffect(() => {
     sendMessageToPlugin({ type: 'get-settings' });
     sendMessageToPlugin({ type: 'get-setup-skipped' });
+    sendMessageToPlugin({ type: 'get-session-code' });
     sendMessageToPlugin({ type: 'check-whats-new' });
   }, []);
+
+  // Gate setup completion on BOTH: setup skipped AND session code present.
+  // Without a session code the cloud relay has no session to scope requests to,
+  // so we keep the user in setup until one is generated.
+  useEffect(() => {
+    if (
+      appState === 'setup' &&
+      setupResolved &&
+      sessionCodeResolved &&
+      extensionInstalled &&
+      sessionCode
+    ) {
+      setAppState('checking');
+      resizeUI('checking');
+    }
+  }, [appState, setupResolved, sessionCodeResolved, extensionInstalled, sessionCode, resizeUI]);
 
   // Transition from checking to ready
   useEffect(() => {
@@ -467,8 +489,10 @@ const App: React.FC = () => {
   return (
     <div className="glass-app">
       {/* Setup flow — initial or as panel */}
-      {appState === 'setup' && setupResolved && (
+      {appState === 'setup' && setupResolved && sessionCodeResolved && (
         <SetupFlow
+          sessionCode={sessionCode}
+          onSessionCodeChange={setSessionCode}
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onComplete={handleSetupComplete}
@@ -547,6 +571,8 @@ const App: React.FC = () => {
       {/* Panel overlays — only one at a time */}
       {panels.activePanel === 'setup' && (
         <SetupFlow
+          sessionCode={sessionCode}
+          onSessionCodeChange={setSessionCode}
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onComplete={handleCloseSetup}

@@ -1,8 +1,8 @@
 /**
  * SetupFlow -- 3-step onboarding wizard
  *
- * Step 1: Relay server (download installer, auto-detects connection)
- * Step 2: Browser extension (download CRX, auto-detects installation)
+ * Step 1: Session code (6-char A-Z0-9, generated once, copied into Chrome extension)
+ * Step 2: Browser extension (download CRX, paste session code, auto-detects installation)
  * Step 3: Ready (instructions + "Start" button)
  *
  * Auto-skips completed steps with a brief "already connected" confirmation.
@@ -10,9 +10,12 @@
 
 import React, { memo, useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import { EXTENSION_URLS } from '../../config';
+import { sendMessageToPlugin } from '../../utils/index';
 import { StepIndicator } from './StepIndicator';
 
 interface SetupFlowProps {
+  sessionCode: string | null;
+  onSessionCodeChange: (code: string) => void;
   relayConnected: boolean;
   extensionInstalled: boolean;
   onComplete: () => void;
@@ -27,9 +30,9 @@ interface WizardStep {
 
 const STEPS: readonly WizardStep[] = [
   {
-    id: 'relay',
-    title: 'Relay-сервер',
-    description: 'Relay передаёт данные из браузера в Figma',
+    id: 'session',
+    title: 'Session code',
+    description: 'Код связывает Figma-плагин с расширением браузера через Cloud Relay.',
   },
   {
     id: 'extension',
@@ -43,33 +46,57 @@ const STEPS: readonly WizardStep[] = [
   },
 ];
 
+const SESSION_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+function generateSessionCode(): string {
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += SESSION_CODE_CHARS.charAt(Math.floor(Math.random() * SESSION_CODE_CHARS.length));
+  }
+  return code;
+}
+
 export const SetupFlow: React.FC<SetupFlowProps> = memo(
-  ({ relayConnected, extensionInstalled, onComplete, onBack }) => {
+  ({
+    sessionCode,
+    onSessionCodeChange,
+    relayConnected,
+    extensionInstalled,
+    onComplete,
+    onBack,
+  }) => {
     const [currentStep, setCurrentStep] = useState(() => {
-      if (!relayConnected) return 0;
+      if (!sessionCode) return 0;
       if (!extensionInstalled) return 1;
       return 2;
     });
     const [completedSteps, setCompletedSteps] = useState<Set<number>>(() => {
       const initial = new Set<number>();
-      if (relayConnected) initial.add(0);
+      if (sessionCode) initial.add(0);
       if (extensionInstalled) initial.add(1);
       return initial;
     });
     const [autoSkipMessage, setAutoSkipMessage] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
     const autoAdvanceTimerRef = useRef<number | null>(null);
+    const copyTimerRef = useRef<number | null>(null);
 
     const step = STEPS[currentStep];
     const isLastStep = currentStep === STEPS.length - 1;
+    const isSessionStep = currentStep === 0;
+    const canAdvance = !isSessionStep || !!sessionCode;
 
     // Memoize steps array for StepIndicator (stable reference)
     const indicatorSteps = useMemo(() => STEPS.map((s) => ({ id: s.id, title: s.title })), []);
 
-    // Cleanup timer on unmount
+    // Cleanup timers on unmount
     useEffect(() => {
       return () => {
         if (autoAdvanceTimerRef.current) {
           clearTimeout(autoAdvanceTimerRef.current);
+        }
+        if (copyTimerRef.current) {
+          clearTimeout(copyTimerRef.current);
         }
       };
     }, []);
@@ -91,18 +118,18 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
       setCurrentStep(stepIndex);
     }, []);
 
-    // Auto-detect: Step 0 (relay)
+    // Auto-detect: Step 0 (session code already generated)
     useEffect(() => {
-      if (currentStep !== 0 || !relayConnected) return;
+      if (currentStep !== 0 || !sessionCode) return;
 
       markComplete(0);
-      setAutoSkipMessage('Уже подключено');
+      setAutoSkipMessage('Session code уже настроен');
 
       autoAdvanceTimerRef.current = window.setTimeout(() => {
         autoAdvanceTimerRef.current = null;
         goToStep(1);
       }, 1000);
-    }, [currentStep, relayConnected, markComplete, goToStep]);
+    }, [currentStep, sessionCode, markComplete, goToStep]);
 
     // Auto-detect: Step 1 (extension)
     useEffect(() => {
@@ -119,21 +146,63 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
 
     // Live detection: mark steps as completed when signals arrive
     useEffect(() => {
-      if (relayConnected) markComplete(0);
-    }, [relayConnected, markComplete]);
+      if (sessionCode) markComplete(0);
+    }, [sessionCode, markComplete]);
 
     useEffect(() => {
       if (extensionInstalled) markComplete(1);
     }, [extensionInstalled, markComplete]);
 
+    const handleGenerate = useCallback(() => {
+      const code = generateSessionCode();
+      onSessionCodeChange(code);
+      sendMessageToPlugin({ type: 'set-session-code', code });
+    }, [onSessionCodeChange]);
+
+    const handleCopy = useCallback(() => {
+      if (!sessionCode) return;
+
+      const setFeedback = () => {
+        setCopied(true);
+        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = window.setTimeout(() => {
+          setCopied(false);
+          copyTimerRef.current = null;
+        }, 2000);
+      };
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(sessionCode)
+          .then(setFeedback)
+          .catch(() => {
+            // Fallback to legacy execCommand path (Figma iframe may block modern API)
+            try {
+              const ta = document.createElement('textarea');
+              ta.value = sessionCode;
+              ta.style.position = 'fixed';
+              ta.style.opacity = '0';
+              document.body.appendChild(ta);
+              ta.select();
+              document.execCommand('copy');
+              document.body.removeChild(ta);
+              setFeedback();
+            } catch {
+              /* silently ignore */
+            }
+          });
+      }
+    }, [sessionCode]);
+
     const handleNext = useCallback(() => {
+      if (!canAdvance) return;
       if (isLastStep) {
         onComplete();
       } else {
         markComplete(currentStep);
         goToStep(currentStep + 1);
       }
-    }, [currentStep, isLastStep, onComplete, markComplete, goToStep]);
+    }, [canAdvance, currentStep, isLastStep, onComplete, markComplete, goToStep]);
 
     const handlePrev = useCallback(() => {
       if (currentStep > 0) {
@@ -147,13 +216,11 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
       if (isLastStep) {
         onComplete();
       } else {
+        // Never skip the session-code step — it's required for cloud relay.
+        if (isSessionStep) return;
         goToStep(currentStep + 1);
       }
-    }, [currentStep, isLastStep, onComplete, goToStep]);
-
-    const handleDownloadRelay = useCallback(() => {
-      window.open(EXTENSION_URLS.RELAY_INSTALL_SCRIPT, '_blank');
-    }, []);
+    }, [currentStep, isLastStep, isSessionStep, onComplete, goToStep]);
 
     const handleDownloadExtension = useCallback(() => {
       window.open(EXTENSION_URLS.EXTENSION_DOWNLOAD, '_blank');
@@ -161,7 +228,7 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
 
     /** Render step-specific content */
     const renderStepContent = (stepIndex: number) => {
-      // Show auto-skip confirmation
+      // Show auto-skip confirmation (only for non-current steps that are already satisfied)
       if (autoSkipMessage) {
         return (
           <div className="setup-flow__auto-skip">
@@ -173,22 +240,44 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
 
       switch (stepIndex) {
         case 0:
-          return relayConnected ? (
-            <div className="setup-flow__auto-skip">
-              <span className="setup-flow__checkmark">&#10003;</span>
-              <span>Relay подключён</span>
-            </div>
-          ) : (
+          return (
             <>
+              <p className="setup-flow__hint">
+                Нажмите «Сгенерировать», затем скопируйте код в настройки расширения Chrome (Options
+                &#8594; Session code).
+              </p>
+              {sessionCode ? (
+                <div
+                  className="setup-flow__session-code"
+                  role="group"
+                  aria-label="Session code и копирование"
+                >
+                  <code
+                    className="setup-flow__session-code-value"
+                    aria-label={`Код: ${sessionCode}`}
+                  >
+                    {sessionCode}
+                  </code>
+                  <button
+                    type="button"
+                    className="setup-flow__session-code-copy"
+                    onClick={handleCopy}
+                    aria-label={copied ? 'Код скопирован' : 'Скопировать session code'}
+                  >
+                    {copied ? '✓' : 'Copy'}
+                  </button>
+                </div>
+              ) : null}
               <button
                 type="button"
                 className="btn-primary"
-                onClick={handleDownloadRelay}
-                aria-label="Скачать установщик Relay"
+                onClick={handleGenerate}
+                aria-label={
+                  sessionCode ? 'Перегенерировать session code' : 'Сгенерировать session code'
+                }
               >
-                Скачать установщик
+                {sessionCode ? 'Перегенерировать' : 'Сгенерировать'}
               </button>
-              <p className="setup-flow__hint">Проверяем подключение...</p>
             </>
           );
 
@@ -210,7 +299,7 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
               </button>
               <p className="setup-flow__hint">
                 Откройте chrome://extensions, включите режим разработчика, перетащите скачанный .crx
-                файл на страницу
+                файл на страницу. Не забудьте вставить session code в настройки расширения.
               </p>
             </>
           );
@@ -228,6 +317,10 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     };
 
     if (!step) return null;
+
+    // relayConnected is kept in the prop signature for future use (cloud reachability check)
+    // but is not currently gating any UI in the new flow.
+    void relayConnected;
 
     return (
       <div className="setup-flow view-animate-in">
@@ -257,7 +350,7 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
             </button>
           )}
           <div className="setup-flow__footer-right">
-            {!isLastStep && (
+            {!isLastStep && !isSessionStep && (
               <button
                 type="button"
                 className="btn-text"
@@ -271,6 +364,7 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
               type="button"
               className="btn-primary setup-flow__btn-next"
               onClick={handleNext}
+              disabled={!canAdvance}
               aria-label={isLastStep ? 'Начать работу' : 'Следующий шаг'}
             >
               {isLastStep ? 'Начать' : 'Далее \u2192'}

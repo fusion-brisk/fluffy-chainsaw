@@ -9,7 +9,6 @@
  */
 
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { EXTENSION_URLS } from '../../config';
 import { RELAY_RESTART_SHELL_COMMAND } from './relay-offline-banner-constants';
 
 interface RelayOfflineBannerProps {
@@ -74,11 +73,6 @@ export const RelayOfflineBanner: React.FC<RelayOfflineBannerProps> = memo(
       fallbackCopy();
     }, []);
 
-    const handleReinstall = useCallback((e: React.MouseEvent) => {
-      e.preventDefault();
-      window.open(EXTENSION_URLS.RELAY_INSTALL_SCRIPT, '_blank');
-    }, []);
-
     if (!visible) return null;
 
     return (
@@ -128,14 +122,6 @@ export const RelayOfflineBanner: React.FC<RelayOfflineBannerProps> = memo(
           >
             Проверить заново
           </button>
-          <a
-            href={EXTENSION_URLS.RELAY_INSTALL_SCRIPT}
-            className="relay-offline-banner__reinstall"
-            onClick={handleReinstall}
-            aria-label="Скачать установщик Relay"
-          >
-            Переустановить
-          </a>
         </div>
       </div>
     );

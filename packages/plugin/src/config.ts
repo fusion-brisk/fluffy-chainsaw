@@ -1,12 +1,17 @@
 // Конфигурация плагина EProductSnippet
 
 // ============================================
-// PORT CONSTANTS — single source of truth
+// CLOUD RELAY — hardcoded production URL
 // ============================================
-export const PORTS = {
-  /** Contentify relay server (HTTP + WebSocket) */
-  RELAY: 3847,
-};
+/**
+ * Cloud relay base URL (Yandex Cloud API Gateway).
+ * Baked into the bundle; no env override.
+ * Paths: /push /peek /ack /reject /status /clear /health
+ */
+export const CLOUD_RELAY_URL = 'https://d5dtufo5i8flvjqbfak6.628pfjdx.apigw.yandexcloud.net';
+
+/** figma.clientStorage key for the user's session code (6-char A-Z0-9). */
+export const SESSION_CODE_KEY = 'contentify-session-code';
 
 // Версия плагина для What's New экрана
 // Формат: MAJOR.MINOR.PATCH
@@ -140,9 +145,6 @@ export const EXTENSION_URLS = {
   // GitHub Releases страница расширения
   EXTENSION_DOWNLOAD:
     'https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx',
-  // One-line installer для Relay
-  RELAY_INSTALL_SCRIPT:
-    'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/tools/install-relay.sh',
   // URL страницы расширений Chrome (для копирования в буфер)
   EXTENSIONS_PAGE: 'chrome://extensions',
 };

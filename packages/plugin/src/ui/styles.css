@@ -1011,6 +1011,43 @@ button:disabled {
   width: auto;
 }
 
+.setup-flow__session-code {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--figma-color-bg-secondary, #f5f5f5);
+  border: 1px solid var(--figma-color-border, #e5e5e5);
+  border-radius: var(--radius-small, 6px);
+}
+
+.setup-flow__session-code-value {
+  flex: 1;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--font-size-xl, 16px);
+  font-weight: var(--font-weight-semibold, 600);
+  letter-spacing: 2px;
+  color: var(--figma-color-text, #333333);
+  user-select: all;
+}
+
+.setup-flow__session-code-copy {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: var(--figma-color-bg, #ffffff);
+  border: 1px solid var(--figma-color-border, #e5e5e5);
+  border-radius: var(--radius-small, 6px);
+  color: var(--figma-color-text, #333333);
+  font-size: var(--font-size-sm, 12px);
+  font-weight: var(--font-weight-medium, 500);
+  cursor: pointer;
+  transition: background var(--duration-micro, 120ms) ease-out;
+}
+
+.setup-flow__session-code-copy:hover:not(:disabled) {
+  background: var(--figma-color-bg-hover, #f5f5f5);
+}
+
 /* ============================================
    UPDATE BANNER — Version update notifications
    ============================================ */

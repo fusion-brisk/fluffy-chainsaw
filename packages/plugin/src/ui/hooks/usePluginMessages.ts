@@ -23,6 +23,9 @@ export interface PluginMessageHandlers {
   // Setup wizard
   onSetupSkippedLoaded?: (skipped: boolean) => void;
 
+  // Cloud relay session code
+  onSessionCodeLoaded?: (sessionCode: string | null) => void;
+
   // Parsing Rules
   onParsingRulesLoaded?: (metadata: ParsingRulesMetadata) => void;
   onRulesUpdateAvailable?: (data: {
@@ -127,6 +130,13 @@ export function usePluginMessages({
         case 'setup-skipped-loaded':
           if (h.onSetupSkippedLoaded) {
             h.onSetupSkippedLoaded(msg.skipped);
+          }
+          break;
+
+        // === CLOUD RELAY SESSION CODE ===
+        case 'session-code-loaded':
+          if (h.onSessionCodeLoaded) {
+            h.onSessionCodeLoaded(msg.sessionCode);
           }
           break;
 
