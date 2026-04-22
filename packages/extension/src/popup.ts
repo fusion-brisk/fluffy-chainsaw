@@ -1,10 +1,13 @@
 /**
- * Contentify Extension — Popup (Relay-Only Architecture)
+ * Contentify Extension — Popup (cloud-only)
  *
- * Single-click to parse & send to relay server.
+ * Single-click to parse & send to cloud relay. If the session code is
+ * missing, the popup surfaces it and offers an "Open options" button
+ * instead of the default action.
  */
 
-import { isYandexPage, getRelayUrl } from './shared-utils';
+import { CLOUD_RELAY_URL } from './config';
+import { isYandexPage, getSessionCode } from './shared-utils';
 
 declare global {
   interface Window {
@@ -24,6 +27,9 @@ const mainView = document.getElementById('mainView');
 const indicator = document.getElementById('indicator');
 const statusEl = document.getElementById('status');
 const hintEl = document.getElementById('hint');
+const sessionRow = document.getElementById('sessionRow');
+const sessionLabel = document.getElementById('sessionLabel');
+const sessionAction = document.getElementById('sessionAction') as HTMLButtonElement | null;
 
 let isProcessing = false;
 
@@ -33,10 +39,15 @@ async function getCurrentTab(): Promise<chrome.tabs.Tab> {
   return tab;
 }
 
-// Check relay availability (non-blocking)
-async function checkRelay(url: string): Promise<boolean> {
+// Check cloud relay availability (best-effort, 1.5s timeout)
+async function checkCloudRelay(sessionCode: string): Promise<boolean> {
   try {
-    const res = await fetch(`${url}/status`, { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(
+      `${CLOUD_RELAY_URL}/health?session=${encodeURIComponent(sessionCode)}`,
+      {
+        signal: AbortSignal.timeout(1500),
+      },
+    );
     return res.ok;
   } catch {
     return false;
@@ -109,15 +120,58 @@ function setState(state: string, message: string, hint: string = ''): void {
       case 'disabled':
         indicator.textContent = '🌐';
         break;
+      case 'missing':
+        indicator.textContent = '🔑';
+        break;
       default:
         indicator.textContent = '📤';
     }
   }
 }
 
-// Main send handler (relay-only)
+// Build a safe status node for the session row (no innerHTML).
+function buildSessionLabel(configured: boolean, sessionCode: string | null): void {
+  if (!sessionLabel) return;
+  // Clear existing children.
+  while (sessionLabel.firstChild) {
+    sessionLabel.removeChild(sessionLabel.firstChild);
+  }
+
+  const iconSpan = document.createElement('span');
+  iconSpan.className = configured ? 'session-check' : 'session-warn';
+  iconSpan.textContent = configured ? '✓' : '⚠️';
+  sessionLabel.appendChild(iconSpan);
+
+  const textNode = document.createTextNode(configured ? ' Session ' : ' Session code не задан');
+  sessionLabel.appendChild(textNode);
+
+  if (configured && sessionCode) {
+    const codeEl = document.createElement('code');
+    codeEl.textContent = `${sessionCode.slice(0, 2)}••••`;
+    sessionLabel.appendChild(codeEl);
+  }
+}
+
+// Render session-code status strip at bottom of popup
+function renderSessionStatus(sessionCode: string | null): void {
+  if (!sessionRow || !sessionLabel || !sessionAction) return;
+
+  const configured = Boolean(sessionCode);
+  sessionRow.className = `session-row ${configured ? 'configured' : 'missing'}`;
+  buildSessionLabel(configured, sessionCode);
+  sessionAction.textContent = configured ? 'Change' : 'Open options';
+}
+
+// Main send handler (cloud-only)
 async function handleClick(): Promise<void> {
   if (isProcessing) return;
+
+  const sessionCode = await getSessionCode();
+  if (!sessionCode) {
+    setState('missing', 'Нет session code', 'Откройте настройки');
+    chrome.runtime.openOptionsPage();
+    return;
+  }
 
   isProcessing = true;
   setState('loading', 'Парсинг...', '');
@@ -164,32 +218,31 @@ async function handleClick(): Promise<void> {
       wizardCount: wizards.length,
     };
 
-    // Send to relay
-    const relayUrl = await getRelayUrl();
+    // Send to cloud relay
     let relaySuccess = false;
 
     try {
-      const relayOk = await checkRelay(relayUrl);
-      if (relayOk) {
-        const res = await fetch(`${relayUrl}/push`, {
+      const res = await fetch(
+        `${CLOUD_RELAY_URL}/push?session=${encodeURIComponent(sessionCode)}`,
+        {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ payload, meta }),
-          signal: AbortSignal.timeout(2000),
-        });
-        relaySuccess = res.ok;
-      }
+          signal: AbortSignal.timeout(5000),
+        },
+      );
+      relaySuccess = res.ok;
     } catch {
-      // Relay not available
+      // Cloud relay not reachable
     }
 
     // Result
     const wizardSuffix = wizards.length > 0 ? ` + ${wizards.length} wizard` : '';
     const pcSuffix = productCard ? ' + sidebar' : '';
     if (relaySuccess) {
-      setState('success', `${rows.length}${wizardSuffix}${pcSuffix} → Figma`, 'Автоматически!');
+      setState('success', `${rows.length}${wizardSuffix}${pcSuffix} → Figma`, 'Готово');
     } else {
-      setState('error', `Relay недоступен`, 'Запустите relay сервер');
+      setState('error', 'Cloud relay недоступен', 'Проверьте session code и сеть');
     }
 
     // Close popup after short delay
@@ -207,24 +260,37 @@ async function handleClick(): Promise<void> {
 // Initialize
 (async () => {
   const tab = await getCurrentTab();
+  const sessionCode = await getSessionCode();
+  renderSessionStatus(sessionCode);
+
+  sessionAction?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    chrome.runtime.openOptionsPage();
+  });
 
   // Check if on Yandex page
   if (!isYandexPage(tab?.url)) {
     setState('disabled', 'Не Яндекс', 'Откройте ya.ru');
+    mainView?.addEventListener('click', handleClick);
     return;
   }
 
-  // Check relay for indicator
-  const relayUrl = await getRelayUrl();
-  const relayOk = await checkRelay(relayUrl);
+  if (!sessionCode) {
+    setState('missing', 'Нет session code', 'Откройте настройки');
+    mainView?.addEventListener('click', () => {
+      chrome.runtime.openOptionsPage();
+    });
+    return;
+  }
 
+  // Best-effort health check for indicator colour
+  const relayOk = await checkCloudRelay(sessionCode);
   if (relayOk) {
     setState('ready', 'Готов', 'Клик → Figma');
   } else {
-    setState('ready', 'Готов (relay offline)', 'Запустите relay сервер');
+    setState('ready', 'Готов', 'Cloud relay недоступен — попробуйте');
   }
 
-  // Bind click to main view
   mainView?.addEventListener('click', handleClick);
 })();
 

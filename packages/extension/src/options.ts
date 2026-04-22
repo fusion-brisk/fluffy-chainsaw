@@ -1,10 +1,13 @@
 /**
  * Contentify Extension — Options Page
+ *
+ * Cloud-only: user enters a 6-char session code that matches the one
+ * shown by the Figma plugin. No relay URL to configure anymore.
  */
 
-const DEFAULT_RELAY_URL = 'http://localhost:3847';
+import { CLOUD_RELAY_URL, SESSION_CODE_KEY, SESSION_CODE_PATTERN } from './config';
 
-const relayUrlInput = document.getElementById('relayUrl') as HTMLInputElement | null;
+const sessionCodeInput = document.getElementById('sessionCode') as HTMLInputElement | null;
 const saveBtn = document.getElementById('saveBtn');
 const resetBtn = document.getElementById('resetBtn');
 const testBtn = document.getElementById('testBtn');
@@ -14,63 +17,92 @@ const statusEl = document.getElementById('status');
 const statusIcon = document.getElementById('statusIcon');
 const statusText = document.getElementById('statusText');
 
+/** Normalize raw input into the canonical A-Z0-9 form. */
+function normalizeSessionCode(raw: string): string {
+  return raw.trim().toUpperCase();
+}
+
+/** Returns true if the code matches `^[A-Z0-9]{6}$`. */
+function isValidSessionCode(code: string): boolean {
+  return SESSION_CODE_PATTERN.test(code);
+}
+
 // Load saved settings
 async function loadSettings(): Promise<void> {
-  const { relayUrl, captureScreenshots = true } = await chrome.storage.local.get([
-    'relayUrl',
-    'captureScreenshots',
-  ]);
-  if (relayUrlInput) {
-    relayUrlInput.value = (relayUrl as string) || DEFAULT_RELAY_URL;
+  const stored = await chrome.storage.local.get([SESSION_CODE_KEY, 'captureScreenshots']);
+  const code = stored[SESSION_CODE_KEY];
+  const captureScreenshots = stored.captureScreenshots;
+  if (sessionCodeInput) {
+    sessionCodeInput.value = typeof code === 'string' ? code : '';
   }
   if (screenshotCheckbox) {
-    screenshotCheckbox.checked = captureScreenshots as boolean;
+    screenshotCheckbox.checked = captureScreenshots !== false;
   }
 }
 
 // Save settings
 async function saveSettings(): Promise<void> {
-  const url = relayUrlInput?.value.trim() || DEFAULT_RELAY_URL;
-  await chrome.storage.local.set({ relayUrl: url });
+  const raw = sessionCodeInput?.value ?? '';
+  const normalized = normalizeSessionCode(raw);
 
-  showStatus('success', '✅', 'Настройки сохранены');
-}
-
-// Reset to defaults
-async function resetSettings(): Promise<void> {
-  if (relayUrlInput) {
-    relayUrlInput.value = DEFAULT_RELAY_URL;
+  if (!normalized) {
+    showStatus('error', '⚠️', 'Введите session code из плагина Figma');
+    return;
   }
-  await chrome.storage.local.set({ relayUrl: DEFAULT_RELAY_URL });
 
-  showStatus('success', '🔄', 'Настройки сброшены');
+  if (!isValidSessionCode(normalized)) {
+    showStatus('error', '⚠️', 'Session code должен быть 6 символов A-Z 0-9');
+    return;
+  }
+
+  if (sessionCodeInput) {
+    sessionCodeInput.value = normalized;
+  }
+  await chrome.storage.local.set({ [SESSION_CODE_KEY]: normalized });
+
+  showStatus('success', '✅', 'Session code сохранён. Теперь данные пойдут в ваш плагин Figma.');
 }
 
-// Test relay connection
+// Reset — clears the stored session code
+async function resetSettings(): Promise<void> {
+  if (sessionCodeInput) {
+    sessionCodeInput.value = '';
+  }
+  await chrome.storage.local.remove(SESSION_CODE_KEY);
+
+  showStatus('success', '🔄', 'Session code очищен');
+}
+
+// Test cloud relay connectivity using the entered code
 async function testConnection(): Promise<void> {
-  const url = relayUrlInput?.value.trim() || DEFAULT_RELAY_URL;
+  const normalized = normalizeSessionCode(sessionCodeInput?.value ?? '');
 
   if (testResult) {
     testResult.className = 'test-result visible';
     testResult.textContent = 'Проверка...';
   }
 
+  if (!isValidSessionCode(normalized)) {
+    if (testResult) {
+      testResult.className = 'test-result visible error';
+      testResult.textContent = '❌ Введите корректный session code (6 символов A-Z 0-9)';
+    }
+    return;
+  }
+
   try {
     const startTime = Date.now();
-    const res = await fetch(`${url}/status`, {
-      signal: AbortSignal.timeout(5000),
-    });
+    const url = `${CLOUD_RELAY_URL}/health?session=${encodeURIComponent(normalized)}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
     const elapsed = Date.now() - startTime;
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}`);
     }
 
-    const data = (await res.json()) as Record<string, unknown>;
-
     if (testResult) {
       testResult.className = 'test-result visible success';
-      testResult.textContent = `✅ Подключено (${elapsed}ms)\nОчередь: ${data.queueSize || 0} элементов`;
+      testResult.textContent = `✅ Cloud relay отвечает (${elapsed}ms)`;
     }
   } catch (err: unknown) {
     if (testResult) {
@@ -78,13 +110,12 @@ async function testConnection(): Promise<void> {
 
       const error = err as Error;
       if (error.name === 'AbortError') {
-        testResult.textContent = '❌ Таймаут: сервер не отвечает';
+        testResult.textContent = '❌ Таймаут: cloud relay не отвечает';
       } else if (
         error.message.includes('Failed to fetch') ||
         error.message.includes('NetworkError')
       ) {
-        testResult.textContent =
-          '❌ Сервер недоступен\n\nЗапустите relay:\n  cd relay && npm start';
+        testResult.textContent = '❌ Нет сети или cloud relay недоступен';
       } else {
         testResult.textContent = `❌ Ошибка: ${error.message}`;
       }
@@ -104,13 +135,22 @@ function showStatus(type: string, icon: string, message: string): void {
     statusText.textContent = message;
   }
 
-  // Auto-hide after 3 seconds
+  // Auto-hide after 4 seconds
   setTimeout(() => {
     if (statusEl) {
       statusEl.className = 'status';
     }
-  }, 3000);
+  }, 4000);
 }
+
+// Auto-uppercase + strip whitespace as the user types
+sessionCodeInput?.addEventListener('input', () => {
+  const raw = sessionCodeInput.value;
+  const normalized = raw.toUpperCase().replace(/\s+/g, '');
+  if (normalized !== raw) {
+    sessionCodeInput.value = normalized;
+  }
+});
 
 // Event listeners
 saveBtn?.addEventListener('click', saveSettings);
@@ -127,7 +167,7 @@ screenshotCheckbox?.addEventListener('change', async () => {
 });
 
 // Enter key to save
-relayUrlInput?.addEventListener('keydown', (e: KeyboardEvent) => {
+sessionCodeInput?.addEventListener('keydown', (e: KeyboardEvent) => {
   if (e.key === 'Enter') saveSettings();
 });
 

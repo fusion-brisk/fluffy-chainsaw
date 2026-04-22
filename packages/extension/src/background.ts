@@ -1,14 +1,15 @@
 /**
  * Contentify Extension — Background Service Worker
  *
- * Handles toolbar icon click → parse page → send to Figma
+ * Handles toolbar icon click → parse page → send to cloud relay.
  *
- * Relay modes:
- * 1. Native Host (recommended) — auto-starts relay via Native Messaging
- * 2. Manual — user runs relay server manually
+ * Architecture: cloud-only. No Native Host, no localhost.
+ * Requires a session code (set via options page) that matches the one
+ * entered in the Figma plugin.
  */
 
-import { isYandexPage, getRelayUrl } from './shared-utils';
+import { CLOUD_RELAY_URL } from './config';
+import { isYandexPage, getSessionCode } from './shared-utils';
 
 declare global {
   interface Window {
@@ -56,9 +57,6 @@ interface RulesData {
   rules?: unknown;
 }
 
-const DEFAULT_RELAY_URL = 'http://localhost:3847';
-const NATIVE_HOST_NAME = 'com.contentify.relay';
-
 // === Retry Configuration ===
 const RETRY_DELAYS = [1000, 3000, 10000]; // Exponential backoff: 1s, 3s, 10s
 const MAX_RETRIES = 3;
@@ -68,106 +66,11 @@ const MAX_RETRIES = 3;
 let retryQueue: RetryQueueItem[] = [];
 let isRetrying = false;
 
-// === Native Messaging ===
-
-let nativePort: chrome.runtime.Port | null = null;
-let nativeHostAvailable: boolean | null = null; // null = unknown, true = available, false = not available
-let relayStarted = false;
-
 /**
- * Подключается к Native Host и запускает relay
+ * Build a cloud relay URL with the session code appended.
  */
-function connectToNativeHost(): Promise<boolean> {
-  if (nativePort) {
-    return Promise.resolve(true);
-  }
-
-  return new Promise((resolve) => {
-    try {
-      nativePort = chrome.runtime.connectNative(NATIVE_HOST_NAME);
-
-      nativePort.onMessage.addListener((message: Record<string, unknown>) => {
-        console.log('[NativeHost] Message:', message);
-        if (message.action === 'started' || message.running) {
-          relayStarted = true;
-          nativeHostAvailable = true;
-        }
-      });
-
-      nativePort.onDisconnect.addListener(() => {
-        const error = chrome.runtime.lastError;
-        console.log('[NativeHost] Disconnected:', error?.message || 'unknown');
-        nativePort = null;
-        relayStarted = false;
-
-        // Если host не найден — помечаем как недоступный
-        if (
-          error?.message?.includes('not found') ||
-          error?.message?.includes('Native host has exited')
-        ) {
-          nativeHostAvailable = false;
-        }
-      });
-
-      // Даём время на подключение
-      setTimeout(() => {
-        if (nativePort) {
-          nativeHostAvailable = true;
-          relayStarted = true;
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      }, 500);
-    } catch (e: unknown) {
-      console.log('[NativeHost] Connect error:', e);
-      nativeHostAvailable = false;
-      resolve(false);
-    }
-  });
-}
-
-/**
- * Проверяет, доступен ли relay (через health endpoint)
- */
-async function checkRelayHealth(url: string): Promise<boolean> {
-  try {
-    const res = await fetch(`${url}/health`, {
-      method: 'GET',
-      signal: AbortSignal.timeout(2000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Гарантирует, что relay запущен
- * Сначала пробует Native Host, потом проверяет ручной запуск
- */
-async function ensureRelayRunning(): Promise<boolean> {
-  const relayUrl = await getRelayUrl();
-
-  // Если уже работает — ОК
-  if (await checkRelayHealth(relayUrl)) {
-    return true;
-  }
-
-  // Пробуем Native Host (если ещё не пробовали или он доступен)
-  if (nativeHostAvailable !== false) {
-    const connected = await connectToNativeHost();
-    if (connected) {
-      // Ждём немного, пока relay запустится
-      await new Promise((r) => setTimeout(r, 1000));
-      if (await checkRelayHealth(relayUrl)) {
-        return true;
-      }
-    }
-  }
-
-  // Relay недоступен
-  return false;
+function buildCloudUrl(path: string, sessionCode: string): string {
+  return `${CLOUD_RELAY_URL}${path}?session=${encodeURIComponent(sessionCode)}`;
 }
 
 // Set badge text and color
@@ -186,28 +89,15 @@ function clearBadgeAfter(ms: number): void {
   }, ms);
 }
 
-// === Retry Queue Functions ===
-
 /**
- * Add item to retry queue
+ * Flag the missing session code in the toolbar.
+ * The popup shows a button to open options when clicked.
  */
-function addToRetryQueue(item: { payload: unknown; meta: unknown }): void {
-  retryQueue.push({
-    ...item,
-    retryCount: 0,
-    addedAt: Date.now(),
-  });
-  updateRetryBadge();
-  console.log(`[Retry] Added to queue, size: ${retryQueue.length}`);
-
-  // Save to storage for retry persistence
-  savePendingDataToStorage(item);
-
-  // Start retry process if not already running
-  if (!isRetrying) {
-    processRetryQueue();
-  }
+function setMissingSessionBadge(): void {
+  setBadge('!', '#E5534B');
 }
+
+// === Retry Queue Functions ===
 
 /**
  * Save pending data to chrome.storage.local for retry persistence
@@ -325,14 +215,18 @@ async function processRetryQueue(): Promise<void> {
 }
 
 /**
- * Attempt to push data to relay
- * Returns true on success, false on failure
+ * Attempt to push data to cloud relay.
+ * Returns true on success, false on failure (missing session, network, non-2xx).
  */
 async function attemptPush(item: RetryQueueItem): Promise<boolean> {
-  const relayUrl = await getRelayUrl();
+  const sessionCode = await getSessionCode();
+  if (!sessionCode) {
+    console.log('[Push] Session code missing, skipping retry attempt');
+    return false;
+  }
 
   try {
-    const res = await fetch(`${relayUrl}/push`, {
+    const res = await fetch(buildCloudUrl('/push', sessionCode), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -346,6 +240,27 @@ async function attemptPush(item: RetryQueueItem): Promise<boolean> {
   } catch (err: unknown) {
     console.log(`[Retry] Push failed:`, (err as Error).message);
     return false;
+  }
+}
+
+/**
+ * Add item to retry queue
+ */
+function addToRetryQueue(item: { payload: unknown; meta: unknown }): void {
+  retryQueue.push({
+    ...item,
+    retryCount: 0,
+    addedAt: Date.now(),
+  });
+  updateRetryBadge();
+  console.log(`[Retry] Added to queue, size: ${retryQueue.length}`);
+
+  // Save to storage for retry persistence
+  savePendingDataToStorage(item);
+
+  // Start retry process if not already running
+  if (!isRetrying) {
+    processRetryQueue();
   }
 }
 
@@ -510,6 +425,15 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     return;
   }
 
+  // Check session code upfront — no point parsing if we can't push
+  const sessionCode = await getSessionCode();
+  if (!sessionCode) {
+    console.log('[Contentify] Session code missing — opening options page');
+    setMissingSessionBadge();
+    chrome.runtime.openOptionsPage();
+    return;
+  }
+
   // Show loading state
   setBadge('...', '#5865F2');
 
@@ -657,23 +581,22 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       extensionVersion: chrome.runtime.getManifest().version,
     };
 
-    // Send to relay
-    const relayUrl = await getRelayUrl();
+    // Send to cloud relay
     let relaySuccess = false;
 
     try {
-      const relayOk = await ensureRelayRunning();
-      if (relayOk) {
-        const res = await fetch(`${relayUrl}/push`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ payload, meta }),
-          signal: AbortSignal.timeout(5000),
-        });
-        relaySuccess = res.ok;
+      const res = await fetch(buildCloudUrl('/push', sessionCode), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload, meta }),
+        signal: AbortSignal.timeout(5000),
+      });
+      relaySuccess = res.ok;
+      if (!res.ok) {
+        console.log('[Relay] Push failed with status', res.status);
       }
     } catch (relayErr: unknown) {
-      console.log('[Relay] Not available:', (relayErr as Error).message);
+      console.log('[Relay] Request failed:', (relayErr as Error).message);
     }
 
     const pcLabel = !isFeed && productCard ? '+PC' : '';
@@ -683,8 +606,8 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     if (relaySuccess) {
       clearPendingDataFromStorage();
     } else {
-      // Save for retry if relay was unavailable
-      savePendingDataToStorage({ payload, meta });
+      // Queue for retry if cloud relay didn't accept the push
+      addToRetryQueue({ payload, meta });
     }
 
     // Open Figma via deeplink
@@ -827,24 +750,25 @@ async function loadParsingRules(): Promise<unknown> {
 
 // === Startup ===
 
-// При загрузке Service Worker — пробуем подключиться к Native Host
-// Это запустит relay автоматически, если host установлен
 (async () => {
-  console.log('[Contentify] Background service worker loaded');
+  console.log('[Contentify] Background service worker loaded (cloud-only)');
 
   // Create context menu on every SW startup (not just onInstalled)
   createContextMenu();
 
-  // Загружаем parsing rules в фоне
+  // One-time cleanup: remove legacy relayUrl from storage (Task 9 migration)
+  chrome.storage.local.remove('relayUrl').catch(() => {
+    /* ignore */
+  });
+
+  // Load parsing rules in the background (non-blocking)
   loadParsingRules().catch((e: unknown) => console.log('[Rules] Background load failed:', e));
 
-  // Пробуем Native Host в фоне (не блокируя)
-  const connected = await connectToNativeHost();
-  if (connected) {
-    console.log('[Contentify] Native Host connected, relay should be running');
-  } else {
-    console.log('[Contentify] Native Host not available, relay needs manual start');
-    console.log('[Contentify] Install Relay from GitHub Releases: Contentify-Installer.zip');
+  // Warn if session code is missing at startup
+  const sessionCode = await getSessionCode();
+  if (!sessionCode) {
+    console.log('[Contentify] Session code not configured. Open options to set it.');
+    setMissingSessionBadge();
   }
 })();
 
