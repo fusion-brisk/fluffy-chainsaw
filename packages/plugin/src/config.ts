@@ -16,7 +16,7 @@ export const SESSION_CODE_KEY = 'contentify-session-code';
 // Версия плагина для What's New экрана
 // Формат: MAJOR.MINOR.PATCH
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю
-export const PLUGIN_VERSION = '2.7.0';
+export const PLUGIN_VERSION = '3.0.0';
 
 // Build hash — injected by Rollup at build time. Used for stale-build detection.
 // Format: "<short-git-hash>-<timestamp>"

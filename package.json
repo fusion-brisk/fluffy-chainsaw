@@ -1,14 +1,13 @@
 {
   "name": "contentify",
-  "version": "2.7.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Contentify monorepo — Figma plugin + Chrome extension + Relay server",
+  "description": "Contentify monorepo — Figma plugin + Chrome extension + Yandex Cloud Relay",
   "license": "UNLICENSED",
   "author": "Contentify Team",
   "workspaces": [
     "packages/plugin",
     "packages/extension",
-    "packages/relay",
     "packages/jsx-emitter",
     "packages/cloud-relay"
   ],
@@ -20,8 +19,7 @@
     "lint:fix": "npm run lint:fix -w packages/plugin",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "relay": "npm start -w packages/relay",
-    "dev": "concurrently -n build,relay -c blue,green \"npm run build:watch -w packages/plugin\" \"npm start -w packages/relay\"",
+    "dev": "npm run build:watch -w packages/plugin",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
     "coverage": "npx tsx tools/coverage-report.ts",
     "release": "bash scripts/release.sh"

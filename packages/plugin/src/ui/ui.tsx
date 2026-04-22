@@ -156,7 +156,7 @@ const App: React.FC = () => {
 
   const relayConnected = relay.connected;
 
-  const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
+  const versionCheck = useVersionCheck(relay.extensionVersion);
   const { buildStale } = useBuildCheck(CLOUD_RELAY_URL, appState !== 'setup');
 
   // === PLUGIN MESSAGES ===
@@ -367,7 +367,7 @@ const App: React.FC = () => {
     (appState === 'ready' || appState === 'checking' || appState === 'error');
 
   // === COMPACT STRIP RESIZE (for menu) ===
-  const bannerCount = (versionCheck.relayUpdate ? 1 : 0) + (versionCheck.extensionUpdate ? 1 : 0);
+  const bannerCount = versionCheck.extensionUpdate ? 1 : 0;
   // Each update banner: 26px (6+12+6 padding + 2 border) + container 8px top padding + 4px gap
   const updateBannerHeight = bannerCount > 0 ? bannerCount * 26 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
   // Cloud-unreachable banner measured height: ~110px (header 18 + desc 40 + actions 28
@@ -501,9 +501,7 @@ const App: React.FC = () => {
       {/* Update banners — only in compact ready state, BEFORE strip to stay in flow */}
       {appState === 'ready' && !panels.isPanelOpen && (
         <UpdateBanner
-          relayUpdate={versionCheck.relayUpdate}
           extensionUpdate={versionCheck.extensionUpdate}
-          onDismissRelay={versionCheck.dismissRelay}
           onDismissExtension={versionCheck.dismissExtension}
         />
       )}

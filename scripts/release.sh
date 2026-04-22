@@ -8,7 +8,6 @@ FILES_TO_BUMP=(
   "packages/plugin/src/config.ts"
   "packages/extension/manifest.json"
   "packages/extension/updates.xml"
-  "packages/relay/package.json"
 )
 
 # === Colors ===
@@ -108,23 +107,15 @@ sed -i '' "s/version='[^']*'/version='$NEW_VERSION'/" \
   packages/extension/updates.xml
 echo "  packages/extension/updates.xml"
 
-# 5. packages/relay/package.json
-node -e "
-  const pkg = require('./packages/relay/package.json');
-  pkg.version = '$NEW_VERSION';
-  require('fs').writeFileSync('packages/relay/package.json', JSON.stringify(pkg, null, 2) + '\n');
-"
-echo "  packages/relay/package.json"
-
 # === Format ===
 echo ""
 echo "Formatting..."
-npx prettier --write package.json packages/extension/manifest.json packages/relay/package.json packages/plugin/src/config.ts 2>/dev/null || true
+npx prettier --write package.json packages/extension/manifest.json packages/plugin/src/config.ts 2>/dev/null || true
 
 # === Commit, tag, push ===
 echo ""
 echo "Committing..."
-git add package.json packages/plugin/src/config.ts packages/extension/manifest.json packages/extension/updates.xml packages/relay/package.json
+git add package.json packages/plugin/src/config.ts packages/extension/manifest.json packages/extension/updates.xml
 git commit -m "chore: release v$NEW_VERSION"
 
 echo "Tagging v$NEW_VERSION..."

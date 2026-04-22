@@ -1,18 +1,19 @@
 /**
- * UpdateBanner — notification banner for outdated relay/extension versions
+ * UpdateBanner — notification banner for outdated extension version
  *
  * Two severity levels:
  * - critical (red): current version below minimum required
  * - optional (yellow): newer version available but current still compatible
+ *
+ * Cloud-relay is always latest (re-deployed on every push), and the plugin
+ * updates via Figma Community, so only the extension needs a version gate.
  */
 
 import React, { memo } from 'react';
 import type { UpdateInfo } from '../hooks/useVersionCheck';
 
 interface UpdateBannerProps {
-  relayUpdate: UpdateInfo | null;
   extensionUpdate: UpdateInfo | null;
-  onDismissRelay: () => void;
   onDismissExtension: () => void;
 }
 
@@ -65,17 +66,12 @@ const BannerItem: React.FC<BannerItemProps> = memo(({ label, update, onDismiss }
 BannerItem.displayName = 'BannerItem';
 
 export const UpdateBanner: React.FC<UpdateBannerProps> = memo(
-  ({ relayUpdate, extensionUpdate, onDismissRelay, onDismissExtension }) => {
-    if (!relayUpdate && !extensionUpdate) return null;
+  ({ extensionUpdate, onDismissExtension }) => {
+    if (!extensionUpdate) return null;
 
     return (
       <div className="update-banner-container">
-        {relayUpdate && (
-          <BannerItem label="Relay" update={relayUpdate} onDismiss={onDismissRelay} />
-        )}
-        {extensionUpdate && (
-          <BannerItem label="Расширение" update={extensionUpdate} onDismiss={onDismissExtension} />
-        )}
+        <BannerItem label="Расширение" update={extensionUpdate} onDismiss={onDismissExtension} />
       </div>
     );
   },
