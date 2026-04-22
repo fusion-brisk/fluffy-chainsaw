@@ -57,8 +57,11 @@ try {
   const ddl = await readFile(schemaPath, 'utf8');
   console.log(`Applying DDL from ${schemaPath}...`);
 
-  await driver.tableClient.withSession(async (session) => {
-    await session.executeQuery(ddl);
+  // QueryService supports DDL; TableService.executeQuery only supports DML.
+  await driver.queryClient.do({
+    fn: async (session) => {
+      await session.execute({ text: ddl });
+    },
   });
 
   console.log('OK — queue_entries table created (or already exists).');
