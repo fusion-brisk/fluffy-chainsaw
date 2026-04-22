@@ -2,7 +2,7 @@
 -- TTL removes rows 24h after expires_at — clients don't need to clean up.
 -- Primary key chosen so all session operations are point lookups / range scans.
 
-CREATE TABLE queue_entries (
+CREATE TABLE IF NOT EXISTS queue_entries (
   session_id     Utf8 NOT NULL,
   entry_id       Utf8 NOT NULL,
   payload        Json,

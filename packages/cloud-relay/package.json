@@ -7,7 +7,7 @@
     "build": "tsc",
     "test": "vitest run",
     "deploy": "bash scripts/deploy.sh",
-    "bootstrap-ydb": "bash scripts/bootstrap-ydb.sh"
+    "bootstrap-ydb": "node scripts/bootstrap-ydb.mjs"
   },
   "dependencies": {
     "ydb-sdk": "^5.11.1"
