@@ -453,10 +453,12 @@ function serializeExportNode(node: SceneNode): Record<string, unknown> {
       fontFamily: typeof t.fontName !== 'symbol' ? (t.fontName as FontName).family : undefined,
       fontSize: typeof t.fontSize === 'number' ? t.fontSize : undefined,
       fontWeight: typeof t.fontWeight === 'number' ? t.fontWeight : undefined,
-      lineHeightPx:
-        typeof t.lineHeight !== 'symbol' && (t.lineHeight as LineHeight).unit === 'PIXELS'
-          ? (t.lineHeight as LineHeight).value
-          : undefined,
+      lineHeightPx: (() => {
+        const lh = t.lineHeight;
+        if (typeof lh === 'symbol') return undefined;
+        // TS narrows `lh` to the PIXELS branch here, so `.value` is safe
+        return lh.unit === 'PIXELS' ? lh.value : undefined;
+      })(),
       textAlignHorizontal: t.textAlignHorizontal,
     };
   }
