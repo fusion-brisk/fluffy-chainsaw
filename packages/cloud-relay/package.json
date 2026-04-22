@@ -1,0 +1,21 @@
+{
+  "name": "@contentify/cloud-relay",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/handler.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "deploy": "bash scripts/deploy.sh",
+    "bootstrap-ydb": "node scripts/bootstrap-ydb.mjs"
+  },
+  "dependencies": {
+    "@yandex-cloud/nodejs-sdk": "^2.9.3",
+    "ydb-sdk": "^5.11.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  }
+}

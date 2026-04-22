@@ -12,16 +12,27 @@ Contentify помогает дизайнерам быстро создавать
 
 ## Архитектура
 
-Система состоит из трёх компонентов:
+Данные текут через Yandex Cloud — ни бинарников, ни локальных серверов:
 
 ```
-Browser Extension → Relay Server → Figma Plugin
-     (парсинг)      (localhost)     (создание)
+Browser Extension → HTTPS → Cloud Relay (YC Function + YDB) → HTTPS → Figma Plugin
+     (парсинг)                    (очередь)                        (создание)
 ```
 
-1. **Browser Extension** — парсит страницу Яндекса, извлекает данные сниппетов
-2. **Relay Server** — передаёт данные между браузером и Figma (localhost:3847)
-3. **Figma Plugin** — получает данные и создаёт/заполняет макет
+1. **Browser Extension** — парсит страницу Яндекса, отправляет данные в облако
+2. **Cloud Relay** — Yandex Cloud Function + YDB (serverless), очередь по session code
+3. **Figma Plugin** — забирает данные и создаёт/заполняет макет
+
+Session code (6 символов A-Z0-9) генерируется в плагине при первом запуске и вводится в options расширения — это изолирует разных пользователей в облачной очереди.
+
+## Packages
+
+| Package                | Role                                                       |
+| ---------------------- | ---------------------------------------------------------- |
+| `packages/plugin`      | Figma plugin (TypeScript + React, ES5 sandbox)             |
+| `packages/extension`   | Chrome extension (Manifest V3, parses Yandex SERP)         |
+| `packages/cloud-relay` | Yandex Cloud Function (Node 22, HTTP API + YDB serverless) |
+| `packages/jsx-emitter` | JSX compilation helper                                     |
 
 ## Quick Start
 
@@ -34,110 +45,79 @@ npm install
 # Сборка плагина
 npm run build
 
-# Разработка с hot reload и Relay сервером
+# Watch mode (plugin only)
 npm run dev
-
-# Только сборка с watch
-npm run build:watch
 
 # Запуск тестов
 npm run test
+
+# Полная проверка (typecheck + lint + test + build)
+npm run verify
 ```
 
 ### Установка в Figma
 
 1. Открыть Figma
 2. Plugins → Development → Import plugin from manifest
-3. Выбрать `manifest.json` из корня проекта
+3. Выбрать `manifest.json` из `packages/plugin/`
 
 ### Установка Extension
 
-1. Открыть `chrome://extensions`
-2. Включить "Developer mode"
-3. "Load unpacked" → выбрать папку `extension/`
+1. `npm run build -w packages/extension`
+2. Открыть `chrome://extensions` → **Developer mode** → **Load unpacked**
+3. Выбрать `packages/extension/`
+4. В options расширения вставить session code (генерируется в плагине)
 
-## Структура проекта
+### Deploy Cloud Relay
 
-```
-.
-├── src/                    # Исходный код плагина
-│   ├── code.ts             # Entry point (Figma sandbox)
-│   ├── ui.tsx              # React UI
-│   ├── schema/             # Декларативный маппинг данных → Figma
-│   ├── handlers/           # Императивные обработчики (сложная логика)
-│   ├── plugin/             # Модули обработки данных
-│   ├── page-builder/       # Создание страниц
-│   ├── utils/              # Утилиты парсинга
-│   └── types/              # TypeScript типы
-│
-├── extension/              # Chrome Extension
-│   ├── content.js          # Парсинг страницы
-│   ├── background.js       # Service Worker
-│   └── popup.html          # UI popup
-│
-├── relay/                  # Relay сервер
-│   └── server.js           # Express API
-│
-├── docs/                   # Документация
-│   ├── ARCHITECTURE.md     # Карта проекта
-│   ├── GLOSSARY.md         # Термины
-│   └── EXTENDING.md        # Гайды по расширению
-│
-├── .cursor/                # Контекст для AI-разработки
-│   ├── context.md          # Краткий контекст
-│   ├── common-tasks.md     # Частые задачи
-│   └── debug-guide.md      # Отладка
-│
-└── dist/                   # Результат сборки
-```
+См. [`packages/cloud-relay/README.md`](packages/cloud-relay/README.md).
 
 ## Документация
 
-| Документ                                | Описание                                                 |
-| --------------------------------------- | -------------------------------------------------------- |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Детальная карта проекта, диаграммы, потоки данных        |
-| [GLOSSARY.md](docs/GLOSSARY.md)         | Термины и концепции: Snippet, Container, CSVRow, Handler |
-| [EXTENDING.md](docs/EXTENDING.md)       | Пошаговые гайды добавления handlers, полей, компонентов  |
-| [STRUCTURE.md](docs/STRUCTURE.md)       | Детали архитектуры модулей                               |
+| Документ                                                         | Описание                                         |
+| ---------------------------------------------------------------- | ------------------------------------------------ |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                     | Детальная карта проекта, потоки данных           |
+| [docs/GLOSSARY.md](docs/GLOSSARY.md)                             | Термины: Snippet, Container, CSVRow, Handler     |
+| [docs/EXTENDING.md](docs/EXTENDING.md)                           | Гайды по расширению (handlers, поля, компоненты) |
+| [docs/STRUCTURE.md](docs/STRUCTURE.md)                           | Детали архитектуры модулей                       |
+| [packages/cloud-relay/README.md](packages/cloud-relay/README.md) | Deploy runbook для YC Function                   |
 
 ## Для AI-разработки
 
-Проект оптимизирован для разработки через Cursor с Claude:
+Проект оптимизирован для разработки через Claude Code:
 
-- **`.cursorrules`** — полный контекст проекта, автоматически подключается
-- **`.cursor/`** — дополнительные гайды для AI
-
-При работе с AI рекомендуется:
-
-1. Читать `.cursorrules` для понимания ограничений
-2. Использовать `docs/EXTENDING.md` для типовых задач
-3. Смотреть `.cursor/debug-guide.md` для отладки
+- **`CLAUDE.md`** — корневые правила проекта (auto-loaded)
+- **`packages/*/CLAUDE.md`** — per-package правила
+- **`.claude/rules/`** — тематические ограничения (ES5 sandbox, UI state, CSS)
+- **`.claude/specs/`** — спеки фич (in-progress + done)
 
 ## Технологии
 
 - **TypeScript** — типизация
 - **React 18** — UI плагина
-- **Rollup + Babel** — сборка в ES5
-- **Express** — Relay сервер
+- **Rollup + Babel** — сборка плагина в ES5
+- **Node.js 22** — cloud relay runtime (YC Function)
+- **YDB serverless** — очередь
 - **Vitest** — тестирование
 
 ## Ограничения
 
-- Figma Plugin API требует ES5 (транспиляция через Babel)
+- Figma Plugin sandbox требует ES5 (транспиляция через Babel для `src/sandbox/`)
 - Никаких Node.js API в рантайме плагина
-- UI ↔ Code общение только через postMessage
+- UI ↔ Code общение только через `postMessage`
+- Cloud relay требует интернет — offline-режим не поддерживается (Figma тоже требует сеть)
 
 ## Команды
 
-| Команда               | Описание                  |
-| --------------------- | ------------------------- |
-| `npm run build`       | Полная сборка             |
-| `npm run build:watch` | Watch mode                |
-| `npm run dev`         | Build + Relay server      |
-| `npm run relay`       | Только Relay server       |
-| `npm run test`        | Запуск тестов             |
-| `npm run lint`        | ESLint проверка           |
-| `npm run lint:fix`    | ESLint с автоисправлением |
+| Команда                  | Описание                        |
+| ------------------------ | ------------------------------- |
+| `npm run build`          | Сборка плагина                  |
+| `npm run dev`            | Watch mode (plugin)             |
+| `npm run test`           | Запуск тестов                   |
+| `npm run lint`           | ESLint проверка                 |
+| `npm run lint:fix`       | ESLint с автоисправлением       |
+| `npm run verify`         | typecheck + lint + test + build |
+| `npm run release <bump>` | Version bump + tag + push       |
 
 ## Лицензия
 

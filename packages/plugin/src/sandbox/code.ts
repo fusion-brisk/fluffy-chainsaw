@@ -19,9 +19,12 @@ import {
 import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
-import { PORTS } from '../config';
+import { CLOUD_RELAY_URL } from '../config';
 
-const RELAY_URL = 'http://localhost:' + PORTS.RELAY;
+// Sidecar features (result export, screenshot mirror, /debug) were local-relay-only.
+// Cloud relay doesn't expose them (Phase 2 via Object Storage). We keep the RELAY_URL
+// constant pointed at the cloud base so existing try/catch wrappers fail gracefully.
+const RELAY_URL = CLOUD_RELAY_URL;
 
 /** Platform detected from UI (desktop or mobile/iPad) */
 let _clientPlatform: 'desktop' | 'mobile' = 'desktop';

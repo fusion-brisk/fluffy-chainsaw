@@ -279,15 +279,23 @@
         <div class="section-title">Подключение</div>
 
         <div class="field">
-          <label class="label" for="relayUrl">Relay Server URL</label>
+          <label class="label" for="sessionCode">Session code</label>
           <input
             type="text"
-            id="relayUrl"
+            id="sessionCode"
             class="input"
-            value="http://localhost:3847"
-            placeholder="http://localhost:3847"
+            value=""
+            placeholder="ABC123"
+            maxlength="6"
+            pattern="[A-Z0-9]{6}"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
           />
-          <div class="hint">Адрес relay-сервера для передачи данных в Figma плагин.</div>
+          <div class="hint">
+            6-символьный код, который показывает плагин Contentify в Figma. Данные из расширения
+            приходят только в плагин с таким же кодом.
+          </div>
         </div>
 
         <div class="test-section">

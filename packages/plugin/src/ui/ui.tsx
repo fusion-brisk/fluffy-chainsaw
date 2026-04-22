@@ -32,29 +32,23 @@ import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog } from './components/ImportConfirmDialog';
 import { SetupFlow } from './components/SetupFlow';
 import { UpdateBanner } from './components/UpdateBanner';
-import { RelayOfflineBanner } from './components/RelayOfflineBanner';
+import { CloudUnreachableBanner } from './components/CloudUnreachableBanner';
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
 import { PanelLayout } from './components/PanelLayout';
 import { WhatsNewContent } from './components/WhatsNewContent';
 import { LogLevel, Logger } from '../logger';
-import { PORTS, PLUGIN_VERSION } from '../config';
-
-// Default relay URL
-const DEFAULT_RELAY_URL = `http://localhost:${PORTS.RELAY}`;
+import { CLOUD_RELAY_URL, PLUGIN_VERSION } from '../config';
 
 // Main App Component
 const App: React.FC = () => {
   // === CORE STATE ===
   const [appState, setAppState] = useState<AppState>('setup');
-  const [relayUrl] = useState(() => {
-    try {
-      return localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
-    } catch {
-      return DEFAULT_RELAY_URL;
-    }
-  });
+  // Session code — loaded once from figma.clientStorage on mount.
+  // Null means "not configured yet" → setup flow blocks until generated.
+  const [sessionCode, setSessionCode] = useState<string | null>(null);
+  const [sessionCodeResolved, setSessionCodeResolved] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const [inspectorData, setInspectorData] = useState<import('../types').ComponentInspectorData[]>(
@@ -68,9 +62,9 @@ const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [progressData, setProgressData] = useState<ProgressData>({ current: 0, total: 0 });
   const [pendingWhatsNew, setPendingWhatsNew] = useState(false);
-  // Relay offline banner: dismissed-this-session flag. Resets whenever relay reconnects,
+  // Cloud-unreachable banner: dismissed-this-session flag. Resets whenever relay reconnects,
   // so a second disconnect shows the banner again.
-  const [relayBannerDismissed, setRelayBannerDismissed] = useState(false);
+  const [cloudBannerDismissed, setCloudBannerDismissed] = useState(false);
 
   // === HOOKS ===
   const platform = usePlatform();
@@ -93,8 +87,13 @@ const App: React.FC = () => {
   }, [markExtensionInstalled, resizeUI]);
 
   const relay = useRelayConnection({
-    relayUrl,
-    enabled: appState !== 'setup' && appState !== 'processing' && appState !== 'confirming',
+    relayUrl: CLOUD_RELAY_URL,
+    sessionCode,
+    enabled:
+      !!sessionCode &&
+      appState !== 'setup' &&
+      appState !== 'processing' &&
+      appState !== 'confirming',
     onDataReceived: useCallback(
       (data: RelayDataEvent) => {
         if (!extensionInstalled) {
@@ -157,8 +156,8 @@ const App: React.FC = () => {
 
   const relayConnected = relay.connected;
 
-  const versionCheck = useVersionCheck(relay.relayVersion, relay.extensionVersion);
-  const { buildStale } = useBuildCheck(relayUrl, appState !== 'setup');
+  const versionCheck = useVersionCheck(relay.extensionVersion);
+  const { buildStale } = useBuildCheck(CLOUD_RELAY_URL, appState !== 'setup');
 
   // === PLUGIN MESSAGES ===
   usePluginMessages({
@@ -167,15 +166,17 @@ const App: React.FC = () => {
         setSetupResolved(true);
         if (skipped) {
           setExtensionInstalled(true);
-          if (appState === 'setup') {
-            setAppState('checking');
-            resizeUI('checking');
-          }
-        } else {
-          if (appState === 'setup') {
-            resizeUI('setup');
-          }
+          // Don't auto-advance past setup if sessionCode is still missing — the wizard
+          // still needs to run to generate/save a code. The transition to 'checking'
+          // is gated on both setupResolved AND sessionCodeResolved (see effect below).
         }
+        if (appState === 'setup') {
+          resizeUI('setup');
+        }
+      },
+      onSessionCodeLoaded: (code) => {
+        setSessionCode(code);
+        setSessionCodeResolved(true);
       },
       onLog: (message) => {
         let level = LogLevel.SUMMARY;
@@ -230,9 +231,10 @@ const App: React.FC = () => {
         }
       },
       onDebugReport: (report) => {
+        // Cloud relay does not expose /debug in MVP (Phase 2 feature). Calls will 404
+        // gracefully — we still fire-and-forget so local dev endpoints keep working.
         try {
-          const debugRelayUrl = localStorage.getItem('contentify-relay-url') || DEFAULT_RELAY_URL;
-          fetch(`${debugRelayUrl}/debug`, {
+          fetch(`${CLOUD_RELAY_URL}/debug`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(report || {}),
@@ -295,8 +297,25 @@ const App: React.FC = () => {
   useEffect(() => {
     sendMessageToPlugin({ type: 'get-settings' });
     sendMessageToPlugin({ type: 'get-setup-skipped' });
+    sendMessageToPlugin({ type: 'get-session-code' });
     sendMessageToPlugin({ type: 'check-whats-new' });
   }, []);
+
+  // Gate setup completion on BOTH: setup skipped AND session code present.
+  // Without a session code the cloud relay has no session to scope requests to,
+  // so we keep the user in setup until one is generated.
+  useEffect(() => {
+    if (
+      appState === 'setup' &&
+      setupResolved &&
+      sessionCodeResolved &&
+      extensionInstalled &&
+      sessionCode
+    ) {
+      setAppState('checking');
+      resizeUI('checking');
+    }
+  }, [appState, setupResolved, sessionCodeResolved, extensionInstalled, sessionCode, resizeUI]);
 
   // Transition from checking to ready
   useEffect(() => {
@@ -327,34 +346,35 @@ const App: React.FC = () => {
   }, [pendingWhatsNew, appState, panels]);
 
   // Clear dismissal when relay reconnects — next disconnect should show banner again.
-  // Deps include relayBannerDismissed only to satisfy exhaustive-deps; the guard is
+  // Deps include cloudBannerDismissed only to satisfy exhaustive-deps; the guard is
   // idempotent (setState only when transition relayConnected=true + dismissed=true happens).
   useEffect(() => {
-    if (relayConnected && relayBannerDismissed) {
-      setRelayBannerDismissed(false);
+    if (relayConnected && cloudBannerDismissed) {
+      setCloudBannerDismissed(false);
     }
-  }, [relayConnected, relayBannerDismissed]);
+  }, [relayConnected, cloudBannerDismissed]);
 
-  // Relay offline banner visibility: shown in compact states when relay is down AND user
+  // Cloud-unreachable banner visibility: shown in compact states when relay is down AND user
   // hasn't dismissed it this session AND we're past setup.
   //   extensionInstalled as "past setup" proxy: setup flow (appState='setup') is the only
   //   flow that can transition to extensionInstalled=true, and once set it stays true for
   //   the session. If extensionInstalled detection breaks, banner stops showing — an
   //   acceptable tradeoff vs. showing a noisy banner DURING the setup wizard.
-  const showRelayOfflineBanner =
+  const showCloudUnreachableBanner =
     !relayConnected &&
-    !relayBannerDismissed &&
+    !cloudBannerDismissed &&
     extensionInstalled &&
     (appState === 'ready' || appState === 'checking' || appState === 'error');
 
   // === COMPACT STRIP RESIZE (for menu) ===
-  const bannerCount = (versionCheck.relayUpdate ? 1 : 0) + (versionCheck.extensionUpdate ? 1 : 0);
+  const bannerCount = versionCheck.extensionUpdate ? 1 : 0;
   // Each update banner: 26px (6+12+6 padding + 2 border) + container 8px top padding + 4px gap
   const updateBannerHeight = bannerCount > 0 ? bannerCount * 26 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
-  // Relay offline banner measured height: ~148px (header 18 + desc 20 + cmd 30 + actions 28
-  //   + 3×8 gap + 20 padding + 8 margin-top + 2 border)
-  const relayOfflineBannerHeight = showRelayOfflineBanner ? 148 : 0;
-  const compactBaseHeight = 56 + updateBannerHeight + relayOfflineBannerHeight;
+  // Cloud-unreachable banner measured height: ~110px (header 18 + desc 40 + actions 28
+  //   + 2×8 gap + 20 padding + 8 margin-top + 2 border). No command block in the cloud
+  //   variant — "check internet" copy fits in ~two lines.
+  const cloudUnreachableBannerHeight = showCloudUnreachableBanner ? 110 : 0;
+  const compactBaseHeight = 56 + updateBannerHeight + cloudUnreachableBannerHeight;
 
   const handleRequestResize = useCallback(
     (height: number) => {
@@ -467,8 +487,10 @@ const App: React.FC = () => {
   return (
     <div className="glass-app">
       {/* Setup flow — initial or as panel */}
-      {appState === 'setup' && setupResolved && (
+      {appState === 'setup' && setupResolved && sessionCodeResolved && (
         <SetupFlow
+          sessionCode={sessionCode}
+          onSessionCodeChange={setSessionCode}
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onComplete={handleSetupComplete}
@@ -479,19 +501,18 @@ const App: React.FC = () => {
       {/* Update banners — only in compact ready state, BEFORE strip to stay in flow */}
       {appState === 'ready' && !panels.isPanelOpen && (
         <UpdateBanner
-          relayUpdate={versionCheck.relayUpdate}
           extensionUpdate={versionCheck.extensionUpdate}
-          onDismissRelay={versionCheck.dismissRelay}
           onDismissExtension={versionCheck.dismissExtension}
         />
       )}
 
-      {/* Relay offline banner — actionable recovery path when localhost:3847 is unreachable */}
+      {/* Cloud-unreachable banner — surfaces "check your internet" when the cloud relay is down */}
       {!panels.isPanelOpen && (
-        <RelayOfflineBanner
-          visible={showRelayOfflineBanner}
+        <CloudUnreachableBanner
+          visible={showCloudUnreachableBanner}
+          sessionCode={sessionCode}
           onRetry={relay.checkNow}
-          onDismiss={() => setRelayBannerDismissed(true)}
+          onDismiss={() => setCloudBannerDismissed(true)}
         />
       )}
 
@@ -547,6 +568,8 @@ const App: React.FC = () => {
       {/* Panel overlays — only one at a time */}
       {panels.activePanel === 'setup' && (
         <SetupFlow
+          sessionCode={sessionCode}
+          onSessionCodeChange={setSessionCode}
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onComplete={handleCloseSetup}

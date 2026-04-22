@@ -1,14 +1,15 @@
 /**
- * useVersionCheck — checks relay/extension versions against remote manifest
+ * useVersionCheck — checks extension version against remote manifest.
  *
- * Fetches versions.json via relay proxy first (avoids CORS in Figma iframe),
- * falls back to GitHub raw URL if relay is unavailable.
+ * Cloud-relay deploy does not require client-side version gating (YC Function
+ * always runs latest). This hook is extension-only now.
+ *
+ * Plugin self-update goes via Figma Community, so no version check is needed
+ * for the plugin itself either.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Try relay proxy first — avoids CORS issues in Figma plugin iframe
-const VERSIONS_URL_RELAY = 'http://localhost:3847/versions';
 const VERSIONS_URL_GITHUB =
   'https://raw.githubusercontent.com/fusion-brisk/fluffy-chainsaw/main/versions.json';
 const FETCH_TIMEOUT_MS = 5000;
@@ -20,7 +21,6 @@ interface VersionRequirements {
 }
 
 interface VersionManifest {
-  relay: VersionRequirements;
   extension: VersionRequirements;
 }
 
@@ -33,9 +33,7 @@ export interface UpdateInfo {
 }
 
 export interface UseVersionCheckReturn {
-  relayUpdate: UpdateInfo | null;
   extensionUpdate: UpdateInfo | null;
-  dismissRelay: () => void;
   dismissExtension: () => void;
 }
 
@@ -68,12 +66,8 @@ function checkVersion(
   };
 }
 
-export function useVersionCheck(
-  relayVersion: string | null,
-  extensionVersion: string | null,
-): UseVersionCheckReturn {
+export function useVersionCheck(extensionVersion: string | null): UseVersionCheckReturn {
   const [manifest, setManifest] = useState<VersionManifest | null>(null);
-  const [relayDismissed, setRelayDismissed] = useState(false);
   const [extensionDismissed, setExtensionDismissed] = useState(false);
   const fetchedRef = useRef(false);
 
@@ -82,46 +76,32 @@ export function useVersionCheck(
     fetchedRef.current = true;
 
     const fetchVersions = async () => {
-      // Try relay proxy first, then GitHub direct
-      for (const url of [VERSIONS_URL_RELAY, VERSIONS_URL_GITHUB]) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-          const res = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          if (!res.ok) continue;
-          const data = await res.json();
-          if (data?.relay && data?.extension) {
-            setManifest(data as VersionManifest);
-            return;
-          }
-        } catch {
-          // Try next URL
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        const res = await fetch(VERSIONS_URL_GITHUB, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.extension) {
+          setManifest(data as VersionManifest);
         }
+      } catch {
+        // Network failure — skip version check silently
       }
     };
 
     fetchVersions();
   }, []);
 
-  const relayUpdate = relayDismissed ? null : checkVersion(relayVersion, manifest?.relay);
-
-  // Extension update: override downloadUrl to use local relay CRX cache
-  const extensionUpdateRaw = extensionDismissed
+  const extensionUpdate = extensionDismissed
     ? null
     : checkVersion(extensionVersion, manifest?.extension);
-  const extensionUpdate = extensionUpdateRaw
-    ? { ...extensionUpdateRaw, downloadUrl: 'http://localhost:3847/extension.crx' }
-    : null;
 
   // Critical updates cannot be dismissed
-  const dismissRelay = useCallback(() => {
-    if (!relayUpdate?.critical) setRelayDismissed(true);
-  }, [relayUpdate?.critical]);
-
   const dismissExtension = useCallback(() => {
     if (!extensionUpdate?.critical) setExtensionDismissed(true);
   }, [extensionUpdate?.critical]);
 
-  return { relayUpdate, extensionUpdate, dismissRelay, dismissExtension };
+  return { extensionUpdate, dismissExtension };
 }

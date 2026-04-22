@@ -1,0 +1,153 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { YcHttpEvent } from '../src/types';
+
+// Mock the YDB layer wholesale so the handler never touches the real driver.
+// The insertEntry mock is reassigned in the 500-path test via mockRejectedValueOnce.
+vi.mock('../src/ydb', () => ({
+  insertEntry: vi.fn().mockResolvedValue(undefined),
+  findFirstPending: vi.fn().mockResolvedValue(null),
+  markPeeked: vi.fn().mockResolvedValue(undefined),
+  deleteEntry: vi.fn().mockResolvedValue({ removed: true }),
+  rejectEntry: vi.fn().mockResolvedValue(undefined),
+  clearSession: vi.fn().mockResolvedValue({ cleared: 0 }),
+  getStatus: vi.fn().mockResolvedValue({ queueSize: 0, pendingCount: 0, firstEntry: null }),
+  getDriver: vi.fn(),
+  destroyDriver: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Import AFTER vi.mock so the mocked module is bound into handler's routes.
+import { handler } from '../src/handler';
+import * as ydb from '../src/ydb';
+
+function makeEvent(over: Partial<YcHttpEvent> = {}): YcHttpEvent {
+  return {
+    httpMethod: 'GET',
+    path: '/status',
+    queryStringParameters: {},
+    ...over,
+  };
+}
+
+describe('handler — dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('OPTIONS returns 204 with CORS headers', async () => {
+    const res = await handler(makeEvent({ httpMethod: 'OPTIONS' }));
+    expect(res.statusCode).toBe(204);
+    expect(res.body).toBeUndefined();
+    expect(res.headers?.['Access-Control-Allow-Origin']).toBe('*');
+    expect(res.headers?.['Access-Control-Allow-Methods']).toContain('POST');
+    expect(res.headers?.['Access-Control-Allow-Methods']).toContain('OPTIONS');
+    expect(res.headers?.['Access-Control-Allow-Headers']).toContain('Content-Type');
+  });
+
+  it('GET /health returns 200 without sessionId', async () => {
+    const res = await handler(
+      makeEvent({ httpMethod: 'GET', path: '/health', queryStringParameters: {} }),
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.ok).toBe(true);
+    expect(body.version).toBeDefined();
+    expect(typeof body.timestamp).toBe('number');
+    expect(res.headers?.['Access-Control-Allow-Origin']).toBe('*');
+  });
+
+  it('GET /health ignores query params entirely (no session required)', async () => {
+    const res = await handler(
+      makeEvent({ httpMethod: 'GET', path: '/health', queryStringParameters: undefined }),
+    );
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('POST /push without session returns 400', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: {},
+        body: JSON.stringify({ payload: {}, meta: {} }),
+      }),
+    );
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.error).toMatch(/session/i);
+  });
+
+  it('POST /push with invalid session (lowercase) returns 400', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'abc123' },
+        body: JSON.stringify({ payload: {}, meta: {} }),
+      }),
+    );
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('POST /push?session=ABC123 dispatches to route and returns 200', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+        body: JSON.stringify({ payload: { rawRows: [{ '#query': 't' }] }, meta: {} }),
+      }),
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.success).toBe(true);
+    expect(body.entryId).toBeDefined();
+    expect(ydb.insertEntry).toHaveBeenCalledTimes(1);
+    expect(ydb.getStatus).toHaveBeenCalledWith('ABC123');
+  });
+
+  it('unknown path with valid session returns 404', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'GET',
+        path: '/nonexistent',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.error).toBeDefined();
+    // Still has CORS headers on 404.
+    expect(res.headers?.['Access-Control-Allow-Origin']).toBe('*');
+  });
+
+  it('wrong method on known path returns 404 (route key is METHOD + path)', async () => {
+    // /push is POST only — a GET should not match.
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'GET',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('route throwing → 500 with error body', async () => {
+    vi.mocked(ydb.insertEntry).mockRejectedValueOnce(new Error('ydb down'));
+
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+        body: JSON.stringify({ payload: { rawRows: [] }, meta: {} }),
+      }),
+    );
+    expect(res.statusCode).toBe(500);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.error).toBeDefined();
+    // 500 still carries CORS headers so the browser surfaces the error.
+    expect(res.headers?.['Access-Control-Allow-Origin']).toBe('*');
+  });
+});

@@ -3,7 +3,7 @@
  */
 
 import { Logger, LogLevel } from '../../logger';
-import { PLUGIN_VERSION } from '../../config';
+import { PLUGIN_VERSION, SESSION_CODE_KEY } from '../../config';
 import { ParsingRulesManager } from '../../parsing-rules-manager';
 import { resetAllSnippets } from './global-handlers';
 import { buildExportHtml } from '../html-export/export-handler';
@@ -121,6 +121,34 @@ export async function handleSimpleMessage(
       Logger.debug('Setup skipped preference saved');
     } catch (e) {
       Logger.error('Failed to save setup-skipped:', e);
+    }
+    return true;
+  }
+
+  // === Cloud relay session code ===
+  if (type === 'get-session-code') {
+    try {
+      const code = await figma.clientStorage.getAsync(SESSION_CODE_KEY);
+      const sessionCode = typeof code === 'string' && code.length === 6 ? code : null;
+      figma.ui.postMessage({ type: 'session-code-loaded', sessionCode });
+    } catch (e) {
+      Logger.error('Failed to load session code:', e);
+      figma.ui.postMessage({ type: 'session-code-loaded', sessionCode: null });
+    }
+    return true;
+  }
+
+  if (type === 'set-session-code') {
+    const code = msg.code as string | undefined;
+    if (typeof code !== 'string' || !/^[A-Z0-9]{6}$/.test(code)) {
+      Logger.error('Invalid session code, not saving:', code);
+      return true;
+    }
+    try {
+      await figma.clientStorage.setAsync(SESSION_CODE_KEY, code);
+      Logger.debug('Session code saved');
+    } catch (e) {
+      Logger.error('Failed to save session code:', e);
     }
     return true;
   }
@@ -425,10 +453,12 @@ function serializeExportNode(node: SceneNode): Record<string, unknown> {
       fontFamily: typeof t.fontName !== 'symbol' ? (t.fontName as FontName).family : undefined,
       fontSize: typeof t.fontSize === 'number' ? t.fontSize : undefined,
       fontWeight: typeof t.fontWeight === 'number' ? t.fontWeight : undefined,
-      lineHeightPx:
-        typeof t.lineHeight !== 'symbol' && (t.lineHeight as LineHeight).unit === 'PIXELS'
-          ? (t.lineHeight as LineHeight).value
-          : undefined,
+      lineHeightPx: (() => {
+        const lh = t.lineHeight;
+        if (typeof lh === 'symbol') return undefined;
+        // TS narrows `lh` to the PIXELS branch here, so `.value` is safe
+        return lh.unit === 'PIXELS' ? lh.value : undefined;
+      })(),
       textAlignHorizontal: t.textAlignHorizontal,
     };
   }

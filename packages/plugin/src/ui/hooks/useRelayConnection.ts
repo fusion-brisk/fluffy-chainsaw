@@ -1,13 +1,18 @@
 /**
- * useRelayConnection — WebSocket + HTTP polling relay connection hook
+ * useRelayConnection — HTTP polling relay connection hook (cloud-only)
  *
- * Manages the full relay lifecycle:
- * - WebSocket connection with exponential backoff reconnect
- * - HTTP polling fallback when WebSocket is unavailable
- * - Adaptive polling (active vs idle intervals)
- * - Visibility-change handling (ping on WS, HTTP check fallback)
- * - peek (non-destructive read) and ack (confirm after import) operations
+ * Cloud Relay (YC Functions) does not support WebSockets, so this hook is
+ * polling-only. All requests are scoped to a session via `?session=<code>`.
+ *
+ * Responsibilities:
+ * - Adaptive polling of /status + /peek (active vs idle intervals)
+ * - Visibility-change handling (immediate re-check when tab becomes visible)
+ * - Non-destructive read (peek) + ack after import
  * - Duplicate entry prevention
+ *
+ * When `sessionCode` is null the hook reports `connected: false` and issues no
+ * requests. All action callbacks remain callable but no-op in that state so
+ * callers don't need defensive guards.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,10 +20,7 @@ import type { CSVRow } from '../../types/csv-fields';
 import type { ParsedRelayData } from '../../utils/relay-payload';
 import { extractRowsFromPayload } from '../../utils/relay-payload';
 
-// WebSocket configuration
-const WS_RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000];
-
-// HTTP Polling fallback intervals
+// HTTP Polling intervals
 const RELAY_CHECK_INTERVAL_ACTIVE = 1000;
 const RELAY_CHECK_INTERVAL_IDLE = 5000;
 const ACTIVE_THRESHOLD_MS = 10000;
@@ -32,8 +34,11 @@ export interface RelayDataEvent extends ParsedRelayData {
 }
 
 export interface UseRelayConnectionOptions {
+  /** Base cloud relay URL (no query string). Example: https://<id>.apigw.yandexcloud.net */
   relayUrl: string;
-  /** Set false during processing/confirming/fileDrop to pause WS and polling */
+  /** Session code identifying this plugin<->extension pair. Null = not configured yet. */
+  sessionCode: string | null;
+  /** Set false during processing/confirming/setup to pause polling */
   enabled: boolean;
   /** Called when new data is available from relay */
   onDataReceived: (data: RelayDataEvent) => void;
@@ -56,6 +61,7 @@ export interface UseRelayConnectionReturn {
 
 export function useRelayConnection({
   relayUrl,
+  sessionCode,
   enabled,
   onDataReceived,
   onConnectionChange,
@@ -72,10 +78,6 @@ export function useRelayConnection({
 
   // Connection refs
   const isMountedRef = useRef(true);
-  const wsRef = useRef<WebSocket | null>(null);
-  const wsReconnectAttemptRef = useRef(0);
-  const wsReconnectTimeoutRef = useRef<number | null>(null);
-  const wsConnectedRef = useRef(false);
   const relayCheckIntervalRef = useRef<number | null>(null);
   const lastActivityTimeRef = useRef<number>(Date.now());
 
@@ -91,12 +93,22 @@ export function useRelayConnection({
     onConnectionChangeRef.current(value);
   }, []);
 
+  // Build a session-scoped URL. Assumes `relayUrl` has no existing query string
+  // and `sessionCode` is non-null (callers must guard via `sessionCode` check first).
+  const buildUrl = useCallback(
+    (path: string): string => {
+      return `${relayUrl}${path}?session=${encodeURIComponent(sessionCode || '')}`;
+    },
+    [relayUrl, sessionCode],
+  );
+
   // peekRelayData — non-destructive read from relay queue
   const peekRelayData = useCallback(async () => {
+    if (!sessionCode) return;
     if (isAckInProgressRef.current) return;
 
     try {
-      const response = await fetch(`${relayUrl}/peek`);
+      const response = await fetch(buildUrl('/peek'));
       if (!response.ok) return;
 
       const data = await response.json();
@@ -158,17 +170,18 @@ export function useRelayConnection({
     } catch (error) {
       console.error('[Relay:peek] Error:', error);
     }
-  }, [relayUrl]);
+  }, [buildUrl, sessionCode]);
 
   // checkRelay — check relay status and peek if data available
   const checkRelay = useCallback(async (): Promise<
     'connected' | 'connected-with-data' | 'disconnected'
   > => {
+    if (!sessionCode) return 'disconnected';
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-      const response = await fetch(`${relayUrl}/status`, {
+      const response = await fetch(buildUrl('/status'), {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
@@ -192,11 +205,12 @@ export function useRelayConnection({
     } catch {
       return 'disconnected';
     }
-  }, [relayUrl, peekRelayData]);
+  }, [buildUrl, peekRelayData, sessionCode]);
 
   // ackData — acknowledge relay data after successful load (with retry)
   const ackData = useCallback(
     async (entryId: string) => {
+      if (!sessionCode) return;
       lastProcessedEntryIdRef.current = entryId;
       isAckInProgressRef.current = true;
 
@@ -205,7 +219,7 @@ export function useRelayConnection({
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         try {
-          const response = await fetch(`${relayUrl}/ack`, {
+          const response = await fetch(buildUrl('/ack'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ entryId }),
@@ -228,29 +242,31 @@ export function useRelayConnection({
 
       isAckInProgressRef.current = false;
     },
-    [relayUrl],
+    [buildUrl, sessionCode],
   );
 
   // clearQueue — delete all pending entries
   const clearQueue = useCallback(async () => {
+    if (!sessionCode) return;
     try {
-      await fetch(`${relayUrl}/clear`, { method: 'DELETE' });
+      await fetch(buildUrl('/clear'), { method: 'DELETE' });
     } catch {
       // ignore
     }
     pendingEntryIdRef.current = null;
     lastProcessedEntryIdRef.current = null;
-  }, [relayUrl]);
+  }, [buildUrl, sessionCode]);
 
   // reimport — re-queue last relay payload
   const reimport = useCallback(async (): Promise<boolean> => {
+    if (!sessionCode) return false;
     try {
-      const res = await fetch(`${relayUrl}/reimport`, { method: 'POST' });
+      const res = await fetch(buildUrl('/reimport'), { method: 'POST' });
       return res.ok;
     } catch {
       return false;
     }
-  }, [relayUrl]);
+  }, [buildUrl, sessionCode]);
 
   // blockEntry — temporarily prevent an entryId from being shown
   const blockEntry = useCallback((entryId: string, durationMs = 10000) => {
@@ -265,14 +281,26 @@ export function useRelayConnection({
 
   // checkNow — manual trigger for retry button
   const checkNow = useCallback(async () => {
+    if (!sessionCode) {
+      if (isMountedRef.current) updateConnected(false);
+      return;
+    }
     const result = await checkRelay();
     if (!isMountedRef.current) return;
     updateConnected(result !== 'disconnected');
-  }, [checkRelay, updateConnected]);
+  }, [checkRelay, sessionCode, updateConnected]);
 
   // --- Initialization effect ---
   useEffect(() => {
     isMountedRef.current = true;
+
+    if (!sessionCode) {
+      // No session → surface disconnected state once so callers render banner/setup.
+      updateConnected(false);
+      return () => {
+        isMountedRef.current = false;
+      };
+    }
 
     const doInitialCheck = async () => {
       const result = await checkRelay();
@@ -285,153 +313,58 @@ export function useRelayConnection({
     return () => {
       isMountedRef.current = false;
     };
-  }, [checkRelay, updateConnected]);
+  }, [checkRelay, sessionCode, updateConnected]);
 
-  // --- WebSocket + polling effect ---
+  // --- Polling effect ---
   useEffect(() => {
     if (!enabled) return;
+    if (!sessionCode) return;
 
-    const wsUrl = relayUrl.replace(/^http/, 'ws');
-
-    const connectWebSocket = () => {
+    const scheduleNextPoll = () => {
       if (!isMountedRef.current) return;
-      if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-      try {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+      const timeSinceActivity = Date.now() - lastActivityTimeRef.current;
+      const interval =
+        timeSinceActivity < ACTIVE_THRESHOLD_MS
+          ? RELAY_CHECK_INTERVAL_ACTIVE
+          : RELAY_CHECK_INTERVAL_IDLE;
 
-        ws.onopen = () => {
-          if (!isMountedRef.current) return;
-          wsConnectedRef.current = true;
-          wsReconnectAttemptRef.current = 0;
-
-          // Stop HTTP polling
-          if (relayCheckIntervalRef.current) {
-            clearTimeout(relayCheckIntervalRef.current);
-            relayCheckIntervalRef.current = null;
-          }
-
-          updateConnected(true);
-        };
-
-        ws.onmessage = async (event) => {
-          if (!isMountedRef.current) return;
-
-          try {
-            const data = JSON.parse(event.data);
-
-            if (data.type === 'new-data') {
-              await peekRelayData();
-            } else if (data.type === 'connected' && data.pendingCount > 0) {
-              await peekRelayData();
-            }
-          } catch {
-            // ignore parse errors
-          }
-        };
-
-        ws.onclose = () => {
-          if (!isMountedRef.current) return;
-          wsConnectedRef.current = false;
-          wsRef.current = null;
-          updateConnected(false);
-          startPollingFallback();
-          scheduleReconnect();
-        };
-
-        ws.onerror = () => {
-          // onclose fires after onerror
-        };
-      } catch {
-        wsConnectedRef.current = false;
-        startPollingFallback();
-        scheduleReconnect();
-      }
-    };
-
-    const scheduleReconnect = () => {
-      if (!isMountedRef.current) return;
-      if (wsReconnectTimeoutRef.current) return;
-
-      const attempt = wsReconnectAttemptRef.current;
-      const delay = WS_RECONNECT_DELAYS[Math.min(attempt, WS_RECONNECT_DELAYS.length - 1)];
-
-      wsReconnectTimeoutRef.current = window.setTimeout(() => {
-        wsReconnectTimeoutRef.current = null;
-        wsReconnectAttemptRef.current++;
-        connectWebSocket();
-      }, delay);
-    };
-
-    const startPollingFallback = () => {
-      if (relayCheckIntervalRef.current) return;
-      if (wsConnectedRef.current) return;
-
-      const scheduleNextPoll = () => {
+      relayCheckIntervalRef.current = window.setTimeout(async () => {
+        relayCheckIntervalRef.current = null;
         if (!isMountedRef.current) return;
-        if (wsConnectedRef.current) return;
 
-        const timeSinceActivity = Date.now() - lastActivityTimeRef.current;
-        const interval =
-          timeSinceActivity < ACTIVE_THRESHOLD_MS
-            ? RELAY_CHECK_INTERVAL_ACTIVE
-            : RELAY_CHECK_INTERVAL_IDLE;
-
-        relayCheckIntervalRef.current = window.setTimeout(async () => {
-          relayCheckIntervalRef.current = null;
-          if (!isMountedRef.current) return;
-          if (wsConnectedRef.current) return;
-
-          if (document.visibilityState === 'hidden') {
-            scheduleNextPoll();
-            return;
-          }
-
-          const result = await checkRelay();
-          if (!isMountedRef.current) return;
-          updateConnected(result !== 'disconnected');
+        if (document.visibilityState === 'hidden') {
           scheduleNextPoll();
-        }, interval);
-      };
+          return;
+        }
 
-      scheduleNextPoll();
+        const result = await checkRelay();
+        if (!isMountedRef.current) return;
+        updateConnected(result !== 'disconnected');
+        scheduleNextPoll();
+      }, interval);
     };
 
-    connectWebSocket();
+    scheduleNextPoll();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-      if (wsReconnectTimeoutRef.current) {
-        clearTimeout(wsReconnectTimeoutRef.current);
-        wsReconnectTimeoutRef.current = null;
-      }
       if (relayCheckIntervalRef.current) {
         clearTimeout(relayCheckIntervalRef.current);
         relayCheckIntervalRef.current = null;
       }
     };
-  }, [enabled, relayUrl, checkRelay, peekRelayData, updateConnected]);
+  }, [enabled, sessionCode, checkRelay, updateConnected]);
 
   // --- Visibility change effect ---
   useEffect(() => {
     if (!enabled) return;
+    if (!sessionCode) return;
 
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== 'visible' || !isMountedRef.current) return;
 
       lastActivityTimeRef.current = Date.now();
 
-      // If WS is connected, just ping
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'ping' }));
-        return;
-      }
-
-      // WS not connected — do HTTP check
       const result = await checkRelay();
       if (!isMountedRef.current) return;
       updateConnected(result !== 'disconnected');
@@ -439,7 +372,7 @@ export function useRelayConnection({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [enabled, checkRelay, updateConnected]);
+  }, [enabled, sessionCode, checkRelay, updateConnected]);
 
   return {
     connected,

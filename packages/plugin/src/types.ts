@@ -172,6 +172,9 @@ export type UIMessage =
   // === SETUP WIZARD ===
   | { type: 'get-setup-skipped' } // Response: 'setup-skipped-loaded'
   | { type: 'save-setup-skipped' } // Persist that user skipped setup
+  // === CLOUD RELAY SESSION CODE ===
+  | { type: 'get-session-code' } // Response: 'session-code-loaded'
+  | { type: 'set-session-code'; code: string } // Persist the 6-char session code
   // === PARSING RULES ===
   | { type: 'get-parsing-rules' } // Response: 'parsing-rules-loaded'
   | { type: 'check-remote-rules-update' } // Response: 'rules-update-available' (if update exists)
@@ -239,6 +242,8 @@ export type CodeMessage =
   | { type: 'log-level-loaded'; level: number } // Current log level
   // === SETUP WIZARD ===
   | { type: 'setup-skipped-loaded'; skipped: boolean } // Response to get-setup-skipped
+  // === CLOUD RELAY SESSION CODE ===
+  | { type: 'session-code-loaded'; sessionCode: string | null } // Response to get-session-code
   // === DEBUG ===
   | { type: 'debug-report'; report: unknown } // Debug report from page-creator
   // === COMPONENT INSPECTOR ===

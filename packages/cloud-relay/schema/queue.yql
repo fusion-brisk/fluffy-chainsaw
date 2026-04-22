@@ -1,0 +1,18 @@
+-- Cloud relay queue storage. One row per push; session isolates users.
+-- TTL removes rows 24h after expires_at — clients don't need to clean up.
+-- Primary key chosen so all session operations are point lookups / range scans.
+
+CREATE TABLE IF NOT EXISTS queue_entries (
+  session_id     Utf8 NOT NULL,
+  entry_id       Utf8 NOT NULL,
+  payload        Json,
+  meta           Json,
+  pushed_at      Timestamp,
+  acknowledged   Bool,
+  last_peeked_at Timestamp,
+  expires_at     Timestamp,
+  PRIMARY KEY (session_id, entry_id)
+)
+WITH (
+  TTL = Interval("PT24H") ON expires_at
+);
