@@ -70,4 +70,16 @@ export interface YcHttpResponse {
 
 // ─── Dispatcher ─────────────────────────────────────────────────────────────
 
-export type Route = (event: YcHttpEvent, sessionId: string) => Promise<YcHttpResponse>;
+/**
+ * Routes return a looser response than `YcHttpResponse` — `body` can be any
+ * plain value (object, string, undefined). The `cors()` wrapper in
+ * `handler.ts` normalises it into the string-only YC contract before sending.
+ */
+export interface RouteResult {
+  statusCode: number;
+  headers?: Record<string, string>;
+  body?: unknown;
+  isBase64Encoded?: boolean;
+}
+
+export type Route = (event: YcHttpEvent, sessionId: string) => Promise<RouteResult>;

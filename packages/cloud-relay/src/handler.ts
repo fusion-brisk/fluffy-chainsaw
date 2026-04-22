@@ -5,17 +5,24 @@
  *   - CORS preflight (OPTIONS → 204)
  *   - `/health` (always available, no sessionId)
  *   - session extraction (400 if missing/invalid)
- *   - route dispatch via the ROUTES map (filled in by Task 4)
+ *   - route dispatch via the ROUTES map
  *   - 404 for unknown paths, 500 for uncaught errors
  *   - consistent CORS headers on every response
  *
- * The ROUTES map is intentionally empty at this stage — Task 4 adds the
- * push/peek/ack/reject/status/clear route modules and registers them here.
+ * Each route lives in `src/routes/*.ts` and returns a looser `RouteResult`
+ * ({ statusCode, body?: unknown, headers? }). The `cors()` wrapper below
+ * serialises `body` into the string-only YC contract.
  */
 
+import { ack } from './routes/ack';
+import { clear } from './routes/clear';
+import { health } from './routes/health';
+import { peek } from './routes/peek';
+import { push } from './routes/push';
+import { reject } from './routes/reject';
+import { status } from './routes/status';
 import { extractSessionId } from './session';
 import type { Route, YcHttpEvent, YcHttpResponse } from './types';
-import { CLOUD_RELAY_VERSION } from './version';
 
 const JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
@@ -51,21 +58,18 @@ function cors(res: CorsInput): YcHttpResponse {
   };
 }
 
-async function healthRoute(_event: YcHttpEvent): Promise<YcHttpResponse> {
-  return cors({
-    statusCode: 200,
-    body: {
-      ok: true,
-      version: CLOUD_RELAY_VERSION,
-      timestamp: Date.now(),
-    },
-  });
-}
-
 /**
- * Route table — keys are `${METHOD} ${path}`. Populated by Task 4.
+ * Route table — keys are `${METHOD} ${path}`. `/health` is dispatched before
+ * session extraction (it has no sessionId) so it is NOT listed here.
  */
-const ROUTES: Record<string, Route> = {};
+const ROUTES: Record<string, Route> = {
+  'POST /push': push,
+  'GET /peek': peek,
+  'POST /ack': ack,
+  'POST /reject': reject,
+  'GET /status': status,
+  'DELETE /clear': clear,
+};
 
 export async function handler(event: YcHttpEvent): Promise<YcHttpResponse> {
   if (event.httpMethod === 'OPTIONS') {
@@ -75,7 +79,8 @@ export async function handler(event: YcHttpEvent): Promise<YcHttpResponse> {
   const path = event.path || '/';
 
   if (path === '/health') {
-    return healthRoute(event);
+    const result = await health(event, '');
+    return cors(result);
   }
 
   const sessionId = extractSessionId(event);
@@ -91,14 +96,7 @@ export async function handler(event: YcHttpEvent): Promise<YcHttpResponse> {
 
   try {
     const result = await route(event, sessionId);
-    // Routes already return `YcHttpResponse` — wrap it through `cors` so the
-    // CORS headers are merged on top regardless of what the route set.
-    return cors({
-      statusCode: result.statusCode,
-      headers: result.headers,
-      body: result.body,
-      isBase64Encoded: result.isBase64Encoded,
-    });
+    return cors(result);
   } catch (err) {
     console.error('[handler]', err);
     return cors({ statusCode: 500, body: { error: 'Internal error' } });
