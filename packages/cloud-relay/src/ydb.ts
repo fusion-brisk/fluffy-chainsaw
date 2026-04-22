@@ -17,24 +17,9 @@
 
 import { Driver, getCredentialsFromEnv, TypedData, TypedValues, Types, Ydb } from 'ydb-sdk';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+import type { QueueEntry, QueueEntryMeta, QueueEntryPayload, QueueStatus } from './types';
 
-export interface QueueEntry {
-  sessionId: string;
-  entryId: string;
-  payload: Record<string, unknown>;
-  meta: Record<string, unknown>;
-  pushedAt: Date;
-  acknowledged: boolean;
-  lastPeekedAt: Date | null;
-  expiresAt: Date;
-}
-
-export interface QueueStatus {
-  queueSize: number;
-  pendingCount: number;
-  firstEntry: QueueEntry | null;
-}
+export type { QueueEntry, QueueEntryMeta, QueueEntryPayload, QueueStatus };
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -162,8 +147,8 @@ function rowToEntry(row: YdbRow): QueueEntry {
   return {
     sessionId: String(row.session_id ?? ''),
     entryId: String(row.entry_id ?? ''),
-    payload: parseJsonColumn(row.payload),
-    meta: parseJsonColumn(row.meta),
+    payload: parseJsonColumn(row.payload) as QueueEntryPayload,
+    meta: parseJsonColumn(row.meta) as QueueEntryMeta,
     pushedAt: asDate(row.pushed_at),
     acknowledged: Boolean(row.acknowledged),
     lastPeekedAt: asOptionalDate(row.last_peeked_at),
