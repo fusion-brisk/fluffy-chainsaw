@@ -9,7 +9,8 @@
     "packages/plugin",
     "packages/extension",
     "packages/relay",
-    "packages/jsx-emitter"
+    "packages/jsx-emitter",
+    "packages/cloud-relay"
   ],
   "scripts": {
     "build": "npm run build -w packages/plugin",
