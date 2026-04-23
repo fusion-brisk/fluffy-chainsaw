@@ -1,376 +1,313 @@
 /**
- * SetupFlow -- 3-step onboarding wizard
+ * SetupFlow — single-screen onboarding wizard.
  *
- * Step 1: Session code (6-char A-Z0-9, generated once, copied into Chrome extension)
- * Step 2: Browser extension (download CRX, paste session code, auto-detects installation)
- * Step 3: Ready (instructions + "Start" button)
+ * Old 3-step wizard replaced by one screen with three inline states:
+ *   - idle:      primary "Подключить расширение" + secondary "У меня нет расширения"
+ *   - waiting:   spinner + "Ждём подтверждение…" + "Отмена / повторить"
+ *   - timed-out: after 15s no pair-ack → "Расширение не отвечает" + auto-expanded
+ *                install instructions + retry button
  *
- * Auto-skips completed steps with a brief "already connected" confirmation.
+ * Transitions out of SetupFlow are driven by the parent (`handlePaired` →
+ * `markExtensionInstalled` → `appState='checking'`). We don't own a "next"
+ * button; once paired the parent unmounts us automatically.
+ *
+ * Fallback (install instructions) always visible as secondary action — 90% of
+ * first-time users don't have the extension yet, so the install path must not
+ * hide behind a toggle.
+ *
+ * Offline detection: when `relayConnected === false` we show a banner above
+ * the primary button so the user knows why pairing won't complete.
  */
 
-import React, { memo, useCallback, useState, useEffect, useRef, useMemo } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { EXTENSION_URLS } from '../../config';
-import { sendMessageToPlugin } from '../../utils/index';
-import { StepIndicator } from './StepIndicator';
+import { buildPairUrl } from '../../utils/index';
 
 interface SetupFlowProps {
+  /** Pre-generated session code (baked into the pair URL; never shown to user). */
   sessionCode: string | null;
-  onSessionCodeChange: (code: string) => void;
+  /** Reachability of the cloud relay — offline banner driver. */
   relayConnected: boolean;
+  /** Set true when pair-ack lands; parent transitions out at this point. */
   extensionInstalled: boolean;
   onComplete: () => void;
   onBack: () => void;
+  /**
+   * Repair mode — user opened SetupFlow from the menu with extension already
+   * flagged as installed. Shows a different copy, makes the button "Переподключить",
+   * and keeps the explanation about why this exists.
+   */
+  allowRepair?: boolean;
 }
 
-interface WizardStep {
-  id: string;
-  title: string;
-  description: string;
-}
+/** How long to wait for pair-ack before surfacing the timeout UI. */
+const PAIR_TIMEOUT_MS = 15_000;
 
-const STEPS: readonly WizardStep[] = [
-  {
-    id: 'session',
-    title: 'Session code',
-    description: 'Код связывает Figma-плагин с расширением браузера через Cloud Relay.',
-  },
-  {
-    id: 'extension',
-    title: 'Расширение браузера',
-    description: 'Расширение собирает данные с поисковой выдачи',
-  },
-  {
-    id: 'ready',
-    title: 'Всё готово!',
-    description: 'Откройте поиск Яндекса — данные придут автоматически',
-  },
-];
-
-const SESSION_CODE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-
-function generateSessionCode(): string {
-  let code = '';
-  for (let i = 0; i < 6; i++) {
-    code += SESSION_CODE_CHARS.charAt(Math.floor(Math.random() * SESSION_CODE_CHARS.length));
-  }
-  return code;
-}
+type PairState = 'idle' | 'waiting' | 'timed-out';
 
 export const SetupFlow: React.FC<SetupFlowProps> = memo(
   ({
     sessionCode,
-    onSessionCodeChange,
     relayConnected,
     extensionInstalled,
     onComplete,
     onBack,
+    allowRepair = false,
   }) => {
-    const [currentStep, setCurrentStep] = useState(() => {
-      if (!sessionCode) return 0;
-      if (!extensionInstalled) return 1;
-      return 2;
-    });
-    const [completedSteps, setCompletedSteps] = useState<Set<number>>(() => {
-      const initial = new Set<number>();
-      if (sessionCode) initial.add(0);
-      if (extensionInstalled) initial.add(1);
-      return initial;
-    });
-    const [autoSkipMessage, setAutoSkipMessage] = useState<string | null>(null);
-    const [copied, setCopied] = useState(false);
-    const autoAdvanceTimerRef = useRef<number | null>(null);
-    const copyTimerRef = useRef<number | null>(null);
+    // In initial onboarding, if the extension is already flagged installed we
+    // shouldn't render at all — the parent transition effect will unmount us
+    // within one React tick. `onComplete()` nudges the parent in case the
+    // transition hasn't fired yet (defensive).
+    useEffect(() => {
+      if (!allowRepair && extensionInstalled) {
+        onComplete();
+      }
+    }, [allowRepair, extensionInstalled, onComplete]);
 
-    const step = STEPS[currentStep];
-    const isLastStep = currentStep === STEPS.length - 1;
-    const isSessionStep = currentStep === 0;
-    const canAdvance = !isSessionStep || !!sessionCode;
+    const [pairState, setPairState] = useState<PairState>('idle');
+    const timeoutRef = useRef<number | null>(null);
 
-    // Memoize steps array for StepIndicator (stable reference)
-    const indicatorSteps = useMemo(() => STEPS.map((s) => ({ id: s.id, title: s.title })), []);
-
-    // Cleanup timers on unmount
+    // Cleanup pending timeout on unmount.
     useEffect(() => {
       return () => {
-        if (autoAdvanceTimerRef.current) {
-          clearTimeout(autoAdvanceTimerRef.current);
-        }
-        if (copyTimerRef.current) {
-          clearTimeout(copyTimerRef.current);
-        }
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
       };
     }, []);
 
-    const markComplete = useCallback((stepIndex: number) => {
-      setCompletedSteps((prev) => {
-        const next = new Set(prev);
-        next.add(stepIndex);
-        return next;
-      });
-    }, []);
-
-    const goToStep = useCallback((stepIndex: number) => {
-      if (autoAdvanceTimerRef.current) {
-        clearTimeout(autoAdvanceTimerRef.current);
-        autoAdvanceTimerRef.current = null;
+    // When pair-ack arrives, the parent unmounts us. But we also want to clear
+    // the local timer in case something raced — defensive cleanup.
+    useEffect(() => {
+      if (extensionInstalled && timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
-      setAutoSkipMessage(null);
-      setCurrentStep(stepIndex);
+    }, [extensionInstalled]);
+
+    const startPairWaiting = useCallback(() => {
+      setPairState('waiting');
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => {
+        timeoutRef.current = null;
+        setPairState('timed-out');
+      }, PAIR_TIMEOUT_MS);
     }, []);
 
-    // Auto-detect: Step 0 (session code already generated)
-    useEffect(() => {
-      if (currentStep !== 0 || !sessionCode) return;
-
-      markComplete(0);
-      setAutoSkipMessage('Session code уже настроен');
-
-      autoAdvanceTimerRef.current = window.setTimeout(() => {
-        autoAdvanceTimerRef.current = null;
-        goToStep(1);
-      }, 1000);
-    }, [currentStep, sessionCode, markComplete, goToStep]);
-
-    // Auto-detect: Step 1 (extension)
-    useEffect(() => {
-      if (currentStep !== 1 || !extensionInstalled) return;
-
-      markComplete(1);
-      setAutoSkipMessage('Уже подключено');
-
-      autoAdvanceTimerRef.current = window.setTimeout(() => {
-        autoAdvanceTimerRef.current = null;
-        goToStep(2);
-      }, 1000);
-    }, [currentStep, extensionInstalled, markComplete, goToStep]);
-
-    // Live detection: mark steps as completed when signals arrive
-    useEffect(() => {
-      if (sessionCode) markComplete(0);
-    }, [sessionCode, markComplete]);
-
-    useEffect(() => {
-      if (extensionInstalled) markComplete(1);
-    }, [extensionInstalled, markComplete]);
-
-    const handleGenerate = useCallback(() => {
-      const code = generateSessionCode();
-      onSessionCodeChange(code);
-      sendMessageToPlugin({ type: 'set-session-code', code });
-    }, [onSessionCodeChange]);
-
-    const handleCopy = useCallback(() => {
+    const handlePair = useCallback(() => {
       if (!sessionCode) return;
+      // Opens the pair URL in a new browser tab. Extension's background SW
+      // catches `?contentify_pair=` on ya.ru, stores the code, pushes a pair-ack
+      // to the relay. Plugin polling picks up the ack → extensionInstalled=true
+      // → parent unmounts SetupFlow.
+      window.open(buildPairUrl(sessionCode), '_blank');
+      startPairWaiting();
+    }, [sessionCode, startPairWaiting]);
 
-      const setFeedback = () => {
-        setCopied(true);
-        if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-        copyTimerRef.current = window.setTimeout(() => {
-          setCopied(false);
-          copyTimerRef.current = null;
-        }, 2000);
-      };
+    const handleRetry = useCallback(() => {
+      handlePair();
+    }, [handlePair]);
 
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard
-          .writeText(sessionCode)
-          .then(setFeedback)
-          .catch(() => {
-            // Fallback to legacy execCommand path (Figma iframe may block modern API)
-            try {
-              const ta = document.createElement('textarea');
-              ta.value = sessionCode;
-              ta.style.position = 'fixed';
-              ta.style.opacity = '0';
-              document.body.appendChild(ta);
-              ta.select();
-              document.execCommand('copy');
-              document.body.removeChild(ta);
-              setFeedback();
-            } catch {
-              /* silently ignore */
-            }
-          });
+    const handleCancelWait = useCallback(() => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
-    }, [sessionCode]);
-
-    const handleNext = useCallback(() => {
-      if (!canAdvance) return;
-      if (isLastStep) {
-        onComplete();
-      } else {
-        markComplete(currentStep);
-        goToStep(currentStep + 1);
-      }
-    }, [canAdvance, currentStep, isLastStep, onComplete, markComplete, goToStep]);
-
-    const handlePrev = useCallback(() => {
-      if (currentStep > 0) {
-        goToStep(currentStep - 1);
-      } else {
-        onBack();
-      }
-    }, [currentStep, goToStep, onBack]);
-
-    const handleSkip = useCallback(() => {
-      if (isLastStep) {
-        onComplete();
-      } else {
-        // Never skip the session-code step — it's required for cloud relay.
-        if (isSessionStep) return;
-        goToStep(currentStep + 1);
-      }
-    }, [currentStep, isLastStep, isSessionStep, onComplete, goToStep]);
+      setPairState('idle');
+    }, []);
 
     const handleDownloadExtension = useCallback(() => {
       window.open(EXTENSION_URLS.EXTENSION_DOWNLOAD, '_blank');
     }, []);
 
-    /** Render step-specific content */
-    const renderStepContent = (stepIndex: number) => {
-      // Show auto-skip confirmation (only for non-current steps that are already satisfied)
-      if (autoSkipMessage) {
-        return (
-          <div className="setup-flow__auto-skip">
-            <span className="setup-flow__checkmark">&#10003;</span>
-            <span>{autoSkipMessage}</span>
-          </div>
-        );
-      }
+    const isRepair = allowRepair && extensionInstalled;
+    const title = isRepair
+      ? 'Переподключение расширения'
+      : allowRepair
+        ? 'Подключение расширения'
+        : 'Подключите расширение Яндекса';
 
-      switch (stepIndex) {
-        case 0:
-          return (
-            <>
-              <p className="setup-flow__hint">
-                Нажмите «Сгенерировать», затем скопируйте код в настройки расширения Chrome (Options
-                &#8594; Session code).
-              </p>
-              {sessionCode ? (
-                <div
-                  className="setup-flow__session-code"
-                  role="group"
-                  aria-label="Session code и копирование"
-                >
-                  <code
-                    className="setup-flow__session-code-value"
-                    aria-label={`Код: ${sessionCode}`}
-                  >
-                    {sessionCode}
-                  </code>
-                  <button
-                    type="button"
-                    className="setup-flow__session-code-copy"
-                    onClick={handleCopy}
-                    aria-label={copied ? 'Код скопирован' : 'Скопировать session code'}
-                  >
-                    {copied ? '✓' : 'Copy'}
-                  </button>
-                </div>
-              ) : null}
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleGenerate}
-                aria-label={
-                  sessionCode ? 'Перегенерировать session code' : 'Сгенерировать session code'
-                }
-              >
-                {sessionCode ? 'Перегенерировать' : 'Сгенерировать'}
-              </button>
-            </>
-          );
+    const description = isRepair
+      ? 'Плагин уже связан. Переподключите, если расширение не отвечает — session code перезапишется на обеих сторонах.'
+      : 'Один клик — плагин свяжется с браузером автоматически.';
 
-        case 1:
-          return extensionInstalled ? (
-            <div className="setup-flow__auto-skip">
-              <span className="setup-flow__checkmark">&#10003;</span>
-              <span>Расширение установлено</span>
-            </div>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={handleDownloadExtension}
-                aria-label="Скачать расширение браузера"
-              >
-                Скачать расширение
-              </button>
-              <p className="setup-flow__hint">
-                Откройте chrome://extensions, включите режим разработчика, перетащите скачанный .crx
-                файл на страницу. Не забудьте вставить session code в настройки расширения.
-              </p>
-            </>
-          );
-
-        case 2:
-          return (
-            <p className="setup-flow__hint">
-              Введите запрос &#8594; дождитесь SERP &#8594; данные появятся здесь
-            </p>
-          );
-
-        default:
-          return null;
-      }
-    };
-
-    if (!step) return null;
-
-    // relayConnected is kept in the prop signature for future use (cloud reachability check)
-    // but is not currently gating any UI in the new flow.
-    void relayConnected;
+    const primaryLabel = isRepair ? 'Переподключить расширение' : 'Подключить расширение';
 
     return (
-      <div className="setup-flow view-animate-in">
-        <div className="setup-flow__progress">
-          <StepIndicator
-            steps={indicatorSteps}
-            currentStep={currentStep}
-            completedSteps={completedSteps}
-          />
-        </div>
-
+      <div className="setup-flow setup-flow--single view-animate-in">
         <div className="setup-flow__content">
-          <h2 className="setup-flow__title">{step.title}</h2>
-          <p className="setup-flow__description">{step.description}</p>
-          {renderStepContent(currentStep)}
-        </div>
-
-        <div className="setup-flow__footer">
-          {currentStep > 0 && (
-            <button
-              type="button"
-              className="btn-text"
-              onClick={handlePrev}
-              aria-label="Предыдущий шаг"
+          <div className="setup-flow__illustration" aria-hidden>
+            {/* Chrome ↔ Figma pairing glyph (static, purely decorative) */}
+            <svg
+              width="80"
+              height="56"
+              viewBox="0 0 80 56"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
             >
-              &#8592; Назад
-            </button>
+              <circle
+                cx="20"
+                cy="28"
+                r="18"
+                stroke="var(--figma-color-border-brand, #0d99ff)"
+                strokeWidth="2"
+              />
+              <text
+                x="20"
+                y="32"
+                textAnchor="middle"
+                fill="var(--figma-color-text, #333)"
+                fontSize="14"
+                fontFamily="sans-serif"
+              ></text>
+              <path
+                d="M 42 28 L 58 28 M 54 24 L 58 28 L 54 32"
+                stroke="var(--figma-color-text-secondary, #888)"
+                strokeWidth="2"
+                fill="none"
+                strokeLinecap="round"
+              />
+              <rect
+                x="62"
+                y="14"
+                width="14"
+                height="28"
+                rx="2"
+                stroke="var(--figma-color-border-brand, #0d99ff)"
+                strokeWidth="2"
+              />
+              <line
+                x1="65"
+                y1="20"
+                x2="73"
+                y2="20"
+                stroke="var(--figma-color-border-brand, #0d99ff)"
+                strokeWidth="2"
+              />
+              <line
+                x1="65"
+                y1="28"
+                x2="73"
+                y2="28"
+                stroke="var(--figma-color-border-brand, #0d99ff)"
+                strokeWidth="2"
+              />
+              <line
+                x1="65"
+                y1="36"
+                x2="70"
+                y2="36"
+                stroke="var(--figma-color-border-brand, #0d99ff)"
+                strokeWidth="2"
+              />
+            </svg>
+          </div>
+
+          <h2 className="setup-flow__title">{title}</h2>
+          <p className="setup-flow__description">{description}</p>
+
+          {!relayConnected && (
+            <div className="setup-flow__offline" role="alert">
+              <span className="setup-flow__offline-icon" aria-hidden>
+                ⚠
+              </span>
+              <span>Нет связи с облаком — проверьте интернет</span>
+            </div>
           )}
-          <div className="setup-flow__footer-right">
-            {!isLastStep && !isSessionStep && (
+
+          {/* IDLE — primary pair button + install fallback always visible */}
+          {pairState === 'idle' && (
+            <>
+              <button
+                type="button"
+                className="btn-primary setup-flow__primary"
+                onClick={handlePair}
+                disabled={!sessionCode || !relayConnected}
+                aria-label={`${primaryLabel} — открыть ya.ru для авто-сопряжения`}
+              >
+                {primaryLabel}
+              </button>
+              <p className="setup-flow__hint">
+                Откроется вкладка ya.ru и закроется сама, как только расширение ответит.
+              </p>
+
+              <div className="setup-flow__divider" aria-hidden />
+
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleDownloadExtension}
+                aria-label="Скачать расширение для Chrome"
+              >
+                У меня нет расширения
+              </button>
+              <p className="setup-flow__hint setup-flow__hint--muted">
+                Скачайте .crx → <code>chrome://extensions</code> → включите режим разработчика →
+                перетащите файл на страницу. Потом вернитесь сюда и нажмите «Подключить».
+              </p>
+            </>
+          )}
+
+          {/* WAITING — spinner + cancel */}
+          {pairState === 'waiting' && (
+            <div className="setup-flow__waiting" role="status" aria-live="polite">
+              <div className="setup-flow__spinner" aria-hidden />
+              <p className="setup-flow__waiting-title">Ждём ответ от расширения…</p>
+              <p className="setup-flow__hint">Обычно занимает 2–3 секунды.</p>
               <button
                 type="button"
                 className="btn-text"
-                onClick={handleSkip}
-                aria-label="Пропустить шаг"
+                onClick={handleCancelWait}
+                aria-label="Отменить ожидание"
               >
-                Пропустить
+                Отменить
               </button>
-            )}
+            </div>
+          )}
+
+          {/* TIMED-OUT — install help auto-expanded + retry */}
+          {pairState === 'timed-out' && (
+            <div className="setup-flow__timeout" role="alert">
+              <p className="setup-flow__timeout-title">Расширение не ответило</p>
+              <p className="setup-flow__hint">
+                Возможно, оно ещё не установлено или установлено в другом браузере. Установите его и
+                попробуйте снова.
+              </p>
+              <div className="setup-flow__action-row">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleDownloadExtension}
+                  aria-label="Скачать расширение"
+                >
+                  Скачать расширение
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleRetry}
+                  disabled={!sessionCode || !relayConnected}
+                  aria-label="Попробовать подключиться ещё раз"
+                >
+                  Попробовать снова
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer: only a back button in repair mode; no forward navigation —
+            the parent transitions out on pair-ack. */}
+        {allowRepair && (
+          <div className="setup-flow__footer">
             <button
               type="button"
-              className="btn-primary setup-flow__btn-next"
-              onClick={handleNext}
-              disabled={!canAdvance}
-              aria-label={isLastStep ? 'Начать работу' : 'Следующий шаг'}
+              className="btn-text"
+              onClick={onBack}
+              aria-label="Закрыть настройки"
             >
-              {isLastStep ? 'Начать' : 'Далее \u2192'}
+              &#8592; Закрыть
             </button>
           </div>
-        </div>
+        )}
       </div>
     );
   },

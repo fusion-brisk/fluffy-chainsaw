@@ -243,7 +243,7 @@ button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text)
     .update-banner-close
   ):not(.cloud-unreachable-banner__close):not(.compact-strip__menu-btn):not(
     .compact-strip__menu-item
-  ):not(.panel-layout__back) {
+  ):not(.panel-layout__back):not(.onboarding-tip__close) {
   background-color: var(--figma-color-bg-hover, #f5f5f5);
 }
 
@@ -1013,41 +1013,153 @@ button:disabled {
   width: auto;
 }
 
-.setup-flow__session-code {
+/* ============================================
+   SETUP FLOW — single-screen onboarding
+   ============================================ */
+
+/* Splash — animated loader shown before async clientStorage reads resolve.
+   Designed to fit the compact 320×56 window so returning users never grow-then-
+   shrink during startup. Visual style (12px spinner + 12px secondary text)
+   matches CompactStrip 'checking' mode so the splash→strip handoff feels
+   continuous rather than like a fresh render. */
+.setup-flow__splash {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--figma-color-bg, #ffffff);
+  box-sizing: border-box;
+}
+
+.setup-flow__splash-label {
+  margin: 0;
+  font-size: var(--font-size-sm, 12px);
+  color: var(--figma-color-text-secondary, #888);
+  white-space: nowrap;
+}
+
+/* Generic spinner — splash + waiting states share it */
+.setup-flow__spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--figma-color-border, #e5e5e5);
+  border-top-color: var(--figma-color-border-brand, #0d99ff);
+  border-radius: 50%;
+  animation: setupFlowSpin 0.8s linear infinite;
+}
+
+@keyframes setupFlowSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.setup-flow--single .setup-flow__content {
+  padding: 24px 20px 20px;
+  gap: 12px;
+}
+
+.setup-flow__illustration {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.setup-flow__primary {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.setup-flow__divider {
+  height: 1px;
+  background: var(--figma-color-border, #e5e5e5);
+  margin: 8px 0;
+}
+
+.setup-flow__hint--muted {
+  color: var(--figma-color-text-tertiary, #b3b3b3);
+  font-size: var(--font-size-xs, 11px);
+  line-height: 1.4;
+}
+
+.setup-flow__hint--muted code {
+  padding: 0 4px;
+  background: var(--figma-color-bg-secondary, #f5f5f5);
+  border-radius: 3px;
+  font-family: var(--font-family-mono, 'SFMono-Regular', Consolas, monospace);
+}
+
+.setup-flow__offline {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  background: var(--figma-color-bg-secondary, #f5f5f5);
-  border: 1px solid var(--figma-color-border, #e5e5e5);
+  gap: 6px;
+  padding: 8px 10px;
+  background: color-mix(
+    in srgb,
+    var(--figma-color-text-warning, #c4841d) 12%,
+    var(--figma-color-bg, #ffffff)
+  );
+  border: 1px solid color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 30%, transparent);
   border-radius: var(--radius-small, 6px);
-}
-
-.setup-flow__session-code-value {
-  flex: 1;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: var(--font-size-xl, 16px);
-  font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: 2px;
-  color: var(--figma-color-text, #333333);
-  user-select: all;
-}
-
-.setup-flow__session-code-copy {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  background: var(--figma-color-bg, #ffffff);
-  border: 1px solid var(--figma-color-border, #e5e5e5);
-  border-radius: var(--radius-small, 6px);
-  color: var(--figma-color-text, #333333);
+  color: var(--figma-color-text, #333);
   font-size: var(--font-size-sm, 12px);
-  font-weight: var(--font-weight-medium, 500);
-  cursor: pointer;
-  transition: background var(--duration-micro, 120ms) ease-out;
 }
 
-.setup-flow__session-code-copy:hover:not(:disabled) {
-  background: var(--figma-color-bg-hover, #f5f5f5);
+.setup-flow__offline-icon {
+  flex-shrink: 0;
+  color: var(--figma-color-text-warning, #c4841d);
+}
+
+.setup-flow__waiting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.setup-flow__waiting-title {
+  margin: 0;
+  font-size: var(--font-size-base, 13px);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--figma-color-text, #333);
+}
+
+.setup-flow__timeout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  background: color-mix(
+    in srgb,
+    var(--figma-color-text-warning, #c4841d) 10%,
+    var(--figma-color-bg, #ffffff)
+  );
+  border: 1px solid color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 30%, transparent);
+  border-radius: var(--radius-small, 6px);
+  animation: bannerSlideIn 0.25s ease-out;
+}
+
+.setup-flow__timeout-title {
+  margin: 0;
+  font-size: var(--font-size-base, 13px);
+  font-weight: var(--font-weight-semibold, 600);
+  color: var(--figma-color-text-warning, #c4841d);
+}
+
+.setup-flow__action-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.setup-flow__action-row > button {
+  flex: 1;
 }
 
 /* ============================================
@@ -1232,6 +1344,89 @@ button:disabled {
 
 .cloud-unreachable-banner__retry {
   font-size: var(--font-size-sm, 12px);
+}
+
+/* ============================================
+   PAIRED BANNER — transient "extension connected" flash
+   ============================================ */
+.paired-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(
+    in srgb,
+    var(--status-connected, #34d399) 14%,
+    var(--figma-color-bg, #ffffff)
+  );
+  border: 1px solid color-mix(in srgb, var(--status-connected, #34d399) 40%, transparent);
+  color: var(--figma-color-text, #333333);
+  font-size: var(--font-size-sm, 12px);
+  animation: bannerSlideIn 0.25s ease-out;
+}
+
+.paired-banner__icon {
+  flex-shrink: 0;
+  color: var(--status-connected, #34d399);
+  font-size: var(--font-size-base, 13px);
+  line-height: 1;
+}
+
+.paired-banner__text {
+  flex: 1;
+  font-weight: var(--font-weight-medium, 500);
+}
+
+/* ============================================
+   ONBOARDING TIP — one-time first-run hint on CompactStrip
+   ============================================ */
+.onboarding-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(
+    in srgb,
+    var(--figma-color-border-brand, #0d99ff) 8%,
+    var(--figma-color-bg, #ffffff)
+  );
+  border: 1px solid color-mix(in srgb, var(--figma-color-border-brand, #0d99ff) 28%, transparent);
+  color: var(--figma-color-text, #333);
+  font-size: var(--font-size-sm, 12px);
+  line-height: 1.4;
+  animation: bannerSlideIn 0.25s ease-out;
+}
+
+.onboarding-tip__icon {
+  flex-shrink: 0;
+  font-size: var(--font-size-base, 13px);
+  line-height: 1;
+}
+
+.onboarding-tip__text {
+  flex: 1;
+  margin: 0;
+}
+
+.onboarding-tip__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--figma-color-text-secondary, #888);
+  font-size: var(--font-size-xl, 16px);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.6;
+  font-family: inherit;
+}
+
+.onboarding-tip__close:hover {
+  opacity: 1;
 }
 
 /* ============================================

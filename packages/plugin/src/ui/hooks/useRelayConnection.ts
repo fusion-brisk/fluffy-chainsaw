@@ -25,6 +25,17 @@ const RELAY_CHECK_INTERVAL_ACTIVE = 1000;
 const RELAY_CHECK_INTERVAL_IDLE = 5000;
 const ACTIVE_THRESHOLD_MS = 10000;
 
+// /status fetch abort — must outlast Yandex Cloud API Gateway cold starts, which
+// take 3-5s on first hit after idle. Previously 2000ms, which reliably aborted the
+// very first poll and made the plugin look offline during the warmup window.
+const STATUS_FETCH_TIMEOUT_MS = 8000;
+
+// Number of consecutive poll failures required before flipping `connected`
+// from true → false. Single network blips (Figma iframe losing focus, transient
+// gateway 5xx, slow route) shouldn't produce a visible "Relay офлайн" flash
+// right after a confirmed successful connection.
+const DISCONNECT_CONFIRM_THRESHOLD = 2;
+
 export interface RelayDataEvent extends ParsedRelayData {
   entryId: string;
   payload: unknown;
@@ -44,6 +55,18 @@ export interface UseRelayConnectionOptions {
   onDataReceived: (data: RelayDataEvent) => void;
   /** Called when connection status changes */
   onConnectionChange: (connected: boolean) => void;
+  /**
+   * Called when the extension confirms the auto-pair URL handshake via a
+   * `sourceType: 'pair-ack'` payload. The hook ack-s the entry internally
+   * (no import dialog shown).
+   */
+  onPaired?: () => void;
+  /**
+   * Timing instrumentation sink. Hook emits one-liner strings prefixed with
+   * `[Timing]` describing pipeline latency (relay RTT, etc). Caller can
+   * forward them to the Logs panel or console. Optional — no-op if omitted.
+   */
+  onTiming?: (message: string) => void;
 }
 
 export interface UseRelayConnectionReturn {
@@ -53,8 +76,6 @@ export interface UseRelayConnectionReturn {
   ackData: (entryId: string) => Promise<void>;
   clearQueue: () => Promise<void>;
   checkNow: () => Promise<void>;
-  /** Re-queue last import payload to trigger confirmation dialog again */
-  reimport: () => Promise<boolean>;
   /** Temporarily block an entryId from being shown (e.g. after cancel) */
   blockEntry: (entryId: string, durationMs?: number) => void;
 }
@@ -65,6 +86,8 @@ export function useRelayConnection({
   enabled,
   onDataReceived,
   onConnectionChange,
+  onPaired,
+  onTiming,
 }: UseRelayConnectionOptions): UseRelayConnectionReturn {
   const [connected, setConnected] = useState(false);
   const [relayVersion, setRelayVersion] = useState<string | null>(null);
@@ -75,11 +98,19 @@ export function useRelayConnection({
   onDataReceivedRef.current = onDataReceived;
   const onConnectionChangeRef = useRef(onConnectionChange);
   onConnectionChangeRef.current = onConnectionChange;
+  const onPairedRef = useRef(onPaired);
+  onPairedRef.current = onPaired;
+  const onTimingRef = useRef(onTiming);
+  onTimingRef.current = onTiming;
 
   // Connection refs
   const isMountedRef = useRef(true);
   const relayCheckIntervalRef = useRef<number | null>(null);
   const lastActivityTimeRef = useRef<number>(Date.now());
+  // Consecutive-failure counter for the connected→disconnected debounce. A
+  // single slow poll after a confirmed connection shouldn't flip us to
+  // "Relay офлайн". Reset on every successful status probe.
+  const consecutiveFailuresRef = useRef(0);
 
   // Entry tracking refs
   const lastProcessedEntryIdRef = useRef<string | null>(null);
@@ -88,10 +119,32 @@ export function useRelayConnection({
 
   // --- Helpers ---
 
+  // Low-level setter: writes the state as-is. Use `reportProbeResult` for the
+  // debounced path so intermittent poll failures don't flash "Relay офлайн".
   const updateConnected = useCallback((value: boolean) => {
     setConnected(value);
     onConnectionChangeRef.current(value);
   }, []);
+
+  // Debounced setter for polling results. Success flips connected=true
+  // immediately (user wants the "up" signal fast). Failures need
+  // DISCONNECT_CONFIRM_THRESHOLD consecutive hits before flipping to false,
+  // which smooths out single cold-start / jitter misses without masking real
+  // outages (the next poll is only 1s away in active mode).
+  const reportProbeResult = useCallback(
+    (isConnected: boolean) => {
+      if (isConnected) {
+        consecutiveFailuresRef.current = 0;
+        updateConnected(true);
+        return;
+      }
+      consecutiveFailuresRef.current += 1;
+      if (consecutiveFailuresRef.current >= DISCONNECT_CONFIRM_THRESHOLD) {
+        updateConnected(false);
+      }
+    },
+    [updateConnected],
+  );
 
   // Build a session-scoped URL. Assumes `relayUrl` has no existing query string
   // and `sessionCode` is non-null (callers must guard via `sessionCode` check first).
@@ -122,7 +175,40 @@ export function useRelayConnection({
       if (entryId === pendingEntryIdRef.current) return;
 
       const sourceType = payload.sourceType || 'serp';
+
+      // Pair handshake: extension confirms the auto-pair URL was caught.
+      // Ack silently (no import dialog), surface event to caller so it can
+      // mark extension as installed and transition out of setup.
+      //
+      // Inline single-shot ack (no retry): if it fails, the entry stays in the
+      // queue, next peek sees it again, we ack again. The worst case is the
+      // `onPaired` callback fires a few times, which is idempotent on the UI.
+      if (sourceType === 'pair-ack') {
+        lastProcessedEntryIdRef.current = entryId;
+        try {
+          await fetch(buildUrl('/ack'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entryId }),
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch {
+          /* best effort */
+        }
+        onPairedRef.current?.();
+        return;
+      }
+
       const isFeed = sourceType === 'feed';
+
+      // Relay RTT instrumentation: extension stamps `meta.pushedAt` (wall-clock ms)
+      // right before POST /push; we subtract here to measure extension-push →
+      // plugin-peek latency including polling interval. Logged once per payload.
+      const timingMeta = data.meta as { pushedAt?: number } | undefined;
+      if (typeof timingMeta?.pushedAt === 'number') {
+        const rtt = Date.now() - timingMeta.pushedAt;
+        onTimingRef.current?.(`[Timing] Relay RTT (push→peek): ${rtt}ms`);
+      }
 
       if (isFeed) {
         // Feed pipeline — feedCards instead of rawRows
@@ -179,7 +265,7 @@ export function useRelayConnection({
     if (!sessionCode) return 'disconnected';
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const timeoutId = setTimeout(() => controller.abort(), STATUS_FETCH_TIMEOUT_MS);
 
       const response = await fetch(buildUrl('/status'), {
         signal: controller.signal,
@@ -257,17 +343,6 @@ export function useRelayConnection({
     lastProcessedEntryIdRef.current = null;
   }, [buildUrl, sessionCode]);
 
-  // reimport — re-queue last relay payload
-  const reimport = useCallback(async (): Promise<boolean> => {
-    if (!sessionCode) return false;
-    try {
-      const res = await fetch(buildUrl('/reimport'), { method: 'POST' });
-      return res.ok;
-    } catch {
-      return false;
-    }
-  }, [buildUrl, sessionCode]);
-
   // blockEntry — temporarily prevent an entryId from being shown
   const blockEntry = useCallback((entryId: string, durationMs = 10000) => {
     lastProcessedEntryIdRef.current = entryId;
@@ -279,7 +354,8 @@ export function useRelayConnection({
     }, durationMs);
   }, []);
 
-  // checkNow — manual trigger for retry button
+  // checkNow — manual trigger for retry button. Bypasses the debounce: an
+  // explicit retry should reflect the true current state immediately.
   const checkNow = useCallback(async () => {
     if (!sessionCode) {
       if (isMountedRef.current) updateConnected(false);
@@ -287,7 +363,9 @@ export function useRelayConnection({
     }
     const result = await checkRelay();
     if (!isMountedRef.current) return;
-    updateConnected(result !== 'disconnected');
+    const isConnected = result !== 'disconnected';
+    consecutiveFailuresRef.current = isConnected ? 0 : DISCONNECT_CONFIRM_THRESHOLD;
+    updateConnected(isConnected);
   }, [checkRelay, sessionCode, updateConnected]);
 
   // --- Initialization effect ---
@@ -303,9 +381,20 @@ export function useRelayConnection({
     }
 
     const doInitialCheck = async () => {
+      // Wall-clock stamp around the very first probe so we can see real
+      // cold-start latency in [Timing] logs. Without this, "relay feels slow"
+      // is impossible to diagnose objectively.
+      const startedAt = Date.now();
       const result = await checkRelay();
       if (!isMountedRef.current) return;
-      updateConnected(result !== 'disconnected');
+      const duration = Date.now() - startedAt;
+      onTimingRef.current?.(
+        `[Timing] Initial relay probe: ${duration}ms (${result === 'disconnected' ? 'fail' : 'ok'})`,
+      );
+      // Route through the debounced reporter: a slow first probe (cold-start
+      // on YC API Gateway is typical) shouldn't immediately paint "disconnected"
+      // — we'd rather wait for the active-interval poll one second later.
+      reportProbeResult(result !== 'disconnected');
     };
 
     doInitialCheck();
@@ -313,7 +402,7 @@ export function useRelayConnection({
     return () => {
       isMountedRef.current = false;
     };
-  }, [checkRelay, sessionCode, updateConnected]);
+  }, [checkRelay, sessionCode, updateConnected, reportProbeResult]);
 
   // --- Polling effect ---
   useEffect(() => {
@@ -340,7 +429,10 @@ export function useRelayConnection({
 
         const result = await checkRelay();
         if (!isMountedRef.current) return;
-        updateConnected(result !== 'disconnected');
+        // Debounced reporting — N consecutive failures required to flip from
+        // connected → disconnected. One slow / cold-start poll won't flash
+        // "Relay офлайн" at the user.
+        reportProbeResult(result !== 'disconnected');
         scheduleNextPoll();
       }, interval);
     };
@@ -353,7 +445,7 @@ export function useRelayConnection({
         relayCheckIntervalRef.current = null;
       }
     };
-  }, [enabled, sessionCode, checkRelay, updateConnected]);
+  }, [enabled, sessionCode, checkRelay, reportProbeResult]);
 
   // --- Visibility change effect ---
   useEffect(() => {
@@ -367,12 +459,12 @@ export function useRelayConnection({
 
       const result = await checkRelay();
       if (!isMountedRef.current) return;
-      updateConnected(result !== 'disconnected');
+      reportProbeResult(result !== 'disconnected');
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [enabled, sessionCode, checkRelay, updateConnected]);
+  }, [enabled, sessionCode, checkRelay, reportProbeResult]);
 
   return {
     connected,
@@ -381,7 +473,6 @@ export function useRelayConnection({
     ackData,
     clearQueue,
     checkNow,
-    reimport,
     blockEntry,
   };
 }

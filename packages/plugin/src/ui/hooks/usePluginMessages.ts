@@ -52,6 +52,7 @@ export interface PluginMessageHandlers {
 
   // What's New
   onWhatsNewStatus?: (data: { shouldShow: boolean; currentVersion: string }) => void;
+  onOnboardingSeenStatus?: (seen: boolean) => void;
 
   // Logging
   onLogLevelLoaded?: (level: number) => void;
@@ -69,9 +70,6 @@ export interface PluginMessageHandlers {
 
   // Component Inspector
   onComponentInfo?: (components: ComponentInspectorData[]) => void;
-
-  // All operations complete (safe to close if build is stale)
-  onAllOperationsComplete?: () => void;
 
   // Export HTML
   onExportHtmlResult?: (data: { html: string; fileName: string }) => void;
@@ -228,6 +226,13 @@ export function usePluginMessages({
           }
           break;
 
+        // === ONBOARDING TIP ===
+        case 'onboarding-seen-status':
+          if (h.onOnboardingSeenStatus) {
+            h.onOnboardingSeenStatus(msg.seen);
+          }
+          break;
+
         // === LOGGING ===
         case 'log-level-loaded':
           if (h.onLogLevelLoaded) {
@@ -258,13 +263,6 @@ export function usePluginMessages({
         case 'component-info':
           if (h.onComponentInfo) {
             h.onComponentInfo(msg.components);
-          }
-          break;
-
-        // === ALL OPERATIONS COMPLETE ===
-        case 'all-operations-complete':
-          if (h.onAllOperationsComplete) {
-            h.onAllOperationsComplete();
           }
           break;
 

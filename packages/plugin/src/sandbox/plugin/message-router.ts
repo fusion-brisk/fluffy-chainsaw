@@ -12,6 +12,9 @@ import type { HtmlNode } from '../html-export/tree-to-html';
 
 // Ключ для хранения последней просмотренной версии
 const WHATS_NEW_STORAGE_KEY = 'contentify_whats_new_seen_version';
+// Ключ для one-time first-run tip на compact-strip (показывается один раз после
+// успешного pair-a). Значение — любой truthy marker, важен сам факт присутствия.
+const ONBOARDING_SEEN_KEY = 'contentify_onboarding_seen';
 
 /**
  * Обработчики простых сообщений (синхронные или быстрые async)
@@ -266,6 +269,28 @@ export async function handleSimpleMessage(
       Logger.debug(`What's New marked as seen for version ${msg.version}`);
     } catch (e) {
       Logger.error('Failed to save whats-new seen status:', e);
+    }
+    return true;
+  }
+
+  // === Onboarding tip handlers ===
+  if (type === 'check-onboarding-seen') {
+    try {
+      const seen = await figma.clientStorage.getAsync(ONBOARDING_SEEN_KEY);
+      figma.ui.postMessage({ type: 'onboarding-seen-status', seen: seen === true });
+    } catch (e) {
+      Logger.error('Failed to check onboarding status:', e);
+      figma.ui.postMessage({ type: 'onboarding-seen-status', seen: false });
+    }
+    return true;
+  }
+
+  if (type === 'mark-onboarding-seen') {
+    try {
+      await figma.clientStorage.setAsync(ONBOARDING_SEEN_KEY, true);
+      Logger.debug('Onboarding tip marked as seen');
+    } catch (e) {
+      Logger.error('Failed to save onboarding seen status:', e);
     }
     return true;
   }

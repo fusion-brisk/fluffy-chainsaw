@@ -3,22 +3,11 @@ import commonjs from '@rollup/plugin-commonjs';
 import typescript from '@rollup/plugin-typescript';
 import babel from '@rollup/plugin-babel';
 import terser from '@rollup/plugin-terser';
-import replace from '@rollup/plugin-replace';
-import { execFileSync } from 'child_process';
-import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve as pathResolve } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-function buildHash() {
-  const gitHash = execFileSync('git', ['rev-parse', '--short', 'HEAD']).toString().trim();
-  const hash = `${gitHash}-${Date.now()}`;
-  // Write sidecar file so relay can read the hash without parsing minified JS
-  writeFileSync('dist/build-hash.txt', hash, 'utf8');
-  return hash;
-}
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -33,7 +22,6 @@ export default [
       sourcemap: false,
     },
     plugins: [
-      replace({ preventAssignment: true, __BUILD_HASH__: JSON.stringify(buildHash()) }),
       resolve({
         browser: true,
         preferBuiltins: false,
@@ -84,7 +72,6 @@ export default [
           return null;
         },
       },
-      replace({ preventAssignment: true, __BUILD_HASH__: JSON.stringify(buildHash()) }),
       resolve({
         browser: true,
         preferBuiltins: false,

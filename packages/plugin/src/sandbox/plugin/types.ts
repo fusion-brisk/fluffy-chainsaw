@@ -60,6 +60,8 @@ export type MessageType =
   | 'set-remote-url'
   | 'check-whats-new'
   | 'mark-whats-new-seen'
+  | 'check-onboarding-seen'
+  | 'mark-onboarding-seen'
   | 'reset-snippets';
 
 /** Интерфейс входящего сообщения */

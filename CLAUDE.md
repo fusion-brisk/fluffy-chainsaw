@@ -50,21 +50,24 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 
 ## Navigator
 
-| Task                   | Read first                                        |
-| ---------------------- | ------------------------------------------------- |
-| Architecture overview  | `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`        |
-| Add container property | `docs/EXTENDING.md` §0                            |
-| Add handler            | `docs/EXTENDING.md` §1                            |
-| Add CSVRow field       | `docs/EXTENDING.md` §2, `src/types/csv-fields.ts` |
-| Extension parsing      | `docs/PARSING_ARCHITECTURE.md`                    |
-| Figma MCP setup        | `docs/FIGMA_MCP_SETUP.md`, `docs/PORT_MAP.md`     |
-| Page builder           | `docs/PAGE_BUILDER_SETUP.md`                      |
-| Release                | `.claude/rules/release.md`                        |
-| Module internals       | `docs/STRUCTURE.md`, `docs/GLOSSARY.md`           |
-| UI state/panels/resize | `.claude/rules/ui-state.md`                       |
-| UI hooks/state         | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks    |
-| UI CSS pitfalls        | `.claude/rules/ui-css.md`                         |
-| Coverage & extend      | `tools/coverage-report.ts`, `/extend`             |
+| Task                   | Read first                                                        |
+| ---------------------- | ----------------------------------------------------------------- |
+| Architecture overview  | `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`                        |
+| Add container property | `docs/EXTENDING.md` §0                                            |
+| Add handler            | `docs/EXTENDING.md` §1                                            |
+| Add CSVRow field       | `docs/EXTENDING.md` §2, `src/types/csv-fields.ts`                 |
+| Extension parsing      | `docs/PARSING_ARCHITECTURE.md`, `.claude/rules/dom-extraction.md` |
+| DOM scraping (Yandex)  | `.claude/rules/dom-extraction.md`                                 |
+| Schema text + boolean  | `.claude/rules/schema-convention.md` §Paired                      |
+| Figma MCP setup        | `docs/FIGMA_MCP_SETUP.md`, `docs/PORT_MAP.md`                     |
+| Page builder           | `docs/PAGE_BUILDER_SETUP.md`                                      |
+| Perf / import latency  | `.claude/rules/performance.md`                                    |
+| Release                | `.claude/rules/release.md`                                        |
+| Module internals       | `docs/STRUCTURE.md`, `docs/GLOSSARY.md`                           |
+| UI state/panels/resize | `.claude/rules/ui-state.md`                                       |
+| UI hooks/state         | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks                    |
+| UI CSS pitfalls        | `.claude/rules/ui-css.md`                                         |
+| Coverage & extend      | `tools/coverage-report.ts`, `/extend`                             |
 
 ## Specs Workflow
 
@@ -90,6 +93,10 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - **Parallel hypotheses for complex bugs**: When root cause is unclear after initial investigation, spawn 2-3 parallel Agent sub-tasks — each pursues a different hypothesis, reads relevant code, and reports evidence for/against. Present all hypotheses with evidence before proposing a fix. Do NOT serially guess-and-check.
 - **UI state intersection bugs**: When investigating UI bugs, check ALL combinations of independent states (appState × panels.isPanelOpen × menuOpen × banners × confetti). The most subtle bugs hide at state crossings — e.g. data arriving while a panel is open, timers firing after user navigation, refs holding stale values.
 - **Coverage tools may undercount**: `tools/coverage-report.ts` scans only `schema/` + `handlers/`. Fields used in `page-builder/`, `feed-page-builder/`, `productcard-processor.ts` are invisible. Verify "dead field" claims by grepping `src/sandbox/` broadly.
+- **Perf: measure before optimizing**. For "it's slow" complaints, always add timing instrumentation first (see `.claude/rules/performance.md`). Ship timers, ask user for a real run's logs, THEN optimize the top contributor. Guessing the bottleneck wastes a build/reload cycle per wrong guess.
+- **DOM parsing: ask for real HTML**. Before writing selectors/filters for any third-party site, ask the user to paste `outerHTML` from DevTools. Building fixtures from guesses costs 3+ full iterations per extractor (see `.claude/rules/dom-extraction.md`). Common DOM gotcha: `aria-hidden="true"` does NOT mean "hidden from user" — it's a screen-reader hint; Yandex stamps it on VISIBLE badges.
+- **String-matching: no positional arithmetic**. Prefer `endsWith`/`startsWith`/word-boundary regex over `indexOf() === length - word.length - 1` style checks — the latter has a `-1 === -1` false-positive class bug when input and word lengths collide. See `dom-extraction.md` §7.
+- **Inventory files can be stale**. `scripts/output/library-inventory.md` reflects the last scan, not live Figma. Before relying on a component property existing, also grep runtime logs for `Доступные свойства:` output on that container. The property may have a variant the inventory missed (e.g., `SourceMeta` TEXT + `sourceMeta` BOOLEAN living side by side on the same component).
 
 ## Figma Plugin Development
 
@@ -103,6 +110,9 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - **Figma component key updates**: When the designer updates a published component (renames properties, restructures layers), the component key changes. Check `component-map.ts` keys against actual library keys. Boolean property names must match between schema code and Figma component (`withDeliveryBnpl` not `withEcomMeta`).
 - **DOM selectors must handle both LI and DIV serp-items**: Yandex wraps standard results in `li.serp-item` but carousel/gallery blocks in `div.serp-item` inside `.main__carousel-item`. All DOM-walking functions (like `getSerpItemId`) must check `.serp-item` class, not tag name.
 - **Boolean↔Visibility bidirectional sync**: Figma boolean properties (e.g., `withPromo`) are bidirectionally bound to the controlled layer's `.visible`. Setting `layer.visible = true` **silently flips** the boolean property to `true` on the parent instance. **NEVER** set `.visible` directly on a frame whose visibility is governed by a boolean property — always use `trySetProperty` on the parent instance, or `safeSetVisible()` which detects and auto-reverts boolean side effects. This applies to ALL handlers that toggle `.visible`, especially `EmptyGroups`.
+- **Stale-ref after variant swap**: `setProperties({ variant: … })` on a parent instance silently invalidates cached sublayer refs. Accessing `.componentProperties` / `.children` / `.name` on a stale ref throws `"The node … does not exist"`. Guards (`utils/instance-cache.ts` + `utils/component-cache.ts`) check `.removed` and evict stale entries — do not remove them. If you write a new handler that caches an instance, verify validity with `.removed` before property access. See `.claude/rules/performance.md` §4.
+- **No hidden diagnostic layers on canvas**: never create invisible Figma frames/nodes as a side channel for debug output (`figma.createFrame()` + `.visible = false` + node name like `__contentify_debug__`). Use `Logger.info` or `figma.ui.postMessage({ type: 'debug-report', ... })` instead — clutter-free and faster. See `.claude/rules/performance.md` §5.
+- **Progress narrative, not counter**: long-running operations (SERP import ≈ 30s) must emit named-phase progress events, not a bare percentage. "Размещаем 15/27…" beats "33%" every time. Phase order + Russian messaging live in `.claude/rules/performance.md` §6.
 
 ## Build Discipline
 
