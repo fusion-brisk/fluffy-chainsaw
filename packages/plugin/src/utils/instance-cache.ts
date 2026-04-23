@@ -129,19 +129,45 @@ export function buildInstanceCache(container: BaseNode): DeepCache {
 // ==================== INSTANCE HELPERS ====================
 
 /**
- * Получает инстанс из кэша по имени
+ * Returns true if the cached instance is still valid — node exists and isn't removed.
+ * Figma can invalidate exposed sublayers after a variant swap on the parent, which
+ * manifests as `instance.removed === true` or any property access throwing
+ * "The node does not exist". This guard lets callers silently skip stale refs
+ * instead of raising exceptions inside handlers (~45 occurrences/import pre-fix).
  */
-export function getCachedInstance(cache: DeepCache, name: string): InstanceNode | null {
-  return cache.instances.get(name) ?? null;
+function isInstanceAlive(instance: InstanceNode): boolean {
+  try {
+    return !instance.removed;
+  } catch {
+    return false;
+  }
 }
 
 /**
- * Получает инстанс из кэша, пробуя несколько вариантов имени
+ * Получает инстанс из кэша по имени. Фильтрует stale-ссылки.
+ */
+export function getCachedInstance(cache: DeepCache, name: string): InstanceNode | null {
+  const instance = cache.instances.get(name);
+  if (!instance) return null;
+  if (!isInstanceAlive(instance)) {
+    cache.instances.delete(name);
+    return null;
+  }
+  return instance;
+}
+
+/**
+ * Получает инстанс из кэша, пробуя несколько вариантов имени. Фильтрует stale-ссылки.
  */
 export function getCachedInstanceByNames(cache: DeepCache, names: string[]): InstanceNode | null {
   for (const name of names) {
     const instance = cache.instances.get(name);
-    if (instance) return instance;
+    if (!instance) continue;
+    if (!isInstanceAlive(instance)) {
+      cache.instances.delete(name);
+      continue;
+    }
+    return instance;
   }
   return null;
 }

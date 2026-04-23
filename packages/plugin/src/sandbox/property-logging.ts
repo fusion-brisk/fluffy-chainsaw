@@ -108,9 +108,10 @@ function logAvailablePropertiesOnce(instance: InstanceNode, propertyName: string
 
   const availableProps = getCachedPropertyNames(instance);
   if (availableProps.length > 0) {
-    // Используем info чтобы гарантированно видеть в логах
-    Logger.info(`   📋 [${instanceType}] Доступные свойства: ${availableProps.join(', ')}`);
-    Logger.info(`   💡 Искали: "${propertyName}" — не найдено`);
+    // DEBUG: диагностика для разработчика, не нужна в обычных логах пользователя.
+    // Раньше на info — каждый апликованный снипет флудил 6+ строками.
+    Logger.debug(`   📋 [${instanceType}] Доступные свойства: ${availableProps.join(', ')}`);
+    Logger.debug(`   💡 Искали: "${propertyName}" — не найдено`);
   }
 }
 

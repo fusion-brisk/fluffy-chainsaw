@@ -152,7 +152,16 @@ function buildPropertyInfo(instance: InstanceNode): ComponentPropertyInfo {
  * @returns Информация о свойствах компонента или null если нет свойств
  */
 export function getOrBuildPropertyCache(instance: InstanceNode): ComponentPropertyInfo | null {
-  const instanceId = instance.id;
+  // Stale-ref guard: after a variant swap on the parent, a previously cached sublayer
+  // instance can still look like a valid ref but throw "The node does not exist" on
+  // property access. Wrap the earliest access to surface this as a clean null.
+  let instanceId: string;
+  try {
+    if ((instance as SceneNode).removed) return null;
+    instanceId = instance.id;
+  } catch {
+    return null;
+  }
 
   // Быстрый путь: проверяем кэш
   if (instanceId in propertyCache) {
@@ -160,8 +169,14 @@ export function getOrBuildPropertyCache(instance: InstanceNode): ComponentProper
     return propertyCache[instanceId];
   }
 
-  // Проверяем наличие свойств
-  if (!instance.componentProperties || Object.keys(instance.componentProperties).length === 0) {
+  // Проверяем наличие свойств — componentProperties тоже может throw на stale-ref
+  let componentProperties: InstanceNode['componentProperties'];
+  try {
+    componentProperties = instance.componentProperties;
+  } catch {
+    return null;
+  }
+  if (!componentProperties || Object.keys(componentProperties).length === 0) {
     return null;
   }
 

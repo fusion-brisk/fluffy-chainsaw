@@ -31,6 +31,8 @@ interface CompactStripProps {
   count?: number;
   duration?: number;
   errorMessage?: string;
+  /** Dynamic processing message — overrides the default "X из Y" / "Обработка..." */
+  processingMessage?: string;
   lastQuery?: string;
   lastImportCount?: number;
   lastImportTime?: number;
@@ -72,6 +74,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     count,
     duration,
     errorMessage,
+    processingMessage,
     lastQuery,
     lastImportCount,
     lastImportTime,
@@ -91,11 +94,6 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     // Build menu items
     const menuItems: MenuItem[] = useMemo(
       () => [
-        {
-          id: 'reimport',
-          label: 'Повторить импорт',
-          icon: '\u21BB',
-        },
         { id: 'logs', label: 'Логи', icon: '\u2261' },
         { id: 'inspector', label: 'Инспектор', icon: '\u2699' },
         { id: 'setup', label: 'Настройки', icon: '\u2638' },
@@ -291,7 +289,12 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         statusText = connected ? 'Подключено' : 'Relay офлайн';
         break;
       case 'processing':
-        if (current != null && total != null && total > 0) {
+        // Prefer the sandbox-provided message ("Размещаем 15 из 78…" etc) so the user
+        // sees what's happening rather than a bare numeric counter. Fall back to the
+        // counter, then to the generic placeholder.
+        if (processingMessage && processingMessage.trim()) {
+          statusText = processingMessage;
+        } else if (current != null && total != null && total > 0) {
           statusText = `${current} из ${total}`;
         } else {
           statusText = 'Обработка\u2026';

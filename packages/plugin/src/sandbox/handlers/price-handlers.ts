@@ -294,16 +294,16 @@ async function setOldPriceValue(
     const parentName = ep.parent && 'name' in ep.parent ? ep.parent.name : '?';
     return `${ep.name}(parent:${parentName})`;
   });
-  Logger.info(`💰 [OldPrice] Найдено ${allEPrices.length} EPrice: [${ePriceNames.join(', ')}]`);
+  Logger.debug(`💰 [OldPrice] Найдено ${allEPrices.length} EPrice: [${ePriceNames.join(', ')}]`);
 
   // Ищем EPrice, который ЯВЛЯЕТСЯ старой ценой (внутри контейнера "Old")
   for (const ep of allEPrices) {
     const isOld = isOldPriceInstance(ep);
-    Logger.info(`💰 [OldPrice] Проверяем "${ep.name}" → isOld=${isOld}`);
+    Logger.debug(`💰 [OldPrice] Проверяем "${ep.name}" → isOld=${isOld}`);
     if (isOld) {
-      Logger.info(`💰 [OldPrice] Найден EPrice внутри Old-контейнера: "${ep.name}"`);
+      Logger.debug(`💰 [OldPrice] Найден EPrice внутри Old-контейнера: "${ep.name}"`);
       if (setPriceToInstance(ep, oldPriceValue, 'OldPrice')) {
-        Logger.info(`💰 [OldPrice] ✅ Цена установлена: "${oldPriceValue}"`);
+        Logger.debug(`💰 [OldPrice] ✅ Цена установлена: "${oldPriceValue}"`);
         return;
       }
     }
@@ -319,14 +319,14 @@ async function setOldPriceValue(
       'Old',
     ]);
     if (oldPriceInstance) {
-      Logger.info(`💰 [OldPrice] Найден через кэш: "${oldPriceInstance.name}"`);
+      Logger.debug(`💰 [OldPrice] Найден через кэш: "${oldPriceInstance.name}"`);
       // Ищем EPrice внутри
       const innerEPrice =
         oldPriceInstance.name === 'EPrice'
           ? oldPriceInstance
           : getCachedInstance(instanceCache as DeepCache, 'EPrice');
       if (innerEPrice && setPriceToInstance(innerEPrice, oldPriceValue, 'OldPrice-cached')) {
-        Logger.info(`💰 [OldPrice] ✅ Цена установлена через кэш: "${oldPriceValue}"`);
+        Logger.debug(`💰 [OldPrice] ✅ Цена установлена через кэш: "${oldPriceValue}"`);
         return;
       }
     }
@@ -334,9 +334,9 @@ async function setOldPriceValue(
 
   // FALLBACK 2: Если есть только 2 EPrice — второй это старая цена
   if (allEPrices.length === 2) {
-    Logger.info(`💰 [OldPrice] Fallback: 2 EPrice найдено, используем второй как старую цену`);
+    Logger.debug(`💰 [OldPrice] Fallback: 2 EPrice найдено, используем второй как старую цену`);
     if (setPriceToInstance(allEPrices[1], oldPriceValue, 'OldPrice-second')) {
-      Logger.info(`💰 [OldPrice] ✅ Цена установлена (fallback): "${oldPriceValue}"`);
+      Logger.debug(`💰 [OldPrice] ✅ Цена установлена (fallback): "${oldPriceValue}"`);
       return;
     }
   }

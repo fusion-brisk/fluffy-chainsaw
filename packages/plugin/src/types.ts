@@ -184,6 +184,9 @@ export type UIMessage =
   // === WHATS NEW ===
   | { type: 'check-whats-new' } // Response: 'whats-new-status'
   | { type: 'mark-whats-new-seen'; version: string }
+  // === ONBOARDING TIP (first-run hint on compact strip) ===
+  | { type: 'check-onboarding-seen' } // Response: 'onboarding-seen-status'
+  | { type: 'mark-onboarding-seen' }
   // === LOGGING ===
   | { type: 'set-log-level'; level: number } // 0=SILENT, 1=ERROR, 2=SUMMARY, 3=VERBOSE, 4=DEBUG
   | { type: 'get-log-level' } // Response: 'log-level-loaded'
@@ -227,7 +230,6 @@ export type CodeMessage =
       frameName?: string;
       error?: string;
     } // Response to apply-relay-payload
-  | { type: 'all-operations-complete' } // All async work done — safe to close plugin
   // === RESET ===
   | { type: 'reset-done'; count: number } // Response to reset-snippets
   // === SETTINGS ===
@@ -238,6 +240,8 @@ export type CodeMessage =
   | { type: 'rules-update-available'; newVersion: number; currentVersion: number; hash: string }
   // === WHATS NEW ===
   | { type: 'whats-new-status'; shouldShow: boolean; currentVersion: string }
+  // === ONBOARDING TIP ===
+  | { type: 'onboarding-seen-status'; seen: boolean } // Response to check-onboarding-seen
   // === LOGGING ===
   | { type: 'log-level-loaded'; level: number } // Current log level
   // === SETUP WIZARD ===

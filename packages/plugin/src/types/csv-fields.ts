@@ -52,6 +52,12 @@ export interface CSVFields {
   // === Магазин ===
   /** Название магазина */
   '#ShopName'?: string;
+  /**
+   * Мета-информация под именем магазина: доставка, сроки, условия.
+   * Парсится из `.EProductSnippet2-Deliveries` (EProductSnippet2 masonry-формат).
+   * Используется как TEXT-свойство `SourceMeta` компонента EProductSnippetExp.
+   */
+  '#SourceMeta'?: string;
   /** Фавиконка магазина */
   '#FaviconImage'?: string;
   /** Официальный магазин */

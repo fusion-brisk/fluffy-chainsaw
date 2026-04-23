@@ -50,11 +50,13 @@ const CHANGELOG: VersionEntry[] = [
     ],
   },
   {
-    version: '2.5.1',
-    date: 'Март 2026',
+    version: '3.0.0',
+    date: 'Апрель 2026',
     changes: [
-      { text: 'Исправлена версия relay-бинарника', type: 'fix' },
-      { text: 'macOS codesign для автообновления relay', type: 'fix' },
+      { text: 'Relay переехал в Yandex Cloud — локальный бинарник больше не нужен', type: 'feat' },
+      { text: 'Онбординг: session code связывает плагин с расширением через облако', type: 'feat' },
+      { text: 'Убран пункт меню «Повторить импорт» (не поддерживается облаком)', type: 'refactor' },
+      { text: 'Удалена проверка stale-build и связанная инфраструктура', type: 'refactor' },
     ],
   },
   {

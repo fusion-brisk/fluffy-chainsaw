@@ -19,6 +19,7 @@ import {
 import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
+import { resetImageTiming, resetImageCache, getImageTiming } from './image-apply';
 import { CLOUD_RELAY_URL } from '../config';
 
 // Sidecar features (result export, screenshot mirror, /debug) were local-relay-only.
@@ -387,6 +388,11 @@ figma.ui.onmessage = async (msg) => {
 
     // === Apply Relay Payload (from Browser Extension) ===
     if (msg.type === 'apply-relay-payload') {
+      const applyStartedAt = Date.now();
+      resetImageTiming();
+      resetImageCache();
+      Logger.info('[Timing] Sandbox apply started');
+
       const payload = msg.payload as {
         schemaVersion: number;
         source: { url: string; title: string };
@@ -455,7 +461,7 @@ figma.ui.onmessage = async (msg) => {
           type: 'progress',
           current: 10,
           total: 100,
-          message: 'Импорт компонентов...',
+          message: `Разбор структуры: ${rows.length} сниппетов…`,
           operationType: 'relay-import',
         });
 
@@ -471,6 +477,18 @@ figma.ui.onmessage = async (msg) => {
         //   'selection'    → заполнить выделенный фрейм (отдельный путь, не здесь)
         //   'breakpoints'  → развернуть одни и те же данные во все 5 канонических брейкпоинтов
         const scope = (msg.scope as string) || 'page';
+
+        // Progress narrative for the user: structure parsed, now starting render.
+        // This lands right before the heavy ~25s render loop, giving an early
+        // "stuff is happening" signal. The loop itself pushes incremental updates
+        // via onProgress → page-creator sends "Размещено N/M…" checkpoints.
+        figma.ui.postMessage({
+          type: 'progress',
+          current: 25,
+          total: 100,
+          message: 'Размещаем сниппеты…',
+          operationType: 'relay-import',
+        });
 
         let result: Awaited<ReturnType<typeof createSerpPage>>;
         if (scope === 'breakpoints') {
@@ -501,12 +519,13 @@ figma.ui.onmessage = async (msg) => {
           });
         }
 
-        // Отправляем progress: завершение
+        // Render done — next stages are screenshots + export. Push an 85% marker
+        // so the user sees clear forward progress even before the final "Готово!".
         figma.ui.postMessage({
           type: 'progress',
-          current: 100,
+          current: 85,
           total: 100,
-          message: 'Готово!',
+          message: 'Размещаем скриншот…',
           operationType: 'relay-import',
         });
 
@@ -516,6 +535,11 @@ figma.ui.onmessage = async (msg) => {
           figma.viewport.scrollAndZoomIntoView([result.frame]);
 
           const count = result.createdCount || rows.length;
+          const coreApplyMs = Date.now() - applyStartedAt;
+          const imgTiming = getImageTiming();
+          Logger.info(
+            `[Timing] Sandbox core apply: ${coreApplyMs}ms (${count} items, images: ${imgTiming.count} in ${imgTiming.totalMs}ms, ${imgTiming.failCount} failed, ${imgTiming.cacheHits} cache hits)`,
+          );
 
           figma.ui.postMessage({
             type: 'relay-payload-applied',
@@ -528,6 +552,7 @@ figma.ui.onmessage = async (msg) => {
 
           // Render ProductCard sidebar BEFORE screenshot/export (modifies frame)
           if (payload.productCard) {
+            const pcStart = Date.now();
             try {
               const sidebarFrame = await renderProductCardSidebar(payload.productCard, platform);
               if (sidebarFrame) {
@@ -544,23 +569,41 @@ figma.ui.onmessage = async (msg) => {
             } catch (pcErr) {
               Logger.error('[ProductCard] render failed:', pcErr);
             }
+            Logger.info(`[Timing] ProductCard sidebar: ${Date.now() - pcStart}ms`);
           }
 
-          // Await secondary operations (were fire-and-forget before)
+          // Screenshot is visible to user once placed — keep await (~1s, useful).
+          const screenshotStart = Date.now();
           try {
             await placeScreenshotSegments(result.frame, query);
           } catch (err) {
             Logger.error('Screenshot placement failed:', err);
           }
+          Logger.info(`[Timing] Screenshot placement: ${Date.now() - screenshotStart}ms`);
 
-          try {
-            await exportResultToRelay(result.frame, query);
-          } catch (err) {
-            Logger.error('Result export failed:', err);
-          }
+          // Final 100% marker — user sees "Готово!" right before success flash.
+          figma.ui.postMessage({
+            type: 'progress',
+            current: 100,
+            total: 100,
+            message: 'Готово!',
+            operationType: 'relay-import',
+          });
 
-          // Signal that ALL async work is done — safe to close plugin if stale
-          figma.ui.postMessage({ type: 'all-operations-complete' });
+          // Export to relay is a diagnostic artifact for the dev team, NOT something
+          // the user consumes. The endpoint frequently fails ("Failed to fetch") and
+          // blocks the user for ~9s on the timeout. Fire-and-forget: we report done
+          // now, the export retries/fails on its own schedule.
+          const exportStart = Date.now();
+          exportResultToRelay(result.frame, query)
+            .then(() => {
+              Logger.info(`[Timing] Export to relay (bg): ${Date.now() - exportStart}ms`);
+            })
+            .catch((err) => {
+              Logger.error('Result export failed (bg):', err);
+            });
+
+          Logger.info(`[Timing] Sandbox total (apply→done): ${Date.now() - applyStartedAt}ms`);
         } else {
           const errorMsg =
             result.errors?.length > 0 ? result.errors.join('; ') : 'Не удалось создать страницу';
@@ -574,8 +617,6 @@ figma.ui.onmessage = async (msg) => {
           error: error instanceof Error ? error.message : String(error),
         });
         figma.notify('❌ Ошибка импорта из браузера');
-        // Signal completion even on error — stale-build close needs this
-        figma.ui.postMessage({ type: 'all-operations-complete' });
       }
 
       return;
@@ -649,8 +690,6 @@ figma.ui.onmessage = async (msg) => {
           } catch (err) {
             Logger.error('Feed screenshot placement failed:', err);
           }
-
-          figma.ui.postMessage({ type: 'all-operations-complete' });
         } else {
           const feedErrorMsg =
             feedResult.errors && feedResult.errors.length > 0
@@ -666,8 +705,6 @@ figma.ui.onmessage = async (msg) => {
           error: error instanceof Error ? error.message : String(error),
         });
         figma.notify('❌ Ошибка импорта фида');
-        // Signal completion even on error — stale-build close needs this
-        figma.ui.postMessage({ type: 'all-operations-complete' });
       }
 
       return;

@@ -8,7 +8,7 @@
  * entered in the Figma plugin.
  */
 
-import { CLOUD_RELAY_URL } from './config';
+import { CLOUD_RELAY_URL, SESSION_CODE_KEY, SESSION_CODE_PATTERN } from './config';
 import { isYandexPage, getSessionCode } from './shared-utils';
 
 declare global {
@@ -95,6 +95,16 @@ function clearBadgeAfter(ms: number): void {
  */
 function setMissingSessionBadge(): void {
   setBadge('!', '#E5534B');
+}
+
+/**
+ * Counterpart to `setMissingSessionBadge` — called after auto-pairing stores
+ * a session code. Does nothing if there are retries pending (their badge wins).
+ */
+function clearMissingSessionBadge(): void {
+  if (retryQueue.length === 0) {
+    chrome.action.setBadgeText({ text: '' });
+  }
 }
 
 // === Retry Queue Functions ===
@@ -575,6 +585,9 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     const meta = {
       url: tab.url,
       parsedAt: new Date().toISOString(),
+      // Wall-clock ms right before /push. Plugin computes (peek-time − pushedAt) to
+      // measure relay RTT + polling latency. Safe because both sides run on the same OS.
+      pushedAt: Date.now(),
       snippetCount: isFeed ? 0 : rows.length,
       wizardCount: isFeed ? 0 : wizards.length,
       feedCardCount: isFeed ? itemCount : undefined,
@@ -682,6 +695,88 @@ chrome.tabs.onUpdated.addListener(
     }
   },
 );
+
+// === Auto-pairing handshake ===
+//
+// The Figma plugin opens `https://ya.ru/?contentify_pair=XYZ` via figma.openExternal.
+// We detect that URL here, save the code to chrome.storage.local, push a pair-ack to
+// the relay (so the plugin knows the handshake succeeded), then close the helper tab.
+//
+// Accepting on Yandex domains only — host_permissions already scope us there, this is
+// defence-in-depth to ensure the listener never reacts to a hostile redirect.
+
+const PAIR_QUERY_PARAM = 'contentify_pair';
+
+function isYandexHost(host: string): boolean {
+  return (
+    host === 'ya.ru' ||
+    host.endsWith('.ya.ru') ||
+    host === 'yandex.ru' ||
+    host.endsWith('.yandex.ru') ||
+    host === 'yandex.com' ||
+    host.endsWith('.yandex.com')
+  );
+}
+
+function extractPairCode(urlString: string | undefined): string | null {
+  if (!urlString) return null;
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch {
+    return null;
+  }
+  if (!isYandexHost(url.hostname)) return null;
+  const raw = url.searchParams.get(PAIR_QUERY_PARAM);
+  if (!raw || !SESSION_CODE_PATTERN.test(raw)) return null;
+  return raw;
+}
+
+async function sendPairAck(code: string): Promise<void> {
+  try {
+    await fetch(buildCloudUrl('/push', code), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        payload: { sourceType: 'pair-ack', ts: Date.now() },
+        meta: { extensionVersion: chrome.runtime.getManifest().version },
+      }),
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (err: unknown) {
+    // Non-fatal: plugin can still detect pairing on next real import.
+    console.log('[Pair] Ack push failed:', (err as Error).message);
+  }
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  // React as early as possible so the user doesn't see the Yandex page flash.
+  if (changeInfo.status !== 'loading' && changeInfo.status !== 'complete') return;
+
+  const code = extractPairCode(tab.url ?? changeInfo.url);
+  if (!code) return;
+
+  // Silent overwrite per spec: last-pair-wins. Log the transition for diagnostics.
+  const existing = await getSessionCode();
+  if (existing && existing !== code) {
+    console.log(`[Pair] Overwriting session code ${existing} → ${code}`);
+  } else {
+    console.log(`[Pair] Storing new session code ${code}`);
+  }
+
+  await chrome.storage.local.set({ [SESSION_CODE_KEY]: code });
+  await sendPairAck(code);
+
+  // Close the helper tab — the user's Figma plugin UI will show the confirmation.
+  try {
+    await chrome.tabs.remove(tabId);
+  } catch {
+    /* tab may have already been closed */
+  }
+
+  // Session is configured now — clear the missing-session badge if it was up.
+  clearMissingSessionBadge();
+});
 
 // Update icon appearance based on current tab
 // Uses chrome.runtime.getURL to avoid MV3 service worker "Failed to fetch" bug

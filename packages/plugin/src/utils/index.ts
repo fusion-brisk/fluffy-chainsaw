@@ -53,3 +53,14 @@ export { findFillableLayer } from './layer-search';
 // Relay payload parsing
 export { extractRowsFromPayload } from './relay-payload';
 export type { ParsedRelayData } from './relay-payload';
+
+// Session code generation / validation (cloud relay scoping)
+export {
+  generateSessionCode,
+  isValidSessionCode,
+  buildPairUrl,
+  PAIR_QUERY_PARAM,
+  PAIR_HANDSHAKE_HOST,
+  SESSION_CODE_LENGTH,
+  SESSION_CODE_PATTERN,
+} from './session-code';

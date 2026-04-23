@@ -127,6 +127,137 @@ declare global {
   }
 
   /**
+   * Достаёт короткие badge-тексты из `.EProductSnippet2-Deliveries` и собирает их
+   * через " · ".
+   *
+   * Пример входного DOM (Yandex SERP):
+   *   <div class="EProductSnippet2-Deliveries">
+   *     <span>Курьер</span>               <!-- badge 1 -->
+   *     <span>Из магазина</span>           <!-- badge 2 -->
+   *     <div role="tooltip">Курьер Из магазина Доступно не для всех…</div>
+   *   </div>
+   * Наивный textContent даёт «КурьерИз магазинаКурьер Из магазина Доступно…»,
+   * поэтому ходим по leaf-нодам, фильтруем подписи-подсказки и дедупим.
+   *
+   * Каскад из трёх стратегий — Яндекс часто A/B-тестирует разметку, поэтому:
+   *   1) Leaf-ноды с эвристикой на длину/классы/role → чистый «Курьер · Из магазина»
+   *   2) Прямые дети контейнера (top-level spans) → если leaf-обход ничего не взял
+   *   3) Сырой textContent, урезанный до 50 символов → всегда возвращаем что-то
+   *      непустое, если данные реально есть, чтобы не флипать sourceMeta-boolean в
+   *      false на каждом товаре.
+   */
+  function extractDeliveryBadges(deliveriesEl: Element | null): string {
+    if (!deliveriesEl) return '';
+
+    const raw = (deliveriesEl.textContent || '').trim().replace(/\s+/g, ' ');
+    if (!raw) return '';
+
+    // Токен-ориентированный class-matcher: разбиваем className по whitespace и
+    // проверяем каждый токен на начало с нужным словом. Это важно, потому что
+    // root `.EProductSnippet2-Deliveries` у Яндекса часто имеет класс-модификатор
+    // `EDeliveryGroup_tooltip` — если просто делать substring-тест на "Tooltip",
+    // мы ошибочно скипнем весь контейнер и ничего не извлечём.
+    function hasClassToken(className: string, words: string[]): boolean {
+      if (!className) return false;
+      const tokens = className.split(/\s+/);
+      for (let i = 0; i < tokens.length; i++) {
+        const lowerT = tokens[i].toLowerCase();
+        for (let j = 0; j < words.length; j++) {
+          const w = words[j].toLowerCase();
+          // Точное совпадение, префикс (`Tooltip_*`/`Tooltip-*`) или суффикс
+          // (`*-Tooltip`/`*_Tooltip`). `endsWith` безопаснее, чем indexOf-сравнение
+          // с позицией, — раньше был баг, когда `-word` не найдено (indexOf=-1)
+          // совпадало с `t.length - w.length - 1 = -1` при равных длинах.
+          if (lowerT === w) return true;
+          if (lowerT.indexOf(w + '-') === 0 || lowerT.indexOf(w + '_') === 0) return true;
+          if (lowerT.endsWith('-' + w) || lowerT.endsWith('_' + w)) return true;
+        }
+      }
+      return false;
+    }
+
+    function shouldSkipElement(el: HTMLElement): boolean {
+      const className = typeof el.className === 'string' ? el.className : '';
+
+      // Tooltip/popup/hint обёртки дублируют или расширяют текст бейджа.
+      if (hasClassToken(className, ['Tooltip', 'Popup', 'Hint'])) return true;
+
+      // Screen-reader-only контент: Яндекс — `A11yHidden`, общепринятые —
+      // `sr-only`, `visually-hidden`. Визуально НЕ рендерится, содержит
+      // агрегированный descriptor «Курьер Из магазина Доступно…».
+      if (hasClassToken(className, ['A11yHidden', 'sr-only', 'visually-hidden'])) return true;
+
+      // Явный role="tooltip".
+      if (el.getAttribute('role') === 'tooltip') return true;
+
+      // ВАЖНО: `aria-hidden="true"` — НЕ признак «скрыто от пользователя».
+      // Яндекс ставит этот атрибут на сами визуальные бейджи (чтобы screen
+      // reader не проговаривал их дважды — текст уже есть в .A11yHidden).
+      // Skip aria-hidden = пропустить ровно то, что нам нужно извлечь.
+      return false;
+    }
+
+    function normalizeCandidate(text: string): string | null {
+      const normalized = text.trim().replace(/\s+/g, ' ');
+      if (!normalized) return null;
+      if (normalized.length > 40) return null; // descriptor, не badge
+      if (/^(Доступно|Подробнее|Не для|Не все)/i.test(normalized)) return null;
+      return normalized;
+    }
+
+    // Text, лежащий **прямо** внутри элемента, без агрегации из детей.
+    // Для `<div><svg/>Курьер</div>` вернёт "Курьер" (а .textContent-подход
+    // включил бы пустой SVG + "Курьер" + потенциальный descriptor из tooltip).
+    function getDirectText(el: Element): string {
+      let text = '';
+      const nodes = el.childNodes;
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        if (n.nodeType === 3 /* Node.TEXT_NODE — ES5-safe */) {
+          text += n.textContent || '';
+        }
+      }
+      return text;
+    }
+
+    // Обход дерева с полным отсечением tooltip-поддеревьев (иначе descriptor
+    // утекает даже когда он разбит на несколько вложенных span-ов).
+    const seen: Record<string, boolean> = {};
+    const badges: string[] = [];
+
+    function pushIfUnique(candidate: string | null): void {
+      if (!candidate) return;
+      if (seen[candidate]) return;
+      seen[candidate] = true;
+      badges.push(candidate);
+    }
+
+    function walk(el: Element, isRoot: boolean): void {
+      // Корень — это сам `.EProductSnippet2-Deliveries`, который у Яндекса часто
+      // несёт модификатор типа `EDeliveryGroup_tooltip`. Проверяем filter только
+      // для потомков, чтобы не выбросить весь контейнер по имени класса.
+      if (!isRoot && shouldSkipElement(el as HTMLElement)) return;
+
+      // Прямой текст у этого элемента (если есть) — кандидат в badge.
+      pushIfUnique(normalizeCandidate(getDirectText(el)));
+
+      // Рекурсивно идём вглубь.
+      const children = el.children;
+      for (let i = 0; i < children.length; i++) {
+        walk(children[i] as Element, false);
+      }
+    }
+
+    walk(deliveriesEl, true);
+
+    if (badges.length > 0) return badges.join(' \u00B7 ');
+
+    // Fallback: DOM непонятный, но raw-текст есть. Возвращаем усечённый raw,
+    // чтобы schema-boolean `sourceMeta` не флипал в false на каждой карточке.
+    return raw.length > 50 ? raw.slice(0, 47) + '\u2026' : raw;
+  }
+
+  /**
    * Извлекает текст заголовка, исключая вложенные Path/greenurl элементы.
    * На touch SERP заголовок и greenurl могут быть внутри одного элемента.
    */
@@ -890,6 +1021,17 @@ declare global {
         row['#ShopName'] = getTextContent(shopAlt);
       } else if (row['#OrganicHost']) {
         row['#ShopName'] = row['#OrganicHost'];
+      }
+    }
+
+    // #SourceMeta — вторичная строка под именем магазина (доставка, сроки).
+    // Рендерится в EProductSnippetExp.SourceMeta в masonry-grid формате.
+    // Только для EProductSnippet2 — у других типов своя разметка доставки.
+    if (snippetType === 'EProductSnippet2' || snippetType === 'EProductSnippet2_Adv') {
+      const deliveriesEl = container.querySelector('.EProductSnippet2-Deliveries');
+      const deliveryText = extractDeliveryBadges(deliveriesEl);
+      if (deliveryText) {
+        row['#SourceMeta'] = deliveryText;
       }
     }
 

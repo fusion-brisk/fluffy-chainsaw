@@ -33,6 +33,7 @@ import { ESHOP_ITEM_SCHEMA } from '../../src/sandbox/schema/eshop-item';
 import { EOFFER_ITEM_SCHEMA } from '../../src/sandbox/schema/eoffer-item';
 import { EPRODUCT_SNIPPET_SCHEMA } from '../../src/sandbox/schema/eproduct-snippet';
 import { ESNIPPET_SCHEMA } from '../../src/sandbox/schema/esnippet';
+import { EPRODUCT_SNIPPET_EXP_SCHEMA } from '../../src/sandbox/schema/eproduct-snippet-exp';
 
 const mockTrySetProperty = vi.mocked(trySetProperty);
 const mockGetCachedInstance = vi.mocked(getCachedInstance);
@@ -894,6 +895,112 @@ describe('applySchema', () => {
       // organicTitle should not appear in calls (skipIfEmpty + empty)
       const titleCalls = mockTrySetProperty.mock.calls.filter((c) => c[1][0] === 'organicTitle');
       expect(titleCalls).toHaveLength(0);
+    });
+  });
+
+  // ==========================================================================
+  // EPRODUCT_SNIPPET_EXP_SCHEMA — masonry-grid card (EProductSnippet2 in MixedGrid)
+  // ==========================================================================
+  describe('EPRODUCT_SNIPPET_EXP_SCHEMA', () => {
+    it('maps #SourceMeta to SourceMeta text property (delivery line under shop name)', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippetExp');
+      applySchema(
+        container,
+        { '#SourceMeta': 'Доставка завтра, бесплатно' } as CSVRow,
+        EPRODUCT_SNIPPET_EXP_SCHEMA,
+        mockCache(),
+      );
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container,
+        ['SourceMeta'],
+        'Доставка завтра, бесплатно',
+        '#SourceMeta',
+      );
+    });
+
+    it('shows sourceMeta boolean=true when #SourceMeta has delivery text', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippetExp');
+      applySchema(
+        container,
+        { '#SourceMeta': 'Доставка завтра' } as CSVRow,
+        EPRODUCT_SNIPPET_EXP_SCHEMA,
+        mockCache(),
+      );
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container,
+        ['sourceMeta'],
+        true,
+        '#SourceMeta',
+      );
+    });
+
+    it('hides sourceMeta boolean=false when #SourceMeta absent (no delivery block in DOM)', () => {
+      // Core ask: SERP items without `.EProductSnippet2-Deliveries` must turn off the
+      // SourceMeta line, not render an empty gap. Schema flips the sourceMeta boolean
+      // (lowercase — separate property from the SourceMeta TEXT content).
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippetExp');
+      applySchema(container, {} as CSVRow, EPRODUCT_SNIPPET_EXP_SCHEMA, mockCache());
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container,
+        ['sourceMeta'],
+        false,
+        '#SourceMeta',
+      );
+      // Text property still written as empty (harmless — layer is hidden anyway,
+      // but prevents the Figma default "Какой-то текст" from lingering).
+      expect(mockTrySetProperty).toHaveBeenCalledWith(container, ['SourceMeta'], '', '#SourceMeta');
+    });
+
+    it('computes type=product-promo when #isPromoCard=true', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippetExp');
+      applySchema(
+        container,
+        { '#isPromoCard': 'true' } as CSVRow,
+        EPRODUCT_SNIPPET_EXP_SCHEMA,
+        mockCache(),
+      );
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container,
+        ['type'],
+        'product-promo',
+        '#SnippetExpType',
+      );
+    });
+
+    it('computes type=from-images when #MixedGridImageOnly=true', () => {
+      mockGetCachedInstance.mockReturnValue(null);
+      mockTrySetProperty.mockReturnValue(true);
+
+      const container = mockInstance('EProductSnippetExp');
+      applySchema(
+        container,
+        { '#MixedGridImageOnly': 'true' } as CSVRow,
+        EPRODUCT_SNIPPET_EXP_SCHEMA,
+        mockCache(),
+      );
+
+      expect(mockTrySetProperty).toHaveBeenCalledWith(
+        container,
+        ['type'],
+        'from-images',
+        '#SnippetExpType',
+      );
     });
   });
 });

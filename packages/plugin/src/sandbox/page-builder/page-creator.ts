@@ -1255,13 +1255,15 @@ export async function createSerpPage(
   for (let ni = 0; ni < sortedNodes.length; ni++) {
     const node = sortedNodes[ni];
 
-    // Progress: 10–90% proportional to node index
-    const pct = 10 + Math.round((ni / Math.max(totalNodes, 1)) * 80);
+    // Progress narrative: outer sandbox sends 10% (structure parsed) and 95%
+    // (screenshot) — this loop owns 25..90%. User-facing message is a simple
+    // counter, the internal node.type is too jargon-y for the compact strip.
+    const pct = 25 + Math.round((ni / Math.max(totalNodes, 1)) * 65);
     figma.ui.postMessage({
       type: 'progress',
       current: pct,
       total: 100,
-      message: 'Сниппет ' + (ni + 1) + '/' + totalNodes + ' (' + node.type + ')',
+      message: 'Размещаем ' + (ni + 1) + '/' + totalNodes + '…',
       operationType: 'relay-import',
     });
 
@@ -1406,64 +1408,16 @@ export async function createSerpPage(
     Logger.warn(`[PageCreator] Ошибок: ${errors.length}`);
   }
 
-  // Ошибки по типам (declared before try so it's available in debugReport below)
+  // Aggregate errors by element type for the debug-report postMessage below.
+  // (Previously this loop also fed a hidden `__contentify_debug__` frame on the
+  // canvas — removed as that was legacy diagnostic plumbing duplicated by the
+  // postMessage path. Dropping 10–20 figma.createFrame+appendChild calls saves
+  // ~100–300 ms per import on large SERPs.)
   const errorsByType: Record<string, string[]> = {};
-
-  // === Debug Frame ===
-  try {
-    const debugFrame = figma.createFrame();
-    debugFrame.name = '__contentify_debug__';
-    debugFrame.visible = false;
-    debugFrame.resize(1, 1);
-    debugFrame.fills = [];
-    pageFrame.appendChild(debugFrame);
-
-    const debugLines = [
-      'operation: build-page',
-      'query: ' + (options.query || '?'),
-      'platform: ' + platform,
-      'nodes: ' +
-        structure.stats.totalSnippets +
-        ' snippets, ' +
-        structure.stats.containers +
-        ' containers',
-      'created: ' + createdCount + ' elements in ' + creationTime + 'ms',
-    ];
-    for (let ei = 0; ei < errors.length; ei++) {
-      const err = errors[ei];
-      if (!errorsByType[err.elementType]) errorsByType[err.elementType] = [];
-      errorsByType[err.elementType].push(err.message);
-    }
-    for (const etype in errorsByType) {
-      if (Object.prototype.hasOwnProperty.call(errorsByType, etype)) {
-        const msgs = errorsByType[etype];
-        const uniqueMsgs = Array.from(new Set(msgs));
-        debugLines.push('[' + etype + '] errors(' + msgs.length + '): ' + uniqueMsgs.join('; '));
-      }
-    }
-
-    // Типы созданных нод
-    let nodeTypes: Record<string, number> = {};
-    if (structure.stats.byType) {
-      nodeTypes = structure.stats.byType;
-    }
-    for (const nt in nodeTypes) {
-      if (Object.prototype.hasOwnProperty.call(nodeTypes, nt)) {
-        debugLines.push('[' + nt + '] x ' + nodeTypes[nt]);
-      }
-    }
-
-    debugLines.push('errors_total: ' + errors.length);
-
-    for (let di = 0; di < debugLines.length; di++) {
-      const lineFrame = figma.createFrame();
-      lineFrame.name = debugLines[di];
-      lineFrame.resize(1, 1);
-      lineFrame.fills = [];
-      debugFrame.appendChild(lineFrame);
-    }
-  } catch (debugErr) {
-    Logger.debug('[PageCreator] Debug frame creation failed');
+  for (let ei = 0; ei < errors.length; ei++) {
+    const err = errors[ei];
+    if (!errorsByType[err.elementType]) errorsByType[err.elementType] = [];
+    errorsByType[err.elementType].push(err.message);
   }
 
   // === Debug Report (sent to UI → relay) ===

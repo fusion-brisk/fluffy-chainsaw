@@ -31,13 +31,21 @@ export const EPRODUCT_SNIPPET_EXP_SCHEMA: ComponentSchema = {
       stringValue: '#ShopName',
       skipIfEmpty: true,
     },
-    // SourceMeta (string) — вторичный текст (пустой — доставку не показываем)
+    // SourceMeta — TEXT property, содержит текст доставки из
+    // `.EProductSnippet2-Deliveries`. Имя с ЗАГЛАВНОЙ "S".
     {
-      propertyNames: ['SourceMeta', 'sourceMeta'],
+      propertyNames: ['SourceMeta'],
       fieldName: '#SourceMeta',
-      compute: function () {
-        return '';
-      },
+      stringValue: '#SourceMeta',
+    },
+    // sourceMeta — BOOLEAN visibility toggle (с МАЛЕНЬКОЙ "s" — отдельное свойство).
+    // В оригинальной выдаче Яндекса блок `.EProductSnippet2-Deliveries`
+    // присутствует не всегда (у товаров без доставки его нет). Если в row нет
+    // #SourceMeta — скрываем весь Source-Meta-слой, чтобы не зиял пустой строкой.
+    {
+      propertyNames: ['sourceMeta'],
+      fieldName: '#SourceMeta',
+      hasValue: '#SourceMeta',
     },
   ],
 

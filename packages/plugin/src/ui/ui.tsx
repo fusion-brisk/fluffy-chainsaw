@@ -11,14 +11,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom/client';
 import { CSVRow, AppState } from '../types';
 import type { RelayPayload, ProgressData } from '../types';
-import { sendMessageToPlugin } from '../utils/index';
+import { sendMessageToPlugin, generateSessionCode } from '../utils/index';
 import { buildImportSummary, buildImportSummaryData } from '../utils/format';
 
 // Hooks
 import { useRelayConnection } from './hooks/useRelayConnection';
 import { usePluginMessages } from './hooks/usePluginMessages';
 import { useVersionCheck } from './hooks/useVersionCheck';
-import { useBuildCheck } from './hooks/useBuildCheck';
 
 import { usePanelManager } from './hooks/usePanelManager';
 import { useResizeUI } from './hooks/useResizeUI';
@@ -31,8 +30,11 @@ import { CompactStrip } from './components/CompactStrip';
 import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog } from './components/ImportConfirmDialog';
 import { SetupFlow } from './components/SetupFlow';
+import { SetupSplash } from './components/SetupSplash';
+import { OnboardingTip } from './components/OnboardingTip';
 import { UpdateBanner } from './components/UpdateBanner';
 import { CloudUnreachableBanner } from './components/CloudUnreachableBanner';
+import { PairedBanner } from './components/PairedBanner';
 import { LogViewer } from './components/logs/LogViewer';
 import type { LogMessage } from './components/logs/LogViewer';
 import { ComponentInspector } from './components/ComponentInspector';
@@ -65,6 +67,29 @@ const App: React.FC = () => {
   // Cloud-unreachable banner: dismissed-this-session flag. Resets whenever relay reconnects,
   // so a second disconnect shows the banner again.
   const [cloudBannerDismissed, setCloudBannerDismissed] = useState(false);
+  // "Paired ✓" transient flash after the auto-pair URL handshake completes.
+  // Auto-hides after 3 seconds — parent of CompactStrip renders it as a thin banner.
+  const [pairedFlashVisible, setPairedFlashVisible] = useState(false);
+  const pairedFlashTimerRef = useRef<number | null>(null);
+
+  // First-run onboarding tip — shown above CompactStrip in ready state until
+  // either the user dismisses it or the first real import arrives. Persistence
+  // is handled by sandbox clientStorage (`check-onboarding-seen` at startup,
+  // `mark-onboarding-seen` on dismiss).
+  //
+  // `onboardingSeenPersisted`: lifetime flag from clientStorage (true = never
+  // show again). Set once from the first `onboarding-seen-status` reply.
+  // `onboardingTipVisible`: current render state. Controlled by an effect that
+  // reveals the tip on first ready+paired transition and hides it on dismiss
+  // or on the first real import.
+  const [onboardingSeenPersisted, setOnboardingSeenPersisted] = useState<boolean | null>(null);
+  const [onboardingTipVisible, setOnboardingTipVisible] = useState(false);
+
+  // Timing instrumentation: wall-clock refs captured at each pipeline transition
+  // so durations can be computed and surfaced as [Timing] log entries. Not in
+  // state because they don't drive UI — just diagnostics.
+  const confirmShownAtRef = useRef<number | null>(null);
+  const applyStartedAtRef = useRef<number | null>(null);
 
   // === HOOKS ===
   const platform = usePlatform();
@@ -78,6 +103,38 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'save-setup-skipped' });
   }, []);
 
+  // Append a `[Timing] ...` line to the Logs panel and mirror to console so the
+  // developer sees it in both Figma's plugin console and the in-plugin panel.
+  // DEBUG level matches the sandbox-side Logger.debug output pipeline.
+  const logTiming = useCallback((message: string) => {
+    const entry: LogMessage = { level: LogLevel.DEBUG, message, timestamp: Date.now() };
+    setLogMessages((prev) => {
+      const next = [...prev, entry];
+      return next.length > 500 ? next.slice(-500) : next;
+    });
+    // eslint-disable-next-line no-console
+    console.log(message);
+  }, []);
+
+  // Fires once the extension confirms the auto-pair URL handshake via relay pair-ack.
+  // Same as real data arrival for "extension installed" purposes, plus a 3s confirmation
+  // flash so the user sees explicit feedback.
+  const handlePaired = useCallback(() => {
+    markExtensionInstalled();
+    setPairedFlashVisible(true);
+    if (pairedFlashTimerRef.current) clearTimeout(pairedFlashTimerRef.current);
+    pairedFlashTimerRef.current = window.setTimeout(() => {
+      setPairedFlashVisible(false);
+      pairedFlashTimerRef.current = null;
+    }, 3000);
+  }, [markExtensionInstalled]);
+
+  useEffect(() => {
+    return () => {
+      if (pairedFlashTimerRef.current) clearTimeout(pairedFlashTimerRef.current);
+    };
+  }, []);
+
   const handleSetupComplete = useCallback(() => {
     markExtensionInstalled();
     // NOTE: do NOT set isFirstRun=false here — confetti lifecycle rule
@@ -86,14 +143,29 @@ const App: React.FC = () => {
     resizeUI('checking');
   }, [markExtensionInstalled, resizeUI]);
 
+  // Wrapper for ImportConfirmDialog onConfirm — seeds an instant "Подготовка импорта…"
+  // message BEFORE posting to sandbox so the user sees feedback within one render
+  // tick instead of waiting ~400 ms for the sandbox's first progress reply. The
+  // sandbox then overwrites this message as work starts (payload-received, render,
+  // images, etc), giving a continuous narrative.
+  //
+  // Routed through importFlowRef because `importFlow` is defined after this closure
+  // and its identity changes each render; the ref gives us a stable late-binding hook.
+  const handleDialogConfirm = useCallback(
+    (options: Parameters<import('./hooks/useImportFlow').ImportFlow['confirm']>[0]) => {
+      setProgressData({ current: 5, total: 100, message: 'Подготовка импорта…' });
+      importFlowRef.current?.confirm(options);
+    },
+    [],
+  );
+
   const relay = useRelayConnection({
     relayUrl: CLOUD_RELAY_URL,
     sessionCode,
-    enabled:
-      !!sessionCode &&
-      appState !== 'setup' &&
-      appState !== 'processing' &&
-      appState !== 'confirming',
+    // Polling is active during setup so the auto-pair handshake can land.
+    // Regular import entries are guarded by pending/processed entry refs inside
+    // the hook, so there's no duplicate-delivery risk.
+    enabled: !!sessionCode && appState !== 'processing' && appState !== 'confirming',
     onDataReceived: useCallback(
       (data: RelayDataEvent) => {
         if (!extensionInstalled) {
@@ -149,6 +221,8 @@ const App: React.FC = () => {
       [extensionInstalled, markExtensionInstalled],
     ),
     onConnectionChange: useCallback(() => {}, []),
+    onPaired: handlePaired,
+    onTiming: logTiming,
   });
 
   const importFlow = useImportFlow(appState, setAppState, resizeUI, relay);
@@ -157,7 +231,6 @@ const App: React.FC = () => {
   const relayConnected = relay.connected;
 
   const versionCheck = useVersionCheck(relay.extensionVersion);
-  const { buildStale } = useBuildCheck(CLOUD_RELAY_URL, appState !== 'setup');
 
   // === PLUGIN MESSAGES ===
   usePluginMessages({
@@ -166,16 +239,26 @@ const App: React.FC = () => {
         setSetupResolved(true);
         if (skipped) {
           setExtensionInstalled(true);
-          // Don't auto-advance past setup if sessionCode is still missing — the wizard
-          // still needs to run to generate/save a code. The transition to 'checking'
-          // is gated on both setupResolved AND sessionCodeResolved (see effect below).
+          // Returning user — stay compact. The transition effect routes appState to
+          // 'checking' as soon as sessionCodeResolved is also true; growing to extended
+          // size here only to shrink back ~100 ms later was the startup flicker.
+          return;
         }
+        // First-run user who'll actually see SetupFlow — grow the window.
         if (appState === 'setup') {
           resizeUI('setup');
         }
       },
       onSessionCodeLoaded: (code) => {
-        setSessionCode(code);
+        if (code) {
+          setSessionCode(code);
+        } else {
+          // First run: auto-generate a code so the user never has to see/type it.
+          // The Pair-extension button uses this code as URL param; extension picks it up.
+          const generated = generateSessionCode();
+          setSessionCode(generated);
+          sendMessageToPlugin({ type: 'set-session-code', code: generated });
+        }
         setSessionCodeResolved(true);
       },
       onLog: (message) => {
@@ -230,9 +313,13 @@ const App: React.FC = () => {
           setPendingWhatsNew(true);
         }
       },
+      onOnboardingSeenStatus: (seen) => {
+        // Lifetime flag from clientStorage. If already seen, the reveal effect
+        // below will never fire.
+        setOnboardingSeenPersisted(seen);
+      },
       onDebugReport: (report) => {
-        // Cloud relay does not expose /debug in MVP (Phase 2 feature). Calls will 404
-        // gracefully — we still fire-and-forget so local dev endpoints keep working.
+        // Cloud relay does not expose /debug yet (planned). Fire-and-forget — 404s are swallowed.
         try {
           fetch(`${CLOUD_RELAY_URL}/debug`, {
             method: 'POST',
@@ -279,16 +366,6 @@ const App: React.FC = () => {
         Logger.error('Export HTML error: ' + data.message);
         // The sandbox already calls figma.notify for user-visible errors
       },
-      onAllOperationsComplete: () => {
-        if (buildStale) {
-          setTimeout(() => {
-            sendMessageToPlugin({
-              type: 'close-plugin',
-              message: 'Плагин обновлён — откройте заново',
-            });
-          }, 1500);
-        }
-      },
     },
     processingStartTime: null,
   });
@@ -299,6 +376,7 @@ const App: React.FC = () => {
     sendMessageToPlugin({ type: 'get-setup-skipped' });
     sendMessageToPlugin({ type: 'get-session-code' });
     sendMessageToPlugin({ type: 'check-whats-new' });
+    sendMessageToPlugin({ type: 'check-onboarding-seen' });
   }, []);
 
   // Gate setup completion on BOTH: setup skipped AND session code present.
@@ -317,18 +395,89 @@ const App: React.FC = () => {
     }
   }, [appState, setupResolved, sessionCodeResolved, extensionInstalled, sessionCode, resizeUI]);
 
-  // Transition from checking to ready
+  // Cloud reachability check: stay in 'checking' silently while the relay hook
+  // attempts its first poll. If it succeeds, the effect below flips us to 'ready'.
+  // If no connection inside CHECKING_TIMEOUT_MS, surface an explicit error so the
+  // user isn't staring at a fake "ready" state with a blinking offline dot.
+  //
+  // 15 s budget: Yandex Cloud API Gateway cold starts take 3-5 s on first hit
+  // after idle, and the relay hook uses 1 s active polling with an 8 s fetch
+  // abort. 15 s comfortably fits 2-3 real probe attempts so transient cold-
+  // start misses don't surface an error to the user.
   useEffect(() => {
-    if (appState === 'checking') {
-      const timer = setTimeout(() => {
-        if (appState === 'checking') {
-          setAppState('ready');
-          resizeUI('ready');
-        }
-      }, 100);
-      return () => clearTimeout(timer);
-    }
+    if (appState !== 'checking') return;
+    const timer = window.setTimeout(() => {
+      setErrorMessage('Не удалось подключиться к облаку. Проверьте интернет и повторите.');
+      setAppState('error');
+      resizeUI('error');
+    }, 15000);
+    return () => clearTimeout(timer);
   }, [appState, resizeUI]);
+
+  // Timing instrumentation on appState transitions.
+  //   confirming: user sees the ImportConfirmDialog — we stamp this as t0 of the
+  //               "dialog visible → user acts" segment.
+  //   processing: user clicked Confirm, sandbox work starts — stamp t0 of apply.
+  //   success/error/ready-from-processing: compute and log apply duration.
+  useEffect(() => {
+    if (appState === 'confirming') {
+      confirmShownAtRef.current = Date.now();
+    } else if (appState === 'processing') {
+      const now = Date.now();
+      if (confirmShownAtRef.current !== null) {
+        logTiming(`[Timing] Dialog visible → confirm: ${now - confirmShownAtRef.current}ms`);
+        confirmShownAtRef.current = null;
+      }
+      applyStartedAtRef.current = now;
+    } else if (appState === 'success' || appState === 'error' || appState === 'ready') {
+      if (applyStartedAtRef.current !== null) {
+        logTiming(
+          `[Timing] Apply total (UI-observed): ${Date.now() - applyStartedAtRef.current}ms`,
+        );
+        applyStartedAtRef.current = null;
+      }
+    }
+  }, [appState, logTiming]);
+
+  // First-run onboarding tip reveal: show exactly once, when the user first
+  // reaches ready state after pairing, and only if lifetime flag says
+  // "never seen". Side-effects on dismiss are handled via `handleDismissOnboardingTip`.
+  useEffect(() => {
+    if (
+      onboardingSeenPersisted === false &&
+      appState === 'ready' &&
+      extensionInstalled &&
+      !panels.isPanelOpen &&
+      !onboardingTipVisible
+    ) {
+      setOnboardingTipVisible(true);
+    }
+  }, [
+    onboardingSeenPersisted,
+    appState,
+    extensionInstalled,
+    panels.isPanelOpen,
+    onboardingTipVisible,
+  ]);
+
+  // Hide the tip automatically once the first real import arrives — that's
+  // proof the user figured it out, no need to keep nagging.
+  useEffect(() => {
+    if (
+      onboardingTipVisible &&
+      (appState === 'confirming' || appState === 'processing' || appState === 'success')
+    ) {
+      setOnboardingTipVisible(false);
+      setOnboardingSeenPersisted(true);
+      sendMessageToPlugin({ type: 'mark-onboarding-seen' });
+    }
+  }, [onboardingTipVisible, appState]);
+
+  const handleDismissOnboardingTip = useCallback(() => {
+    setOnboardingTipVisible(false);
+    setOnboardingSeenPersisted(true);
+    sendMessageToPlugin({ type: 'mark-onboarding-seen' });
+  }, []);
 
   useEffect(() => {
     if (appState === 'checking' && relay.connected) {
@@ -360,11 +509,15 @@ const App: React.FC = () => {
   //   flow that can transition to extensionInstalled=true, and once set it stays true for
   //   the session. If extensionInstalled detection breaks, banner stops showing — an
   //   acceptable tradeoff vs. showing a noisy banner DURING the setup wizard.
+  //   'checking' is intentionally excluded: that's the silent 5s startup probe — the
+  //   CompactStrip shows a spinner instead, and the checking-timeout effect surfaces a
+  //   full error if it fails. Showing a half-offline banner during a transient 5s check
+  //   is exactly the flicker we want to avoid.
   const showCloudUnreachableBanner =
     !relayConnected &&
     !cloudBannerDismissed &&
     extensionInstalled &&
-    (appState === 'ready' || appState === 'checking' || appState === 'error');
+    (appState === 'ready' || appState === 'error');
 
   // === COMPACT STRIP RESIZE (for menu) ===
   const bannerCount = versionCheck.extensionUpdate ? 1 : 0;
@@ -374,7 +527,16 @@ const App: React.FC = () => {
   //   + 2×8 gap + 20 padding + 8 margin-top + 2 border). No command block in the cloud
   //   variant — "check internet" copy fits in ~two lines.
   const cloudUnreachableBannerHeight = showCloudUnreachableBanner ? 110 : 0;
-  const compactBaseHeight = 56 + updateBannerHeight + cloudUnreachableBannerHeight;
+  // Paired banner: single line (~12 font + 16 padding + 2 border + 8 margin-top) ≈ 38px.
+  const pairedBannerHeight = pairedFlashVisible ? 38 : 0;
+  // Onboarding tip: 2-line hint (~14 × 2 + 16 padding + 2 border + 8 margin-top) ≈ 62px.
+  const onboardingTipHeight = onboardingTipVisible && appState === 'ready' ? 62 : 0;
+  const compactBaseHeight =
+    56 +
+    updateBannerHeight +
+    cloudUnreachableBannerHeight +
+    pairedBannerHeight +
+    onboardingTipHeight;
 
   const handleRequestResize = useCallback(
     (height: number) => {
@@ -425,9 +587,6 @@ const App: React.FC = () => {
         case 'whatsNew':
           panels.openPanel('whatsNew');
           break;
-        case 'reimport':
-          relay.reimport();
-          break;
         case 'clearQueue':
           importFlow.clearQueue();
           break;
@@ -444,13 +603,22 @@ const App: React.FC = () => {
           importFlow.completeSuccess();
           break;
         case 'dismiss-error':
+          // Route by current reachability to avoid a one-frame flash of
+          // "Подключение…" when the error was a transient import failure and
+          // the relay is already up. Startup timeouts (relay down) enter the
+          // checking state so the 5s timeout effect can retry the probe.
           setErrorMessage(undefined);
-          setAppState('ready');
-          resizeUI('ready');
+          if (relayConnected) {
+            setAppState('ready');
+            resizeUI('ready');
+          } else {
+            setAppState('checking');
+            resizeUI('checking');
+          }
           break;
       }
     },
-    [panels, importFlow, setAppState, resizeUI, relay],
+    [panels, importFlow, setAppState, resizeUI, relayConnected],
   );
 
   // === KEYBOARD SHORTCUTS ===
@@ -486,16 +654,28 @@ const App: React.FC = () => {
   // === RENDER ===
   return (
     <div className="glass-app">
-      {/* Setup flow — initial or as panel */}
-      {appState === 'setup' && setupResolved && sessionCodeResolved && (
+      {/* Setup flow — only for first-run users who don't yet have the extension.
+          `!extensionInstalled` guard prevents a single-frame flash of the wizard
+          inside the compact 320×56 window on reopen, between `setup-skipped-loaded`
+          (sets extensionInstalled) and the transition effect (flips appState). */}
+      {appState === 'setup' && setupResolved && sessionCodeResolved && !extensionInstalled && (
         <SetupFlow
           sessionCode={sessionCode}
-          onSessionCodeChange={setSessionCode}
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onComplete={handleSetupComplete}
           onBack={handleSetupComplete}
         />
+      )}
+      {/* Splash placeholder — shown during:
+          1) clientStorage async reads still resolving (setupResolved or
+             sessionCodeResolved still false), OR
+          2) returning user (extensionInstalled=true) waiting for the transition
+             effect to flip appState to 'checking'.
+          Designed to fit the compact 320×56 window so the returning-user path
+          never needs to grow/shrink the window during startup. */}
+      {appState === 'setup' && (!setupResolved || !sessionCodeResolved || extensionInstalled) && (
+        <SetupSplash />
       )}
 
       {/* Update banners — only in compact ready state, BEFORE strip to stay in flow */}
@@ -516,6 +696,15 @@ const App: React.FC = () => {
         />
       )}
 
+      {/* Pair confirmation flash — shown briefly after the auto-pair handshake */}
+      {!panels.isPanelOpen && <PairedBanner visible={pairedFlashVisible} />}
+
+      {/* First-run tip — one-time hint shown above CompactStrip after initial setup,
+          gated on clientStorage flag and ready state. */}
+      {appState === 'ready' && !panels.isPanelOpen && (
+        <OnboardingTip visible={onboardingTipVisible} onDismiss={handleDismissOnboardingTip} />
+      )}
+
       {/* Compact strip — checking, ready, processing, success, error */}
       {isCompactState && !panels.isPanelOpen && (
         <CompactStrip
@@ -526,6 +715,7 @@ const App: React.FC = () => {
           count={importFlow.lastStats?.processedInstances || importFlow.lastStats?.totalInstances}
           duration={undefined}
           errorMessage={errorMessage}
+          processingMessage={progressData.message}
           lastQuery={importFlow.lastQuery}
           lastImportCount={lastImportCount}
           lastImportTime={lastImportTime}
@@ -547,7 +737,7 @@ const App: React.FC = () => {
           summaryData={importFlow.info.summaryData}
           hasSelection={hasSelection}
           sourceType={importFlow.pending?.sourceType}
-          onConfirm={importFlow.confirm}
+          onConfirm={handleDialogConfirm}
           onCancel={importFlow.cancel}
           onClearQueue={importFlow.clearQueue}
         />
@@ -569,11 +759,11 @@ const App: React.FC = () => {
       {panels.activePanel === 'setup' && (
         <SetupFlow
           sessionCode={sessionCode}
-          onSessionCodeChange={setSessionCode}
           relayConnected={relayConnected}
           extensionInstalled={extensionInstalled}
           onComplete={handleCloseSetup}
           onBack={handleCloseSetup}
+          allowRepair
         />
       )}
       {panels.activePanel === 'inspector' && (
