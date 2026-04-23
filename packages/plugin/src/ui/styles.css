@@ -1499,6 +1499,98 @@ button:disabled {
 }
 
 /* ============================================
+   WHATS NEW — changelog (inside PanelLayout)
+   ============================================ */
+
+.whats-new {
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.whats-new__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.whats-new__section-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--figma-color-border, #e5e5e5);
+}
+
+.whats-new__version {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--figma-color-text, #333333);
+}
+
+.whats-new__date {
+  font-size: var(--font-size-sm);
+  color: var(--figma-color-text-tertiary, #b3b3b3);
+}
+
+.whats-new__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.whats-new__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  color: var(--figma-color-text, #333333);
+}
+
+.whats-new__badge {
+  flex-shrink: 0;
+  display: inline-block;
+  min-width: 32px;
+  padding: 1px var(--space-xs);
+  border-radius: 3px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 9px;
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
+  text-align: center;
+  line-height: 1.6;
+  margin-top: 1px;
+}
+
+.whats-new__badge--feat {
+  background: var(--figma-color-bg-brand, #0d99ff);
+  color: var(--figma-color-text-onbrand, #ffffff);
+}
+
+.whats-new__badge--fix {
+  background: var(--figma-color-bg-secondary, #f5f5f5);
+  color: var(--figma-color-text-secondary, #888888);
+  border: 1px solid var(--figma-color-border, #e5e5e5);
+}
+
+.whats-new__badge--refactor {
+  background: transparent;
+  color: var(--figma-color-text-tertiary, #b3b3b3);
+  border: 1px solid var(--figma-color-border, #e5e5e5);
+}
+
+.whats-new__text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* ============================================
    LOG VIEWER — entries + footer (inside PanelLayout)
    ============================================ */
 

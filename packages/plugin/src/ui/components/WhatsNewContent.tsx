@@ -1,8 +1,8 @@
 /**
  * WhatsNewContent — Changelog list for the "Что нового" panel.
  *
- * Uses inline styles with project CSS variables — no new CSS classes.
- * Displayed inside PanelLayout at the 'extended' window tier (420×520).
+ * Rendered inside PanelLayout at the 'extended' window tier (420×520).
+ * Uses .whats-new-* CSS classes for visual consistency with other panels.
  */
 
 import React, { memo } from 'react';
@@ -18,10 +18,10 @@ interface VersionEntry {
   changes: ChangeEntry[];
 }
 
-const TYPE_ICONS: Record<ChangeEntry['type'], string> = {
-  feat: '✦',
-  fix: '○',
-  refactor: '↻',
+const TYPE_LABEL: Record<ChangeEntry['type'], string> = {
+  feat: 'NEW',
+  fix: 'FIX',
+  refactor: 'CHG',
 };
 
 const CHANGELOG: VersionEntry[] = [
@@ -103,61 +103,25 @@ const CHANGELOG: VersionEntry[] = [
   },
 ];
 
-const styles = {
-  container: {
-    padding: '0 16px 16px',
-  } as React.CSSProperties,
-  section: {
-    marginBottom: 16,
-  } as React.CSSProperties,
-  sectionHeader: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: 8,
-    marginBottom: 6,
-    paddingBottom: 4,
-    borderBottom: '1px solid var(--figma-color-border, #e5e5e5)',
-  } as React.CSSProperties,
-  version: {
-    fontSize: 'var(--font-size-lg)',
-    fontWeight: 'var(--font-weight-medium)',
-    color: 'var(--figma-color-text, #333)',
-  } as React.CSSProperties,
-  date: {
-    fontSize: 'var(--font-size-sm)',
-    color: 'var(--figma-color-text-tertiary, #b3b3b3)',
-  } as React.CSSProperties,
-  item: {
-    display: 'flex',
-    gap: 6,
-    padding: '2px 0',
-    fontSize: 'var(--font-size-base)',
-    lineHeight: '1.5',
-    color: 'var(--figma-color-text, #333)',
-  } as React.CSSProperties,
-  icon: {
-    flexShrink: 0,
-    width: 14,
-    textAlign: 'center' as const,
-    color: 'var(--figma-color-text-secondary, #888)',
-  } as React.CSSProperties,
-};
-
 export const WhatsNewContent: React.FC = memo(() => (
-  <div style={styles.container}>
+  <div className="whats-new">
     {CHANGELOG.map((entry) => (
-      <div key={entry.version} style={styles.section}>
-        <div style={styles.sectionHeader}>
-          <span style={styles.version}>v{entry.version}</span>
-          <span style={styles.date}>{entry.date}</span>
-        </div>
-        {entry.changes.map((change, i) => (
-          <div key={i} style={styles.item}>
-            <span style={styles.icon}>{TYPE_ICONS[change.type]}</span>
-            <span>{change.text}</span>
-          </div>
-        ))}
-      </div>
+      <section key={entry.version} className="whats-new__section">
+        <header className="whats-new__section-header">
+          <span className="whats-new__version">v{entry.version}</span>
+          <span className="whats-new__date">{entry.date}</span>
+        </header>
+        <ul className="whats-new__list">
+          {entry.changes.map((change, i) => (
+            <li key={i} className="whats-new__item">
+              <span className={`whats-new__badge whats-new__badge--${change.type}`}>
+                {TYPE_LABEL[change.type]}
+              </span>
+              <span className="whats-new__text">{change.text}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
     ))}
   </div>
 ));

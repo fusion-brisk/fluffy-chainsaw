@@ -547,11 +547,17 @@ const App: React.FC = () => {
 
   // Resize window when update banners appear or are dismissed.
   // Uses setSize to cancel any running animation and jump to the correct height.
+  //
+  // pendingWhatsNew guard: when a version bump is queued, the auto-open effect
+  // (openPanel('whatsNew') → animated resize to extended) runs in the same
+  // commit as this effect. Without the guard, setSize here cancels the pending
+  // extended-size animation and leaves the window stuck at compact height
+  // while the WhatsNew panel renders inside a 56-px strip.
   useEffect(() => {
-    if (appState === 'ready' && !panels.isPanelOpen) {
+    if (appState === 'ready' && !panels.isPanelOpen && !pendingWhatsNew) {
       setSize(320, compactBaseHeight);
     }
-  }, [appState, panels.isPanelOpen, compactBaseHeight, setSize]);
+  }, [appState, panels.isPanelOpen, compactBaseHeight, setSize, pendingWhatsNew]);
 
   // Send platform info to sandbox (for future use)
   useEffect(() => {
