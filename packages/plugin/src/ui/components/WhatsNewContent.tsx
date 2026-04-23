@@ -26,6 +26,24 @@ const TYPE_ICONS: Record<ChangeEntry['type'], string> = {
 
 const CHANGELOG: VersionEntry[] = [
   {
+    version: '3.1.0',
+    date: 'Апрель 2026',
+    changes: [
+      {
+        text: 'Автопэйринг: один клик на ya.ru?contentify_pair=<code> — без ручного ввода',
+        type: 'feat',
+      },
+      { text: 'Импорт быстрее на 37% (49→31с на 78 сниппетов)', type: 'feat' },
+      { text: 'Прогресс с фразами: «Разбор структуры», «Размещаем N/M», «Готово!»', type: 'feat' },
+      {
+        text: 'SourceMeta: корректный парсинг «Курьер · Из магазина» в сниппетах товаров',
+        type: 'fix',
+      },
+      { text: 'Repair mode: принудительный ре-пэйринг из меню', type: 'feat' },
+      { text: 'Стабильность: устранены ~45 ошибок stale-ref в хот-пути', type: 'fix' },
+    ],
+  },
+  {
     version: '2.7.0',
     date: 'Апрель 2026',
     changes: [
