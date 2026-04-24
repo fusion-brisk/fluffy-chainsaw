@@ -3,7 +3,7 @@
  *
  * Compact-first architecture:
  * - compact (320×56): checking, ready, processing, success, error — via CompactStrip
- * - standard (320×220): confirming only — ImportConfirmDialog
+ * - standard (320×280): confirming only — ImportConfirmDialog
  * - extended (420×520): setup, logs, inspector, whatsNew
  */
 

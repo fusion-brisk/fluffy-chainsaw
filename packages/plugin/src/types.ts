@@ -336,7 +336,7 @@ export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState
  */
 export const UI_SIZES = {
   compact: { width: 320, height: 56 },
-  standard: { width: 320, height: 220 },
+  standard: { width: 320, height: 280 },
   extended: { width: 420, height: 520 },
 } as const;
 

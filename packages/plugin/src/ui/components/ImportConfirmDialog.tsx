@@ -1,15 +1,16 @@
 /**
- * ImportConfirmDialog — confirmation screen (320 × 220)
+ * ImportConfirmDialog — confirmation screen (320 × 280)
  *
  * Layout:
  *   Импорт данных                         — title, 13px semibold
  *   «query»                               — secondary, ellipsis
- *   43 сниппета · 5 фильтров              — summary, secondary
+ *     43   сниппетов                      — summary rows, count emphasised
+ *      5   фильтров
  *   Режим
  *   ◉ Новый артборд                       — native radio
  *   ○ Заполнить выделение                 — disabled if !hasSelection
  *   ─────────────────────────────────────
- *   Очистить        [Отмена] [Импортировать]
+ *   Очистить        [Отмена] [Импорт]
  */
 
 import React, { memo, useEffect, useState, useCallback } from 'react';
@@ -85,36 +86,44 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
       return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onCancel, handleConfirm]);
 
-    // Build summary lines from structured data
-    const summaryLines: string[] = [];
+    // Build summary rows — split count and word so we can emphasise the number
+    // separately in markup (count is primary data, word is just the unit).
+    const summaryRows: Array<{ count: number; word: string }> = [];
     if (isFeed) {
-      summaryLines.push(
-        `${itemCount} ${pluralize(itemCount, 'карточка', 'карточки', 'карточек')} фида`,
-      );
+      summaryRows.push({
+        count: itemCount,
+        word: `${pluralize(itemCount, 'карточка', 'карточки', 'карточек')} фида`,
+      });
     } else if (summaryData) {
       if (summaryData.snippetCount > 0) {
-        summaryLines.push(
-          `${summaryData.snippetCount} ${pluralize(summaryData.snippetCount, 'сниппет', 'сниппета', 'сниппетов')}`,
-        );
+        summaryRows.push({
+          count: summaryData.snippetCount,
+          word: pluralize(summaryData.snippetCount, 'сниппет', 'сниппета', 'сниппетов'),
+        });
       }
       if (summaryData.wizardCount > 0) {
-        summaryLines.push(
-          `${summaryData.wizardCount} ${pluralize(summaryData.wizardCount, 'wizard', 'wizard', 'wizard')}`,
-        );
+        summaryRows.push({
+          count: summaryData.wizardCount,
+          word: pluralize(summaryData.wizardCount, 'wizard', 'wizard', 'wizard'),
+        });
       }
       if (summaryData.filterCount > 0) {
-        summaryLines.push(
-          `${summaryData.filterCount} ${pluralize(summaryData.filterCount, 'фильтр', 'фильтра', 'фильтров')}`,
-        );
+        summaryRows.push({
+          count: summaryData.filterCount,
+          word: pluralize(summaryData.filterCount, 'фильтр', 'фильтра', 'фильтров'),
+        });
       }
       if (summaryData.offerCount > 0) {
-        summaryLines.push(
-          `${summaryData.offerCount} ${pluralize(summaryData.offerCount, 'оффер', 'оффера', 'офферов')}`,
-        );
+        summaryRows.push({
+          count: summaryData.offerCount,
+          word: pluralize(summaryData.offerCount, 'оффер', 'оффера', 'офферов'),
+        });
       }
     } else {
-      const word = pluralize(itemCount, 'элемент', 'элемента', 'элементов');
-      summaryLines.push(`${itemCount} ${word}`);
+      summaryRows.push({
+        count: itemCount,
+        word: pluralize(itemCount, 'элемент', 'элемента', 'элементов'),
+      });
     }
 
     return (
@@ -138,11 +147,12 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
             )}
           </div>
 
-          {/* Summary list */}
+          {/* Summary list — numeric counts emphasised */}
           <div className="confirm-dialog__summary-list">
-            {summaryLines.map((line, i) => (
+            {summaryRows.map((row, i) => (
               <div key={i} className="confirm-dialog__summary-item">
-                {line}
+                <span className="confirm-dialog__summary-count">{row.count}</span>
+                <span className="confirm-dialog__summary-word">{row.word}</span>
               </div>
             ))}
           </div>
