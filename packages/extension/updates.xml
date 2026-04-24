@@ -3,6 +3,6 @@
   <app appid='bkgihkkkahjfjpbplmcpggfnfkckhpnm'>
     <updatecheck 
       codebase='https://github.com/fusion-brisk/fluffy-chainsaw/releases/latest/download/contentify.crx'
-      version='3.1.1' />
+      version='3.1.2' />
   </app>
 </gupdate>
