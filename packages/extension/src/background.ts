@@ -318,7 +318,8 @@ async function attemptPush(item: RetryQueueItem): Promise<boolean> {
         payload: item.payload,
         meta: item.meta,
       }),
-      signal: AbortSignal.timeout(5000),
+      // Match the main /push budget: cold start + YDB write can take ~5–10 s.
+      signal: AbortSignal.timeout(30000),
     });
 
     return res.ok;
@@ -666,11 +667,12 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       payload.productCard = productCard;
     }
 
-    // Screenshots — common for both SERP and feed
-    if (screenshots.length > 0) {
-      payload.screenshots = screenshots;
-      if (screenshotMeta) payload.screenshotMeta = screenshotMeta;
-    }
+    // Screenshots intentionally NOT attached to /push body. Yandex Cloud API Gateway
+    // caps request bodies at ~3.5 MB and the relay drops `payload.screenshots` on
+    // arrival anyway (Phase 2 feature, never wired up). Keeping them here previously
+    // caused 413 → AbortSignal.timeout → infinite retry storm. Re-enable only when
+    // Phase 2 ships a dedicated upload endpoint (e.g. Object Storage). The capture
+    // itself still runs to feed the `uploading_screenshots` heads-up UI.
 
     const itemCount = isFeed ? parseResult.feedCards?.length || 0 : rows.length;
     const meta = {
@@ -696,7 +698,9 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload, meta }),
-        signal: AbortSignal.timeout(5000),
+        // 30 s — APIGW + YC Function cold start + YDB write can legitimately reach
+        // 5–10 s; a tight 5 s timeout caused premature aborts and retry storms.
+        signal: AbortSignal.timeout(30000),
       });
       relaySuccess = res.ok;
       if (!res.ok) {
