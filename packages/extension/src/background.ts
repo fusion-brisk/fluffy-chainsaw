@@ -362,7 +362,8 @@ const SCROLL_SETTLE_MS = 500; // Wait for lazy-load + respect captureVisibleTab 
 async function captureFullPage(
   tabId: number,
   platform: string,
-  maxContentHeight?: number,
+  maxContentHeight: number | undefined,
+  onSegmentCaptured: (current: number, total: number) => void,
 ): Promise<ScreenshotResult> {
   const targetWidth = platform === 'touch' ? 393 : 1440;
 
@@ -429,6 +430,11 @@ async function captureFullPage(
   screenshots.push(
     await chrome.tabs.captureVisibleTab(null as unknown as number, { format: 'jpeg', quality: 80 }),
   );
+  // Compute final total for narrative: 1 (segment-0) + remainingCount (capped later)
+  const projectedTotal =
+    1 +
+    Math.min(Math.ceil(Math.max(0, scrollHeight - innerHeight) / innerHeight), MAX_CAPTURES - 1);
+  onSegmentCaptured(1, projectedTotal);
 
   // --- Hide header + sticky ProductsModePanel for remaining segments ---
   await chrome.scripting.executeScript({
@@ -475,6 +481,7 @@ async function captureFullPage(
         quality: 80,
       }),
     );
+    onSegmentCaptured(i + 2, 1 + remainingCount);
   }
 
   // Restore: scroll position, hidden elements, window size
@@ -521,6 +528,8 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
 
   // Show loading state
   setBadge('...', '#5865F2');
+  // Fire-and-forget: tell plugin "we're starting" before any heavy work.
+  void sendHeadsUp('parsing');
 
   // Declare at higher scope for access in catch block
   let parseResult: ParseResult | null = null;
@@ -616,7 +625,14 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       }
 
       try {
-        const result = await captureFullPage(tab.id!, platform, maxContentHeight);
+        const result = await captureFullPage(
+          tab.id!,
+          platform,
+          maxContentHeight,
+          (current, total) => {
+            void sendHeadsUp('uploading_screenshots', { current, total });
+          },
+        );
         screenshots = result.screenshots;
         screenshotMeta = {
           totalHeight: result.totalHeight,
@@ -669,6 +685,9 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       extensionVersion: chrome.runtime.getManifest().version,
     };
 
+    // Heads-up: about to upload the structured payload.
+    void sendHeadsUp('uploading_json');
+
     // Send to cloud relay
     let relaySuccess = false;
 
@@ -685,6 +704,10 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       }
     } catch (relayErr: unknown) {
       console.log('[Relay] Request failed:', (relayErr as Error).message);
+    }
+
+    if (relaySuccess) {
+      void sendHeadsUp('finalizing');
     }
 
     const pcLabel = !isFeed && productCard ? '+PC' : '';
@@ -715,6 +738,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       // Deeplink failed, ignore
     }
   } catch (err: unknown) {
+    void sendHeadsUp('error', { message: (err as Error).message?.slice(0, 200) ?? 'Parse failed' });
     console.error('Parse/copy error:', err);
     setBadge('!', '#E5534B');
     clearBadgeAfter(2000);
