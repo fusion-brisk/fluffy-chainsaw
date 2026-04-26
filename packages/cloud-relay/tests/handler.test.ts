@@ -276,3 +276,76 @@ describe('POST /push — heads-up branch', () => {
     expect(ydb.upsertHeadsUp).not.toHaveBeenCalled();
   });
 });
+
+describe('GET /status — headsUp', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns headsUp:null when getHeadsUp returns null', async () => {
+    (ydb.getHeadsUp as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'GET',
+        path: '/status',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.headsUp).toBeNull();
+  });
+
+  it('returns serialized headsUp when present', async () => {
+    const ts = new Date('2026-04-26T12:00:00Z');
+    (ydb.getHeadsUp as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessionId: 'ABC123',
+      phase: 'uploading_screenshots',
+      current: 7,
+      total: 27,
+      message: null,
+      ts,
+      expiresAt: new Date(ts.getTime() + 30000),
+    });
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'GET',
+        path: '/status',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body || '{}');
+    expect(body.headsUp).toEqual({
+      phase: 'uploading_screenshots',
+      current: 7,
+      total: 27,
+      ts: ts.getTime(),
+    });
+  });
+
+  it('omits null fields from serialized headsUp', async () => {
+    const ts = new Date('2026-04-26T12:00:00Z');
+    (ydb.getHeadsUp as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      sessionId: 'ABC123',
+      phase: 'parsing',
+      current: null,
+      total: null,
+      message: null,
+      ts,
+      expiresAt: new Date(ts.getTime() + 30000),
+    });
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'GET',
+        path: '/status',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    const body = JSON.parse(res.body || '{}');
+    expect(body.headsUp).toEqual({ phase: 'parsing', ts: ts.getTime() });
+    expect(body.headsUp).not.toHaveProperty('current');
+    expect(body.headsUp).not.toHaveProperty('total');
+    expect(body.headsUp).not.toHaveProperty('message');
+  });
+});
