@@ -32,8 +32,9 @@ packages/relay/.relay-queue.json
 # Test data (large HTML snapshots)
 examples/
 
-# Screenshots
+# Screenshots (general). Design-audit screenshots are an exception — they're tracked.
 screenshots/
+!docs/screenshots/
 
 # MCP config (local dev)
 .mcp.json

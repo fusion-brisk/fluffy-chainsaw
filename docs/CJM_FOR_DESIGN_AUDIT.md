@@ -318,20 +318,6 @@ setup ──► checking ──► ready ──► incoming ──► confirming
 
 ## 8. Скриншоты / визуальные референсы
 
-> **TODO для отправки в Claude Design:** приложить screenshots реального плагина в каждом из 8 компактных state'ов + extended-панелях. На текущий момент скриншоты не собраны — они ниже, но имена placeholder'ы:
+Скриншоты живут в [`docs/screenshots/`](screenshots/). Подробный список из 10 ключевых и 6 опциональных кадров с инструкциями как их воспроизвести — в [`docs/screenshots/README.md`](screenshots/README.md).
 
-- `screenshots/cjm-1-onboarding-step-1.png` (Setup splash)
-- `screenshots/cjm-1-onboarding-step-3.png` (SetupFlow extension step)
-- `screenshots/cjm-1-onboarding-step-5.png` (Paired flash)
-- `screenshots/cjm-2-incoming.png` (NEW — heads-up narrative)
-- `screenshots/cjm-2-confirm.png` (Confirm dialog)
-- `screenshots/cjm-2-processing.png` (Processing strip)
-- `screenshots/cjm-2-success.png` (Success + confetti)
-- `screenshots/cjm-3-cloud-unreachable.png`
-- `screenshots/cjm-4-logs.png`
-- `screenshots/cjm-4-inspector.png`
-
-Для аудита можно либо:
-
-1. Запустить плагин локально (см. README) и пройти каждое состояние
-2. Заскриншотить из реальной Figma-сессии и приложить к запросу
+Промпт для передачи всего пакета (CJM + screenshots) в Claude Design: [`docs/CLAUDE_DESIGN_PROMPT.md`](CLAUDE_DESIGN_PROMPT.md).
