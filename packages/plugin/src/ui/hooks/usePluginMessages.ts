@@ -62,6 +62,7 @@ export interface PluginMessageHandlers {
     success: boolean;
     itemCount?: number;
     frameName?: string;
+    frameId?: string;
     error?: string;
   }) => void;
 
@@ -247,6 +248,7 @@ export function usePluginMessages({
               success: msg.success,
               itemCount: msg.itemCount,
               frameName: msg.frameName,
+              frameId: msg.frameId,
               error: msg.error,
             });
           }

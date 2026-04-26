@@ -125,9 +125,12 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
         ? 'Подключение расширения'
         : 'Подключите расширение Яндекса';
 
+    // Idle copy split into two lines so the value prop comes BEFORE the mechanic.
+    // Repair mode keeps the original technical description (returning user, no
+    // value-prop framing needed).
     const description = isRepair
       ? 'Плагин уже связан. Переподключите, если расширение не отвечает — session code перезапишется на обеих сторонах.'
-      : 'Один клик — плагин свяжется с браузером автоматически.';
+      : 'Заполняем макеты данными из живого Яндекса в один клик. Плагин свяжется с браузером автоматически.';
 
     const primaryLabel = isRepair ? 'Переподключить расширение' : 'Подключить расширение';
 
@@ -263,33 +266,67 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
             </div>
           )}
 
-          {/* TIMED-OUT — install help auto-expanded + retry */}
+          {/* TIMED-OUT — numbered install steps (visual scaffold for non-developer
+              dizainers). The download button acts as step 1's CTA so the user has
+              one obvious primary path. After install, the single "Я установил —
+              повторить" button replaces the previous two equal-weight buttons,
+              avoiding the choice paralysis where retry and download were peer
+              CTAs. */}
           {pairState === 'timed-out' && (
             <div className="setup-flow__timeout" role="alert">
               <p className="setup-flow__timeout-title">Расширение не ответило</p>
               <p className="setup-flow__hint">
-                Возможно, оно ещё не установлено или установлено в другом браузере. Установите его и
-                попробуйте снова.
+                Похоже, расширение ещё не установлено. Установите его за 4 шага:
               </p>
-              <div className="setup-flow__action-row">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handleDownloadExtension}
-                  aria-label="Скачать расширение"
-                >
-                  Скачать расширение
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleRetry}
-                  disabled={!sessionCode || !relayConnected}
-                  aria-label="Попробовать подключиться ещё раз"
-                >
-                  Попробовать снова
-                </button>
-              </div>
+              <ol className="setup-flow__steps">
+                <li className="setup-flow__step">
+                  <span className="setup-flow__step-number" aria-hidden>
+                    1
+                  </span>
+                  <span className="setup-flow__step-text">
+                    <button
+                      type="button"
+                      className="setup-flow__step-link"
+                      onClick={handleDownloadExtension}
+                    >
+                      Скачайте .crx файл ↓
+                    </button>
+                  </span>
+                </li>
+                <li className="setup-flow__step">
+                  <span className="setup-flow__step-number" aria-hidden>
+                    2
+                  </span>
+                  <span className="setup-flow__step-text">
+                    Откройте <code>chrome://extensions</code>
+                  </span>
+                </li>
+                <li className="setup-flow__step">
+                  <span className="setup-flow__step-number" aria-hidden>
+                    3
+                  </span>
+                  <span className="setup-flow__step-text">
+                    Включите «Режим разработчика» в правом верхнем углу
+                  </span>
+                </li>
+                <li className="setup-flow__step">
+                  <span className="setup-flow__step-number" aria-hidden>
+                    4
+                  </span>
+                  <span className="setup-flow__step-text">
+                    Перетащите .crx файл на страницу расширений
+                  </span>
+                </li>
+              </ol>
+              <button
+                type="button"
+                className="btn-primary setup-flow__retry"
+                onClick={handleRetry}
+                disabled={!sessionCode || !relayConnected}
+                aria-label="Я установил расширение, попробовать подключиться ещё раз"
+              >
+                Я установил — повторить
+              </button>
             </div>
           )}
         </div>

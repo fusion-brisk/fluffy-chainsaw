@@ -41,8 +41,13 @@ interface CompactStripProps {
   processingMessage?: string;
   /** Heads-up narrative shown in 'incoming' mode (e.g., "Грузим скриншоты 7/27…") */
   incomingMessage?: string;
+  /** Heads-up progress (screenshot upload phase). Drives the 3-px bar in 'incoming' mode. */
+  incomingCurrent?: number;
+  incomingTotal?: number;
   /** Cancel handler for 'incoming' mode — clears queue and returns to ready. */
   onCancelIncoming?: () => void;
+  /** True when a zoom-to-frame action is available (last imported frame still tracked). */
+  canZoom?: boolean;
   lastQuery?: string;
   lastImportCount?: number;
   lastImportTime?: number;
@@ -55,7 +60,11 @@ interface CompactStripProps {
   onMenuAction: (action: string) => void;
 }
 
-const AUTO_DISMISS_DELAY = 3000;
+// Success auto-dismiss budget — long enough to read "76 элементов · 12.3 сек"
+// summary AND glance at the Zoom action without aggressive auto-clear. Hover
+// pauses the timer entirely (see useEffect below), so this is the minimum
+// guaranteed read-window for inattentive users.
+const AUTO_DISMISS_DELAY = 5000;
 const ERROR_DISMISS_DELAY = 5000;
 const STRIP_HEIGHT = 56;
 
@@ -86,7 +95,10 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     errorMessage,
     processingMessage,
     incomingMessage,
+    incomingCurrent,
+    incomingTotal,
     onCancelIncoming,
+    canZoom,
     lastQuery,
     lastImportCount,
     lastImportTime,
@@ -99,6 +111,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
   }) => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [showTooltip, setShowTooltip] = useState(false);
+    const [hoverPausedAt, setHoverPausedAt] = useState<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const menuBtnRef = useRef<HTMLButtonElement>(null);
     const autoDismissRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -223,13 +236,20 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       }
     }, [mode]); // intentionally omit menuOpen/setMenuOpen — only react to mode changes
 
-    // Auto-dismiss for success and error
+    // Auto-dismiss for success and error.
+    //
+    // Hover pauses the success timer — the strip carries summary data
+    // ("76 элементов · 12.3 сек") that the user wants time to read. The timer
+    // is cancelled when the user starts hovering and re-armed (full duration)
+    // when they leave. Re-arming on leave instead of resuming is intentional —
+    // resuming with elapsed time leaves the user with an unpredictable window
+    // depending on when they hovered, while a fresh full window is consistent.
     useEffect(() => {
-      if (mode === 'success') {
+      if (mode === 'success' && hoverPausedAt === null) {
         autoDismissRef.current = setTimeout(() => {
           onMenuAction('dismiss-success');
         }, AUTO_DISMISS_DELAY);
-      } else if (mode === 'error') {
+      } else if (mode === 'error' && hoverPausedAt === null) {
         autoDismissRef.current = setTimeout(() => {
           onMenuAction('dismiss-error');
         }, ERROR_DISMISS_DELAY);
@@ -237,7 +257,24 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       return () => {
         if (autoDismissRef.current) clearTimeout(autoDismissRef.current);
       };
-    }, [mode, onMenuAction]);
+    }, [mode, onMenuAction, hoverPausedAt]);
+
+    // Reset hover-pause when mode changes (avoid stale pause carrying into next state).
+    useEffect(() => {
+      setHoverPausedAt(null);
+    }, [mode]);
+
+    const handleStripMouseEnter = useCallback(() => {
+      if (mode === 'success' || mode === 'error') {
+        setHoverPausedAt(Date.now());
+      }
+    }, [mode]);
+
+    const handleStripMouseLeave = useCallback(() => {
+      if (hoverPausedAt !== null) {
+        setHoverPausedAt(null);
+      }
+    }, [hoverPausedAt]);
 
     const handleMenuItemClick = useCallback(
       (action: string) => {
@@ -341,6 +378,13 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       mode === 'processing' && current != null && total != null && total > 0
         ? Math.min(100, Math.round((current / total) * 100))
         : 0;
+    // Incoming progress: only meaningful during the screenshot-upload phase
+    // (current/total provided). Other phases render an indeterminate bar via
+    // the CSS pulse animation.
+    const incomingPercent =
+      mode === 'incoming' && incomingCurrent != null && incomingTotal != null && incomingTotal > 0
+        ? Math.min(100, Math.round((incomingCurrent / incomingTotal) * 100))
+        : null;
 
     // Tooltip for last query
     const tooltipText = lastQuery
@@ -383,8 +427,10 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     return (
       <div
         ref={containerRef}
-        className={`compact-strip compact-strip--${mode}`}
+        className={`compact-strip compact-strip--${mode}${hoverPausedAt !== null ? ' compact-strip--paused' : ''}`}
         onClick={mode === 'error' ? handleErrorClick : undefined}
+        onMouseEnter={handleStripMouseEnter}
+        onMouseLeave={handleStripMouseLeave}
       >
         {/* Strip row: 56px */}
         <div className="compact-strip__content">
@@ -404,7 +450,7 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
           {mode === 'incoming' && onCancelIncoming && (
             <button
               type="button"
-              className="compact-strip__cancel-link"
+              className="compact-strip__cancel-link compact-strip__cancel-link--emphasised"
               onClick={(e) => {
                 e.stopPropagation();
                 onCancelIncoming();
@@ -412,6 +458,24 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
               aria-label="Отменить ожидание данных"
             >
               Отменить
+            </button>
+          )}
+
+          {mode === 'success' && canZoom && (
+            <button
+              type="button"
+              className="compact-strip__zoom-link"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMenuAction('zoom-to-frame');
+              }}
+              aria-label="Показать импортированный фрейм на холсте"
+              title="Показать импортированный фрейм"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                <path d="M2 2h3v1H3v2H2V2zm5 0h3v3H9V3H7V2zM2 7h1v2h2v1H2V7zm8 0v3H7V9h2V7h1z" />
+              </svg>
+              Zoom
             </button>
           )}
 
@@ -437,6 +501,22 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
               className="compact-strip__progress-fill"
               style={{ width: `${progressPercent}%` }}
             />
+          </div>
+        )}
+
+        {/* Progress bar — incoming. Two render paths:
+             1) determinate fill when extension reports current/total (screenshot phase)
+             2) indeterminate pulse when phase is parsing/uploading_json/finalizing */}
+        {mode === 'incoming' && (
+          <div className="compact-strip__progress">
+            {incomingPercent !== null ? (
+              <div
+                className="compact-strip__progress-fill"
+                style={{ width: `${incomingPercent}%` }}
+              />
+            ) : (
+              <div className="compact-strip__progress-fill compact-strip__progress-fill--indeterminate" />
+            )}
           </div>
         )}
 
