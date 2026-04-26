@@ -1,24 +1,38 @@
 /**
- * POST /push — extension publishes a new queue entry for the session.
+ * POST /push — extension publishes a queue entry OR a heads-up signal.
  *
- * Validates payload size (5MB cap on data fields) and drops `screenshots`
- * outright: the cloud relay is Phase 1 (text-only) and does not handle image
- * segments yet. Returns `{ entryId, queueSize }` so the client can confirm.
+ * Discriminator: `body.kind === 'heads-up'` routes to UPSERT into
+ * `session_heads_up` (lightweight progress signal). Otherwise the existing
+ * payload path runs unchanged.
+ *
+ * The heads-up branch is fire-and-forget from the extension's perspective —
+ * it returns 204 No Content even on validation success, no entryId.
  */
 
-import type { QueueEntry, QueueEntryMeta, QueueEntryPayload, Route } from '../types';
-import { getStatus, insertEntry } from '../ydb';
+import type { HeadsUpPhase, QueueEntry, QueueEntryMeta, QueueEntryPayload, Route } from '../types';
+import { getStatus, insertEntry, upsertHeadsUp } from '../ydb';
 import { parseBody } from './_util';
 
-/** 5 MB limit for rawRows / feedCards / wizards / productCard combined. */
 const MAX_DATA_PAYLOAD_SIZE = 5 * 1024 * 1024;
-
-/** Queue entries live for 24 hours before YDB's TTL reaps them. */
 const ENTRY_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_HEADS_UP_MESSAGE_LEN = 500;
+
+const HEADS_UP_PHASES: ReadonlyArray<HeadsUpPhase> = [
+  'parsing',
+  'uploading_json',
+  'uploading_screenshots',
+  'finalizing',
+  'error',
+];
 
 interface PushBody {
   payload?: QueueEntryPayload;
   meta?: QueueEntryMeta;
+  kind?: 'heads-up';
+  phase?: HeadsUpPhase;
+  current?: number;
+  total?: number;
+  message?: string;
 }
 
 function generateEntryId(): string {
@@ -34,26 +48,58 @@ function measureDataSize(payload: QueueEntryPayload): number {
   return size;
 }
 
+function isHeadsUpPhase(value: unknown): value is HeadsUpPhase {
+  return typeof value === 'string' && (HEADS_UP_PHASES as ReadonlyArray<string>).includes(value);
+}
+
 export const push: Route = async (event, sessionId) => {
   const body = parseBody<PushBody>(event);
-  if (!body || !body.payload) {
+  if (!body) {
+    return { statusCode: 400, body: { error: 'Missing body' } };
+  }
+
+  // Heads-up branch — discriminated by `kind` field.
+  if (body.kind === 'heads-up') {
+    if (body.payload != null) {
+      return {
+        statusCode: 400,
+        body: { error: 'Combined payload and heads-up not allowed in single request' },
+      };
+    }
+    if (!isHeadsUpPhase(body.phase)) {
+      return { statusCode: 400, body: { error: 'Invalid or missing heads-up phase' } };
+    }
+    if (body.phase === 'uploading_screenshots') {
+      if (typeof body.current !== 'number' || typeof body.total !== 'number') {
+        return {
+          statusCode: 400,
+          body: { error: 'uploading_screenshots requires current and total (numbers)' },
+        };
+      }
+    }
+    await upsertHeadsUp(sessionId, body.phase, {
+      current: typeof body.current === 'number' ? body.current : null,
+      total: typeof body.total === 'number' ? body.total : null,
+      message:
+        typeof body.message === 'string' ? body.message.slice(0, MAX_HEADS_UP_MESSAGE_LEN) : null,
+    });
+    return { statusCode: 204 };
+  }
+
+  // ── Payload branch (unchanged from prior behaviour) ────────────────────────
+  if (!body.payload) {
     return { statusCode: 400, body: { error: 'Missing payload' } };
   }
 
   const payload = body.payload;
   const meta = body.meta ?? {};
 
-  // Phase 2 — strip screenshot segments. The cloud relay does not store
-  // images yet. Log a warning so we notice if a newer extension starts
-  // sending them.
   if (payload.screenshots) {
     console.warn('[push] dropping screenshots (Phase 2 feature)');
     delete payload.screenshots;
     delete (payload as { screenshotMeta?: unknown }).screenshotMeta;
   }
 
-  // Size check happens after screenshot stripping so we're only measuring
-  // the text payload the client actually needs us to persist.
   let dataSize = 0;
   try {
     dataSize = measureDataSize(payload);
