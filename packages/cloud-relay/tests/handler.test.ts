@@ -217,6 +217,68 @@ describe('POST /push — heads-up branch', () => {
     expect(ydb.upsertHeadsUp).not.toHaveBeenCalled();
   });
 
+  it('rejects uploading_screenshots with negative current (400)', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+        body: JSON.stringify({
+          kind: 'heads-up',
+          phase: 'uploading_screenshots',
+          current: -1,
+          total: 5,
+        }),
+      }),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(ydb.upsertHeadsUp).not.toHaveBeenCalled();
+  });
+
+  it('rejects uploading_screenshots with non-integer total (400)', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+        body: JSON.stringify({
+          kind: 'heads-up',
+          phase: 'uploading_screenshots',
+          current: 1,
+          total: 3.5,
+        }),
+      }),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(ydb.upsertHeadsUp).not.toHaveBeenCalled();
+  });
+
+  it('rejects error phase without message (400)', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+        body: JSON.stringify({ kind: 'heads-up', phase: 'error' }),
+      }),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(ydb.upsertHeadsUp).not.toHaveBeenCalled();
+  });
+
+  it('rejects error phase with empty/whitespace message (400)', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'POST',
+        path: '/push',
+        queryStringParameters: { session: 'ABC123' },
+        body: JSON.stringify({ kind: 'heads-up', phase: 'error', message: '   ' }),
+      }),
+    );
+    expect(res.statusCode).toBe(400);
+    expect(ydb.upsertHeadsUp).not.toHaveBeenCalled();
+  });
+
   it('rejects unknown phase (400)', async () => {
     const res = await handler(
       makeEvent({

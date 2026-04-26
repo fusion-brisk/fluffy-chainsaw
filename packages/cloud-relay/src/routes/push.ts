@@ -70,10 +70,24 @@ export const push: Route = async (event, sessionId) => {
       return { statusCode: 400, body: { error: 'Invalid or missing heads-up phase' } };
     }
     if (body.phase === 'uploading_screenshots') {
-      if (typeof body.current !== 'number' || typeof body.total !== 'number') {
+      const c = body.current;
+      const t = body.total;
+      const validCounter = (n: unknown): n is number =>
+        typeof n === 'number' && Number.isInteger(n) && n >= 0;
+      if (!validCounter(c) || !validCounter(t)) {
         return {
           statusCode: 400,
-          body: { error: 'uploading_screenshots requires current and total (numbers)' },
+          body: {
+            error: 'uploading_screenshots requires current and total as non-negative integers',
+          },
+        };
+      }
+    }
+    if (body.phase === 'error') {
+      if (typeof body.message !== 'string' || body.message.trim() === '') {
+        return {
+          statusCode: 400,
+          body: { error: 'error phase requires a non-empty message string' },
         };
       }
     }
