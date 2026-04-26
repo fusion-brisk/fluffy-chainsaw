@@ -243,7 +243,7 @@ button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text)
     .update-banner-close
   ):not(.cloud-unreachable-banner__close):not(.compact-strip__menu-btn):not(
     .compact-strip__menu-item
-  ):not(.panel-layout__back):not(.onboarding-tip__close) {
+  ):not(.compact-strip__cancel-link):not(.panel-layout__back):not(.onboarding-tip__close) {
   background-color: var(--figma-color-bg-hover, #f5f5f5);
 }
 
@@ -445,6 +445,11 @@ button:disabled {
   border-top-color: var(--figma-color-bg-brand, #0d99ff);
 }
 
+.compact-strip__spinner--incoming {
+  border-color: var(--figma-color-border, #e5e5e5);
+  border-top-color: var(--figma-color-bg-brand, #0d99ff);
+}
+
 .compact-strip__dot {
   width: 8px;
   height: 8px;
@@ -508,6 +513,25 @@ button:disabled {
 .compact-strip__menu-btn:hover {
   background: var(--figma-color-bg-hover, #f5f5f5);
   color: var(--figma-color-text, #333333);
+}
+
+/* Cancel link (incoming mode) */
+.compact-strip__cancel-link {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--figma-color-text-secondary, #888);
+  font-size: 11px;
+  padding: 4px 8px;
+  margin-right: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.compact-strip__cancel-link:hover:not(:disabled) {
+  background-color: var(--figma-color-bg-hover, #f5f5f5);
+  color: var(--figma-color-text, #333);
 }
 
 /* Progress bar */

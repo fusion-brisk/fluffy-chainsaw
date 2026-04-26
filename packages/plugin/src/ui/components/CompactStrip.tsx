@@ -12,7 +12,13 @@
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { PluginPlatform } from '../hooks/usePlatform';
 
-export type CompactStripMode = 'checking' | 'ready' | 'processing' | 'success' | 'error';
+export type CompactStripMode =
+  | 'checking'
+  | 'ready'
+  | 'incoming'
+  | 'processing'
+  | 'success'
+  | 'error';
 
 interface MenuItem {
   id: string;
@@ -33,6 +39,10 @@ interface CompactStripProps {
   errorMessage?: string;
   /** Dynamic processing message — overrides the default "X из Y" / "Обработка..." */
   processingMessage?: string;
+  /** Heads-up narrative shown in 'incoming' mode (e.g., "Грузим скриншоты 7/27…") */
+  incomingMessage?: string;
+  /** Cancel handler for 'incoming' mode — clears queue and returns to ready. */
+  onCancelIncoming?: () => void;
   lastQuery?: string;
   lastImportCount?: number;
   lastImportTime?: number;
@@ -75,6 +85,8 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
     duration,
     errorMessage,
     processingMessage,
+    incomingMessage,
+    onCancelIncoming,
     lastQuery,
     lastImportCount,
     lastImportTime,
@@ -264,6 +276,9 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
           <div className="compact-strip__dot compact-strip__dot--offline" />
         );
         break;
+      case 'incoming':
+        statusIcon = <div className="compact-strip__spinner compact-strip__spinner--incoming" />;
+        break;
       case 'processing':
         statusIcon = <div className="compact-strip__spinner compact-strip__spinner--brand" />;
         break;
@@ -287,6 +302,10 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         break;
       case 'ready':
         statusText = connected ? 'Подключено' : 'Relay офлайн';
+        break;
+      case 'incoming':
+        statusText =
+          incomingMessage && incomingMessage.trim() ? incomingMessage : 'Получаем данные…';
         break;
       case 'processing':
         // Prefer the sandbox-provided message ("Размещаем 15 из 78…" etc) so the user
@@ -381,6 +400,20 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
           </span>
 
           <div className="compact-strip__spacer" />
+
+          {mode === 'incoming' && onCancelIncoming && (
+            <button
+              type="button"
+              className="compact-strip__cancel-link"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCancelIncoming();
+              }}
+              aria-label="Отменить ожидание данных"
+            >
+              Отменить
+            </button>
+          )}
 
           <button
             ref={menuBtnRef}
