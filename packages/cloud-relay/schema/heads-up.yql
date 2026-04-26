@@ -1,0 +1,16 @@
+-- session_heads_up — one row per active session. Overwritten by /push?kind=heads-up.
+-- TTL 30s reaps stale rows. Reads via /status?session=X.
+
+CREATE TABLE session_heads_up (
+  session_id Utf8 NOT NULL,
+  phase      Utf8 NOT NULL,
+  current    Int32,
+  total      Int32,
+  message    Utf8,
+  ts         Timestamp NOT NULL,
+  expires_at Timestamp NOT NULL,
+  PRIMARY KEY (session_id)
+)
+WITH (
+  TTL = Interval("PT30S") ON expires_at
+);
