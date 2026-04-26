@@ -50,6 +50,39 @@ export interface QueueStatus {
   firstEntry: QueueEntry | null;
 }
 
+// ─── Heads-up state ─────────────────────────────────────────────────────────
+//
+// Lightweight progress signal from extension. One row per session, overwritten
+// on each /push?kind=heads-up. TTL 30s purges stale rows. /status embeds the
+// latest non-expired row in its response so the plugin can render narrative
+// without an extra round-trip.
+
+export type HeadsUpPhase =
+  | 'parsing'
+  | 'uploading_json'
+  | 'uploading_screenshots'
+  | 'finalizing'
+  | 'error';
+
+export interface HeadsUpState {
+  sessionId: string;
+  phase: HeadsUpPhase;
+  current: number | null; // required for 'uploading_screenshots', else null
+  total: number | null; // required for 'uploading_screenshots', else null
+  message: string | null; // required for 'error', else null
+  ts: Date;
+  expiresAt: Date;
+}
+
+/** Wire shape included in /status response. Date → ms epoch for JSON safety. */
+export interface HeadsUpStatePayload {
+  phase: HeadsUpPhase;
+  current?: number;
+  total?: number;
+  message?: string;
+  ts: number;
+}
+
 // ─── HTTP event / response (YC Function contract) ───────────────────────────
 
 export interface YcHttpEvent {

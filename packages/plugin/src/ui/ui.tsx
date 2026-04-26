@@ -13,6 +13,8 @@ import { CSVRow, AppState } from '../types';
 import type { RelayPayload, ProgressData } from '../types';
 import { sendMessageToPlugin, generateSessionCode } from '../utils/index';
 import { buildImportSummary, buildImportSummaryData } from '../utils/format';
+import { formatHeadsUpPhase } from './utils/heads-up-messages';
+import type { HeadsUpStatePayload } from './utils/heads-up-messages';
 
 // Hooks
 import { useRelayConnection } from './hooks/useRelayConnection';
@@ -63,6 +65,7 @@ const App: React.FC = () => {
   const [setupResolved, setSetupResolved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [progressData, setProgressData] = useState<ProgressData>({ current: 0, total: 0 });
+  const [incomingMessage, setIncomingMessage] = useState<string | undefined>();
   const [pendingWhatsNew, setPendingWhatsNew] = useState(false);
   // Cloud-unreachable banner: dismissed-this-session flag. Resets whenever relay reconnects,
   // so a second disconnect shows the banner again.
@@ -221,6 +224,23 @@ const App: React.FC = () => {
       [extensionInstalled, markExtensionInstalled],
     ),
     onConnectionChange: useCallback(() => {}, []),
+    onIncoming: useCallback((state: HeadsUpStatePayload) => {
+      setIncomingMessage(formatHeadsUpPhase(state));
+      setAppState((prev) => {
+        // Only enter 'incoming' from 'ready' — avoid clobbering confirming/processing/etc.
+        if (prev === 'ready') return 'incoming';
+        return prev;
+      });
+    }, []),
+    onIncomingError: useCallback((message: string) => {
+      setErrorMessage(message);
+      setAppState((prev) => (prev === 'incoming' || prev === 'ready' ? 'error' : prev));
+      setIncomingMessage(undefined);
+    }, []),
+    onIncomingExpired: useCallback(() => {
+      setIncomingMessage(undefined);
+      setAppState((prev) => (prev === 'incoming' ? 'ready' : prev));
+    }, []),
     onPaired: handlePaired,
     onTiming: logTiming,
   });
@@ -577,6 +597,13 @@ const App: React.FC = () => {
     setLogMessages([]);
   }, []);
 
+  const handleCancelIncoming = useCallback(() => {
+    setIncomingMessage(undefined);
+    setAppState('ready');
+    // Fire-and-forget: clear backend so next /status doesn't re-trigger us.
+    void relay.clearQueue();
+  }, [relay]);
+
   // === MENU ACTION HANDLER ===
   const handleMenuAction = useCallback(
     (action: string) => {
@@ -649,13 +676,22 @@ const App: React.FC = () => {
       ? 'error'
       : appState === 'checking'
         ? 'checking'
-        : appState === 'processing'
-          ? 'processing'
-          : appState === 'success'
-            ? 'success'
-            : 'ready';
+        : appState === 'incoming'
+          ? 'incoming'
+          : appState === 'processing'
+            ? 'processing'
+            : appState === 'success'
+              ? 'success'
+              : 'ready';
 
-  const isCompactState = ['checking', 'ready', 'processing', 'success', 'error'].includes(appState);
+  const isCompactState = [
+    'checking',
+    'ready',
+    'incoming',
+    'processing',
+    'success',
+    'error',
+  ].includes(appState);
 
   // === RENDER ===
   return (
@@ -722,6 +758,8 @@ const App: React.FC = () => {
           duration={undefined}
           errorMessage={errorMessage}
           processingMessage={progressData.message}
+          incomingMessage={incomingMessage}
+          onCancelIncoming={handleCancelIncoming}
           lastQuery={importFlow.lastQuery}
           lastImportCount={lastImportCount}
           lastImportTime={lastImportTime}

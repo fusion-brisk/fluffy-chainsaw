@@ -17,9 +17,23 @@
 
 import { Driver, getCredentialsFromEnv, TypedData, TypedValues, Types, Ydb } from 'ydb-sdk';
 
-import type { QueueEntry, QueueEntryMeta, QueueEntryPayload, QueueStatus } from './types';
+import type {
+  HeadsUpPhase,
+  HeadsUpState,
+  QueueEntry,
+  QueueEntryMeta,
+  QueueEntryPayload,
+  QueueStatus,
+} from './types';
 
-export type { QueueEntry, QueueEntryMeta, QueueEntryPayload, QueueStatus };
+export type {
+  HeadsUpPhase,
+  HeadsUpState,
+  QueueEntry,
+  QueueEntryMeta,
+  QueueEntryPayload,
+  QueueStatus,
+};
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -369,4 +383,97 @@ WHERE session_id = $session_id;`;
   const firstEntry = pendingCount > 0 ? await findFirstPending(sessionId) : null;
 
   return { queueSize, pendingCount, firstEntry };
+}
+
+// ─── Heads-up helpers ────────────────────────────────────────────────────────
+
+const HEADS_UP_TABLE = 'session_heads_up';
+const HEADS_UP_TTL_MS = 30_000;
+
+interface HeadsUpFields {
+  current?: number | null;
+  total?: number | null;
+  message?: string | null;
+}
+
+export async function upsertHeadsUp(
+  sessionId: string,
+  phase: HeadsUpPhase,
+  fields: HeadsUpFields = {},
+): Promise<void> {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + HEADS_UP_TTL_MS);
+  const query = `
+DECLARE $session_id AS Utf8;
+DECLARE $phase AS Utf8;
+DECLARE $current AS Int32?;
+DECLARE $total AS Int32?;
+DECLARE $message AS Utf8?;
+DECLARE $ts AS Timestamp;
+DECLARE $expires_at AS Timestamp;
+
+UPSERT INTO ${HEADS_UP_TABLE} (
+  session_id, phase, current, total, message, ts, expires_at
+) VALUES (
+  $session_id, $phase, $current, $total, $message, $ts, $expires_at
+);`;
+
+  await execute(query, {
+    $session_id: TypedValues.utf8(sessionId),
+    $phase: TypedValues.utf8(phase),
+    $current:
+      fields.current == null
+        ? TypedValues.optionalNull(Types.INT32)
+        : TypedValues.optional(TypedValues.int32(fields.current)),
+    $total:
+      fields.total == null
+        ? TypedValues.optionalNull(Types.INT32)
+        : TypedValues.optional(TypedValues.int32(fields.total)),
+    $message:
+      fields.message == null
+        ? TypedValues.optionalNull(Types.UTF8)
+        : TypedValues.optional(TypedValues.utf8(fields.message)),
+    $ts: TypedValues.timestamp(now),
+    $expires_at: TypedValues.timestamp(expiresAt),
+  });
+}
+
+export async function getHeadsUp(sessionId: string): Promise<HeadsUpState | null> {
+  const query = `
+DECLARE $session_id AS Utf8;
+DECLARE $now AS Timestamp;
+
+SELECT session_id, phase, current, total, message, ts, expires_at
+FROM ${HEADS_UP_TABLE}
+WHERE session_id = $session_id AND expires_at > $now
+LIMIT 1;`;
+
+  const result = await execute(query, {
+    $session_id: TypedValues.utf8(sessionId),
+    $now: TypedValues.timestamp(new Date()),
+  });
+  const rows = firstResultRows(result);
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    sessionId: String(row.session_id ?? ''),
+    phase: String(row.phase ?? '') as HeadsUpPhase,
+    current: row.current == null ? null : toNumber(row.current),
+    total: row.total == null ? null : toNumber(row.total),
+    message: row.message == null ? null : String(row.message),
+    ts: asDate(row.ts),
+    expiresAt: asDate(row.expires_at),
+  };
+}
+
+export async function clearHeadsUp(sessionId: string): Promise<void> {
+  const query = `
+DECLARE $session_id AS Utf8;
+
+DELETE FROM ${HEADS_UP_TABLE}
+WHERE session_id = $session_id;`;
+
+  await execute(query, {
+    $session_id: TypedValues.utf8(sessionId),
+  });
 }

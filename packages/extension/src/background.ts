@@ -73,6 +73,81 @@ function buildCloudUrl(path: string, sessionCode: string): string {
   return `${CLOUD_RELAY_URL}${path}?session=${encodeURIComponent(sessionCode)}`;
 }
 
+// === Heads-up signaling ===
+//
+// Lightweight progress signal sent to relay alongside (and before) the heavy
+// payload upload. Plugin polls /status, sees `headsUp` field, renders narrative.
+// Fire-and-forget: never blocks main upload, never throws.
+//
+// Throttling: only the `uploading_screenshots` phase is throttled (it fires per
+// screenshot). Other phases are sent immediately. Trailing-edge implementation
+// guarantees the final K/M value always lands.
+
+type HeadsUpPhase = 'parsing' | 'uploading_json' | 'uploading_screenshots' | 'finalizing' | 'error';
+
+interface HeadsUpOpts {
+  current?: number;
+  total?: number;
+  message?: string;
+}
+
+const HEADS_UP_THROTTLE_MS = 200;
+let headsUpLastSentAt = 0;
+let headsUpPending: { phase: HeadsUpPhase; opts: HeadsUpOpts } | null = null;
+let headsUpTrailingTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function postHeadsUp(
+  sessionCode: string,
+  phase: HeadsUpPhase,
+  opts: HeadsUpOpts,
+): Promise<void> {
+  try {
+    await fetch(buildCloudUrl('/push', sessionCode), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'heads-up', phase, ...opts }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch (err) {
+    // Fire-and-forget — log only.
+    console.log('[HeadsUp] push failed:', (err as Error).message);
+  }
+}
+
+async function sendHeadsUp(phase: HeadsUpPhase, opts: HeadsUpOpts = {}): Promise<void> {
+  const sessionCode = await getSessionCode();
+  if (!sessionCode) return;
+
+  const isProgress = phase === 'uploading_screenshots';
+  if (!isProgress) {
+    headsUpLastSentAt = Date.now();
+    void postHeadsUp(sessionCode, phase, opts);
+    return;
+  }
+
+  const now = Date.now();
+  if (now - headsUpLastSentAt >= HEADS_UP_THROTTLE_MS) {
+    headsUpLastSentAt = now;
+    void postHeadsUp(sessionCode, phase, opts);
+    return;
+  }
+
+  // Trailing edge: schedule the latest value to fire after the throttle window.
+  headsUpPending = { phase, opts };
+  if (headsUpTrailingTimer == null) {
+    const delay = HEADS_UP_THROTTLE_MS - (now - headsUpLastSentAt);
+    headsUpTrailingTimer = setTimeout(() => {
+      headsUpTrailingTimer = null;
+      if (headsUpPending) {
+        const { phase: p, opts: o } = headsUpPending;
+        headsUpPending = null;
+        headsUpLastSentAt = Date.now();
+        void postHeadsUp(sessionCode, p, o);
+      }
+    }, delay);
+  }
+}
+
 // Set badge text and color
 function setBadge(text: string, color: string): void {
   chrome.action.setBadgeText({ text });
@@ -287,7 +362,8 @@ const SCROLL_SETTLE_MS = 500; // Wait for lazy-load + respect captureVisibleTab 
 async function captureFullPage(
   tabId: number,
   platform: string,
-  maxContentHeight?: number,
+  maxContentHeight: number | undefined,
+  onSegmentCaptured: (current: number, total: number) => void,
 ): Promise<ScreenshotResult> {
   const targetWidth = platform === 'touch' ? 393 : 1440;
 
@@ -354,6 +430,11 @@ async function captureFullPage(
   screenshots.push(
     await chrome.tabs.captureVisibleTab(null as unknown as number, { format: 'jpeg', quality: 80 }),
   );
+  // Compute final total for narrative: 1 (segment-0) + remainingCount (capped later)
+  const projectedTotal =
+    1 +
+    Math.min(Math.ceil(Math.max(0, scrollHeight - innerHeight) / innerHeight), MAX_CAPTURES - 1);
+  onSegmentCaptured(1, projectedTotal);
 
   // --- Hide header + sticky ProductsModePanel for remaining segments ---
   await chrome.scripting.executeScript({
@@ -400,6 +481,7 @@ async function captureFullPage(
         quality: 80,
       }),
     );
+    onSegmentCaptured(i + 2, 1 + remainingCount);
   }
 
   // Restore: scroll position, hidden elements, window size
@@ -446,6 +528,8 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
 
   // Show loading state
   setBadge('...', '#5865F2');
+  // Fire-and-forget: tell plugin "we're starting" before any heavy work.
+  void sendHeadsUp('parsing');
 
   // Declare at higher scope for access in catch block
   let parseResult: ParseResult | null = null;
@@ -541,7 +625,14 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       }
 
       try {
-        const result = await captureFullPage(tab.id!, platform, maxContentHeight);
+        const result = await captureFullPage(
+          tab.id!,
+          platform,
+          maxContentHeight,
+          (current, total) => {
+            void sendHeadsUp('uploading_screenshots', { current, total });
+          },
+        );
         screenshots = result.screenshots;
         screenshotMeta = {
           totalHeight: result.totalHeight,
@@ -594,6 +685,9 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       extensionVersion: chrome.runtime.getManifest().version,
     };
 
+    // Heads-up: about to upload the structured payload.
+    void sendHeadsUp('uploading_json');
+
     // Send to cloud relay
     let relaySuccess = false;
 
@@ -610,6 +704,10 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       }
     } catch (relayErr: unknown) {
       console.log('[Relay] Request failed:', (relayErr as Error).message);
+    }
+
+    if (relaySuccess) {
+      void sendHeadsUp('finalizing');
     }
 
     const pcLabel = !isFeed && productCard ? '+PC' : '';
@@ -640,6 +738,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       // Deeplink failed, ignore
     }
   } catch (err: unknown) {
+    void sendHeadsUp('error', { message: (err as Error).message?.slice(0, 200) ?? 'Parse failed' });
     console.error('Parse/copy error:', err);
     setBadge('!', '#E5534B');
     clearBadgeAfter(2000);

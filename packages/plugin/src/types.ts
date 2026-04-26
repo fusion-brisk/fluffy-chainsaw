@@ -282,8 +282,10 @@ export interface RelayPayload {
 
 /**
  * Состояния интерфейса плагина:
+ * - 'setup': initial setup flow
  * - 'checking': проверка подключения к relay
  * - 'ready': готов к работе (независимо от relay)
+ * - 'incoming': расширение шлёт heads-up, payload ещё не пришёл
  * - 'confirming': показываем диалог подтверждения импорта
  * - 'processing': обработка данных
  * - 'success': импорт успешно завершён
@@ -292,6 +294,7 @@ export type AppState =
   | 'setup'
   | 'checking'
   | 'ready'
+  | 'incoming' // heads-up active, payload not yet arrived
   | 'confirming'
   | 'processing'
   | 'success'
@@ -322,6 +325,7 @@ export const FSM_TRANSITIONS: Record<AppState, Partial<Record<AppEvent, AppState
   setup: { SETUP_COMPLETE: 'checking' },
   checking: { CONNECTION_SUCCESS: 'ready', CONNECTION_FAILURE: 'ready' },
   ready: { DATA_RECEIVED: 'confirming', OPEN_PANEL: 'ready', CLOSE_PANEL: 'ready' },
+  incoming: { DATA_RECEIVED: 'confirming', CANCEL_IMPORT: 'ready' },
   confirming: { CONFIRM_IMPORT: 'processing', CANCEL_IMPORT: 'ready' },
   processing: { IMPORT_COMPLETE: 'success', IMPORT_FAILURE: 'error' },
   success: { DISMISS_SUCCESS: 'ready' },
@@ -347,6 +351,7 @@ export const STATE_TO_TIER: Record<string, UITier> = {
   setup: 'extended',
   checking: 'compact',
   ready: 'compact',
+  incoming: 'compact',
   confirming: 'standard',
   processing: 'compact',
   success: 'compact',
