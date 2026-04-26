@@ -62,10 +62,21 @@ const App: React.FC = () => {
   const [isFirstRun, setIsFirstRun] = useState(true);
   const [lastImportCount, setLastImportCount] = useState<number | undefined>();
   const [lastImportTime, setLastImportTime] = useState<number | undefined>();
+  // Frame ID of the most recently imported SERP/feed frame. Used by the
+  // success-strip "Zoom" action to scroll the user back to the result after
+  // they've panned/scrolled away. Cleared on next import so we never zoom to
+  // a stale frame from a previous run.
+  const [lastFrameId, setLastFrameId] = useState<string | undefined>();
   const [setupResolved, setSetupResolved] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
   const [progressData, setProgressData] = useState<ProgressData>({ current: 0, total: 0 });
   const [incomingMessage, setIncomingMessage] = useState<string | undefined>();
+  // Heads-up progress (current/total of the screenshots-uploading phase). Stored
+  // separately from `progressData` because the latter is sandbox-driven during
+  // 'processing' — we don't want to clobber it. CompactStrip uses these props
+  // only when mode === 'incoming'.
+  const [incomingCurrent, setIncomingCurrent] = useState<number | undefined>();
+  const [incomingTotal, setIncomingTotal] = useState<number | undefined>();
   const [pendingWhatsNew, setPendingWhatsNew] = useState(false);
   // Cloud-unreachable banner: dismissed-this-session flag. Resets whenever relay reconnects,
   // so a second disconnect shows the banner again.
@@ -120,17 +131,26 @@ const App: React.FC = () => {
   }, []);
 
   // Fires once the extension confirms the auto-pair URL handshake via relay pair-ack.
-  // Same as real data arrival for "extension installed" purposes, plus a 3s confirmation
+  // Same as real data arrival for "extension installed" purposes, plus a confirmation
   // flash so the user sees explicit feedback.
+  //
+  // Timing — 6 sec for first-time pair (user just switched browser tabs, may not
+  // even be looking at Figma yet), 3 sec for re-pair (returning user, already
+  // attentive). `extensionInstalled` is a reliable proxy for "has paired before"
+  // because it stays true once set for the session.
   const handlePaired = useCallback(() => {
+    const isFirstPair = !extensionInstalled;
     markExtensionInstalled();
     setPairedFlashVisible(true);
     if (pairedFlashTimerRef.current) clearTimeout(pairedFlashTimerRef.current);
-    pairedFlashTimerRef.current = window.setTimeout(() => {
-      setPairedFlashVisible(false);
-      pairedFlashTimerRef.current = null;
-    }, 3000);
-  }, [markExtensionInstalled]);
+    pairedFlashTimerRef.current = window.setTimeout(
+      () => {
+        setPairedFlashVisible(false);
+        pairedFlashTimerRef.current = null;
+      },
+      isFirstPair ? 6000 : 3000,
+    );
+  }, [extensionInstalled, markExtensionInstalled]);
 
   useEffect(() => {
     return () => {
@@ -226,6 +246,21 @@ const App: React.FC = () => {
     onConnectionChange: useCallback(() => {}, []),
     onIncoming: useCallback((state: HeadsUpStatePayload) => {
       setIncomingMessage(formatHeadsUpPhase(state));
+      // Only the screenshots-uploading phase carries meaningful current/total —
+      // other phases (parsing, finalizing) are short and indeterminate, so we
+      // clear the progress bar to prevent stale fills when the phase rolls back.
+      if (
+        state.phase === 'uploading_screenshots' &&
+        typeof state.current === 'number' &&
+        typeof state.total === 'number' &&
+        state.total > 0
+      ) {
+        setIncomingCurrent(state.current);
+        setIncomingTotal(state.total);
+      } else {
+        setIncomingCurrent(undefined);
+        setIncomingTotal(undefined);
+      }
       setAppState((prev) => {
         // Only enter 'incoming' from 'ready' — avoid clobbering confirming/processing/etc.
         if (prev === 'ready') return 'incoming';
@@ -236,9 +271,13 @@ const App: React.FC = () => {
       setErrorMessage(message);
       setAppState((prev) => (prev === 'incoming' || prev === 'ready' ? 'error' : prev));
       setIncomingMessage(undefined);
+      setIncomingCurrent(undefined);
+      setIncomingTotal(undefined);
     }, []),
     onIncomingExpired: useCallback(() => {
       setIncomingMessage(undefined);
+      setIncomingCurrent(undefined);
+      setIncomingTotal(undefined);
       setAppState((prev) => (prev === 'incoming' ? 'ready' : prev));
     }, []),
     onPaired: handlePaired,
@@ -313,9 +352,12 @@ const App: React.FC = () => {
         // finishProcessing schedules setConfettiActive(true) via setTimeout —
         // setting isFirstRun=false here would race and kill the animation.
       },
-      onRelayPayloadApplied: () => {
+      onRelayPayloadApplied: (data) => {
         setLastImportCount(importFlow.info.itemCount || undefined);
         setLastImportTime(Date.now());
+        if (data.frameId) {
+          setLastFrameId(data.frameId);
+        }
         importFlow.ackPendingEntry();
         importFlow.finishProcessing('success');
       },
@@ -599,6 +641,8 @@ const App: React.FC = () => {
 
   const handleCancelIncoming = useCallback(() => {
     setIncomingMessage(undefined);
+    setIncomingCurrent(undefined);
+    setIncomingTotal(undefined);
     setAppState('ready');
     // Fire-and-forget: clear backend so next /status doesn't re-trigger us.
     void relay.clearQueue();
@@ -635,6 +679,11 @@ const App: React.FC = () => {
         case 'dismiss-success':
           importFlow.completeSuccess();
           break;
+        case 'zoom-to-frame':
+          if (lastFrameId) {
+            sendMessageToPlugin({ type: 'zoom-to-frame', frameId: lastFrameId });
+          }
+          break;
         case 'dismiss-error':
           // Route by current reachability to avoid a one-frame flash of
           // "Подключение…" when the error was a transient import failure and
@@ -651,7 +700,7 @@ const App: React.FC = () => {
           break;
       }
     },
-    [panels, importFlow, setAppState, resizeUI, relayConnected],
+    [panels, importFlow, setAppState, resizeUI, relayConnected, lastFrameId],
   );
 
   // === KEYBOARD SHORTCUTS ===
@@ -759,7 +808,10 @@ const App: React.FC = () => {
           errorMessage={errorMessage}
           processingMessage={progressData.message}
           incomingMessage={incomingMessage}
+          incomingCurrent={incomingCurrent}
+          incomingTotal={incomingTotal}
           onCancelIncoming={handleCancelIncoming}
+          canZoom={!!lastFrameId}
           lastQuery={importFlow.lastQuery}
           lastImportCount={lastImportCount}
           lastImportTime={lastImportTime}

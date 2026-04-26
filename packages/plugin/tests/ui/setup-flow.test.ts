@@ -73,10 +73,15 @@ describe('SetupFlow — single-screen contract', () => {
     expect(SETUP_FLOW_SOURCE).toContain('У меня нет расширения');
   });
 
-  it('timed-out branch renders retry + install buttons in an action row', () => {
+  it('timed-out branch renders numbered install steps with a single retry CTA', () => {
+    // Apr-26 design audit: the previous "two equal buttons (download | retry)"
+    // layout was replaced with numbered steps (1–4) + a single retry button
+    // labelled "Я установил — повторить". This is the Critical fix from the
+    // Claude Design audit (Valley of Despair → guided steps).
     expect(SETUP_FLOW_SOURCE).toContain('setup-flow__timeout');
-    expect(SETUP_FLOW_SOURCE).toContain('setup-flow__action-row');
-    expect(SETUP_FLOW_SOURCE).toContain('Попробовать снова');
+    expect(SETUP_FLOW_SOURCE).toContain('setup-flow__steps');
+    expect(SETUP_FLOW_SOURCE).toContain('setup-flow__step-number');
+    expect(SETUP_FLOW_SOURCE).toContain('Я установил — повторить');
   });
 
   it('waiting branch surfaces a cancel action so the user never feels stuck', () => {
@@ -89,9 +94,14 @@ describe('SetupFlow — single-screen contract', () => {
     expect(SETUP_FLOW_SOURCE).toContain('Переподключить расширение');
   });
 
-  it('initial-onboarding uses action-oriented copy', () => {
+  it('initial-onboarding leads with a value prop, not just the mechanic', () => {
+    // Apr-26 design audit: subtitle was rewritten to put the user benefit
+    // ("заполняем макеты данными из живого Яндекса") BEFORE the mechanic.
+    // The mechanic ("плагин свяжется с браузером автоматически") is preserved
+    // as the second clause so the click affordance is still legible.
     expect(SETUP_FLOW_SOURCE).toContain('Подключите расширение Яндекса');
-    expect(SETUP_FLOW_SOURCE).toContain('Один клик — плагин свяжется с браузером автоматически');
+    expect(SETUP_FLOW_SOURCE).toContain('Заполняем макеты данными из живого Яндекса');
+    expect(SETUP_FLOW_SOURCE).toContain('Плагин свяжется с браузером автоматически');
   });
 
   it('no forward Next button in the initial-onboarding footer', () => {

@@ -343,6 +343,25 @@ figma.ui.onmessage = async (msg) => {
       return;
     }
 
+    // === Zoom to last imported frame ===
+    // UI sends this when the user clicks "Zoom" on the success strip after
+    // auto-dismiss has scrolled the result off-screen. The sandbox is the only
+    // side that can talk to Figma viewport, so the action round-trips here.
+    if (msg.type === 'zoom-to-frame') {
+      const frameId = msg.frameId as string | undefined;
+      if (!frameId) return;
+      try {
+        const node = await figma.getNodeByIdAsync(frameId);
+        if (node && 'visible' in node && !node.removed) {
+          figma.currentPage.selection = [node as SceneNode];
+          figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+        }
+      } catch (e) {
+        Logger.debug('zoom-to-frame failed', e);
+      }
+      return;
+    }
+
     // === Build breakpoint skeletons (principle layouts for each SERP breakpoint) ===
     if (msg.type === 'build-breakpoint-skeletons') {
       Logger.info('🧩 Building breakpoint skeletons...');
@@ -546,6 +565,7 @@ figma.ui.onmessage = async (msg) => {
             success: true,
             itemCount: count,
             frameName: result.frame.name,
+            frameId: result.frame.id,
           });
 
           Logger.info(`✅ SERP "${result.frame.name}": ${count} сниппетов`);
@@ -678,6 +698,7 @@ figma.ui.onmessage = async (msg) => {
             success: true,
             itemCount: feedResult.createdCount,
             frameName: feedResult.frame.name,
+            frameId: feedResult.frame.id,
           });
 
           Logger.info(

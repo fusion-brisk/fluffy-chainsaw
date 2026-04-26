@@ -243,7 +243,9 @@ button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text)
     .update-banner-close
   ):not(.cloud-unreachable-banner__close):not(.compact-strip__menu-btn):not(
     .compact-strip__menu-item
-  ):not(.compact-strip__cancel-link):not(.panel-layout__back):not(.onboarding-tip__close) {
+  ):not(.compact-strip__cancel-link):not(.compact-strip__zoom-link):not(.panel-layout__back):not(
+    .onboarding-tip__close
+  ):not(.setup-flow__step-link) {
   background-color: var(--figma-color-bg-hover, #f5f5f5);
 }
 
@@ -534,6 +536,45 @@ button:disabled {
   color: var(--figma-color-text, #333);
 }
 
+/* Emphasised Cancel — used in incoming mode so the user can clearly see they
+   can abort the wait. Default cancel-link blends with the menu ⋮; this variant
+   uses the warning color + underline-on-hover so it stands out. */
+.compact-strip__cancel-link--emphasised {
+  color: var(--figma-color-text-warning, #f24822);
+  font-weight: 500;
+}
+.compact-strip__cancel-link--emphasised:hover:not(:disabled) {
+  background-color: transparent;
+  color: var(--figma-color-text-warning, #f24822);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Zoom action on success strip — small tinted link with viewport-frame icon.
+   Sits next to ⋮ menu button; uses brand color so it's discoverable but not
+   loud (success state is short-lived). */
+.compact-strip__zoom-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--figma-color-text-brand, #0d99ff);
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  margin-right: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.12s ease;
+}
+.compact-strip__zoom-link:hover:not(:disabled) {
+  background-color: var(--figma-color-bg-hover, #f5f5f5);
+}
+.compact-strip__zoom-link svg {
+  flex-shrink: 0;
+}
+
 /* Progress bar */
 .compact-strip__progress {
   position: absolute;
@@ -553,7 +594,25 @@ button:disabled {
 .compact-strip__progress-fill--success {
   width: 100%;
   background: var(--figma-color-text-success, #1bc47d);
-  animation: progressShrink 3s linear forwards;
+  animation: progressShrink 5s linear forwards;
+}
+
+/* Indeterminate bar — used in 'incoming' mode while the extension is in a
+   non-screenshot phase (parsing/uploading_json/finalizing). Slides a chunk
+   left-to-right so the user sees motion even when there's no countable
+   progress. */
+.compact-strip__progress-fill--indeterminate {
+  width: 30%;
+  background: var(--figma-color-bg-brand, #0d99ff);
+  animation: progressIndeterminate 1.4s ease-in-out infinite;
+}
+
+/* Hover-paused: freeze the success bar shrink animation so the user has time
+   to read the summary. JS clears the auto-dismiss timer in parallel; this
+   rule keeps the bar visually anchored to the un-elapsed remainder. */
+.compact-strip--paused .compact-strip__progress-fill--success,
+.compact-strip--paused .compact-strip__progress-fill--indeterminate {
+  animation-play-state: paused;
 }
 
 @keyframes progressShrink {
@@ -562,6 +621,15 @@ button:disabled {
   }
   to {
     width: 0%;
+  }
+}
+
+@keyframes progressIndeterminate {
+  0% {
+    margin-left: -30%;
+  }
+  100% {
+    margin-left: 100%;
   }
 }
 
@@ -816,7 +884,11 @@ button:disabled {
   color: var(--figma-color-text, #333333);
   cursor: pointer;
   user-select: none;
-  height: 22px;
+  min-height: 22px;
+}
+
+.confirm-dialog__radio--disabled {
+  cursor: not-allowed;
 }
 
 .confirm-dialog__radio + .confirm-dialog__radio {
@@ -829,6 +901,7 @@ button:disabled {
   margin: 0;
   accent-color: var(--figma-color-bg-brand, #0d99ff);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .confirm-dialog__radio input[type='radio']:disabled {
@@ -837,8 +910,18 @@ button:disabled {
 }
 
 .confirm-dialog__radio input[type='radio']:disabled + span {
-  opacity: 0.35;
+  opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Inline reason text after a disabled radio label — explains WHY the option
+   is unavailable so a new user doesn't get stuck wondering why they can't
+   click it. Native title attr is the secondary hover affordance. */
+.confirm-dialog__radio-hint {
+  margin-left: 6px;
+  font-size: 10.5px;
+  color: var(--figma-color-text-tertiary, #b3b3b3);
+  font-style: italic;
 }
 
 /* Footer — pinned to bottom */
@@ -1203,6 +1286,74 @@ button:disabled {
   flex: 1;
 }
 
+/* Numbered install steps — visual scaffold for the timed-out Valley of Despair.
+   Each step is a circle + body row. Step 1 includes a click-to-download CTA
+   styled as a primary inline link so it stands out as "do this first". */
+.setup-flow__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.setup-flow__step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--font-size-sm, 12px);
+  line-height: 1.5;
+  color: var(--figma-color-text, #333);
+}
+
+.setup-flow__step-number {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold, 700);
+  background: color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 18%, transparent);
+  color: var(--figma-color-text-warning, #c4841d);
+  font-family: var(--font-family-mono, monospace);
+}
+
+.setup-flow__step-text {
+  flex: 1;
+  padding-top: 2px;
+}
+
+.setup-flow__step-text code {
+  padding: 1px 5px;
+  background: var(--figma-color-bg-secondary, #f5f5f5);
+  border-radius: 3px;
+  font-family: var(--font-family-mono, monospace);
+  font-size: 11px;
+}
+
+.setup-flow__step-link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--figma-color-text-brand, #0d99ff);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+.setup-flow__step-link:hover {
+  text-decoration: underline;
+}
+
+.setup-flow__retry {
+  width: 100%;
+  margin-top: 4px;
+}
+
 /* ============================================
    UPDATE BANNER — Version update notifications
    ============================================ */
@@ -1451,6 +1602,16 @@ button:disabled {
 .onboarding-tip__text {
   flex: 1;
   margin: 0;
+}
+
+.onboarding-tip__link {
+  color: var(--figma-color-text-brand, #0d99ff);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.onboarding-tip__link:hover {
+  text-decoration: underline;
 }
 
 .onboarding-tip__close {

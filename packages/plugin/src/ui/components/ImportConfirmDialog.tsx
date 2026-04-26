@@ -19,6 +19,28 @@ import { pluralize } from '../../utils/format';
 
 export type ImportMode = 'artboard' | 'selection' | 'breakpoints';
 
+const LAST_MODE_KEY = 'contentify_last_import_mode';
+
+function loadLastMode(): ImportMode {
+  try {
+    const stored = window.localStorage.getItem(LAST_MODE_KEY);
+    if (stored === 'artboard' || stored === 'selection' || stored === 'breakpoints') {
+      return stored;
+    }
+  } catch {
+    // localStorage unavailable in some Figma sandbox contexts — fall through
+  }
+  return 'artboard';
+}
+
+function saveLastMode(mode: ImportMode): void {
+  try {
+    window.localStorage.setItem(LAST_MODE_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+}
+
 export interface ImportOptions {
   mode: ImportMode;
 }
@@ -48,7 +70,20 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
     onClearQueue,
   }) => {
     const isFeed = sourceType === 'feed';
-    const [mode, setMode] = useState<ImportMode>('artboard');
+    // Restore last-used mode, then validate against current availability:
+    //   - feed cannot use 'breakpoints' → fall back to 'artboard'
+    //   - 'selection' requires hasSelection → fall back to 'artboard'
+    const [mode, setMode] = useState<ImportMode>(() => {
+      const saved = loadLastMode();
+      if (saved === 'breakpoints' && isFeed) return 'artboard';
+      if (saved === 'selection' && !hasSelection) return 'artboard';
+      return saved;
+    });
+
+    const setModeAndPersist = useCallback((next: ImportMode) => {
+      setMode(next);
+      saveLastMode(next);
+    }, []);
 
     const handleConfirm = useCallback(() => {
       onConfirm({ mode });
@@ -166,31 +201,49 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
                 name="importMode"
                 value="artboard"
                 checked={mode === 'artboard'}
-                onChange={() => setMode('artboard')}
+                onChange={() => setModeAndPersist('artboard')}
               />
               <span>Новый артборд</span>
             </label>
-            <label className="confirm-dialog__radio">
+            <label
+              className={`confirm-dialog__radio${isFeed ? ' confirm-dialog__radio--disabled' : ''}`}
+              title={isFeed ? 'Недоступно для ленточного фида ya.ru' : undefined}
+            >
               <input
                 type="radio"
                 name="importMode"
                 value="breakpoints"
                 checked={mode === 'breakpoints'}
-                onChange={() => setMode('breakpoints')}
+                onChange={() => setModeAndPersist('breakpoints')}
                 disabled={isFeed}
+                aria-describedby={isFeed ? 'mode-breakpoints-hint' : undefined}
               />
               <span>Все брейкпоинты</span>
+              {isFeed && (
+                <span id="mode-breakpoints-hint" className="confirm-dialog__radio-hint">
+                  для ya.ru фида недоступно
+                </span>
+              )}
             </label>
-            <label className="confirm-dialog__radio">
+            <label
+              className={`confirm-dialog__radio${!hasSelection ? ' confirm-dialog__radio--disabled' : ''}`}
+              title={!hasSelection ? 'Выделите фреймы на холсте, чтобы заполнить их' : undefined}
+            >
               <input
                 type="radio"
                 name="importMode"
                 value="selection"
                 checked={mode === 'selection'}
-                onChange={() => setMode('selection')}
+                onChange={() => setModeAndPersist('selection')}
                 disabled={!hasSelection}
+                aria-describedby={!hasSelection ? 'mode-selection-hint' : undefined}
               />
               <span>Заполнить выделение</span>
+              {!hasSelection && (
+                <span id="mode-selection-hint" className="confirm-dialog__radio-hint">
+                  выделите фреймы на холсте
+                </span>
+              )}
             </label>
           </fieldset>
         </div>
