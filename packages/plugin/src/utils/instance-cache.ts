@@ -278,13 +278,11 @@ export function shouldProcessGroupForEmptyCheck(name: string): boolean {
     return true;
   }
 
-  // Проверка case-insensitive для wrapper
-  const nameLower = name.toLowerCase();
-  if (nameLower.includes('wrapper')) {
-    return true;
-  }
-
-  // Проверка суффиксов
+  // Проверка суффиксов (Group, Container, Wrapper, Block — case-sensitive по соглашению)
+  // NB: lowercase "wrapper" сюда специально НЕ попадает — это утилитарные контейнеры
+  // Yandex DepotKit (e.g. EThumb > Image Overlay Controller > wrapper > SquareLabel),
+  // которые скрыты в мастере и не должны автоматически включаться auto-show веткой
+  // handleEmptyGroups, даже если внутри есть видимый ребёнок (master-default).
   for (const suffix of EMPTY_GROUP_SUFFIXES) {
     if (name.endsWith(suffix)) {
       return true;

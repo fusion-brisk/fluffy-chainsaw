@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "typeRoots": ["../../node_modules/@types", "../../node_modules/@figma"]
+    "types": ["@figma/plugin-typings", "node"]
   },
   "include": ["src/**/*", "tests/**/*", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]

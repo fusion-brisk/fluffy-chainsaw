@@ -197,7 +197,9 @@ export type UIMessage =
   // === HTML EXPORT ===
   | { type: 'export-html' }
   // === BREAKPOINT SKELETONS ===
-  | { type: 'build-breakpoint-skeletons' };
+  | { type: 'build-breakpoint-skeletons' }
+  // === FRAME NAVIGATION ===
+  | { type: 'zoom-to-frame'; frameId: string };
 
 /**
  * Messages sent from Code → UI (via figma.ui.postMessage)
@@ -228,6 +230,7 @@ export type CodeMessage =
       success: boolean;
       itemCount?: number;
       frameName?: string;
+      frameId?: string;
       error?: string;
     } // Response to apply-relay-payload
   // === RESET ===
