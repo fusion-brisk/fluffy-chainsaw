@@ -1,200 +1,237 @@
 # CJM: Core Loop Contentify — ежедневный цикл импорта («Toothbrush Journey»)
 
-> **Repeating Journey** — цикл, который пользователь повторяет 5-15 раз в день.
+> **Repeating Journey** — цикл, который пользователь повторяет 5–15 раз в день.
 > Каждая лишняя секунда friction × 10 повторений = ощутимая потеря продуктивности.
+>
+> **Актуально на:** 2026-04-26 (после миграции на YC cloud-relay + heads-up narrative)
+> **Версия плагина:** 3.1.2
 
 ---
 
-## Обзор пути
+## Обзор пути (10 шагов)
 
 ```
-1. Open Plugin → 2. Checking → 3. Ready (waiting) → 4. Browse SERP →
-5. Data Received → 6. Configure Import → 7. Processing → 8. Success → 9. Back to Ready
+1. Open Plugin → 2. Checking → 3. Ready (waiting) → 4. Click Extension →
+5. Incoming (heads-up) → 6. Data Received → 7. Configure Import →
+8. Processing → 9. Success → 10. Back to Ready
 ```
 
-**Компоненты системы:**
+**Компоненты системы (cloud-only):**
 
 ```
-Browser Extension → POST /push → Relay :3847 → GET /pull → Figma Plugin
-  (парсит DOM)        (очередь)                   (schema engine → Figma API)
+Chrome Extension → POST /push (kind:'heads-up' OR payload)
+                                ↓
+                       YC Cloud Function (stateless)
+                                ↓
+                       YDB serverless: queue_entries + session_heads_up (TTL 30s)
+                                ↓
+Figma Plugin polls GET /status (1s active / 5s idle)
+                  └─ headsUp present  → AppState='incoming' + narrative
+                  └─ hasData=true     → GET /peek → AppState='confirming'
+                  └─ both             → payload wins
+                                ↓
+                  Sandbox apply (schema engine + handlers)
+                                ↓
+                  POST /ack (3-retry) → success
 ```
 
-**AppState машина:** `checking` → `ready` → `confirming` → `processing` → `success` → `ready`
+**AppState FSM:** `checking` → `ready` → **`incoming`** → `confirming` → `processing` → `success` → `ready`
 
 **UI размеры (UI_SIZES):**
 
-- `compact`: 320×56 — только `checking`
-- `standard`: 400×400 — `ready`, `confirming`, `processing`, `success`
+- `compact` — 320 × 56 px — `checking` / `ready` / **`incoming`** / `processing` / `success` / `error` (унифицированный `CompactStrip`)
+- `standard` — 320 × 280 px — `confirming` (`ImportConfirmDialog`)
+- `extended` — 420 × 520 px — `setup` / панели (logs / inspector / settings / what's new)
+
+> Figma добавляет ~40 px заголовка iframe → реальная высота контента = `height − 40`.
 
 **Частота использования:**
 
-- 5-15 импортов в день (типичная сессия: 3-5 импортов подряд)
-- Средняя сессия: 10-20 минут активной работы
-- Паттерн: batch-импорт 3-5 запросов → работа с макетами → следующий batch
+- 5–15 импортов в день, batch'ами по 3–5 запросов подряд
+- Средняя сессия: 10–20 минут активной работы
+- Паттерн: batch-импорт → работа с макетами → следующий batch
 
 ---
 
-## Карта пути (9 колонок)
+## Карта пути (9 аспектов × 10 шагов)
 
 ### 1. Open Plugin
 
-| Аспект                | Описание                                                                                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Открыть плагин для начала работы с макетами                                                                                                                         |
-| **User Action**       | Plugins → Contentify, Quick Actions, или правый клик → Plugins. Опытные пользователи: запоминают hot-key или pin плагин                                             |
-| **UI State**          | Figma запускает UI iframe. Мгновенный переход в `checking`. Окно плагина появляется в последней позиции                                                             |
-| **System Action**     | React mount → `useEffect` отправляет `get-settings`, `get-setup-skipped`, `check-whats-new`. Инициализация `useRelayConnection`, `useImportFlow`, `usePanelManager` |
-| **Emotional Valence** | 3/5 — привычное действие, нейтрально                                                                                                                                |
-| **Cognitive Load**    | LOW — мышечная память, привычный UX Figma                                                                                                                           |
-| **Drop-off Risk**     | LOW — пользователь уже знает зачем открывает плагин                                                                                                                 |
-| **Error Paths**       | (1) Плагин не в списке → переустановка через Community. (2) Figma sandbox crash → перезапуск плагина                                                                |
-| **Pain Points**       | (1) Нет keyboard shortcut для запуска конкретного плагина в Figma. (2) При каждом открытии — полная реинициализация (нет persistent connection)                     |
-| **Opportunities**     | (1) Pin to toolbar. (2) Figma Quick Actions (`Cmd+/` → «contentify»). (3) Напоминание в StatusBar что relay готов и ждёт                                            |
-| **Key Metric**        | Время от решения до открытого плагина, частота запусков в день                                                                                                      |
+| Аспект                | Описание                                                                                                                                                                                                         |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Открыть плагин для начала работы с макетами                                                                                                                                                                      |
+| **User Action**       | Plugins → Contentify, Quick Actions, или правый клик. Опытные пользователи: hot-key или pin плагина                                                                                                              |
+| **UI State**          | Figma запускает UI iframe. `SetupSplash` (compact 320×56) → переход в `checking`. Окно появляется в последней сохранённой позиции                                                                                |
+| **System Action**     | React mount → `useEffect` отправляет `get-settings`, `get-setup-skipped`, `get-session-code`, `check-whats-new`, `check-onboarding-seen`. Инициализация `useRelayConnection`, `useImportFlow`, `usePanelManager` |
+| **Emotional Valence** | 3/5 — привычное действие                                                                                                                                                                                         |
+| **Cognitive Load**    | LOW — мышечная память                                                                                                                                                                                            |
+| **Drop-off Risk**     | LOW — пользователь уже мотивирован                                                                                                                                                                               |
+| **Error Paths**       | (1) Плагин не в списке → переустановка через Community. (2) Sandbox crash → перезапуск                                                                                                                           |
+| **Pain Points**       | (1) Нет dedicated keyboard shortcut. (2) Полная реинициализация при каждом открытии (нет persistent connection — плагинский iframe пересоздаётся)                                                                |
+| **Opportunities**     | (1) Pin to toolbar. (2) Quick Actions «contentify». (3) Сохранять последний импорт визуально, чтобы юзер мог сразу продолжить                                                                                    |
+| **Key Metric**        | Время от решения до открытого плагина, частота запусков в день                                                                                                                                                   |
 
 ---
 
 ### 2. Checking
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **User Goal**         | Дождаться подключения к Relay                                                                                                                                                                                                                                            |
-| **User Action**       | Пассивное ожидание. Видит спиннер и текст «Подключение...»                                                                                                                                                                                                               |
-| **UI State**          | `AppState: 'checking'`, размер `compact` (320×56). Спиннер `checking-view-spinner` + текст «Подключение...». Переход в `ready` через 100ms timeout ИЛИ при `relay.connected === true` (что раньше)                                                                       |
-| **System Action**     | `useRelayConnection` пытается: (1) HTTP `GET /status` на `localhost:3847` с timeout 2s. (2) WebSocket `ws://localhost:3847`. При успехе: `connected: true` → `useEffect` ловит и делает `setAppState('ready')`. При неудаче: timeout 100ms всё равно переводит в `ready` |
-| **Emotional Valence** | 3/5 — мимолётный момент, обычно не замечается (100ms)                                                                                                                                                                                                                    |
-| **Cognitive Load**    | LOW — ничего не требуется от пользователя                                                                                                                                                                                                                                |
-| **Drop-off Risk**     | LOW — автоматический переход, пользователь не успевает уйти                                                                                                                                                                                                              |
-| **Error Paths**       | (1) Relay не запущен → переход в `ready` всё равно произойдёт через 100ms, StatusBar покажет «⚠ Relay офлайн». (2) WebSocket connection fail → fallback на HTTP polling                                                                                                  |
-| **Pain Points**       | (1) При повторных запусках 100ms ожидания суммируются в ощутимую задержку (10 раз × 100ms = 1 сек). (2) Нет визуальной разницы между «подключаюсь» и «не могу подключиться»                                                                                              |
-| **Opportunities**     | (1) Instant transition если relay уже был connected в предыдущей сессии (кэш в localStorage). (2) Пропуск checking для повторных запусков в рамках одной Figma-сессии                                                                                                    |
-| **Key Metric**        | Checking→ready latency, relay hit rate при запуске                                                                                                                                                                                                                       |
+| Аспект                | Описание                                                                                                                                                                                                                           |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Дождаться подключения к cloud-relay                                                                                                                                                                                                |
+| **User Action**       | Пассивное ожидание. `CompactStrip` со спиннером + «Подключение…»                                                                                                                                                                   |
+| **UI State**          | `AppState: 'checking'`, размер `compact`. Spinner + текст. Переход в `ready` при `relay.connected === true`. Если probe не завершён за 15 сек (`CHECKING_TIMEOUT_MS`) → `error` + «Не удалось подключиться к облаку»               |
+| **System Action**     | `useRelayConnection.checkRelay()` → `GET /status?session=<code>` с timeout 8 сек (`STATUS_FETCH_TIMEOUT_MS` — окно для cold-start YC API Gateway 3–5 сек). При успехе → `connected: true`. Failures: 2 подряд → `connected: false` |
+| **Emotional Valence** | 2/5 — холодный старт может ощущаться долго (5–8 сек на cold)                                                                                                                                                                       |
+| **Cognitive Load**    | LOW — ничего не требуется                                                                                                                                                                                                          |
+| **Drop-off Risk**     | LOW — но если YC offline на 15 сек → `error` state с предложением «Повторить»                                                                                                                                                      |
+| **Error Paths**       | (1) Cold-start длиннее 8 сек → AbortError → второй poll через 1 сек подхватит. (2) Network offline → `CloudUnreachableBanner` показывается после ready (см. шаг 3)                                                                 |
+| **Pain Points**       | (1) Cold-start 5–8 сек ощущается как «висит». (2) Spinner — единственная обратная связь, не различает «греется» / «лежит»                                                                                                          |
+| **Opportunities**     | (1) Прогресс-инфо «прогреваем облако…» при cold-start. (2) Skip-checking если успешно резолвили в недавней сессии                                                                                                                  |
+| **Key Metric**        | Checking → ready latency p50/p95, cold-start hit rate                                                                                                                                                                              |
 
 ---
 
 ### 3. Ready (waiting)
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Убедиться что система готова, перейти к парсингу в Chrome                                                                                                                                                                                                                                               |
-| **User Action**       | Смотрит на StatusBar (relay ✓ / extension ✓). Переключается в Chrome для парсинга. Может кликнуть «Повторить» для re-import последнего запроса                                                                                                                                                          |
-| **UI State**          | `AppState: 'ready'`, размер `standard` (400×400). ReadyView: InboxIcon с pulse-анимацией, «Ожидание данных». StatusBar: зелёные/жёлтые индикаторы relay и extension. Если есть `lastQuery`: «Последний: "запрос"» + кнопка «Повторить». Инструкция: «Откройте Яндекс в Chrome с расширением Contentify» |
-| **System Action**     | WebSocket подключён к `ws://localhost:3847` — слушает `new-data` события. Если WS недоступен: HTTP polling `/status` каждые 1с (active) или 5с (idle, >10с без взаимодействия). `check-selection` проверяет выделение в Figma. Relay enabled: `appState !== 'processing' && appState !== 'confirming'`  |
-| **Emotional Valence** | 3/5 — спокойное ожидание, привычная фаза рабочего цикла                                                                                                                                                                                                                                                 |
-| **Cognitive Load**    | LOW — опытный пользователь знает что делать: переключиться в Chrome                                                                                                                                                                                                                                     |
-| **Drop-off Risk**     | LOW — в рабочем цикле пользователь уже мотивирован                                                                                                                                                                                                                                                      |
-| **Error Paths**       | (1) Relay disconnected → StatusBar «⚠ Relay офлайн» + кнопка «Настроить». WS exponential backoff reconnect [1s, 2s, 4s, 8s, 16s]. (2) WebSocket обрыв → автоматический fallback на HTTP polling. (3) `visibilitychange` → ping WS или HTTP check при возврате в Figma                                   |
-| **Pain Points**       | (1) Pulse-анимация InboxIcon — единственная обратная связь, не передаёт «система работает и ждёт». (2) При batch-работе: фаза ready — wasted time, пользователь хочет сразу к следующему запросу. (3) Нет индикатора «relay жив и слушает» отдельно от StatusBar                                        |
-| **Opportunities**     | (1) Auto-detect Chrome tab с Яндексом через relay. (2) Кнопка «Повторить» более заметная для batch-workflow. (3) Счётчик импортов за сессию. (4) Queue indicator: «В очереди: 0 запросов»                                                                                                               |
-| **Key Metric**        | Time in ready state, reimport usage rate                                                                                                                                                                                                                                                                |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Убедиться что система готова, переключиться в Chrome для парсинга                                                                                                                                                                                                                                                                                           |
+| **User Action**       | Смотрит на CompactStrip — зелёная точка + «Подключено». Переключается в Chrome. На первом ready после онбординга может быть `OnboardingTip` баннер сверху                                                                                                                                                                                                   |
+| **UI State**          | `AppState: 'ready'`, размер `compact` (56 px + опциональные баннеры сверху: UpdateBanner, CloudUnreachableBanner, PairedBanner, OnboardingTip). Кнопка ⋮ открывает меню (Логи / Инспектор / Настройки / Что нового / Макеты брейкпоинтов / Экспорт HTML / Очистить очередь / Сбросить сниппеты)                                                             |
+| **System Action**     | Polling `/status` каждые 1 сек active / 5 сек idle (idle ≥ `ACTIVE_THRESHOLD_MS = 10s` без активности). При `data.hasData` → `peekRelayData()`. При `data.headsUp` → `onIncoming` callback → `setAppState('incoming')`. Visibility-change → немедленный probe при возврате в Figma. Relay enabled: `appState !== 'processing' && appState !== 'confirming'` |
+| **Emotional Valence** | 3/5 — спокойное ожидание, привычная фаза                                                                                                                                                                                                                                                                                                                    |
+| **Cognitive Load**    | LOW — пользователь знает что переключиться в Chrome                                                                                                                                                                                                                                                                                                         |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                         |
+| **Error Paths**       | (1) Relay 2 fail подряд (`DISCONNECT_CONFIRM_THRESHOLD`) → `connected: false` → `CloudUnreachableBanner`. (2) Tab visibility-hidden → polling приостановлен, возобновится на focus                                                                                                                                                                          |
+| **Pain Points**       | (1) Idle polling 5 сек — данные доходят с задержкой 1–5 сек. (2) Зелёная точка статична, не передаёт «слежу за расширением». (3) Меню ⋮ — единственный путь ко всем второстепенным фичам                                                                                                                                                                    |
+| **Opportunities**     | (1) Анимированная «слушаю» точка. (2) Auto-detect Chrome tab Yandex (через extension presence). (3) Счётчик импортов за сессию                                                                                                                                                                                                                              |
+| **Key Metric**        | Time in ready, idle vs active poll ratio, banner display rate                                                                                                                                                                                                                                                                                               |
 
 ---
 
-### 4. Browse SERP
+### 4. Click Extension Icon (Browse SERP)
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Найти нужную выдачу Яндекса и отправить данные в плагин                                                                                                                                                                                                                                           |
-| **User Action**       | Переключается в Chrome → ya.ru → вводит запрос → кликает иконку расширения (или расширение автоматически парсит). Для batch: повторяет с новым запросом, не возвращаясь в Figma                                                                                                                   |
-| **UI State**          | Figma plugin остаётся в `ready` (фоновый процесс). Chrome: extension popup с кнопкой отправки, badge с количеством сниппетов. Plugin UI не меняется — пользователь в Chrome                                                                                                                       |
-| **System Action**     | Extension `content.js` на yandex.ru: `extractSnippets()` → парсинг DOM → `getSnippetType()`. `background.js` отправляет `POST /push` на Relay `localhost:3847`. Relay сохраняет payload в очередь, отправляет `{ type: 'new-data' }` через WebSocket всем подключённым клиентам                   |
-| **Emotional Valence** | 3/5 — привычный поиск, рутинная часть workflow                                                                                                                                                                                                                                                    |
-| **Cognitive Load**    | LOW — поиск в Яндексе привычен. Единственный нюанс: не забыть кликнуть расширение                                                                                                                                                                                                                 |
-| **Drop-off Risk**     | LOW — в рабочем цикле пользователь целенаправлен                                                                                                                                                                                                                                                  |
-| **Error Paths**       | (1) Extension не активируется → content script не загрузился. (2) Relay офлайн → POST /push fail, badge показывает ошибку. (3) Яндекс изменил DOM → 0 спарсенных сниппетов. (4) Повторная отправка того же запроса → duplicate entryId, relay обновляет payload                                   |
-| **Pain Points**       | (1) Переключение Chrome ↔ Figma — context switch при каждом импорте. (2) Нет обратной связи: данные отправились или нет (только badge). (3) При batch-импорте: нужно ждать подтверждения в Figma перед следующим запросом. (4) Расширение не различает «отправить сейчас» vs «добавить в очередь» |
-| **Opportunities**     | (1) Авто-отправка при загрузке страницы (без клика). (2) Toast в Chrome: «Отправлено 42 элемента в Figma». (3) Queue mode: отправлять несколько запросов подряд, разбирать в Figma пакетом. (4) Chrome side panel вместо popup для мгновенной обратной связи                                      |
-| **Key Metric**        | Parse success rate, items per page, time browse→push, batch size                                                                                                                                                                                                                                  |
-
----
-
-### 5. Data Received (confirming)
-
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Увидеть что данные дошли, подтвердить импорт                                                                                                                                                                                                                                                                                                                                                                     |
-| **User Action**       | Возвращается в Figma (или видит автоматическую смену состояния если окно плагина видно). Видит ImportConfirmDialog с summary данных                                                                                                                                                                                                                                                                              |
-| **UI State**          | Автоматический переход `ready → confirming`. WebSocket получает `{ type: 'new-data' }` → `peekRelayData()` → `extractRowsFromPayload()` → `importFlow.showConfirmation()`. ImportConfirmDialog: CheckCircle icon, «Данные получены», карточка с запросом, summary (количество + типы элементов). Размер `standard` (400×400)                                                                                     |
-| **System Action**     | `peekRelayData()` → `GET /peek` (non-destructive read). Парсинг: `extractRowsFromPayload()` → CSVRow[]. `buildImportSummary()` формирует текст summary. Если `!extensionInstalled` → `markExtensionInstalled()`. `pendingEntryIdRef` предотвращает повторную обработку того же entryId. `importFlow.setRelayPayload()` сохраняет raw payload. Relay polling приостановлен: `enabled = appState !== 'confirming'` |
-| **Emotional Valence** | 4/5 — подтверждение что система работает, данные на месте                                                                                                                                                                                                                                                                                                                                                        |
-| **Cognitive Load**    | LOW — в рабочем цикле пользователь уже знает что ожидать                                                                                                                                                                                                                                                                                                                                                         |
-| **Drop-off Risk**     | LOW — данные пришли, пользователь инвестирован в процесс                                                                                                                                                                                                                                                                                                                                                         |
-| **Error Paths**       | (1) Payload пустой (0 rows) → `peekRelayData` не вызывает callback. (2) WebSocket обрыв при передаче → HTTP polling подхватит через 1-5 сек. (3) Пользователь в Chrome, не видит Figma → данные ждут в `confirming`, relay polling приостановлен. (4) Duplicate entryId → `lastProcessedEntryIdRef` блокирует повторную обработку                                                                                |
-| **Pain Points**       | (1) Нет push-notification в Figma — если пользователь в Chrome, он не знает что данные пришли. (2) При batch-workflow: нужно переключаться в Figma после каждой отправки. (3) Summary может быть непонятен: «42 сниппета, фильтры (5), сайдбар (8 офферов)» — технические термины                                                                                                                                |
-| **Opportunities**     | (1) Figma notification при получении данных. (2) Auto-confirm mode для batch-workflow: импорт без подтверждения. (3) Sound notification. (4) Chrome extension popup показывает «Данные доставлены в Figma»                                                                                                                                                                                                       |
-| **Key Metric**        | Push-to-peek latency, confirmation screen dwell time                                                                                                                                                                                                                                                                                                                                                             |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Отправить данные текущей выдачи Яндекса в плагин                                                                                                                                                                                                                                                                                                                                                                        |
+| **User Action**       | В Chrome открывает `yandex.ru/search?text=…`, кликает иконку расширения в toolbar. Опционально: правый клик иконки → переключатель «Захватывать скриншоты»                                                                                                                                                                                                                                                              |
+| **UI State**          | Plugin UI остаётся в `ready` (пользователь смотрит в Chrome). Chrome: иконка badge меняется на `...` синим                                                                                                                                                                                                                                                                                                              |
+| **System Action**     | Background SW `handleIconClick`: (1) `void sendHeadsUp('parsing')` — лёгкий POST на YC. (2) `chrome.scripting.executeScript` инъектирует content.ts → парсит DOM → `__contentifyResult`. (3) Если `captureScreenshots` (default ON) — `captureFullPage` сегментирует страницу с `void sendHeadsUp('uploading_screenshots', {current,total})` per segment. (4) `void sendHeadsUp('uploading_json')` → POST /push payload |
+| **Emotional Valence** | 3/5 — рутинный клик                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Error Paths**       | (1) Не на Yandex-домене → badge `✗` 2 сек. (2) Session code не настроен → openOptionsPage. (3) Парсинг 0 сниппетов → badge `0 ✗` 2 сек. (4) `void sendHeadsUp('error', {message})` в любом catch блоке. (5) /push fail → `addToRetryQueue` с exp. backoff [1s, 3s, 10s], badge `N↻`                                                                                                                                     |
+| **Pain Points**       | (1) Если Figma скрыта, пользователь не видит heads-up narrative — переключение Chrome ↔ Figma всё ещё нужно для confirm. (2) Захват скриншотов меняет ширину окна Chrome (resize до 1440 desktop / 393 touch) — заметно                                                                                                                                                                                                 |
+| **Opportunities**     | (1) Хотя heads-up `'parsing'` уже летит — Chrome ничего не показывает «отправлено в Figma». Toast в Chrome был бы win. (2) Auto-trigger при определённой комбинации параметров URL                                                                                                                                                                                                                                      |
+| **Key Metric**        | Parse success rate, items per page, push→peek latency (через `meta.pushedAt` стэмп), screenshot total size                                                                                                                                                                                                                                                                                                              |
 
 ---
 
-### 6. Configure Import (confirming)
+### 5. Incoming (heads-up narrative) — **НОВОЕ В 3.1**
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Выбрать режим импорта и запустить обработку                                                                                                                                                                                                                                                                                                                                                         |
-| **User Action**       | Выбирает: (1) «Создать артборд» (`Enter`) — новый фрейм с полной выдачей. (2) «Заполнить выделение» — заполнить выделенные контейнеры данными. Опционально: чекбокс «Добавить скриншоты страницы». Или «Отмена» (`Escape`) — отклонить данные                                                                                                                                                       |
-| **UI State**          | `AppState: 'confirming'`, ImportConfirmDialog. Кнопки: «Создать артборд» (primary, autoFocus), «Заполнить выделение» (secondary, если `hasSelection`), «Отмена» (text). Чекбокс скриншотов (default: checked). Hint: `Enter — создать артборд`. Если нет выделения: подсказка «Выделите контейнеры для заполнения» вместо кнопки                                                                    |
-| **System Action**     | `check-selection` опрашивает Figma → `hasSelection`. При confirm: `importFlow.confirm({ mode, includeScreenshots })` → сохраняет `pendingEntryIdRef`, запускает safety timeout (30s), отправляет `apply-relay-payload` в sandbox. При cancel: `importFlow.cancel()` → `relay.blockEntry(entryId)` на 10 сек → возврат в `ready`. При clearQueue: `relay.clearQueue()` → удаляет все данные из relay |
-| **Emotional Valence** | 4/5 — уверенный выбор, привычный диалог                                                                                                                                                                                                                                                                                                                                                             |
-| **Cognitive Load**    | LOW (повторный цикл) — пользователь знает разницу между режимами. MEDIUM (первые разы) — нужно освоить два режима                                                                                                                                                                                                                                                                                   |
-| **Drop-off Risk**     | LOW — пользователь уже в процессе работы                                                                                                                                                                                                                                                                                                                                                            |
-| **Error Paths**       | (1) Cancel → `blockEntry(entryId)` на 10 сек предотвращает re-show. (2) «Заполнить выделение» недоступно → пользователь забыл выделить контейнеры. (3) При быстром batch: Escape случайно → данные заблокированы на 10 сек                                                                                                                                                                          |
-| **Pain Points**       | (1) 10 секунд block после cancel — если отменил случайно, нужно ждать. (2) «Заполнить выделение» требует предварительного выделения в Figma — прерывает flow. (3) Чекбокс скриншотов — непонятно при первом использовании. (4) Нет preview данных перед импортом. (5) Keyboard shortcut только для artboard (`Enter`), нет shortcut для selection mode                                              |
-| **Opportunities**     | (1) Запоминание последнего режима (artboard vs selection). (2) Keyboard shortcut для selection mode (`Shift+Enter`). (3) Undo cancel: «Отменено. Вернуть?» вместо silent block. (4) Preview: 2-3 карточки как будет выглядеть. (5) Auto-select контейнеров на текущем артборде                                                                                                                      |
-| **Key Metric**        | Confirm rate, mode split (artboard vs selection), time-to-confirm, cancel rate                                                                                                                                                                                                                                                                                                                      |
-
----
-
-### 7. Processing
-
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Дождаться обработки данных                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| **User Action**       | Пассивное ожидание. Наблюдает за сменой этапов. Может нажать «Отменить» если процесс завис (stuck hint через 15 сек)                                                                                                                                                                                                                                                                                                                                                                          |
-| **UI State**          | `AppState: 'processing'`, ProcessingView. Спиннер, «Обработка...», stage label, карточка с запросом + marquee summary. Через 15 сек (`STUCK_HINT_DELAY`): «Если процесс завис, нажмите Отменить». Кнопка «Отменить». Размер `standard` (400×400)                                                                                                                                                                                                                                              |
-| **System Action**     | `apply-relay-payload` → postMessage → sandbox. `MIN_PROCESSING_TIME = 800ms` — минимальное время отображения для плавного UX. Этапы: searching → resetting → grouping → components → text → images → cleanup. Каждый этап → `progress` message → `importFlow.updateStage()`. Schema engine: `applySchema()` для каждого контейнера. Handler registry: executeAll по приоритетам. Изображения загружаются параллельно через CORS-proxy. Завершение: `done` или `relay-payload-applied` message |
-| **Emotional Valence** | 3/5 — привычное ожидание, stage labels дают ощущение прогресса                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| **Cognitive Load**    | LOW — ничего не требуется                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **Drop-off Risk**     | LOW (типичный импорт 5-15 сек). MEDIUM (большие страницы 20-30 сек) — может показаться зависшим                                                                                                                                                                                                                                                                                                                                                                                               |
-| **Error Paths**       | (1) Sandbox crash → `onError` → `finishProcessing('error')` → возврат в `ready`. (2) Image loading timeout → partial success (failedImages в stats). (3) Component key не найден → fallback на canvas rendering. (4) Font loading failure → текст не заполнен. (5) Stuck >15 сек → hint + cancel. (6) Safety timeout 30 сек → auto-ack entryId чтобы не потерять данные в relay                                                                                                               |
-| **Pain Points**       | (1) Нет процентного прогресса — только текстовые этапы. (2) Stage labels технические: «Компонентная логика», «Группировка». (3) MIN_PROCESSING_TIME = 800ms может ощущаться как лаг при быстрых импортах. (4) Cancel — no-op для relay imports (`handleCancel` пуст), только `import-cancelled` от sandbox. (5) При batch: 15 сек × 5 импортов = >1 мин только на processing                                                                                                                  |
-| **Opportunities**     | (1) Процентный progress bar вместо этапов. (2) Человечные labels: «Расставляю карточки», «Загружаю картинки». (3) Estimated time based на количестве items. (4) Background processing: пользователь может работать, notification по завершении. (5) Убрать MIN_PROCESSING_TIME для повторных импортов (не первый раз)                                                                                                                                                                         |
-| **Key Metric**        | Processing time (p50, p95), cancel rate, error rate by stage                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **User Goal**         | Понять, что расширение работает (визуальная уверенность пока идёт upload)                                                                                                                                                                                                                                                                              |
+| **User Action**       | Если плагин виден — наблюдает narrative. Может нажать «Отменить» (link справа от текста)                                                                                                                                                                                                                                                               |
+| **UI State**          | `AppState: 'incoming'`, размер `compact` (тот же 56-px CompactStrip что у ready). Спиннер `--incoming` (brand-цвет) + текст: «Расширение собирает данные…» / «Загружаем структуру…» / «Грузим скриншоты K/M…» / «Завершаем загрузку…». Справа ссылка «Отменить»                                                                                        |
+| **System Action**     | `useRelayConnection.checkRelay()` видит `data.headsUp` в /status response. Если `Date.now() − ts ≤ 10s` → `onIncoming(state)` callback в `ui.tsx` → `setAppState((prev) => prev === 'ready' ? 'incoming' : prev)` + `setIncomingMessage(formatHeadsUpPhase(state))`. Watchdog: если ts старше 10 сек → `onIncomingExpired` → возврат в `ready` + toast |
+| **Emotional Valence** | 4/5 — «работает!» — главный UX-выигрыш этой фичи                                                                                                                                                                                                                                                                                                       |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                                                                    |
+| **Drop-off Risk**     | LOW (пользователь видит что система живёт)                                                                                                                                                                                                                                                                                                             |
+| **Error Paths**       | (1) Heads-up `phase: 'error'` от расширения → `onIncomingError(message)` → `error` state с `errorMessage`. (2) Сеть упала, /status 2 fail подряд → `CloudUnreachableBanner`. (3) Watchdog 10 сек без новых heads-up → возврат в `ready`. (4) Юзер кликает «Отменить» → `relay.clearQueue()` + `setAppState('ready')`                                   |
+| **Pain Points**       | (1) Узкая 56-px полоска: длинные K/M (например 99/127) могут плохо читаться. (2) «Отменить» — маленький link, легко промахнуться при быстрой работе. (3) Если плагин минимизирован — пользователь не видит narrative                                                                                                                                   |
+| **Opportunities**     | (1) Прогресс-bar на 3-px полоске снизу strip'а (как в processing). (2) Подсветка «Отменить» при наведении. (3) Если есть Figma push notification API — пинговать пользователя                                                                                                                                                                          |
+| **Key Metric**        | Time-to-first-heads-up (от click до первого incoming render), watchdog fire rate, cancel-rate-during-incoming                                                                                                                                                                                                                                          |
 
 ---
 
-### 8. Success
+### 6. Data Received (Confirming)
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                    |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Увидеть результат и перейти к следующему запросу или работе с макетом                                                                                                                                                                                                                                                                                                       |
-| **User Action**       | Видит SuccessView с анимацией. Hover на окно → пауза auto-close (для чтения статистики). Клик «Закрыть» или ожидание auto-close. При ошибках: «Показать подробности» → LogViewer. После close → автоматический возврат в `ready`                                                                                                                                            |
-| **UI State**          | `AppState: 'success'`. SuccessView: CheckCircle с bounce-анимацией, «Готово!», «Макет для "запрос" добавлен на холст». Статистика: «✓ N свойств», «✗ N не удалось», «✗ N изобр. не загружено». Progress bar auto-close: 3 сек (clean) или 8 сек (с ошибками, `DELAY_WITH_FAILURES`). Confetti анимация. Hover → пауза таймера с resume при mouse leave                      |
-| **System Action**     | `finishProcessing('success')` → `setAppState('success')` → `resizeUI('success')`. `ackData(entryId)` подтверждает relay → удаляет из очереди (retry: 3 попытки, delays [1s, 2s, 4s]). Confetti trigger: `setConfettiActive(true)`. Auto-close timer: `setTimeout(onComplete, remainingRef.current)`. `onComplete` = `importFlow.completeSuccess()` → `setAppState('ready')` |
-| **Emotional Valence** | 5/5 — результат на холсте, confetti, пиковый момент цикла                                                                                                                                                                                                                                                                                                                   |
-| **Cognitive Load**    | LOW — результат понятен визуально                                                                                                                                                                                                                                                                                                                                           |
-| **Drop-off Risk**     | LOW — цикл завершён успешно                                                                                                                                                                                                                                                                                                                                                 |
-| **Error Paths**       | (1) Ack не доходит до relay → retry 3 раза. При полном fail: данные останутся в очереди, будут показаны повторно. (2) Stats с ошибками → пользователь может не понять причину. (3) Auto-close слишком быстрый → hover для паузы. (4) Confetti может не отобразиться если UI minimized                                                                                       |
-| **Pain Points**       | (1) 3 сек auto-close — мало для чтения статистики при ошибках. (2) «✗ 5 не удалось» без детализации: какие именно свойства? (3) При batch-workflow: confetti на каждый импорт может раздражать. (4) Нет кнопки «Zoom to frame» для навигации к созданному артборду. (5) Переход ready→confirming может произойти во время auto-close если данные уже в очереди              |
-| **Opportunities**     | (1) «Zoom to frame» кнопка. (2) Batch mode: тихий success без confetti для серийных импортов. (3) Детализация ошибок inline. (4) Счётчик сессии: «Импорт #3 за сегодня». (5) Quick action: «Ещё один запрос» → фокус на Chrome                                                                                                                                              |
-| **Key Metric**        | Success rate, stats quality ratio, auto-close vs manual close, time-to-next-import                                                                                                                                                                                                                                                                                          |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Увидеть что данные дошли, выбрать режим импорта                                                                                                                                                                                                                                                                                                                                                            |
+| **User Action**       | Возвращается в Figma (или видит автопереход если плагин на экране). `ImportConfirmDialog` 320×280                                                                                                                                                                                                                                                                                                          |
+| **UI State**          | `AppState: 'confirming'`, размер `standard` (320×280). Заголовок «Импорт». Карточка: query + summary fields (количество rows / wizards / productCard offers). Группа radio «Режим»: ◉ Новый артборд (default) / ○ Все брейкпоинты (disabled для feed) / ○ Заполнить выделение (disabled если !hasSelection). Footer: «Очистить» (danger, если pending), «Отмена», «Импорт» (primary, autoFocus)            |
+| **System Action**     | `/status` вернул `hasData: true` → `peekRelayData()` → `GET /peek` non-destructive read. Discriminate `pair-ack` (silent ack) vs feed (`sourceType === 'feed'`) vs SERP (`extractRowsFromPayload`). `flow.showConfirmation()` сохраняет `pendingEntryIdRef`, `flow.updateInfo({itemCount, summary, summaryData})`. Polling приостановлен (`enabled = false`). Для timing: `confirmShownAtRef = Date.now()` |
+| **Emotional Valence** | 4/5 — подтверждение что система работает                                                                                                                                                                                                                                                                                                                                                                   |
+| **Cognitive Load**    | LOW (повторный цикл) / MEDIUM (первые разы) — нужно понять разницу между Артборд / Брейкпоинты / Выделение                                                                                                                                                                                                                                                                                                 |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Error Paths**       | (1) Payload пустой (0 rows) → `peekRelayData` не зовёт callback. (2) Duplicate `entryId` → `lastProcessedEntryIdRef` блокирует. (3) Юзер в Chrome, не видит Figma → данные ждут в `confirming`, polling приостановлен                                                                                                                                                                                      |
+| **Pain Points**       | (1) Нет push-notification в Figma — в Chrome пользователь не знает что данные пришли. (2) `summary` может быть техничным («42 SERP-сниппета, фильтры (5), сайдбар (8 офферов)»). (3) При batch: каждый раз ручное «Импорт» — раздражает                                                                                                                                                                    |
+| **Opportunities**     | (1) Figma notification по data-received. (2) Auto-confirm mode для batch-flow. (3) Mini-preview 2–3 карточки. (4) Запоминать последний выбранный режим (artboard/breakpoints/selection)                                                                                                                                                                                                                    |
+| **Key Metric**        | Push→peek latency (через `meta.pushedAt`), confirm dwell time                                                                                                                                                                                                                                                                                                                                              |
 
 ---
 
-### 9. Back to Ready
+### 7. Configure Import
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Начать следующий импорт или перейти к работе с макетом                                                                                                                                                                                                                                                                                      |
-| **User Action**       | Два сценария: (A) Batch — сразу переключается в Chrome для следующего запроса. (B) Work — начинает работу с импортированным макетом, плагин остаётся в фоне                                                                                                                                                                                 |
-| **UI State**          | `AppState: 'ready'` (после `completeSuccess()`). ReadyView с `lastQuery` = последний запрос. Кнопка «Повторить» (re-import). Если данные уже в очереди relay → мгновенный переход в `confirming`. StatusBar отражает текущий статус relay/extension                                                                                         |
-| **System Action**     | `completeSuccess()` → `setAppState('ready')` + `resizeUI('ready')`. WebSocket и HTTP polling возобновляются (`enabled = true`). Если relay имеет pending data → WebSocket `new-data` → немедленный `showConfirmation()`. `lastQuery` сохранён для «Повторить». Relay polling активен: 1с интервал                                           |
-| **Emotional Valence** | 4/5 — удовлетворение от завершённой работы, готовность к следующему                                                                                                                                                                                                                                                                         |
-| **Cognitive Load**    | LOW — состояние привычное, пользователь знает свой следующий шаг                                                                                                                                                                                                                                                                            |
-| **Drop-off Risk**     | LOW — пользователь либо продолжает цикл, либо переходит к работе с макетами                                                                                                                                                                                                                                                                 |
-| **Error Paths**       | (1) Relay disconnect за время processing → reconnect при возврате в ready. (2) Pending data в relay → мгновенный переход в confirming может быть неожиданным. (3) Chrome закрыт → extension не активна, нужно открыть заново                                                                                                                |
-| **Pain Points**       | (1) При batch: переход success→ready→confirming занимает 3+ сек (auto-close delay). (2) «Повторить» (reimport) не всегда понятно: те же данные или новый парсинг? (3) Нет визуального перехода между циклами — каждый раз как будто «с нуля». (4) Если данные прилетели во время success → переход в confirming может быть дезориентирующим |
-| **Opportunities**     | (1) Queue preview: «В очереди ещё 2 запроса — продолжить?». (2) Session progress: «3 из 5 запросов импортировано». (3) Instant transition при pending data: skip success auto-close. (4) «Повторить» с пояснением: «Перепарсить "запрос" из кэша relay»                                                                                     |
-| **Key Metric**        | Time success→next_action, reimport rate, queue throughput                                                                                                                                                                                                                                                                                   |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Выбрать режим импорта, запустить обработку                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **User Action**       | Выбирает radio «Режим» → нажимает «Импорт» (Enter). Или «Отмена» (Esc). Или «Очистить» (если хочет сбросить очередь до confirm)                                                                                                                                                                                                                                                                                                                           |
+| **UI State**          | Тот же `ImportConfirmDialog`. Кнопка «Импорт» — primary autoFocus (Enter работает). «Отмена» — secondary. «Очистить» — danger, слева в footer                                                                                                                                                                                                                                                                                                             |
+| **System Action**     | `handleDialogConfirm` → seedит `progressData = {current: 5, total: 100, message: 'Подготовка импорта…'}` (instant feedback ≤16 ms) → `flow.confirm({mode})`. Sandbox получает `apply-relay-payload` или `import-csv`. `safetyTimeout = 30s` — auto-ack чтобы не потерять данные. `applyStartedAtRef = Date.now()`. На cancel: `flow.cancel()` → `relay.blockEntry(entryId, 10s)` → возврат в `ready`. На clearQueue: `relay.clearQueue()` → DELETE /clear |
+| **Emotional Valence** | 4/5                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Cognitive Load**    | LOW (повтор) / MEDIUM (первый раз — нужно понять «Все брейкпоинты»)                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Error Paths**       | (1) «Заполнить выделение» disabled при `!hasSelection` → пользователь забыл выделить контейнеры. (2) При cancel `blockEntry(10s)` чтобы не показать тот же entry повторно. (3) Esc → cancel; Enter → confirm                                                                                                                                                                                                                                              |
+| **Pain Points**       | (1) 10 сек block после cancel — если случайно отменил, нужно ждать. (2) Нет keyboard shortcut для «брейкпоинтов» / «выделения» (только Enter = artboard). (3) Чекбокс скриншотов нет в UI плагина — он в context-menu расширения (легко забыть)                                                                                                                                                                                                           |
+| **Opportunities**     | (1) Запоминание последнего mode. (2) Shift+Enter = selection. (3) Undo cancel: «Отменено. Вернуть?» вместо silent block                                                                                                                                                                                                                                                                                                                                   |
+| **Key Metric**        | Mode split (artboard / breakpoints / selection), time-to-confirm, cancel rate                                                                                                                                                                                                                                                                                                                                                                             |
+
+---
+
+### 8. Processing
+
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Дождаться обработки данных                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **User Action**       | Пассивное ожидание. Видит CompactStrip processing с brand-spinner и текущим narrative                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **UI State**          | `AppState: 'processing'`, размер `compact`. Brand-spinner + `processingMessage` (с sandbox phase: «Размещаем 23/76…», «Загружаем картинки 12/35…», «Подготавливаем компоненты…»). Снизу strip'а — 3-px progress bar (`progressData.current / total`)                                                                                                                                                                                                                                   |
+| **System Action**     | Sandbox получает `apply-relay-payload` → `createSerpPage` (или feed-builder). Phases: payload-received → resolving components → render loop (`Размещаем K/M`) → image-apply (parallel via image-apply.ts с promise-based URL cache) → screenshot placement (fire-and-forget) → done. Каждый phase шлёт `progress` message → `setProgressData`. По завершении: `done` или `relay-payload-applied` → `finishProcessing('success')` + `ackPendingEntry()` (3-retry с delays [1s, 2s, 4s]) |
+| **Emotional Valence** | 3/5 — narrative делает ожидание сносным                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Drop-off Risk**     | LOW (типичный 5–15 сек) / MEDIUM (большие страницы 20–30 сек)                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Error Paths**       | (1) Sandbox crash → `onError` → `finishProcessing('error')` + `errorMessage`. (2) Image fetch fail → partial success (`failedImages` в stats). (3) Component key missing → fallback canvas rendering. (4) Stale-ref после variant swap → `removed` guard (см. `.claude/rules/performance.md` §4) — silently evicted, no exception. (5) Safety timeout 30 сек → auto-ack чтобы не потерять данные                                                                                       |
+| **Pain Points**       | (1) Sandbox-phase progress линейный по counter (current/total), но фактический прогресс нелинейный — image-apply занимает 30–50% времени. (2) Менеджмент очень больших импортов (100+ сниппетов) — может занимать 30+ сек, narrative помогает но всё равно долго                                                                                                                                                                                                                       |
+| **Opportunities**     | (1) Streaming render: элементы появляются по мере обработки. (2) Background processing: пользователь работает с другими фреймами, success приходит уведомлением. (3) ETA based на N items (после Apr 2026 имеем real timing data)                                                                                                                                                                                                                                                      |
+| **Key Metric**        | Processing time p50/p95, stage breakdown, error rate, image-fetch dedup hit-rate                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+---
+
+### 9. Success
+
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Увидеть результат и перейти к следующему запросу                                                                                                                                                                                                                                                                                                                           |
+| **User Action**       | Видит CompactStrip success: ✓ галочка + «N элементов · X.X сек» (3-сек auto-dismiss). Если первый импорт сессии — `Confetti` overlay (один раз через `isFirstRun` flag). Может кликнуть в strip чтобы dismiss раньше                                                                                                                                                       |
+| **UI State**          | `AppState: 'success'`, размер `compact`. Зелёная ✓ + «N элементов · X.X сек» (или «Импорт завершён» если нет данных). Снизу strip'а — заполняющийся 3-px progress bar (auto-dismiss 3s, `AUTO_DISMISS_DELAY`). `Confetti` поверх (only when `isFirstRun === true`, который flip-ится на `false` в `Confetti.onComplete`)                                                   |
+| **System Action**     | `finishProcessing('success')` → `setAppState('success')` → `resizeUI('success')`. `ackData(entryId)` через 3-retry: POST /ack → ack accepted → удаляет из YDB queue. `setLastImportCount/lastImportTime` запоминает для tooltip. `setConfettiActive(true)`. Auto-dismiss timer фирится `AUTO_DISMISS_DELAY = 3000`. Логирование: `[Timing] Apply total (UI-observed): Xms` |
+| **Emotional Valence** | 5/5 — пиковая точка цикла, особенно с confetti                                                                                                                                                                                                                                                                                                                             |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                                                                                        |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                        |
+| **Error Paths**       | (1) ack 3 retry fail → данные останутся в очереди и будут показаны повторно при следующем /status. (2) Confetti не отрендерится если плагин минимизирован. (3) Auto-dismiss слишком быстрый → нет возможности задержаться на статистике                                                                                                                                    |
+| **Pain Points**       | (1) 3 сек auto-dismiss — мало для чтения статистики. (2) Нет «Zoom to frame» кнопки — после success юзер не знает где смотреть результат. (3) При batch — confetti на каждом первом импорте сессии (правильно) но повторный плагин-reload откатывает `isFirstRun` → confetti снова                                                                                         |
+| **Opportunities**     | (1) Hover на strip — пауза auto-dismiss. (2) «Zoom to frame» quick action. (3) Tooltip с детальной статистикой при hover                                                                                                                                                                                                                                                   |
+| **Key Metric**        | Success rate, ack hit rate (1st/2nd/3rd retry), auto-dismiss-vs-manual ratio                                                                                                                                                                                                                                                                                               |
+
+---
+
+### 10. Back to Ready
+
+| Аспект                | Описание                                                                                                                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Начать следующий импорт или работу с макетами                                                                                                                                                                                                      |
+| **User Action**       | Два сценария: (A) Batch — сразу в Chrome для следующего запроса. (B) Work — начинает редактировать макет, плагин в фоне                                                                                                                            |
+| **UI State**          | `AppState: 'ready'` после auto-dismiss. CompactStrip ready с `lastQuery` в tooltip («Последний: «диван купить» · 76 сниппетов · только что»). Если в очереди уже есть данные → мгновенный переход в `confirming`                                   |
+| **System Action**     | `completeSuccess()` → `setAppState('ready')` + `resizeUI('ready')`. Polling возобновляется (`enabled = true`). Если `data.hasData = true` → немедленный `peekRelayData()` → `confirming`. `lastQuery`/`lastImportCount`/`lastImportTime` сохранены |
+| **Emotional Valence** | 4/5 — удовлетворение от завершения                                                                                                                                                                                                                 |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                |
+| **Error Paths**       | (1) Если auto-dismiss закончился ровно когда пришёл новый payload → переход success → ready → confirming за 50–100 ms (выглядит как мерцание). (2) Cloud disconnect за время processing → reconnect при возврате в ready (debounced)               |
+| **Pain Points**       | (1) При batch: 3-сек auto-dismiss всё равно остаётся overhead. (2) «Последний» tooltip показывается только при hover — easy to miss                                                                                                                |
+| **Opportunities**     | (1) Skip auto-dismiss если в очереди есть pending. (2) Visible queue indicator: «В очереди ещё 2 запроса». (3) Session count: «Импорт #3 за сегодня»                                                                                               |
+| **Key Metric**        | Time success→next-action, batch throughput                                                                                                                                                                                                         |
 
 ---
 
@@ -202,164 +239,123 @@ Browser Extension → POST /push → Relay :3847 → GET /pull → Figma Plugin
 
 ```
 Valence
-  5 │                                              ★ SUCCESS
-    │                                             ╱ ╲
-  4 │                    ●Data Received ●Confirm  ╱   ╲ ●Back
-    │                                    ╲      ╱     ╲╱to Ready
-  3 │  ●Open  ●Check  ●Ready   ●Browse    ╲   ╱ ●Process
-    │      ╲  ╱    ╲  ╱     ╲  ╱            ╲╱
-  2 │       ╲╱      ╲╱       ╲╱
+  5 │                                                  ★ SUCCESS
+    │                                                 ╱ ╲
+  4 │                ●Incoming  ●Data  ●Confirm     ╱   ╲ ●Back
+    │                  (NEW!)                       ╱     ╲╱to Ready
+  3 │  ●Open  ●Check  ●Ready ●Browse        ●Process
+    │             ╲   ╱  ╲   ╱
+  2 │              ╲ ╱    ╲ ╱
     │
   1 │
     │
   0 └──────────────────────────────────────────────────── Steps
-      1     2     3      4       5       6      7     8     9
-                                                    PEAK
+       1     2     3     4     5     6     7     8     9     10
+                              NEW                  PEAK
 ```
 
-**Стабильная кривая** — в отличие от онбординга, нет Valley of Despair. Эмоциональный пик на Success (confetti + результат). Минимальный уровень — Processing (ожидание). Цикл начинается и заканчивается на 3-4/5.
+**Изменение от 3.0 → 3.1:** добавление шага 5 (Incoming) поднимает кривую с 3 (Browse) до 4 (Incoming) до 4 (Data) — раньше между шагами 4 (Browse) и 6 (Data) была «дыра» 1–5 сек чистого ожидания.
 
 ---
 
-## Паттерны последовательного импорта (Batch Workflow)
+## Паттерны batch-импорта
 
-### Типичный batch-сценарий
+### Типичный batch (5 циклов)
 
 ```
-Цикл 1: Ready → Chrome → SERP → Data → Confirm → Process → Success
-  ↓ (auto-close 3s)
-Цикл 2: Ready → Chrome → SERP → Data → Confirm → Process → Success
-  ↓ (auto-close 3s)
-Цикл 3: Ready → Chrome → SERP → Data → Confirm → Process → Success
-  ↓
-Работа с макетами
+[Browse]→[Click ext]→[Incoming]→[Confirm]→[Process]→[Success 3s]→
+└─ ~1с    ~0.5с      ~3с heads  ~1-3с    ~5-15с    ~3с
+[Browse]→...
 ```
 
-### Временная раскладка batch-цикла
+### Временная раскладка одного цикла (cloud-relay 3.1)
 
 | Фаза                  | Время         | % от цикла |
 | --------------------- | ------------- | ---------- |
-| Ready → Chrome switch | 1-2 сек       | 5%         |
-| SERP browse + parse   | 5-15 сек      | 35%        |
-| Chrome → Figma switch | 1-2 сек       | 5%         |
-| Confirm dialog        | 1-3 сек       | 8%         |
-| Processing            | 5-15 сек      | 35%        |
-| Success (auto-close)  | 3 сек         | 12%        |
-| **Итого один цикл**   | **16-40 сек** | **100%**   |
+| Ready → Chrome switch | 1–2 сек       | 5%         |
+| SERP browse + click   | 1–3 сек       | 8%         |
+| Heads-up incoming     | 2–4 сек       | 12%        |
+| Chrome → Figma switch | 1–2 сек       | 5%         |
+| Confirm dialog        | 1–3 сек       | 8%         |
+| Processing            | 5–15 сек      | 40%        |
+| Success auto-close    | 3 сек         | 12%        |
+| Idle to next          | 1–3 сек       | 10%        |
+| **Итого**             | **15–35 сек** | **100%**   |
 
 ### Friction points в повторяющемся цикле
 
-| Friction                            | Время за цикл | За 5 циклов | Решение                                  |
-| ----------------------------------- | ------------- | ----------- | ---------------------------------------- |
-| Chrome ↔ Figma switching            | 2-4 сек       | 10-20 сек   | Auto-confirm mode, Chrome side panel     |
-| Success auto-close wait             | 3 сек         | 15 сек      | Skip delay для batch, instant transition |
-| Confirm dialog (if always artboard) | 1-2 сек       | 5-10 сек    | Remember last choice, auto-confirm       |
-| Processing min delay (800ms)        | 0.8 сек       | 4 сек       | Skip для повторных импортов              |
-| Ready pulse animation (idle)        | 1-2 сек       | 5-10 сек    | Instant data detection                   |
-| **Суммарный overhead**              | **~10 сек**   | **~50 сек** | —                                        |
+| Friction                         | За цикл    | За 5 циклов | Решение                                   |
+| -------------------------------- | ---------- | ----------- | ----------------------------------------- |
+| Chrome ↔ Figma switching         | 2–4 сек    | 10–20 сек   | Auto-confirm mode, Chrome side panel      |
+| Success auto-dismiss wait        | 3 сек      | 15 сек      | Skip-when-pending, instant transition     |
+| Confirm dialog (always artboard) | 1–2 сек    | 5–10 сек    | Remember last mode, auto-confirm setting  |
+| Heads-up watchdog overhead       | 0 сек\*    | 0 сек\*     | \* not friction — improvement vs 3.0 idle |
+| **Суммарный overhead**           | **~6 сек** | **~30 сек** | —                                         |
 
-### Queue Pipeline (идеальный batch)
-
-```
-Текущий:    [Browse]→[Switch]→[Confirm]→[Process]→[Wait]→[Browse]→...
-                                                    ↑ wasted time
-
-Идеальный:  [Browse][Browse][Browse]→[Switch]→[Queue: 3 запроса]→[Process×3]→[Done]
-                                                ↑ одно подтверждение на все
-```
+> Для сравнения: в 3.0 на месте «Heads-up incoming» (12%) была чёрная дыра ожидания «Idle ready waiting for data» — пользователь не знал, идёт upload или нет. Теперь это видимая фаза.
 
 ---
 
 ## Покрытие AppState переходов
 
-| Переход                   | CJM State        | Trigger                                           | Covered |
-| ------------------------- | ---------------- | ------------------------------------------------- | ------- |
-| `→ checking`              | 1. Open Plugin   | React mount, initial state                        | ✓       |
-| `checking → ready`        | 2. Checking      | 100ms timeout OR relay.connected                  | ✓       |
-| `ready → confirming`      | 5. Data Received | WebSocket `new-data` → peekRelayData              | ✓       |
-| `confirming → processing` | 6→7. Confirm     | importFlow.confirm()                              | ✓       |
-| `confirming → ready`      | 6. Cancel        | importFlow.cancel() + blockEntry                  | ✓       |
-| `processing → success`    | 7→8. Done        | finishProcessing('success') + MIN_PROCESSING_TIME | ✓       |
-| `processing → ready`      | 7. Error/Cancel  | finishProcessing('error'/'cancel')                | ✓       |
-| `success → ready`         | 8→9. Complete    | completeSuccess() via auto-close or click         | ✓       |
-
-## Покрытие useImportFlow lifecycle
-
-| Action                                  | CJM State               | Covered |
-| --------------------------------------- | ----------------------- | ------- |
-| `showConfirmation()`                    | 5. Data Received        | ✓       |
-| `confirm({ mode, includeScreenshots })` | 6. Configure Import     | ✓       |
-| `cancel()` + `blockEntry()`             | 6. Cancel               | ✓       |
-| `clearQueue()`                          | 6. Clear Queue          | ✓       |
-| `finishProcessing('success')`           | 7→8. Processing done    | ✓       |
-| `finishProcessing('error')`             | 7. Error path           | ✓       |
-| `finishProcessing('cancel')`            | 7. Cancel path          | ✓       |
-| `completeSuccess()`                     | 8→9. Auto-close/click   | ✓       |
-| `updateStage()`                         | 7. Progress updates     | ✓       |
-| `setStats()`                            | 7→8. Stats collection   | ✓       |
-| `ackPendingEntry()`                     | 8. Relay acknowledgment | ✓       |
-| MIN_PROCESSING_TIME (800ms)             | 7. Smooth UX guard      | ✓       |
-| Safety timeout (30s)                    | 7. Stuck protection     | ✓       |
+| Переход                   | CJM State           | Trigger                                    | Covered |
+| ------------------------- | ------------------- | ------------------------------------------ | ------- |
+| `→ checking`              | 1. Open Plugin      | React mount, `appState='checking'`         | ✓       |
+| `checking → ready`        | 2. Checking         | `relay.connected === true`                 | ✓       |
+| `checking → error`        | 2. Checking timeout | 15s no relay reply → `CHECKING_TIMEOUT_MS` | ✓       |
+| `ready → incoming`        | 5. Incoming (NEW)   | `data.headsUp != null`, ts within 10s      | ✓       |
+| `incoming → ready`        | 5. Watchdog/Cancel  | watchdog 10s OR user click «Отменить»      | ✓       |
+| `incoming → error`        | 5. Heads-up error   | `headsUp.phase === 'error'`                | ✓       |
+| `incoming → confirming`   | 6. Data Received    | `data.hasData=true` → `peekRelayData`      | ✓       |
+| `ready → confirming`      | 6. Data Received    | `data.hasData=true` (без heads-up window)  | ✓       |
+| `confirming → processing` | 7. Confirm          | `flow.confirm({mode})`                     | ✓       |
+| `confirming → ready`      | 7. Cancel           | `flow.cancel()` + `blockEntry(10s)`        | ✓       |
+| `processing → success`    | 8→9. Done           | `done`/`relay-payload-applied` message     | ✓       |
+| `processing → error`      | 8. Error            | sandbox `onError`                          | ✓       |
+| `success → ready`         | 9→10. Auto-dismiss  | 3s `AUTO_DISMISS_DELAY`                    | ✓       |
+| `error → ready`           | (any error)         | 5s `ERROR_DISMISS_DELAY` или click         | ✓       |
 
 ---
 
-## Метрики эффективности цикла
+## Top-3 friction points для будущей оптимизации
 
-| Метрика                                      | Текущая оценка | Целевая                  |
-| -------------------------------------------- | -------------- | ------------------------ |
-| Один полный цикл (ready→ready)               | **16-40 сек**  | **8-15 сек**             |
-| Overhead на повторный цикл                   | ~10 сек        | ~3 сек                   |
-| Batch 5 импортов                             | **2-3 мин**    | **< 1 мин**              |
-| Confirm decision time                        | 1-3 сек        | < 0.5 сек (auto-confirm) |
-| Processing time (p50)                        | 8-12 сек       | 5-8 сек                  |
-| Success auto-close                           | 3 сек          | 0 сек (batch mode)       |
-| Context switches (Chrome ↔ Figma) per import | 2              | 0 (queue mode)           |
+### 1. Context Switching Chrome ↔ Figma — 2–4 сек × N
 
----
+**Текущий UX:** Heads-up narrative помогает, если плагин виден. Но для подтверждения всё равно нужно вернуться в Figma.
 
-## Top-3 friction points для оптимизации
+**Решения:**
 
-### 1. Context Switching Chrome ↔ Figma — 2-4 сек × N импортов
+- **Краткосрочное:** Chrome extension toast при `confirming` готовности.
+- **Среднесрочное:** Auto-confirm mode (опция в Settings).
+- **Долгосрочное:** Queue mode — батч из Chrome → одно подтверждение в Figma.
 
-**Проблема:** Каждый цикл требует: Figma→Chrome (найти запрос), Chrome→Figma (подтвердить). При 5 импортах — 10-20 сек только на переключения.
+### 2. Success auto-dismiss vs queue handoff — 3 сек × N
 
-**Текущий UX:** Ручное переключение окон + ожидание confirming dialog.
+**Текущий UX:** 3-сек wait перед `ready`, даже если pending data уже в очереди.
 
-**Решение:**
+**Решения:**
 
-- **Краткосрочное:** Chrome extension показывает статус доставки inline, не нужно проверять Figma.
-- **Среднесрочное:** Queue mode — отправить 5 запросов подряд из Chrome, подтвердить пакетом в Figma.
-- **Долгосрочное:** Auto-confirm mode для доверенных source (настраивается в Settings).
+- **Краткосрочное:** Skip auto-dismiss если `/status.hasData = true` сразу после success.
+- **Среднесрочное:** Pipeline mode — confetti/stats в дополнительном banner, не блокирует ready.
 
-### 2. Success Wait + Confirm Overhead — 4-5 сек × N импортов
+### 3. Длинный confirm для batch-flow — 1–3 сек × N
 
-**Проблема:** Auto-close 3 сек + confirm dialog 1-2 сек = 4-5 сек overhead на каждом цикле. При batch — это суммируется.
+**Текущий UX:** Каждый раз ручной выбор radio + клик «Импорт».
 
-**Текущий UX:** Success view с confetti → 3 сек → ready → новые данные → confirming → ручной выбор.
+**Решения:**
 
-**Решение:**
-
-- **Краткосрочное:** «Пропустить» кнопка на Success для мгновенного перехода в ready.
-- **Среднесрочное:** Batch mode: если в relay есть pending data, skip success → confirming напрямую.
-- **Долгосрочное:** Pipeline mode: данные обрабатываются в фоне, результат отображается в queue panel.
-
-### 3. Отсутствие прогресса в Processing — psychological friction
-
-**Проблема:** Stage labels технические и не показывают процент. 15 сек ожидания без прогресс-бара ощущаются дольше.
-
-**Текущий UX:** Текстовые этапы: «Компонентная логика», «Группировка», «Загрузка изображений».
-
-**Решение:**
-
-- **Краткосрочное:** Человечные labels + estimated time.
-- **Среднесрочное:** Процентный progress bar (каждый этап = % от общего).
-- **Долгосрочное:** Streaming render: элементы появляются на холсте по мере обработки.
+- **Краткосрочное:** Запоминать последний mode (artboard/breakpoints/selection) в clientStorage.
+- **Среднесрочное:** Auto-confirm setting с настраиваемым delay (например, «3 сек preview перед auto-import»).
+- **Долгосрочное:** Удалить confirming для trusted flow (если из ya.ru — auto-import).
 
 ---
 
 ## Связанные документы
 
-- [CJM_ONBOARDING.md](CJM_ONBOARDING.md) — онбординг нового пользователя
+- [CJM_ONBOARDING.md](CJM_ONBOARDING.md) — путь нового пользователя
+- [CJM_FOR_DESIGN_AUDIT.md](CJM_FOR_DESIGN_AUDIT.md) — сводный документ для дизайн-аудита (включает feed/page-builder/HTML-export пути)
 - [ARCHITECTURE.md](ARCHITECTURE.md) — архитектура системы
-- [STRUCTURE.md](STRUCTURE.md) — структура модулей
-- Исходники: `src/ui/ui.tsx`, `src/ui/hooks/useImportFlow.ts`, `src/ui/components/ImportConfirmDialog.tsx`, `src/ui/components/ProcessingView.tsx`, `src/ui/components/SuccessView.tsx`
+- [FSM_STATES.md](FSM_STATES.md) — диаграмма состояний
+- [`.claude/rules/ui-state.md`](../.claude/rules/ui-state.md) — правила работы с UI state
+- [`.claude/rules/performance.md`](../.claude/rules/performance.md) — performance guidelines
+- Исходники: `packages/plugin/src/ui/ui.tsx`, `packages/plugin/src/ui/hooks/useImportFlow.ts`, `packages/plugin/src/ui/hooks/useRelayConnection.ts`, `packages/plugin/src/ui/components/CompactStrip.tsx`, `packages/plugin/src/ui/components/ImportConfirmDialog.tsx`, `packages/plugin/src/ui/utils/heads-up-messages.ts`, `packages/extension/src/background.ts`
