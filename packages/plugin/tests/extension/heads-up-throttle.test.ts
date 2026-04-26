@@ -29,7 +29,8 @@ describe('extension/background.ts — heads-up source contract', () => {
   });
 
   it('screenshot loop fires sendHeadsUp("uploading_screenshots", { current, total })', () => {
-    expect(source).toMatch(/sendHeadsUp\(\s*['"]uploading_screenshots['"][^)]*current[^)]*total/s);
+    // No `s` flag needed — `[^)]*` already matches any char including newlines.
+    expect(source).toMatch(/sendHeadsUp\(\s*['"]uploading_screenshots['"][^)]*current[^)]*total/);
   });
 
   it('finalizing heads-up after screenshots', () => {
