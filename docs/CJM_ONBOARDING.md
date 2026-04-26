@@ -2,212 +2,232 @@
 
 > **Pivotal Journey** — критический путь пользователя через 10 состояний.
 > Каждый drop-off на этом пути = потерянный пользователь навсегда.
+>
+> **Актуально на:** 2026-04-26 (после миграции на YC cloud-relay + auto-pair handshake)
+> **Версия плагина:** 3.1.2
 
 ---
 
-## Обзор пути
+## Что изменилось со времён 3.0
 
-```
-1. Install → 2. Launch → 3. Relay → 4. Extension → 5. Check →
-6. Browse → 7. Data → 8. Confirm → 9. Process → 10. Success
-```
-
-**Компоненты системы:**
-
-```
-Browser Extension → POST /push → Relay :3847 → GET /pull → Figma Plugin
-  (парсит DOM)        (очередь)                   (schema engine → Figma API)
-```
-
-**Текущие AppState:** `checking` → `ready` → `confirming` → `processing` → `success`
-
-**UI размеры (UI_SIZES):**
-
-- `compact`: 320×56 — только `checking`
-- `standard`: 400×400 — `ready`, `confirming`, `processing`, `success`
-- `extended`: 420×520 — setup panels, logs, inspector
+| Аспект            | До (3.0, local relay)                                       | Сейчас (3.1, cloud-relay)                                                       |
+| ----------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Relay setup       | 3 шага: download CRX → распаковать → installer + Gatekeeper | **Шага нет.** Cloud-relay живёт в YC, `CLOUD_RELAY_URL` baked-in в `config.ts`  |
+| Extension pairing | Ручной ввод 6-значного кода в options page                  | **Auto-pair** через `ya.ru/?contentify_pair=<code>` — клик на кнопку и всё      |
+| Wizard structure  | 6 шагов с `StepIndicator`                                   | **Один экран** с тремя inline-состояниями (idle / waiting / timed-out)          |
+| First-run TTV     | 15–25 минут                                                 | **2–5 минут** (если расширение уже установлено — ~30 сек)                       |
+| Top drop-off      | Step 3 Relay install (~40%)                                 | Step 3 «Установка extension если её нет» (предположительно ~25%, нужны метрики) |
 
 ---
 
-## Карта пути (10 колонок)
+## Обзор пути (10 шагов)
+
+```
+1. Install Plugin → 2. First Launch → 3. Click «Подключить расширение» →
+4. Waiting Pair-Ack → 5. (optional) Install Extension →
+6. Paired ✓ Flash → 7. Ready (with OnboardingTip) →
+8. First Browse + Click → 9. First Incoming → Confirm → Process →
+10. First Success (confetti)
+```
+
+**Компоненты системы (cloud-only):**
+
+```
+Chrome Extension → POST /push?session=X → YC Cloud Function → YDB
+                                                                  ↓
+Figma Plugin polls GET /status?session=X (1s active / 5s idle)
+```
+
+**AppState через онбординг:** `setup` → `checking` → `ready` → (см. CJM_CORE_LOOP.md для дальнейшего)
+
+**UI размеры:**
+
+- `extended` — 420 × 520 px — `setup`/SetupFlow
+- `compact` — 320 × 56 px — `checking`/`ready` (после онбординга)
+- `standard` — 320 × 280 px — `confirming` (на 9-м шаге)
+
+**Session code** — 6-значный код, генерируется автоматически при первом запуске и хранится в `figma.clientStorage`. Пользователь его никогда не видит и не вводит.
+
+---
+
+## Карта пути (9 аспектов × 10 шагов)
 
 ### 1. Plugin Install
 
-| Аспект                | Описание                                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------- |
-| **User Goal**         | Установить плагин для работы с макетами Яндекса                                             |
-| **User Action**       | Поиск «Contentify» в Figma Community → Install                                              |
-| **UI State**          | Figma Community page. Плагин ещё не запущен                                                 |
-| **System Action**     | Figma скачивает и регистрирует плагин. Нет серверной части                                  |
-| **Emotional Valence** | 3/5 — нейтрально, стандартный процесс Figma                                                 |
-| **Cognitive Load**    | LOW — привычный UX установки плагинов                                                       |
-| **Drop-off Risk**     | LOW — стандартный Figma flow                                                                |
-| **Error Paths**       | Плагин не найден → нет recovery, только прямая ссылка. Figma offline → retry                |
-| **Pain Points**       | Описание плагина может быть непонятным: что именно он делает, зачем нужны Relay и Extension |
-| **Opportunities**     | Лучшее описание в Community: скриншоты до/после, видео-превью                               |
-| **Key Metric**        | Install rate (Community page → Install click)                                               |
+| Аспект                | Описание                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| **User Goal**         | Установить плагин                                                                       |
+| **User Action**       | Поиск «Contentify» в Figma Community → Install                                          |
+| **UI State**          | Figma Community page                                                                    |
+| **System Action**     | Figma скачивает и регистрирует плагин                                                   |
+| **Emotional Valence** | 3/5                                                                                     |
+| **Cognitive Load**    | LOW                                                                                     |
+| **Drop-off Risk**     | LOW                                                                                     |
+| **Pain Points**       | Описание плагина в Community может не объяснять что это и зачем нужно расширение Chrome |
+| **Opportunities**     | Скриншоты до/после, видео-превью «один клик в Chrome → данные в Figma за 3 секунды»     |
+| **Key Metric**        | Install rate                                                                            |
 
 ---
 
 ### 2. First Launch
 
-| Аспект                | Описание                                                                                                                                                                                                                               |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Запустить плагин и понять, что делать дальше                                                                                                                                                                                           |
-| **User Action**       | Plugins → Contentify (или через Quick Actions)                                                                                                                                                                                         |
-| **UI State**          | `AppState: 'checking'`, размер `compact` (320×56). Показан спиннер + текст «Подключение...». Через 100ms или при relay.connected переход в `ready`                                                                                     |
-| **System Action**     | `useEffect` отправляет `get-settings`, `get-setup-skipped`, `check-whats-new`. `useRelayConnection` делает `fetch(/status)` + пытается открыть WebSocket на `ws://localhost:3847`. Первый запуск: relay не найден → `connected: false` |
-| **Emotional Valence** | 2/5 — растерянность: окно маленькое, быстро переключается, непонятно что происходит                                                                                                                                                    |
-| **Cognitive Load**    | MEDIUM — пользователь должен понять, что плагин требует внешние компоненты                                                                                                                                                             |
-| **Drop-off Risk**     | **HIGH** — если `isFirstRun=true` и `extensionInstalled=false`, показывается SetupFlow вместо ReadyView. Пользователь видит «Шаг 1 из 6» — это пугает                                                                                  |
-| **Error Paths**       | Окно не открылось → перезапуск Figma. Plugin crash → Figma error dialog                                                                                                                                                                |
-| **Pain Points**       | (1) Переход `checking→ready` за 100ms слишком быстрый — пользователь не успевает прочитать. (2) SetupFlow сразу показывает 6 шагов — нет объяснения зачем. (3) Нет welcome-экрана с описанием принципа работы                          |
-| **Opportunities**     | Welcome-экран перед SetupFlow: объяснить архитектуру Extension→Relay→Plugin за 3 предложения. Показать что будет в результате (пример заполненного макета)                                                                             |
-| **Key Metric**        | Time checking→ready, bounce rate на SetupFlow                                                                                                                                                                                          |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Запустить плагин и понять что делать дальше                                                                                                                                                                                                                                                                                                                                                                                             |
+| **User Action**       | Plugins → Contentify (или Quick Actions)                                                                                                                                                                                                                                                                                                                                                                                                |
+| **UI State**          | `AppState: 'setup'`. Сначала `SetupSplash` (compact 320×56) пока async-чтения clientStorage не вернутся. Затем — если `setup-skipped=false` И session code сгенерирован → `SetupFlow` (extended 420×520) с idle-состоянием: текст «Подключите расширение Contentify к плагину», primary кнопка «Подключить расширение», secondary «У меня нет расширения»                                                                               |
+| **System Action**     | React mount → 5 параллельных запросов в sandbox: `get-settings`, `get-setup-skipped`, `get-session-code`, `check-whats-new`, `check-onboarding-seen`. На `onSessionCodeLoaded`: если кода нет — `generateSessionCode()` (6 символов) и `set-session-code`. На `onSetupSkippedLoaded`: если skipped → пропускаем SetupFlow и идём в `checking` (returning user). Размер окна: `setup` если first-time (extended), иначе остаётся compact |
+| **Emotional Valence** | 3/5 — «понятно что нужно настроить расширение»                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Cognitive Load**    | MEDIUM — нужно понять что плагин требует расширение. Но текст в SetupFlow это объясняет                                                                                                                                                                                                                                                                                                                                                 |
+| **Drop-off Risk**     | LOW–MEDIUM — главный риск: пользователь не понимает зачем расширение и закрывает окно                                                                                                                                                                                                                                                                                                                                                   |
+| **Error Paths**       | (1) `clientStorage` async fail → SetupSplash висит дольше обычного (есть таймаут защитный, но не пользовательский). (2) Session code generation crash → пользователь застрянет (маловероятно)                                                                                                                                                                                                                                           |
+| **Pain Points**       | (1) `SetupSplash → SetupFlow` flicker'ит на медленных машинах ~100–300 ms. (2) Нет welcome-экрана с описанием value prop — сразу просим действие                                                                                                                                                                                                                                                                                        |
+| **Opportunities**     | (1) Welcome-screen перед SetupFlow с одним предложением: «Заполняем макеты данными из живого Яндекса в один клик». (2) Видео-превью результата                                                                                                                                                                                                                                                                                          |
+| **Key Metric**        | Time first-launch → ready, abandon rate в SetupFlow                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ---
 
-### 3. Relay Setup
+### 3. Click «Подключить расширение»
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **User Goal**         | Установить Relay-сервер на свой Mac                                                                                                                                                                                                                                                                                                                                                              |
-| **User Action**       | SetupFlow шаги 1-3: (1) Клик «Скачать установщик» → скачивает `Contentify-Installer.zip` с GitHub Releases. (2) Распаковка zip, запуск установщика. (3) Ожидание подключения                                                                                                                                                                                                                     |
-| **UI State**          | `AppState: 'ready'` + SetupFlow overlay. Размер `standard` (400×400). Progress bar «Шаг 1/2/3 из 6». Шаг `relay-download`: кнопка «Скачать установщик». Шаг `relay-install`: текст-инструкция. Шаг `relay-verify`: текст «Ожидание подключения Relay...» или «✓ Relay подключён»                                                                                                                 |
-| **System Action**     | `EXTENSION_URLS.INSTALLER_DOWNLOAD` открывает GitHub Releases URL. Установщик копирует бинарник `contentify-relay-host-arm64` и регистрирует launchctl plist. Relay стартует на `localhost:3847`. `useRelayConnection` обнаруживает через HTTP polling (`/status`) или WebSocket → `connected: true`. Шаг `relay-verify` имеет `autoSkip: 'relay'` — автопереход при подключении                 |
-| **Emotional Valence** | 1/5 — **фрустрация**: скачивание с GitHub, распаковка zip, запуск .app — это не типичный UX для дизайнера                                                                                                                                                                                                                                                                                        |
-| **Cognitive Load**    | **HIGH** — (1) GitHub Releases — чуждый интерфейс для дизайнеров. (2) macOS Gatekeeper может заблокировать. (3) Нужно понять что такое «Relay» и зачем он нужен                                                                                                                                                                                                                                  |
-| **Drop-off Risk**     | **CRITICAL** — главный барьер всего пути. Дизайнер привык к one-click install. Здесь 3 шага с внешним софтом                                                                                                                                                                                                                                                                                     |
-| **Error Paths**       | (1) GitHub недоступен → нет fallback, кнопка просто не работает. (2) macOS Gatekeeper блокирует → нужно зайти в System Preferences → Security. (3) Установщик не запускается (Apple Silicon vs Intel). (4) Relay не стартует → launchctl error, порт 3847 занят. (5) Firewall блокирует localhost. Recovery: нет UI для диагностики — пользователь застревает на «Ожидание подключения Relay...» |
-| **Pain Points**       | (1) Нет объяснения что такое Relay и зачем он. (2) Нет индикатора прогресса установки. (3) Нет диагностики если relay не подключился. (4) Шаг «Ожидание подключения» — бесконечный, нет timeout. (5) Скачивание с GitHub пугает — «это вирус?»                                                                                                                                                   |
-| **Opportunities**     | (1) Homebrew install: `brew install contentify-relay`. (2) Inline диагностика: «Порт 3847 занят», «Relay не найден в PATH». (3) Timeout + retry кнопка + ссылка на troubleshooting. (4) Пояснение: «Relay — локальный мост между браузером и Figma. Данные не покидают ваш Mac»                                                                                                                  |
-| **Key Metric**        | Relay install success rate, time-on-step, drop-off rate                                                                                                                                                                                                                                                                                                                                          |
-
----
-
-### 4. Extension Setup
-
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                      |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Установить Chrome-расширение для парсинга Яндекса                                                                                                                                                                                                                                                                                                                                                             |
-| **User Action**       | SetupFlow шаги 4-6: (4) Клик «Скачать .zip» → скачивает `contentify.crx`. (5) Копирует `chrome://extensions` → включает Developer Mode → «Загрузить распакованное» → выбирает папку. (6) Ожидание подключения                                                                                                                                                                                                 |
-| **UI State**          | SetupFlow продолжает: «Шаг 4/5/6 из 6». Шаг `ext-download`: кнопка «Скачать .zip». Шаг `ext-install`: кнопка «Скопировать chrome://extensions» + инструкция про Developer Mode. Шаг `ext-verify`: «Ожидание подключения расширения...». Кнопка «Пропустить» доступна если relay подключён (`canSkip = relayConnected && !extensionInstalled`)                                                                 |
-| **System Action**     | `EXTENSION_URLS.EXTENSION_DOWNLOAD` скачивает CRX с GitHub. Пользователь вручную загружает в Chrome. Extension регистрирует content script для `yandex.ru`. При первом POST от extension на relay: relay `/status` показывает `extensionVersion`. Plugin определяет `extensionInstalled` через `onDataReceived` callback (первые данные = extension работает). Шаг `ext-verify` имеет `autoSkip: 'extension'` |
-| **Emotional Valence** | 1/5 — **фрустрация**: Developer Mode, распаковка — ещё хуже чем Relay                                                                                                                                                                                                                                                                                                                                         |
-| **Cognitive Load**    | **HIGH** — (1) `chrome://extensions` нельзя открыть ссылкой из Figma. (2) Developer Mode — пугающий для не-разработчиков. (3) «Загрузить распакованное» — неочевидный термин. (4) Нужно найти правильную папку                                                                                                                                                                                                |
-| **Drop-off Risk**     | **CRITICAL** — второй главный барьер. Многие дизайнеры никогда не открывали `chrome://extensions`                                                                                                                                                                                                                                                                                                             |
-| **Error Paths**       | (1) CRX не скачивается с GitHub. (2) Chrome блокирует CRX — нужна распаковка. (3) Пользователь выбирает не ту папку. (4) Developer Mode не включён. (5) Extension конфликтует с другими расширениями. (6) «Ожидание подключения расширения...» — бесконечное: нет способа подтвердить установку без реального использования. Recovery: пользователь может нажать «Пропустить»                                 |
-| **Pain Points**       | (1) Нет способа проверить extension без отправки данных. (2) Инструкция «Включите режим разработчика → Загрузить распакованное» — слишком кратко, нужны скриншоты. (3) Clipboard API может не работать для `chrome://extensions`. (4) Нет объяснения что делает расширение и зачем Developer Mode                                                                                                             |
-| **Opportunities**     | (1) Chrome Web Store — убирает Developer Mode. (2) Визуальная инструкция со скриншотами. (3) Deep link для Chrome extensions page (не работает из iframe, но можно открыть в браузере). (4) Тест-кнопка: «Проверить расширение» без необходимости парсить реальную страницу                                                                                                                                   |
-| **Key Metric**        | Extension install success rate, skip rate, time-on-step                                                                                                                                                                                                                                                                                                                                                       |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Связать плагин и расширение                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **User Action**       | Кликает primary-кнопку «Подключить расширение» в SetupFlow                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **UI State**          | SetupFlow переходит в `waiting` state: spinner + «Ждём подтверждение от расширения…» + ссылка «Отмена / повторить». Плагин открывает в новой вкладке Chrome `https://ya.ru/?contentify_pair=<sessionCode>` через `figma.openExternal()`                                                                                                                                                                                                                                                                                                                                                     |
+| **System Action**     | `buildPairUrl(sessionCode)` строит pair-URL. Browser Chrome открывает страницу. Если расширение установлено → `chrome.tabs.onUpdated` listener в `background.ts` ловит URL, парсит `contentify_pair=<code>` параметр, валидирует через `SESSION_CODE_PATTERN` (6 alpha-цифр). При успехе: `chrome.storage.local.set({ session_code })` + `sendPairAck(code)` → POST /push с payload `{sourceType: 'pair-ack', ts: Date.now()}` → закрывает вкладку. Plugin polls `/status` → `peekRelayData` → видит `pair-ack` → `onPaired()` callback → `markExtensionInstalled()` + `PairedBanner` flash |
+| **Emotional Valence** | 3/5 — лёгкое напряжение «сработает или нет»                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Cognitive Load**    | LOW — один клик                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Error Paths**       | (1) `figma.openExternal` заблокирован Figma → fallback на copy-to-clipboard? Сейчас просто silent fail. (2) Браузер по умолчанию не Chrome → пользователь увидит Yandex-страницу без расширения, ничего не произойдёт                                                                                                                                                                                                                                                                                                                                                                       |
+| **Pain Points**       | (1) Пользователь видит, как открывается Yandex — для не-разработчика это удивляет («зачем мне Yandex?»). (2) Нет объяснения «почему именно Yandex» — на самом деле это просто канал для передачи кода в расширение                                                                                                                                                                                                                                                                                                                                                                          |
+| **Opportunities**     | (1) Перед открытием браузера показать tooltip: «Откроется страница Яндекса — это нужно чтобы расширение получило код связки». (2) Если default browser не Chrome — детектировать и предлагать установить                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Key Metric**        | Click rate, time-to-pair-ack                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
 ---
 
-### 5. Connection Check
+### 4. Waiting for Pair-Ack
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                           |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Убедиться что всё работает, перейти к использованию                                                                                                                                                                                                                                                                                                |
-| **User Action**       | SetupFlow завершён (`onComplete` → `markExtensionInstalled`). Или пользователь нажал «Пропустить». Видит ReadyView                                                                                                                                                                                                                                 |
-| **UI State**          | `AppState: 'ready'`, `needsSetup: false`. StatusBar вверху показывает статус: «Все ОК ✓» или «⚠ Relay офлайн / Расширение офлайн». ReadyView: иконка InboxIcon с pulse-анимацией, заголовок «Ожидание данных», инструкция «Откройте Яндекс в Chrome с расширением Contentify». Если `isFirstRun` и пропуск не сохранён — OnboardingHint с 3 шагами |
-| **System Action**     | `useRelayConnection` активен: WebSocket подключён к `ws://localhost:3847` или HTTP polling `/status` каждые 1-5 сек. StatusBar отражает `relayConnected` и `extensionInstalled`. `save-setup-skipped` персистит в Figma clientStorage                                                                                                              |
-| **Emotional Valence** | 3/5 — облегчение от завершения setup, но неопределённость: «что теперь?»                                                                                                                                                                                                                                                                           |
-| **Cognitive Load**    | MEDIUM — нужно понять OnboardingHint (3 шага) или инструкцию в ReadyView                                                                                                                                                                                                                                                                           |
-| **Drop-off Risk**     | MEDIUM — пользователь может не понять что делать дальше. «Ожидание данных» — пассивное состояние                                                                                                                                                                                                                                                   |
-| **Error Paths**       | (1) Relay отключился после setup → StatusBar показывает «⚠ Relay офлайн» + кнопка «Настроить». (2) WebSocket обрыв → fallback на HTTP polling с exponential backoff [1s, 2s, 4s, 8s, 16s]. (3) Пользователь закрыл Chrome → extension не активна                                                                                                   |
-| **Pain Points**       | (1) OnboardingHint показывает 3 шага как текст — нет визуального выделения текущего шага. (2) «Откройте Яндекс в Chrome» — не хватает конкретного URL. (3) Нет прогресс-индикатора ожидания. (4) Pulse-анимация InboxIcon может не восприниматься как «жду данные»                                                                                 |
-| **Opportunities**     | (1) Animated tutorial: стрелка Chrome → Plugin. (2) Quick-test кнопка с mock-данными для проверки пайплайна. (3) URL `ya.ru/search?text=example` как кликабельная ссылка. (4) Прогресс-чеклист: ✓ Relay, ✓ Extension, ○ Первые данные                                                                                                              |
-| **Key Metric**        | Time ready→first_data, abandon rate на ReadyView                                                                                                                                                                                                                                                                                                   |
-
----
-
-### 6. First SERP Browse
-
-| Аспект                | Описание                                                                                                                                                                                                                                                                                      |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Открыть Яндекс, найти нужную выдачу для макета                                                                                                                                                                                                                                                |
-| **User Action**       | Открывает Chrome → ya.ru → вводит поисковый запрос → просматривает результаты → кликает иконку расширения Contentify в toolbar                                                                                                                                                                |
-| **UI State**          | Figma plugin по-прежнему в `ready` state. Chrome: расширение показывает popup с кнопкой отправки или автоматически парсит страницу                                                                                                                                                            |
-| **System Action**     | Extension `content.js` активируется на yandex.ru: `extractSnippets()` → парсит DOM → определяет `getSnippetType()` для каждого сниппета. `background.js` отправляет `POST /push` на Relay с `{ payload: { items, source, capturedAt } }`. Badge показывает количество найденных сниппетов     |
-| **Emotional Valence** | 3/5 — нейтрально, привычный поиск в Яндексе                                                                                                                                                                                                                                                   |
-| **Cognitive Load**    | LOW — поиск в Яндексе привычен. Единственное новое: клик по расширению                                                                                                                                                                                                                        |
-| **Drop-off Risk**     | MEDIUM — пользователь может забыть кликнуть расширение. Или расширение не активируется на странице                                                                                                                                                                                            |
-| **Error Paths**       | (1) Расширение не видит страницу Яндекса → content script не загрузился (неверный URL pattern). (2) POST /push на relay не доходит → relay не запущен. (3) CORS ошибка. (4) Extension парсит 0 сниппетов → пустой payload. (5) Яндекс изменил DOM → парсинг ломается (решается Remote Config) |
-| **Pain Points**       | (1) Пользователь не знает когда кликать расширение — до или после загрузки страницы. (2) Нет обратной связи в extension popup — данные отправлены или нет. (3) Badge расширения может быть не заметен                                                                                         |
-| **Opportunities**     | (1) Автоматическая отправка при загрузке страницы (без клика). (2) Toast/notification в Chrome при успешной отправке. (3) Extension popup с превью данных перед отправкой                                                                                                                     |
-| **Key Metric**        | Parse success rate, items per page, time browse→push                                                                                                                                                                                                                                          |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Дождаться подтверждения связки                                                                                                                                                                                                                                                                                |
+| **User Action**       | Ожидает в Figma. Может посмотреть Chrome (но вкладка скоро закроется автоматически)                                                                                                                                                                                                                           |
+| **UI State**          | SetupFlow в `waiting` state: спиннер + «Ждём подтверждение от расширения…» + ссылка «Отмена / повторить»                                                                                                                                                                                                      |
+| **System Action**     | `useRelayConnection` поллит `/status` каждые 1 сек. На каждом poll: смотрит `pendingCount`. Если приходит pair-ack — peek получает `{sourceType: 'pair-ack'}`, ack-ит entry внутри hook'а (silent), вызывает `onPaired()`. 15-секундный таймаут в SetupFlow: если ack не пришёл → переход в `timed-out` state |
+| **Emotional Valence** | 3/5 (если успешно ≤2 сек) / 2/5 (если приходится ждать)                                                                                                                                                                                                                                                       |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                           |
+| **Drop-off Risk**     | LOW (если расширение установлено) / HIGH (если нет)                                                                                                                                                                                                                                                           |
+| **Error Paths**       | (1) Расширение не установлено → 15 сек таймаут → `timed-out` state. (2) Расширение установлено, но не в активном профиле → таймаут. (3) Pair-ack потерян (network) → таймаут                                                                                                                                  |
+| **Pain Points**       | (1) 15 сек ожидания — для пользователя без расширения это вечность. (2) Spinner один и тот же независимо от стадии (отправили запрос / ждём ack / cold-start). (3) «Отмена» возвращает в idle, но не объясняет что делать дальше                                                                              |
+| **Opportunities**     | (1) Прогресс-этапы внутри waiting: «Открыли Yandex…» → «Ждём расширение…». (2) Вместо «Отмена» — «Не удаётся? Попробуем другой способ»                                                                                                                                                                        |
+| **Key Metric**        | Pair-ack success rate, time-to-ack p50/p95, timeout rate                                                                                                                                                                                                                                                      |
 
 ---
 
-### 7. First Data Received
+### 5. (Optional) Install Extension — `timed-out` state
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                        |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Увидеть что данные дошли до плагина                                                                                                                                                                                                                                                                                                                                                                             |
-| **User Action**       | Возвращается в Figma (переключает окно). Видит что плагин изменил состояние                                                                                                                                                                                                                                                                                                                                     |
-| **UI State**          | Автоматический переход: WebSocket получает `{ type: 'new-data' }` от relay → вызывает `peekRelayData()` → `extractRowsFromPayload(payload)` → `onDataReceived` callback → `importFlow.showConfirmation()` → `AppState: 'confirming'`                                                                                                                                                                            |
-| **System Action**     | WebSocket message `new-data` → `peekRelayData()` → `GET /peek` (non-destructive). Парсинг payload: `extractRowsFromPayload()` → CSVRow[]. Подсчёт: `rows.length + wizardCount`. Формирование summary через `buildImportSummary()`. Если первые данные: `markExtensionInstalled()` → сохраняет `setup-skipped` в clientStorage. Если WS не подключён: HTTP polling `/status` обнаружит `hasData: true` → `/peek` |
-| **Emotional Valence** | 4/5 — **приятный сюрприз**: «О, оно работает!»                                                                                                                                                                                                                                                                                                                                                                  |
-| **Cognitive Load**    | LOW — переход автоматический, не требует действий                                                                                                                                                                                                                                                                                                                                                               |
-| **Drop-off Risk**     | LOW — если данные дошли, пользователь уже вовлечён                                                                                                                                                                                                                                                                                                                                                              |
-| **Error Paths**       | (1) WebSocket обрыв при передаче → HTTP polling подхватит с задержкой 1-5 сек. (2) Payload пустой (0 rows) → `peekRelayData` возвращает без вызова callback. (3) Duplicate entryId → `pendingEntryIdRef` предотвращает повторную обработку. (4) Plugin UI в фоне → `visibilitychange` listener пингует WS или делает HTTP check при возврате                                                                    |
-| **Pain Points**       | (1) Если пользователь не в Figma — он не видит что данные пришли. Нет push-notification. (2) Нет звукового/визуального сигнала в Figma. (3) Переход `ready→confirming` может быть незамечен если окно плагина маленькое                                                                                                                                                                                         |
-| **Opportunities**     | (1) Figma notification API (если доступно). (2) Звуковой сигнал при получении данных. (3) Badge/counter на иконке плагина. (4) Анимация перехода ready→confirming должна быть яркой                                                                                                                                                                                                                             |
-| **Key Metric**        | Push-to-peek latency, data loss rate                                                                                                                                                                                                                                                                                                                                                                            |
-
----
-
-### 8. First Confirm
-
-| Аспект                | Описание                                                                                                                                                                                                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Понять что пришло и решить как импортировать                                                                                                                                                                                                                                                   |
-| **User Action**       | Видит ImportConfirmDialog. Выбирает: «Создать артборд» (Enter) или «Заполнить выделение» (если выделены контейнеры). Опционально: чекбокс «Добавить скриншоты страницы». Или «Отмена» (Escape)                                                                                                 |
-| **UI State**          | `AppState: 'confirming'`. ImportConfirmDialog: иконка CheckCircle, заголовок «Данные получены», карточка с поисковым запросом, количество элементов (summary), чекбокс скриншотов, 2-3 кнопки действий, подсказка `Enter — создать артборд`. Размер `standard` (400×400)                       |
-| **System Action**     | `importFlow.showConfirmation()` сохраняет rows, query, entryId в pending state. `check-selection` проверяет выделение в Figma → `hasSelection`. UI ожидает пользовательского решения. При Escape: `importFlow.cancel()` → `relay.blockEntry(entryId, 10000)` → возврат в `ready`               |
-| **Emotional Valence** | 4/5 — уверенность, понятный выбор                                                                                                                                                                                                                                                              |
-| **Cognitive Load**    | MEDIUM — нужно понять разницу «Создать артборд» vs «Заполнить выделение». Summary может содержать технические термины                                                                                                                                                                          |
-| **Drop-off Risk**     | LOW — пользователь уже инвестировал время в setup                                                                                                                                                                                                                                              |
-| **Error Paths**       | (1) Summary непонятен → пользователь не уверен что импортировать. (2) «Заполнить выделение» неактивно → не выделены контейнеры, видна подсказка «Выделите контейнеры для заполнения». (3) Отмена → данные блокируются на 10 сек через `blockEntry`                                             |
-| **Pain Points**       | (1) Нет preview данных — пользователь не видит что именно будет импортировано. (2) Термин «артборд» vs «выделение» может быть непонятен новичку. (3) Summary вроде «42 сниппета, фильтры (5), сайдбар (8 офферов)» — слишком технический. (4) Чекбокс скриншотов — неясно что это за скриншоты |
-| **Opportunities**     | (1) Preview-карточки: показать 2-3 сниппета как они будут выглядеть. (2) Пояснения: «Артборд — новый фрейм с полной выдачей». (3) Визуальная разница режимов. (4) Объяснение скриншотов (скриншоты реальной страницы Яндекса для сравнения)                                                    |
-| **Key Metric**        | Confirm rate, mode split (artboard vs selection), time-to-confirm                                                                                                                                                                                                                              |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **User Goal**         | Установить расширение Chrome и завершить связку                                                                                                                                                                                                                                                                                                              |
+| **User Action**       | После 15 сек таймаута видит auto-expanded инструкции: (1) ссылка «Скачать расширение» (CRX из GitHub Releases). (2) Текст-инструкция: открыть `chrome://extensions`, включить Developer Mode, drag-and-drop CRX. (3) Кнопка «Я установил, повторить» — возвращает в `waiting` state                                                                          |
+| **UI State**          | SetupFlow в `timed-out` state: иконка warning + «Расширение не отвечает. Возможно, оно не установлено». Auto-expanded блок с инструкциями. Кнопки: «Скачать расширение» (primary), «Я установил, повторить» (secondary)                                                                                                                                      |
+| **System Action**     | `EXTENSION_URLS.EXTENSION_DOWNLOAD` ведёт на GitHub Releases с `contentify.crx`. Browser Chrome требует Developer Mode для установки CRX из не-Web-Store source. После установки расширения пользователь нажимает «Повторить» → SetupFlow перезапускает auto-pair (новый клик внутри waiting state открывает ya.ru снова — но теперь расширение его поймает) |
+| **Emotional Valence** | 1/5 — **главная Valley of Despair**. Developer Mode пугающий                                                                                                                                                                                                                                                                                                 |
+| **Cognitive Load**    | **HIGH** — `chrome://extensions` нельзя открыть deep-link'ом (Chrome blocks `chrome://` URLs from external pages). Developer Mode + drag-and-drop CRX = разработческий UX                                                                                                                                                                                    |
+| **Drop-off Risk**     | **CRITICAL** — главный барьер всего онбординга                                                                                                                                                                                                                                                                                                               |
+| **Error Paths**       | (1) Chrome заблокировал CRX (политика). (2) Пользователь не нашёл `chrome://extensions`. (3) Drag-and-drop не сработал. (4) Расширение установилось, но Developer Mode выключен → расширение неактивно. (5) Пользователь установил, нажал «Повторить» — но нужен новый клик кнопки «Подключить расширение» (URL открывается заново)                          |
+| **Pain Points**       | (1) Developer Mode — UX не для дизайнеров. (2) Нет визуальных скриншотов в инструкциях, только текст. (3) После установки нужно ещё раз кликнуть pair — необычный flow. (4) Если Chrome не default browser — pair URL вообще не дойдёт                                                                                                                       |
+| **Opportunities**     | (1) **Chrome Web Store ($5 dev account) — устраняет 90% боли этого шага.** Без Developer Mode, one-click install. (2) Скриншоты или видео внутри инструкции. (3) Auto-detect default browser и проактивно предупредить                                                                                                                                       |
+| **Key Metric**        | Drop-off rate из timed-out state, time-on-step, retry rate                                                                                                                                                                                                                                                                                                   |
 
 ---
 
-### 9. First Processing
+### 6. Paired ✓ Flash
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **User Goal**         | Дождаться завершения импорта                                                                                                                                                                                                                                                                                                                                                                                                               |
-| **User Action**       | Ожидание. Может нажать «Отменить» если процесс завис. После 15 сек без прогресса появляется stuck-hint                                                                                                                                                                                                                                                                                                                                     |
-| **UI State**          | `AppState: 'processing'`. ProcessingView: спиннер, заголовок «Обработка...», этап (stage label), карточка с запросом + summary marquee. Через 15 сек: «Если процесс завис, нажмите Отменить». Кнопка «Отменить». Размер `standard` (400×400)                                                                                                                                                                                               |
-| **System Action**     | `apply-relay-payload` → postMessage → sandbox code: `createSerpPage()` или `processImportCSV()`. Этапы: searching → resetting → grouping → components → text → images → cleanup. Каждый этап отправляет `progress` message. Schema engine: `applySchema()` для каждого контейнера. Handler registry: executeAll по приоритетам. Загрузка изображений через CORS-proxy параллельно. По завершении: `done` message → `relay-payload-applied` |
-| **Emotional Valence** | 3/5 — напряжённое ожидание. Stage labels дают ощущение прогресса                                                                                                                                                                                                                                                                                                                                                                           |
-| **Cognitive Load**    | LOW — ничего не нужно делать, просто ждать                                                                                                                                                                                                                                                                                                                                                                                                 |
-| **Drop-off Risk**     | MEDIUM — долгий процесс (10-30 сек для больших страниц) может казаться зависшим                                                                                                                                                                                                                                                                                                                                                            |
-| **Error Paths**       | (1) Sandbox crash → `onError` → `finishProcessing('error')`. (2) Timeout на загрузке изображений → частичный success (failedImages в stats). (3) Font loading failure → текст не заполнен. (4) Component key не найден → fallback на canvas rendering. (5) Процесс завис → stuck hint через 15 сек → пользователь отменяет → `import-cancelled`                                                                                            |
-| **Pain Points**       | (1) Нет процентного прогресса — только текстовые этапы. (2) Stage labels технические: «Компонентная логика», «Группировка». (3) Marquee с summary может раздражать. (4) 15 сек до stuck hint — слишком долго для первого раза. (5) При ошибке непонятно что пошло не так                                                                                                                                                                   |
-| **Opportunities**     | (1) Процентный progress bar. (2) Человечные stage labels: «Расставляю карточки», «Загружаю картинки». (3) Estimated time: «~10 сек». (4) Фоновая обработка с уведомлением по завершении                                                                                                                                                                                                                                                    |
-| **Key Metric**        | Processing time, cancel rate, error rate by stage                                                                                                                                                                                                                                                                                                                                                                                          |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Понять что связка прошла успешно                                                                                                                                                                                                                                                                                                            |
+| **User Action**       | Видит auto-transition: SetupFlow закрывается, окно резайзится в `compact` (320×56), сверху появляется `PairedBanner` с зелёной галочкой и текстом «Расширение связано» (auto-hide через 3 сек)                                                                                                                                              |
+| **UI State**          | `AppState: 'checking'` (затем `ready`). Размер `compact` (56 px + ~38 px PairedBanner = ~94 px на 3 сек, потом обратно в 56 px). PairedBanner — thin banner, brand-цвет                                                                                                                                                                     |
+| **System Action**     | `onPaired()` callback в `ui.tsx`: `markExtensionInstalled()` (записывает `setup-skipped=true` в clientStorage) + `setPairedFlashVisible(true)` + 3-сек таймер `pairedFlashTimerRef`. SetupFlow unmount-ится потому что `extensionInstalled === true`. Идёт useEffect, который flip-ает `appState` с `setup` на `checking`, потом на `ready` |
+| **Emotional Valence** | 5/5 — **первый wow-moment**: «работает!»                                                                                                                                                                                                                                                                                                    |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                                                         |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                         |
+| **Error Paths**       | (1) Pair-ack пришёл, но плагин в фоне → пользователь не видит flash (3 сек слишком быстро). (2) `clientStorage.set('setup-skipped')` fail → при следующем запуске SetupFlow покажется снова                                                                                                                                                 |
+| **Pain Points**       | (1) 3 секунды для flash — мало для пользователя, который только что переключался в Chrome. (2) Нет звукового сигнала (Figma sandbox sound API ограничен)                                                                                                                                                                                    |
+| **Opportunities**     | (1) Увеличить flash до 5 сек на первом запуске. (2) Confetti на pair-ack (отдельный от первого импорта)                                                                                                                                                                                                                                     |
+| **Key Metric**        | Time pair-ack-arrived → user-saw-flash, attention rate                                                                                                                                                                                                                                                                                      |
 
 ---
 
-### 10. First Success
+### 7. Connection Check + OnboardingTip
 
-| Аспект                | Описание                                                                                                                                                                                                                                                                                                         |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **User Goal**         | Увидеть результат и начать работу с заполненным макетом                                                                                                                                                                                                                                                          |
-| **User Action**       | Видит SuccessView с анимацией. Может навести мышь для паузы auto-close. Может кликнуть «Показать подробности» (если были ошибки) или «Закрыть». Auto-close через 3 сек (или 8 сек при ошибках)                                                                                                                   |
-| **UI State**          | `AppState: 'success'`. SuccessView: CheckCircle с bounce-анимацией, «Готово!», текст «Макет для "запрос" добавлен на холст», статистика (✓ N свойств, ✗ N не удалось), progress bar auto-close. Confetti анимация! Размер `standard` (400×400). После auto-close → возврат в `ready`                             |
-| **System Action**     | `importFlow.finishProcessing('success')` → `setAppState('success')`. `ackData(entryId)` подтверждает relay → удаляет из очереди (с retry: 3 попытки, delays [1s, 2s, 4s]). Confetti trigger. Stats из sandbox: `fieldsSet`, `fieldsFailed`, `failedImages`. Auto-close timer с pause/resume на hover             |
-| **Emotional Valence** | **5/5** — **восторг!** Confetti + результат на холсте. Пиковый момент                                                                                                                                                                                                                                            |
-| **Cognitive Load**    | LOW — результат виден, статистика краткая                                                                                                                                                                                                                                                                        |
-| **Drop-off Risk**     | LOW — пользователь видит ценность. Цель достигнута                                                                                                                                                                                                                                                               |
-| **Error Paths**       | (1) Ack не доходит до relay → retry 3 раза. При полном fail: данные останутся в очереди, будут показаны повторно. (2) Stats показывают ошибки → пользователь не понимает почему часть не заполнилась. (3) Auto-close слишком быстрый — пользователь не успел прочитать                                           |
-| **Pain Points**       | (1) 3 сек auto-close слишком быстро для первого раза — пользователь хочет рассмотреть результат. (2) Статистика «✗ 5 не удалось» без объяснения — что именно? (3) Переход в ready после close — нет подсказки «попробуйте другой запрос». (4) Confetti только один раз — можно было бы делать для каждого успеха |
-| **Opportunities**     | (1) Первый success: увеличить auto-close до 10 сек + подсказка «Попробуйте ещё запрос!». (2) Детализация ошибок inline (не только через Logs). (3) Кнопка «Zoom to frame» — перейти к созданному артборду. (4) Share achievement: количество заполненных макетов                                                 |
-| **Key Metric**        | Success rate, stats quality (fieldsSet/fieldsFailed ratio), repeat usage rate                                                                                                                                                                                                                                    |
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Понять что система готова к работе и узнать что делать дальше                                                                                                                                                                                                                                                                                                                          |
+| **User Action**       | Видит `CompactStrip` ready (зелёная точка + «Подключено») + thin banner `OnboardingTip` сверху: «Откройте поисковую выдачу Яндекса в Chrome и нажмите на иконку расширения»                                                                                                                                                                                                            |
+| **UI State**          | `AppState: 'ready'`, `compact` strip (56 px) + `OnboardingTip` (~62 px). Общая высота окна ~118 px. Tip имеет кнопку × для dismiss                                                                                                                                                                                                                                                     |
+| **System Action**     | `useEffect` ловит `onboardingSeenPersisted === false && appState === 'ready' && extensionInstalled === true && !panels.isPanelOpen` → `setOnboardingTipVisible(true)`. Когда пользователь сделает первый импорт (transition в `confirming`/`processing`/`success`) — tip автоматически скрывается + `mark-onboarding-seen` сохраняется в clientStorage. Поллинг `/status` 1 сек active |
+| **Emotional Valence** | 4/5 — облегчение от завершения setup, чёткий next-step                                                                                                                                                                                                                                                                                                                                 |
+| **Cognitive Load**    | LOW — tip однозначен                                                                                                                                                                                                                                                                                                                                                                   |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                                    |
+| **Error Paths**       | (1) Cloud relay disconnect (rare, но возможно cold-start) → `CloudUnreachableBanner` вместо OnboardingTip. (2) Пользователь dismiss-ит tip раньше чем понял                                                                                                                                                                                                                            |
+| **Pain Points**       | (1) Tip — текст без визуальной составляющей. (2) Нет ссылки на ya.ru в tip'е — пользователь должен сам открыть. (3) Tip dismissable — если случайно закрыл, не вернуть                                                                                                                                                                                                                 |
+| **Opportunities**     | (1) Кликабельная ссылка `https://ya.ru/search?text=диван купить` в tip'е (через figma.openExternal). (2) Mock-данные кнопка для тестового импорта без расширения. (3) Анимированный pointer на иконку расширения (но это в Chrome, не в Figma — не реализуемо)                                                                                                                         |
+| **Key Metric**        | Time ready → first-import, dismiss-without-action rate                                                                                                                                                                                                                                                                                                                                 |
+
+---
+
+### 8. First Browse + Click Extension
+
+| Аспект                | Описание                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Получить первые данные                                                                                                                                                                                                                |
+| **User Action**       | Открывает Chrome → ya.ru → вводит запрос → видит выдачу → кликает иконку Contentify в toolbar                                                                                                                                         |
+| **UI State**          | Plugin в `ready` (фоновый). Chrome: иконка Contentify зелёная (на yandex-домене), при клике badge `...` (синий)                                                                                                                       |
+| **System Action**     | См. шаг 4 в [CJM_CORE_LOOP.md](CJM_CORE_LOOP.md#4-click-extension-icon-browse-serp). Расширение фирит heads-up `parsing` → `uploading_screenshots K/M` → `uploading_json` → `payload POST` → `finalizing`                             |
+| **Emotional Valence** | 3/5                                                                                                                                                                                                                                   |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                   |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                   |
+| **Error Paths**       | (1) Не на Yandex-домене → серая иконка → клик показывает badge `✗`. (2) Расширение видит cached session_code, но плагин в этом окне Figma имеет другой → `pair-ack` нужен снова (если пользователь работает в нескольких Figma-окнах) |
+| **Pain Points**       | (1) Иконка серая на не-Yandex страницах — но текст подсказки только при hover. (2) Если в другом Chrome-профиле — расширение не видно                                                                                                 |
+| **Opportunities**     | См. CJM_CORE_LOOP.md — те же паттерны (auto-trigger, Chrome side panel)                                                                                                                                                               |
+| **Key Metric**        | Time tip-shown → first-click-extension                                                                                                                                                                                                |
+
+---
+
+### 9. First Incoming → Confirming → Processing
+
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Увидеть как первые данные приходят и обрабатываются                                                                                                                                                                                                                                                         |
+| **User Action**       | Возвращается в Figma. Видит `incoming` narrative («Грузим скриншоты K/M…») → автоматический переход в `confirming` (`ImportConfirmDialog` 320×280) → выбирает «Новый артборд» (default) → нажимает «Импорт» → видит `processing` strip с прогрессом «Размещаем 23/76…»                                      |
+| **UI State**          | Последовательно: `compact incoming` (320×56) → `standard confirming` (320×280) → `compact processing` (320×56). См. CJM_CORE_LOOP.md шаги 5–8 для деталей                                                                                                                                                   |
+| **System Action**     | См. CJM_CORE_LOOP.md шаги 5–8                                                                                                                                                                                                                                                                               |
+| **Emotional Valence** | 4/5 — каждый переход подтверждает что система работает                                                                                                                                                                                                                                                      |
+| **Cognitive Load**    | MEDIUM — в первый раз нужно: (а) понять heads-up narrative; (б) разобраться с режимами «Новый артборд / Все брейкпоинты / Заполнить выделение». В последующих циклах LOW                                                                                                                                    |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                         |
+| **Error Paths**       | (1) Sandbox crash при первом import → `error` state с `errorMessage`. Это самый болезненный момент — пользователь только что сделал onboarding и сразу error. (2) Component key mismatch (плагин ожидает определённую дизайн-систему) → fallback canvas rendering, но визуально может быть иначе чем ожидал |
+| **Pain Points**       | (1) Три radio в confirm-диалоге — для первого раза пользователь не знает какой выбрать. (2) Без выделения «Заполнить выделение» disabled, но без объяснения почему                                                                                                                                          |
+| **Opportunities**     | (1) Подсказка inline при первом confirm: «Не уверены? Выберите «Новый артборд»». (2) Tooltip-объяснение каждого режима                                                                                                                                                                                      |
+| **Key Metric**        | Time first-click → first-success, error rate first-import                                                                                                                                                                                                                                                   |
+
+---
+
+### 10. First Success — Confetti
+
+| Аспект                | Описание                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **User Goal**         | Увидеть результат и понять что пайплайн работает end-to-end                                                                                                                                                                                                                                                                                                                                                                                 |
+| **User Action**       | Видит `compact success` strip с зелёной ✓ + «76 элементов · 12.3 сек» + `Confetti` overlay (одноразовый, через `isFirstRun`). Через 3 сек auto-dismiss. На холсте Figma — новый артборд с заполненными сниппетами                                                                                                                                                                                                                           |
+| **UI State**          | `AppState: 'success'`, размер `compact`. Confetti поверх iframe. Снизу strip'а — заполняющийся 3-px progress bar                                                                                                                                                                                                                                                                                                                            |
+| **System Action**     | `done` или `relay-payload-applied` message от sandbox → `finishProcessing('success')` → `setAppState('success')` + `resizeUI('success')`. `ackData(entryId)` (3-retry с delays [1s, 2s, 4s]) → POST /ack → DELETE из YDB queue. `setConfettiActive(true)`. На complete `Confetti` (animation finish) → `setIsFirstRun(false)`. Auto-dismiss через 3 сек → `completeSuccess()` → `ready`. Логирует `[Timing] Apply total (UI-observed): Xms` |
+| **Emotional Valence** | **5/5 — пиковый wow-момент онбординга**                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Cognitive Load**    | LOW                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Drop-off Risk**     | LOW                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Error Paths**       | (1) Confetti не отрендерится если плагин минимизирован. (2) Auto-dismiss слишком быстрый для первого раза — у пользователя нет паузы оценить достижение. (3) `ackData` 3-retry fail → данные останутся в YDB и снова покажутся при следующем /status (повторная обработка → возможна дубликация на холсте)                                                                                                                                  |
+| **Pain Points**       | (1) **3 сек auto-dismiss слишком быстро для first-time** — нет «paused success» на длительное время. (2) Нет «Zoom to frame» кнопки → пользователь не знает где найти результат на холсте. (3) Confetti один раз — если плагин потом пересоздаётся (close/open Figma), `isFirstRun` сбрасывается из clientStorage и confetti может показаться снова                                                                                         |
+| **Opportunities**     | (1) **Для первого success — увеличить auto-dismiss до 8–10 сек**, с подсказкой «Попробуйте ещё запрос!». (2) «Zoom to frame» quick action. (3) После first success — показать 1-time achievement: «Первый импорт за 12 сек! Среднее время в команде — 15 сек»                                                                                                                                                                               |
+| **Key Metric**        | First-success rate (% from install), time-from-install-to-first-success, sec-to-second-import                                                                                                                                                                                                                                                                                                                                               |
 
 ---
 
@@ -215,112 +235,108 @@ Browser Extension → POST /push → Relay :3847 → GET /pull → Figma Plugin
 
 ```
 Valence
-  5 │                                                          ★ SUCCESS
-    │                                                         ╱
-  4 │                                    ●Data    ●Confirm   ╱
-    │                                     ╲      ╱         ╱
-  3 │  ●Install   ●Launch     ●Check  ●Browse  ╱    ●Process
-    │         ╲   ╱               ╲  ╱        ╱
-  2 │          ╲╱Launch            ╲╱        ╱
-    │          ╱                            ╱
-  1 │    ●Relay ●Extension                ╱
-    │     ▼▼▼   ▼▼▼
-  0 └──────────────────────────────────────────────── Steps
-      1    2    3    4    5    6    7    8    9   10
-              VALLEY OF DESPAIR
-              (setup steps 3-4)
+  5 │                                                              ★ SUCCESS
+    │                                            ●Paired✓        ╱
+  4 │                                ●Wait?     ╱        ●Confirm
+    │                                  ╲       ╱           ╲
+  3 │  ●Install   ●Launch  ●Click       ╲     ●Ready+Tip   ●Process
+    │         ╲   ╱           ╲          ╲    ╱
+  2 │          ╲ ╱             ╲          ╲  ╱
+    │                            ╲
+  1 │                       ●Timed-out + Install Ext
+    │                              ▼▼▼ Valley of Despair
+  0 └──────────────────────────────────────────────────── Steps
+      1     2     3     4     5     6     7     8     9     10
+                          ↓
+                    (только если ext не установлено)
 ```
 
-**Valley of Despair** — шаги 3-4 (Relay + Extension setup) — критическое дно эмоциональной кривой. Пользователь-дизайнер вынужден работать с GitHub Releases, Terminal, Developer Mode.
+**Главное отличие от 3.0:** на «golden path» (расширение уже установлено) Valley of Despair исчезает совсем. Кривая ровная: 3→3→3→3→5→4→3→4→5. На «slow path» (нужно установить ext) — сохраняется падение в Valley of Despair на шаге 5.
 
 ---
 
-## TTV (Time-to-Value)
+## TTV (Time-to-Value) — два сценария
 
-| Метрика                       | Текущая оценка            | Целевая                             |
-| ----------------------------- | ------------------------- | ----------------------------------- |
-| Install → First Success       | **15-25 минут**           | **< 5 минут**                       |
-| Plugin Launch → Ready         | 100ms-3 sec               | < 1 sec                             |
-| Relay Setup (steps 1-3)       | **5-15 минут**            | **< 1 минуты** (Homebrew / bundled) |
-| Extension Setup (steps 4-6)   | **3-10 минут**            | **< 30 сек** (Chrome Web Store)     |
-| Connection Check → First Data | 1-5 минут (manual browse) | 30 сек (mock data / test button)    |
-| Data Received → Success       | 15-30 сек                 | 10-15 сек                           |
+### Сценарий A — Golden Path (расширение уже установлено)
 
-**Главный разрыв:** 15-25 минут текущий TTV vs 5 минут целевой. 80% времени — setup внешних компонентов (Relay + Extension).
+| Метрика                           | Текущая оценка   | Целевая        |
+| --------------------------------- | ---------------- | -------------- |
+| Install plugin → Launch           | 30–60 сек        | 30 сек         |
+| Launch → SetupFlow visible        | 1–2 сек          | < 1 сек        |
+| Click «Подключить» → Pair-ack     | 1–3 сек          | < 2 сек        |
+| Paired flash → Ready              | 1 сек            | 1 сек          |
+| Ready → First click ext           | 30–60 сек        | 30 сек         |
+| First click → Success             | 15–25 сек        | 10–15 сек      |
+| **Итого Install → First Success** | **1.5–3 минуты** | **< 1 минуты** |
+
+### Сценарий B — Slow Path (нужно установить расширение)
+
+| Метрика                                         | Текущая оценка | Целевая (с Chrome Web Store) |
+| ----------------------------------------------- | -------------- | ---------------------------- |
+| Шаги 1–4 (как Golden)                           | ~1 минута      | ~1 минута                    |
+| Timeout 15 сек → install instructions           | 15 сек         | 15 сек                       |
+| Скачивание CRX + Developer Mode + drag-and-drop | 3–10 минут     | < 1 минуты (one-click)       |
+| Retry pair → Success                            | ~1 минута      | ~1 минута                    |
+| **Итого Install → First Success**               | **5–15 минут** | **3–4 минуты**               |
+
+**Главный разрыв:** Slow path всё ещё страдает от Developer Mode / CRX install. Перенос в Chrome Web Store закрывает 80% этой боли.
 
 ---
 
 ## Top-3 критических барьера drop-off
 
-### 1. Relay Installation (Step 3) — DROP-OFF ~40%
+### 1. Extension installation (Step 5) — Slow path users — DROP-OFF ~25%
 
-**Проблема:** Скачивание бинарника с GitHub Releases + ручная установка через macOS installer. Gatekeeper блокирует, пользователь пугается.
-
-**Текущий UX:** Кнопка → GitHub → скачать zip → распаковать → запустить installer → ждать.
+**Проблема:** Developer Mode + drag-and-drop CRX — UX не для дизайнеров.
 
 **Решение:**
 
-- **Краткосрочное:** Inline-инструкция с GIF-анимацией прохождения Gatekeeper. Диагностика в UI: «Порт 3847 занят», «Relay не найден».
-- **Среднесрочное:** Homebrew formula: `brew install contentify-relay`.
-- **Долгосрочное:** Bundled relay в плагин (WASM) или cloud relay (устраняет шаг полностью).
+- **Краткосрочное:** Скриншоты/видео внутри SetupFlow `timed-out` state. Auto-detect default browser.
+- **Среднесрочное:** **Chrome Web Store ($5 dev account) — устраняет 80% боли.**
+- **Долгосрочное:** Без расширения вообще: bookmarklet или встроенный YQL fetch (нужен YC service-side scraping, юридически рискованно).
 
-### 2. Extension Installation (Step 4) — DROP-OFF ~30%
+### 2. SetupFlow Welcome (Step 2) — DROP-OFF ~10%
 
-**Проблема:** Developer Mode в Chrome — чуждый UX для дизайнеров. Загрузка распакованного расширения — многошаговый процесс.
-
-**Текущий UX:** Скачать CRX → скопировать `chrome://extensions` → Developer Mode → Загрузить распакованное.
+**Проблема:** SetupFlow сразу просит «Подключить расширение» без объяснения value prop. Пользователь не понимает зачем.
 
 **Решение:**
 
-- **Краткосрочное:** Пошаговая инструкция со скриншотами внутри SetupFlow.
-- **Среднесрочное:** Chrome Web Store ($5 dev account) — one-click install.
-- **Долгосрочное:** Без расширения: bookmarklet или встроенный браузер в relay.
+- **Краткосрочное:** Welcome-экран с одним предложением + видео-превью результата.
+- **Среднесрочное:** A/B тест: «Подключить» vs «Попробовать на тестовых данных» как primary CTA.
 
-### 3. «Что делать дальше?» после Setup (Step 5) — DROP-OFF ~20%
+### 3. First success too short (Step 10) — Underwhelming for first-time
 
-**Проблема:** ReadyView показывает «Ожидание данных» с иконкой InboxIcon — пассивное состояние без clear next action. OnboardingHint содержит 3 текстовых шага без визуального контекста.
-
-**Текущий UX:** Текст «Откройте Яндекс в Chrome с расширением Contentify» — и всё.
+**Проблема:** 3 сек auto-dismiss слишком быстро для пользователя, который только что прошёл онбординг.
 
 **Решение:**
 
-- **Краткосрочное:** Кнопка «Попробовать с тестовыми данными» — mock import для проверки пайплайна. Кликабельная ссылка на ya.ru.
-- **Среднесрочное:** Animated tutorial overlay: визуально показать поток данных Chrome → Relay → Figma.
-- **Долгосрочное:** Guided first run: плагин сам открывает Chrome с нужным URL и проводит пользователя через первый импорт.
+- **Краткосрочное:** Для первого success — 8 сек auto-dismiss с подсказкой «Попробуйте ещё запрос!».
+- **Среднесрочное:** Achievement panel: «Первый импорт ✓», «5 импортов за день ✓».
 
 ---
 
-## Покрытие SetupFlow Steps
+## Покрытие AppState переходов в онбординге
 
-| SetupFlow Step                     | CJM State          | Covered |
-| ---------------------------------- | ------------------ | ------- |
-| `relay-download`                   | 3. Relay Setup     | ✓       |
-| `relay-install`                    | 3. Relay Setup     | ✓       |
-| `relay-verify` (autoSkip: relay)   | 3. Relay Setup     | ✓       |
-| `ext-download`                     | 4. Extension Setup | ✓       |
-| `ext-install`                      | 4. Extension Setup | ✓       |
-| `ext-verify` (autoSkip: extension) | 4. Extension Setup | ✓       |
-
-## Покрытие useRelayConnection Error Paths
-
-| Error Path                                    | CJM State | Covered |
-| --------------------------------------------- | --------- | ------- |
-| WebSocket connection fail                     | 3, 5, 7   | ✓       |
-| Exponential backoff reconnect [1s..16s]       | 5, 7      | ✓       |
-| HTTP polling fallback (1s active / 5s idle)   | 5, 7      | ✓       |
-| Visibility change handler (ping/check)        | 7         | ✓       |
-| Duplicate entry prevention (entryId tracking) | 7         | ✓       |
-| Ack retry (3 attempts, [1s, 2s, 4s])          | 10        | ✓       |
-| Block entry after cancel (10s cooldown)       | 8         | ✓       |
-| Fetch timeout (2s for /status)                | 3, 5      | ✓       |
-| Relay /peek empty payload                     | 7         | ✓       |
-| Extension version detection via meta          | 7         | ✓       |
+| Переход                     | CJM State                      | Trigger                                        | Covered |
+| --------------------------- | ------------------------------ | ---------------------------------------------- | ------- |
+| `→ setup`                   | 2. First Launch                | React mount, `appState='setup'` default        | ✓       |
+| `setup → setup` (waiting)   | 3. Click «Подключить»          | SetupFlow internal state                       | ✓       |
+| `setup → setup` (timed-out) | 5. Install Extension           | 15s timeout no pair-ack                        | ✓       |
+| `setup → checking`          | 6. Paired flash starts         | `extensionInstalled=true && setupSkipped=true` | ✓       |
+| `checking → ready`          | 7. Connection check            | `relay.connected === true`                     | ✓       |
+| `ready → confirming`        | 9. First incoming → confirming | `data.hasData=true` → peek                     | ✓       |
+| `ready → incoming`          | 9. First incoming              | `data.headsUp != null`                         | ✓       |
+| `confirming → processing`   | 9. Click «Импорт»              | `flow.confirm({mode})`                         | ✓       |
+| `processing → success`      | 10. First success              | `done` message от sandbox                      | ✓       |
+| `success → ready`           | (post-onboarding)              | 3s `AUTO_DISMISS_DELAY`                        | ✓       |
 
 ---
 
 ## Связанные документы
 
+- [CJM_CORE_LOOP.md](CJM_CORE_LOOP.md) — ежедневный цикл импорта (5–15 раз в день)
+- [CJM_FOR_DESIGN_AUDIT.md](CJM_FOR_DESIGN_AUDIT.md) — сводный документ для Claude Design (включает feed/page-builder/HTML-export)
 - [ARCHITECTURE.md](ARCHITECTURE.md) — архитектура системы
-- [GLOSSARY.md](GLOSSARY.md) — термины проекта
-- [STRUCTURE.md](STRUCTURE.md) — структура модулей
-- Исходники: `src/ui/components/SetupFlow.tsx`, `src/ui/hooks/useRelayConnection.ts`, `src/ui/ui.tsx`
+- [FSM_STATES.md](FSM_STATES.md) — состояния и переходы
+- Spec auto-pairing: `.claude/specs/done/auto-pairing.md` (если ещё не перемещён)
+- Исходники: `packages/plugin/src/ui/components/SetupFlow.tsx`, `packages/plugin/src/ui/components/PairedBanner.tsx`, `packages/plugin/src/ui/components/OnboardingTip.tsx`, `packages/plugin/src/ui/components/SetupSplash.tsx`, `packages/plugin/src/ui/ui.tsx`, `packages/plugin/src/utils/index.ts` (buildPairUrl, generateSessionCode), `packages/extension/src/background.ts` (auto-pair listener)
