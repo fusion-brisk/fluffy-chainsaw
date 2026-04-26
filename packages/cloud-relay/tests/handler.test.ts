@@ -349,3 +349,35 @@ describe('GET /status — headsUp', () => {
     expect(body.headsUp).not.toHaveProperty('message');
   });
 });
+
+describe('DELETE /clear — heads-up', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('clears both queue and heads-up', async () => {
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'DELETE',
+        path: '/clear',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    expect(res.statusCode).toBe(200);
+    expect(ydb.clearSession).toHaveBeenCalledWith('ABC123');
+    expect(ydb.clearHeadsUp).toHaveBeenCalledWith('ABC123');
+  });
+
+  it('returns cleared count from queue (heads-up does not change count)', async () => {
+    (ydb.clearSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ cleared: 3 });
+    const res = await handler(
+      makeEvent({
+        httpMethod: 'DELETE',
+        path: '/clear',
+        queryStringParameters: { session: 'ABC123' },
+      }),
+    );
+    const body = JSON.parse(res.body || '{}');
+    expect(body.cleared).toBe(3);
+  });
+});
