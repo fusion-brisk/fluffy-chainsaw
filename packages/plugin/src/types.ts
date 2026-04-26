@@ -282,8 +282,10 @@ export interface RelayPayload {
 
 /**
  * Состояния интерфейса плагина:
+ * - 'setup': initial setup flow
  * - 'checking': проверка подключения к relay
  * - 'ready': готов к работе (независимо от relay)
+ * - 'incoming': расширение шлёт heads-up, payload ещё не пришёл
  * - 'confirming': показываем диалог подтверждения импорта
  * - 'processing': обработка данных
  * - 'success': импорт успешно завершён
@@ -292,6 +294,7 @@ export type AppState =
   | 'setup'
   | 'checking'
   | 'ready'
+  | 'incoming'   // heads-up active, payload not yet arrived
   | 'confirming'
   | 'processing'
   | 'success'
