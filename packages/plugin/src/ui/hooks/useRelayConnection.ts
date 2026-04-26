@@ -19,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSVRow } from '../../types/csv-fields';
 import type { ParsedRelayData } from '../../utils/relay-payload';
 import { extractRowsFromPayload } from '../../utils/relay-payload';
+import type { HeadsUpStatePayload } from '../utils/heads-up-messages';
 
 // HTTP Polling intervals
 const RELAY_CHECK_INTERVAL_ACTIVE = 1000;
@@ -35,6 +36,10 @@ const STATUS_FETCH_TIMEOUT_MS = 8000;
 // gateway 5xx, slow route) shouldn't produce a visible "Relay офлайн" flash
 // right after a confirmed successful connection.
 const DISCONNECT_CONFIRM_THRESHOLD = 2;
+
+// If headsUp.ts is older than this, the signal is stale and the plugin should
+// return to ready state.
+const HEADS_UP_STALE_MS = 10_000;
 
 export interface RelayDataEvent extends ParsedRelayData {
   entryId: string;
@@ -67,6 +72,12 @@ export interface UseRelayConnectionOptions {
    * forward them to the Logs panel or console. Optional — no-op if omitted.
    */
   onTiming?: (message: string) => void;
+  /** Heads-up arrived (extension is mid-flight). Plugin transitions to incoming. */
+  onIncoming?: (state: HeadsUpStatePayload) => void;
+  /** Heads-up phase=='error' — extension reported a hard failure. */
+  onIncomingError?: (message: string) => void;
+  /** Watchdog: heads-up.ts older than 10s while we're in incoming. Plugin returns to ready. */
+  onIncomingExpired?: () => void;
 }
 
 export interface UseRelayConnectionReturn {
@@ -88,6 +99,9 @@ export function useRelayConnection({
   onConnectionChange,
   onPaired,
   onTiming,
+  onIncoming,
+  onIncomingError,
+  onIncomingExpired,
 }: UseRelayConnectionOptions): UseRelayConnectionReturn {
   const [connected, setConnected] = useState(false);
   const [relayVersion, setRelayVersion] = useState<string | null>(null);
@@ -102,6 +116,13 @@ export function useRelayConnection({
   onPairedRef.current = onPaired;
   const onTimingRef = useRef(onTiming);
   onTimingRef.current = onTiming;
+  const onIncomingRef = useRef(onIncoming);
+  onIncomingRef.current = onIncoming;
+  const onIncomingErrorRef = useRef(onIncomingError);
+  onIncomingErrorRef.current = onIncomingError;
+  const onIncomingExpiredRef = useRef(onIncomingExpired);
+  onIncomingExpiredRef.current = onIncomingExpired;
+  const lastHeadsUpTsRef = useRef<number>(0);
 
   // Connection refs
   const isMountedRef = useRef(true);
@@ -283,8 +304,31 @@ export function useRelayConnection({
       const hasPendingData = data.hasData || data.pendingCount > 0 || data.queueSize > 0;
 
       if (hasPendingData) {
+        // Payload wins over heads-up — let the existing peek path drive confirming.
         await peekRelayData();
         return 'connected-with-data';
+      }
+
+      // No payload — surface heads-up if the extension reported one.
+      const headsUp = data.headsUp as HeadsUpStatePayload | null | undefined;
+      if (headsUp) {
+        if (Date.now() - headsUp.ts > HEADS_UP_STALE_MS) {
+          // Stale signal — only reset to ready if we previously surfaced something.
+          if (lastHeadsUpTsRef.current !== 0) {
+            lastHeadsUpTsRef.current = 0;
+            onIncomingExpiredRef.current?.();
+          }
+        } else if (headsUp.phase === 'error') {
+          lastHeadsUpTsRef.current = 0;
+          onIncomingErrorRef.current?.(headsUp.message ?? 'Ошибка расширения');
+        } else {
+          lastHeadsUpTsRef.current = headsUp.ts;
+          onIncomingRef.current?.(headsUp);
+        }
+      } else if (lastHeadsUpTsRef.current !== 0) {
+        // /status no longer reports heads-up (TTL'd) — snap out of incoming.
+        lastHeadsUpTsRef.current = 0;
+        onIncomingExpiredRef.current?.();
       }
 
       return 'connected';
