@@ -63,6 +63,7 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 | Page builder           | `docs/PAGE_BUILDER_SETUP.md`                                      |
 | Perf / import latency  | `.claude/rules/performance.md`                                    |
 | Release                | `.claude/rules/release.md`                                        |
+| Post-merge / worktree  | CLAUDE.md §Git & Merges, §Build Discipline                        |
 | Module internals       | `docs/STRUCTURE.md`, `docs/GLOSSARY.md`                           |
 | UI state/panels/resize | `.claude/rules/ui-state.md`                                       |
 | UI hooks/state         | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks                    |
@@ -79,6 +80,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - Always run `npx prettier --write` on changed files before committing. If a commit fails due to formatting, fix and retry automatically.
 - For git merges: never checkout a different branch inside a worktree. Use `git merge` from the correct branch, or create a PR. If the user says 'merge', ask which strategy (merge commit, rebase, squash) only once, then proceed.
 - Default merge strategy: squash merge via PR to main. After merge — delete source branch locally and on remote, pull main, confirm clean state.
+- **Post-merge rebuild is mandatory**. Once main is updated, immediately run `npm run build -w packages/extension && npm run build -w packages/plugin` from the origin repo. Builds done inside a worktree disappear with the worktree, so the `dist/` on `main` will be stale until rebuilt. Verify with `ls -la packages/*/dist/*.js` (mtime must be ≥ merge time) and a spot-grep of the fix in the bundle (esbuild minifies, so search for the variable name, not the literal — e.g. `30000` becomes `3e4`). Only then tell the user to reload extension / reopen plugin.
 - Before any git operation, run `git worktree list` and `git status` to understand current state. Never assume.
 - Before any destructive git operation (branch delete, force push, reset), create a backup tag: `git tag backup/<branch>-$(date +%s)`.
 - At session start, if branch state is unclear, run `git branch -a && git worktree list && git status` and show a compact summary before doing anything.
@@ -121,6 +123,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - Plugin: `npm run build -w packages/plugin` (or root `npm run build`) after sandbox/UI changes.
 - After rebuild, remind the user to **reload the extension** in Chrome (chrome://extensions → Reload) and **reopen the Figma plugin**.
 - `npm run verify` before commit — catches typecheck + lint + test + build in one pass.
+- **Worktree builds don't survive merge.** When work is done in a `.claude/worktrees/<name>` checkout, the `dist/` produced there vanishes when the worktree is removed. After squash-merging to main, rebuild from the origin repo (see Git & Merges §post-merge rebuild) — never assume `main`'s `dist/` reflects the just-merged source. Spot-check with `grep -c <new-symbol>` against `packages/*/dist/*.js`.
 
 ## Refactoring
 

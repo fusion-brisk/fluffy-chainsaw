@@ -17,12 +17,12 @@
  */
 
 import { Driver, getCredentialsFromEnv, TokenAuthService } from 'ydb-sdk';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const schemaPath = resolve(__dirname, '..', 'schema', 'queue.yql');
+const schemaDir = resolve(__dirname, '..', 'schema');
 
 const endpoint = process.env.YDB_ENDPOINT;
 const database = process.env.YDB_DATABASE;
@@ -54,17 +54,21 @@ if (!ready) {
 }
 
 try {
-  const ddl = await readFile(schemaPath, 'utf8');
-  console.log(`Applying DDL from ${schemaPath}...`);
-
-  // QueryService supports DDL; TableService.executeQuery only supports DML.
-  await driver.queryClient.do({
-    fn: async (session) => {
-      await session.execute({ text: ddl });
-    },
-  });
-
-  console.log('OK — queue_entries table created (or already exists).');
+  // Apply every *.yql file in schema/ — queue_entries, session_heads_up, etc.
+  // Order is alphabetical, which is fine: each DDL is independent.
+  const files = (await readdir(schemaDir)).filter((f) => f.endsWith('.yql')).sort();
+  if (files.length === 0) throw new Error(`no .yql files in ${schemaDir}`);
+  for (const f of files) {
+    const path = resolve(schemaDir, f);
+    const ddl = await readFile(path, 'utf8');
+    console.log(`Applying ${f}...`);
+    await driver.queryClient.do({
+      fn: async (session) => {
+        await session.execute({ text: ddl });
+      },
+    });
+    console.log(`  OK — ${f} applied.`);
+  }
 } catch (err) {
   console.error('error applying DDL:', err instanceof Error ? err.message : err);
   process.exit(1);

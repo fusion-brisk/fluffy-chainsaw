@@ -32,6 +32,35 @@ const FEED_COMPONENT_SET_KEYS: Record<string, string> = {
   advert_examples: 'fa33e1ca52751009197bba25340780694e977cdf',
   product: '862ed09175edc1b277dd67b9686e753e5c51212d',
   collection: '0a973790f90a010df34a9f6509256b176bd611b3',
+  /**
+   * Unified Feed Card shell — used for advert (and future post/video migration).
+   * Variants are addressed by `State` (Default/…) + `Platform` (Desktop/Mobile).
+   * Media Tile + Content slots are filled via INSTANCE_SWAP component properties.
+   */
+  feed_card: '74489a31b31e7015b931f0678eb8b65cd8ad81aa',
+};
+
+/**
+ * Tile component KEYS for INSTANCE_SWAP into Feed Card slots.
+ * Used by the data-applicator side after a Feed Card instance is created.
+ *
+ * IMPORTANT: these are VARIANT keys (the specific component children inside
+ * a set), not set keys. `figma.importComponentByKeyAsync(setKey)` rejects
+ * with "Could not find a published component" — we hit that bug for ads/video
+ * when the user originally pasted set keys instead of variant keys.
+ */
+export const FEED_TILE_KEYS = {
+  /** Tile / Ads, Type=Default — variant key (NOT the set key) */
+  ads_default: 'a7ec037a98be6c99d3343f973609e350ad3df173',
+  /** Tile / Media Content, Type=Actions On, Style=Default — variant key.
+   * Used for `post` cards (Like + Save actions baked in). */
+  media_content_actions_on: '81cacd122553f08f8f13b14f10eafc766b0a1619',
+  /** Tile / Media Content, Type=Concept, Style=Default — variant key.
+   * Used for `video` cards (Concept variant has Action/Product/Stroke
+   * booleans the applicator can flip on per-card data). */
+  media_content_concept: '074dd4b23b673109be3ce2d6edcef367ab3395e9',
+  /** Tile / Product variant key (placeholder, not yet wired) */
+  product: '4e507c526db823f9a073678a4a22014ad73f743c',
 };
 
 // ============================================================================
@@ -60,25 +89,9 @@ function getMarketVariantRange(size: FeedCardSize): VariantRange {
   return { min: 7, max: 8 };
 }
 
-/**
- * Post: carousel presence -> variant range
- *   with carousel    -> 1-4  (dots visible)
- *   without carousel -> 5-14
- */
-function getPostVariantRange(row: FeedCardRow): VariantRange {
-  const hasCarousel = row['#Feed_CarouselImages'] && row['#Feed_CarouselImages'] !== '[]';
-  if (hasCarousel) {
-    return { min: 1, max: 4 };
-  }
-  return { min: 5, max: 14 };
-}
-
-/**
- * Video: all sizes -> 1-5
- */
-function getVideoVariantRange(): VariantRange {
-  return { min: 1, max: 5 };
-}
+// Legacy variant-range helpers for Post/Video have been retired now that
+// post/video route through the unified Feed Card shell (Tile is swapped
+// in by applyPostData/applyVideoData via INSTANCE_SWAP).
 
 /**
  * Product: type -> variant range
@@ -146,21 +159,17 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
       range = getMarketVariantRange(size);
       break;
     }
-    case 'video': {
-      setKey = FEED_COMPONENT_SET_KEYS['video'];
-      range = getVideoVariantRange();
-      break;
-    }
-    case 'post': {
-      setKey = FEED_COMPONENT_SET_KEYS['post'];
-      range = getPostVariantRange(row);
-      break;
-    }
+    case 'video':
+    case 'post':
     case 'advert': {
-      const advertCfg = getAdvertConfig(row);
-      setKey = advertCfg.setKey;
-      range = advertCfg.range;
-      break;
+      // Unified Feed Card shell — type-specific Tile is swapped into the
+      // Media Tile slot by the corresponding apply*Data function.
+      return {
+        key: FEED_COMPONENT_SET_KEYS['feed_card'],
+        state: 'Default',
+        platform: platform,
+        nodeId: '',
+      };
     }
     case 'product': {
       setKey = FEED_COMPONENT_SET_KEYS['product'];
@@ -187,6 +196,11 @@ export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null
     nodeId: '', // resolved at import time
   };
 }
+
+// Helper to remove the now-unused getAdvertConfig variant config — kept for
+// reference until the advert flow is fully validated end-to-end.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _legacyAdvertConfig = getAdvertConfig;
 
 // ============================================================================
 // FIGMA IMPORT — async, uses Figma API
@@ -237,13 +251,16 @@ function importComponentSet(setKey: string): Promise<ComponentSetNode | null> {
 
 /**
  * Find a variant child inside a component set by matching variantProperties.
+ *
+ * Selection axis is polymorphic:
+ *  - if `selection.state` is set → match `State=<state>` + `Platform=<platform>` (Feed Card shell)
+ *  - else if `selection.variant` is set → match `Variant=<n>` + `Platform=<platform>` (legacy Posts/Videos/Market/Ads)
  */
 function findVariantChild(
   componentSet: ComponentSetNode,
-  variantNum: number,
-  platform: FeedPlatform,
+  selection: FeedComponentVariant,
 ): ComponentNode | null {
-  const platformValue = platform === 'desktop' ? 'Desktop' : 'Mobile';
+  const platformValue = selection.platform === 'desktop' ? 'Desktop' : 'Mobile';
   const children = componentSet.children;
 
   for (let i = 0; i < children.length; i++) {
@@ -253,17 +270,27 @@ function findVariantChild(
     const props = (child as ComponentNode).variantProperties;
     if (!props) continue;
 
-    const variantMatch = props['Variant'] === String(variantNum);
     const platformMatch = props['Platform'] === platformValue;
+    if (!platformMatch) continue;
 
-    if (variantMatch && platformMatch) {
-      return child as ComponentNode;
+    if (selection.state !== undefined) {
+      if (props['State'] === selection.state) {
+        return child as ComponentNode;
+      }
+    } else if (selection.variant !== undefined) {
+      if (props['Variant'] === String(selection.variant)) {
+        return child as ComponentNode;
+      }
     }
   }
 
+  const axis =
+    selection.state !== undefined
+      ? 'State=' + selection.state
+      : 'Variant=' + String(selection.variant);
   Logger.debug(
-    '[FeedComponentMap] Variant not found: Variant=' +
-      variantNum +
+    '[FeedComponentMap] Variant not found: ' +
+      axis +
       ', Platform=' +
       platformValue +
       ' in set ' +
@@ -289,11 +316,10 @@ export function importFeedComponent(row: FeedCardRow): Promise<ComponentNode | n
 
   // Capture values before closure to satisfy TypeScript narrowing
   const selKey = selection.key;
-  const selVariant = selection.variant;
-  const selPlatform = selection.platform;
+  const sel = selection;
 
   return importComponentSet(selKey).then(function (componentSet) {
     if (!componentSet) return null;
-    return findVariantChild(componentSet, selVariant, selPlatform);
+    return findVariantChild(componentSet, sel);
   });
 }

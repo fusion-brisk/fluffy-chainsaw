@@ -76,6 +76,15 @@ export interface FeedCardFields {
   /** Aspect ratio изображения (напр. "3:4", "1:1", "16:9") */
   '#Feed_ImageRatio'?: string;
 
+  /**
+   * CSS Grid row span — сколько строк ya.ru masonry-сетки занимает карточка
+   * (напр. `"14"` для tier `m`, `"17"` для `ml`). Самый стабильный сигнал
+   * пропорций: не зависит от lazy-load изображений и одинаков для всех
+   * карточек одного tier'а. Если есть — `#Feed_ImageRatio` вычисляется из
+   * него, иначе из naturalWidth/Height картинки.
+   */
+  '#Feed_GridRowSpan'?: string;
+
   // --- Контент (общие для post/video/product/market) ---
 
   /** Название товара / заголовок поста */
@@ -153,6 +162,84 @@ export interface FeedCardFields {
 
   /** Стиль рекламной карточки (production / dark / branded) */
   '#Feed_AdStyle'?: string;
+
+  // --- Source layout (for column-faithful import) ---
+
+  /**
+   * 1-based source column index derived from the live CSS Grid layout
+   * (`Math.round((cardLeft - feedLeft) / colWidth) + 1`). The plugin uses
+   * this to bin cards into the same column they occupied on ya.ru, instead
+   * of running its own greedy shortest-column masonry.
+   */
+  '#Feed_SourceCol'?: string;
+
+  /**
+   * 0-based source order in the parser's items array. Used to preserve
+   * top-to-bottom order within a column when source-col binning is active.
+   */
+  '#Feed_SourceOrder'?: string;
+
+  // --- Title structure (added Apr 2026) ---
+
+  /** Префикс A11y-заголовка («Галерея», «Видео», …) */
+  '#Feed_TitlePrefix'?: string;
+
+  /** Часть заголовка после двоеточия (имя автора) */
+  '#Feed_AuthorFromTitle'?: string;
+
+  /** «Содержит ссылки на товары» — affiliate-product label */
+  '#Feed_HasProductLinks'?: 'true' | 'false';
+
+  /** Полный текст поста (длиннее, чем visible description) */
+  '#Feed_DescriptionFull'?: string;
+
+  /** Название товара из post-products-preview (отдельно от Feed_Title) */
+  '#Feed_PreviewProductTitle'?: string;
+
+  // --- Carousel state ---
+
+  /** Индекс активного слайда (0-based) */
+  '#Feed_ActiveSlideIndex'?: string;
+
+  // --- Video-specific (split from #Feed_ImageUrl) ---
+
+  /** Кадр-постер видео */
+  '#Feed_VideoPosterUrl'?: string;
+
+  /** Длительность видео в формате M:SS */
+  '#Feed_VideoDuration'?: string;
+
+  // --- Header / overlay badges ---
+
+  /** Есть бейдж «быстрая покупка» (ECheckoutTooltip) */
+  '#Feed_HasCheckoutBadge'?: 'true' | 'false';
+
+  /** Есть бейдж в шапке карточки */
+  '#Feed_HasHeaderBadge'?: 'true' | 'false';
+
+  /** Текст бейджа в шапке */
+  '#Feed_HeaderBadgeText'?: string;
+
+  // --- Footer buttons (designer flags) ---
+
+  /** Есть кнопка «Подписаться» */
+  '#Feed_HasSubscribeBtn'?: 'true' | 'false';
+
+  /** Есть меню «…» (post-menu) */
+  '#Feed_HasMoreMenu'?: 'true' | 'false';
+
+  // --- Style modifiers ---
+
+  /** Market-карточка использует redesign-стиль */
+  '#Feed_MarketCardRedesign'?: 'true' | 'false';
+
+  /** Режим обрезки заголовка Market: one-line vs multi-line */
+  '#Feed_TitleLineMode'?: 'one-line' | 'multi-line';
+
+  // --- Tracking / dedup ---
+
+  /** Yandex post id (data-test-post-id) */
+  '#Feed_PostId'?: string;
 
   // --- Internal (runtime) ---
 
@@ -233,10 +320,15 @@ export const FEED_BOOLEAN_FIELDS: (keyof FeedCardFields)[] = [
  * Keys filled in feed-component-map.ts (FEED_COMPONENT_SET_KEYS).
  */
 export interface FeedComponentVariant {
-  /** Figma component key (для importComponentByKeyAsync) */
+  /** Figma component SET key (для importComponentSetByKeyAsync) */
   key: string;
-  /** Variant number */
-  variant: number;
+  /**
+   * Variant number for the legacy `Variant` axis (Posts/Videos/Market/Ads Prod/Ads Ex/…).
+   * Mutually exclusive with `state` — advert на Feed Card shell использует `state="Default"`.
+   */
+  variant?: number;
+  /** State value for the Feed Card shell (axis `State`, e.g. "Default"). */
+  state?: string;
   /** Platform */
   platform: FeedPlatform;
   /** Node ID в файле DC Feed (для отладки) */
@@ -278,6 +370,10 @@ export const DEFAULT_MASONRY_CONFIG: Record<FeedPlatform, FeedMasonryConfig> = {
   desktop: {
     columns: 5,
     columnWidth: 250,
+    // Designer-confirmed gap: 16px between columns and between cards within
+    // a column (auto-layout itemSpacing on both axes). Prod ya.ru uses
+    // tighter packing, but our Figma layout favours readability of the
+    // imported masonry over byte-for-byte fidelity.
     gap: 16,
     feedWidth: 1314, // 5 * 250 + 4 * 16
   },

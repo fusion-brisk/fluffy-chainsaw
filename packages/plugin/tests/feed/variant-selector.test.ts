@@ -67,58 +67,51 @@ describe('selectFeedVariant', () => {
     });
   });
 
-  // ===== Video =====
+  // ===== Video / Post =====
+  // post/video are now routed through the unified Feed Card shell — type-specific
+  // Tile (Tile / Video / Tile / Media Content) is swapped into the Media Tile slot
+  // by the corresponding apply*Data function.
   describe('video', () => {
-    it('ml size returns variant in 1-5 range', () => {
+    it('returns Feed Card set with State=Default for any size', () => {
       const result = selectFeedVariant(
         makeRow({ '#Feed_CardType': 'video', '#Feed_CardSize': 'ml' }),
       );
       expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(5);
-    });
-
-    it('xs size returns variant in 1-5 range', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'video', '#Feed_CardSize': 'xs' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(5);
+      expect(result!.key).toBe('74489a31b31e7015b931f0678eb8b65cd8ad81aa');
+      expect(result!.state).toBe('Default');
+      expect(result!.variant).toBeUndefined();
     });
   });
 
-  // ===== Post =====
   describe('post', () => {
-    it('with carousel returns variant in 1-4 range', () => {
-      const result = selectFeedVariant(
+    it('returns Feed Card set with State=Default regardless of carousel', () => {
+      const carousel = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'post',
           '#Feed_CardSize': 'm',
           '#Feed_CarouselImages': '["img1.jpg","img2.jpg"]',
         }),
       );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(4);
-    });
-
-    it('without carousel returns variant in 5-14 range', () => {
-      const result = selectFeedVariant(
+      const noCarousel = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'post',
           '#Feed_CardSize': 'm',
         }),
       );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(5);
-      expect(result!.variant).toBeLessThanOrEqual(14);
+      expect(carousel!.key).toBe('74489a31b31e7015b931f0678eb8b65cd8ad81aa');
+      expect(carousel!.state).toBe('Default');
+      expect(noCarousel!.key).toBe('74489a31b31e7015b931f0678eb8b65cd8ad81aa');
+      expect(noCarousel!.state).toBe('Default');
     });
   });
 
   // ===== Advert =====
+  // Advert is now routed through the unified Feed Card shell:
+  // the slot tile (Tile / Ads, Type=Default) is swapped in by applyAdsData
+  // via INSTANCE_SWAP. The selector returns the Feed Card set key + State axis,
+  // not a numbered Variant.
   describe('advert', () => {
-    it('default (production) returns variant in 1-6 range', () => {
+    it('returns Feed Card set with State=Default regardless of style', () => {
       const result = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'advert',
@@ -126,11 +119,12 @@ describe('selectFeedVariant', () => {
         }),
       );
       expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(6);
+      expect(result!.key).toBe('74489a31b31e7015b931f0678eb8b65cd8ad81aa');
+      expect(result!.state).toBe('Default');
+      expect(result!.variant).toBeUndefined();
     });
 
-    it('branded style uses examples set key', () => {
+    it('branded style still routes to Feed Card shell (style picked at slot level)', () => {
       const result = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'advert',
@@ -139,10 +133,8 @@ describe('selectFeedVariant', () => {
         }),
       );
       expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(9);
-      // The key should be the advert_examples set key
-      expect(result!.key).toBe('fa33e1ca52751009197bba25340780694e977cdf');
+      expect(result!.key).toBe('74489a31b31e7015b931f0678eb8b65cd8ad81aa');
+      expect(result!.state).toBe('Default');
     });
   });
 

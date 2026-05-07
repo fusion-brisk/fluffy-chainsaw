@@ -4,16 +4,30 @@
 # Prerequisites:
 #   - yc CLI authenticated: `yc config list` must succeed.
 #   - YDB database provisioned + schema applied (npm run bootstrap-ydb).
+#   - Object Storage bucket created + static access key issued for the SA.
+#     One-time setup:
+#         yc storage bucket create --name contentify-screenshots \
+#             --default-storage-class standard --public-read
+#         yc storage bucket update --name contentify-screenshots \
+#             --lifecycle-rule '{"id":"expire-1d","enabled":true,"expiration":{"days":1}}'
+#         yc iam access-key create --service-account-id "$SA_ID"  # capture the static key
+#     Then grant the SA `storage.editor` on the bucket.
 #   - Required env vars (export or put in packages/cloud-relay/.env):
-#       SA_ID          — service account id (must have ydb.editor role)
-#       YDB_ENDPOINT   — grpcs://ydb.serverless.yandexcloud.net:2135
-#       YDB_DATABASE   — /ru-central1/b1g.../etn...
+#       SA_ID                  — service account id (must have ydb.editor + storage.editor)
+#       YDB_ENDPOINT           — grpcs://ydb.serverless.yandexcloud.net:2135
+#       YDB_DATABASE           — /ru-central1/b1g.../etn...
+#       S3_ACCESS_KEY_ID       — static access key for the SA
+#       S3_SECRET_ACCESS_KEY   — corresponding secret
+#       S3_BUCKET              — bucket name (e.g. contentify-screenshots)
 #   - Optional env vars:
-#       FUNCTION_NAME  (default: contentify-relay)
-#       RUNTIME        (default: nodejs22)
-#       ENTRYPOINT     (default: handler.handler)
-#       MEMORY         (default: 256MB)
-#       TIMEOUT        (default: 30s)
+#       FUNCTION_NAME            (default: contentify-relay)
+#       RUNTIME                  (default: nodejs22)
+#       ENTRYPOINT               (default: handler.handler)
+#       MEMORY                   (default: 256MB)
+#       TIMEOUT                  (default: 30s)
+#       S3_ENDPOINT              (default: https://storage.yandexcloud.net)
+#       S3_REGION                (default: ru-central1)
+#       SCREENSHOTS_PUBLIC_BASE  (default: $S3_ENDPOINT/$S3_BUCKET)
 #
 # Usage:
 #   npm run deploy -w packages/cloud-relay
@@ -42,9 +56,17 @@ if ! command -v "$YC" >/dev/null 2>&1; then
 fi
 
 # Required env
-: "${SA_ID:?SA_ID (service account id with ydb.editor role) must be set}"
+: "${SA_ID:?SA_ID (service account id with ydb.editor + storage.editor roles) must be set}"
 : "${YDB_ENDPOINT:?YDB_ENDPOINT must be set (e.g. grpcs://ydb.serverless.yandexcloud.net:2135)}"
 : "${YDB_DATABASE:?YDB_DATABASE must be set (e.g. /ru-central1/b1g.../etn...)}"
+
+# Object Storage env (required for /upload-screenshot route)
+: "${S3_ACCESS_KEY_ID:?S3_ACCESS_KEY_ID must be set (static access key for the SA bound to the bucket)}"
+: "${S3_SECRET_ACCESS_KEY:?S3_SECRET_ACCESS_KEY must be set}"
+: "${S3_BUCKET:?S3_BUCKET must be set (e.g. contentify-screenshots)}"
+S3_ENDPOINT="${S3_ENDPOINT:-https://storage.yandexcloud.net}"
+S3_REGION="${S3_REGION:-ru-central1}"
+SCREENSHOTS_PUBLIC_BASE="${SCREENSHOTS_PUBLIC_BASE:-${S3_ENDPOINT%/}/${S3_BUCKET}}"
 
 FUNCTION_NAME="${FUNCTION_NAME:-contentify-relay}"
 RUNTIME="${RUNTIME:-nodejs22}"
@@ -93,7 +115,7 @@ echo "==> Creating new version..."
   --execution-timeout "$TIMEOUT" \
   --source-path "$STAGE_DIR" \
   --service-account-id "$SA_ID" \
-  --environment "YDB_ENDPOINT=$YDB_ENDPOINT,YDB_DATABASE=$YDB_DATABASE,YDB_METADATA_CREDENTIALS=1"
+  --environment "YDB_ENDPOINT=$YDB_ENDPOINT,YDB_DATABASE=$YDB_DATABASE,YDB_METADATA_CREDENTIALS=1,S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID,S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY,S3_BUCKET=$S3_BUCKET,S3_ENDPOINT=$S3_ENDPOINT,S3_REGION=$S3_REGION,SCREENSHOTS_PUBLIC_BASE=$SCREENSHOTS_PUBLIC_BASE"
 
 # 5. Make function publicly invokable (idempotent)
 echo "==> Enabling unauthenticated invoke..."

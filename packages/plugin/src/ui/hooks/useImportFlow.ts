@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { CSVRow, AppState, ImportInfo, ProcessingStats, RelayPayload } from '../../types';
 import { sendMessageToPlugin } from '../../utils/index';
 import type { ImportOptions } from '../components/ImportConfirmDialog';
-import type { UseRelayConnectionReturn } from './useRelayConnection';
+import type { RelayScreenshotMeta, UseRelayConnectionReturn } from './useRelayConnection';
 
 /** Minimum processing display time (ms) for smooth UX */
 const MIN_PROCESSING_TIME = 800;
@@ -17,6 +17,8 @@ export interface PendingImport {
   sourceType?: 'serp' | 'feed';
   /** Feed card rows (when sourceType='feed') */
   feedCards?: Array<Record<string, string>>;
+  /** Optional screenshot side-channel for compare column. */
+  screenshots?: RelayScreenshotMeta;
 }
 
 export interface ImportFlowState {
@@ -36,6 +38,7 @@ export interface ImportFlowActions {
     entryId?: string;
     sourceType?: 'serp' | 'feed';
     feedCards?: Array<Record<string, string>>;
+    screenshots?: RelayScreenshotMeta;
   }) => void;
   /** User confirmed import — start processing */
   confirm: (options: ImportOptions) => void;
@@ -123,6 +126,7 @@ export function useImportFlow(
       entryId?: string;
       sourceType?: 'serp' | 'feed';
       feedCards?: Array<Record<string, string>>;
+      screenshots?: RelayScreenshotMeta;
     }) => {
       const isFeed = data.sourceType === 'feed';
       const totalCount = isFeed ? data.feedCards?.length || 0 : data.rows.length;
@@ -133,6 +137,7 @@ export function useImportFlow(
         entryId: data.entryId,
         sourceType: data.sourceType,
         feedCards: data.feedCards,
+        screenshots: data.screenshots,
       });
       setInfo({
         query: data.query || (isFeed ? 'ya.ru фид' : 'Импорт данных'),
@@ -150,7 +155,7 @@ export function useImportFlow(
       if (!pending) return;
 
       const { mode } = options;
-      const { rows, query, entryId, sourceType, feedCards } = pending;
+      const { rows, query, entryId, sourceType, feedCards, screenshots } = pending;
       // mode → scope mapping:
       //   artboard     → 'page'         (default — один новый SERP)
       //   selection    → 'selection'    (заполнить выделенный фрейм)
@@ -192,6 +197,7 @@ export function useImportFlow(
           payload: {
             cards: feedCards,
             platform: 'desktop',
+            screenshots,
           },
         });
       } else if (relayPayloadRef.current) {
@@ -200,6 +206,7 @@ export function useImportFlow(
           type: 'apply-relay-payload',
           payload: relayPayloadRef.current,
           scope,
+          screenshots,
         });
         relayPayloadRef.current = null;
       }

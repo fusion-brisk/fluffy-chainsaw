@@ -13,7 +13,8 @@
     "https://yandex.ru/*",
     "https://yandex.com/*",
     "https://*.ya.ru/*",
-    "https://ya.ru/*"
+    "https://ya.ru/*",
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "dist/background.js"

@@ -154,17 +154,20 @@ function fetchImageHashForUrl(
 
   const promise = (async function () {
     let arrayBuffer: ArrayBuffer | null = null;
+    let directOutcome = 'skipped';
+    let proxyOutcome = 'skipped';
 
     // Direct fetch first
     try {
       const directRes = await withTimeout(fetch(normalizedUrl), IMAGE_FETCH_TIMEOUT);
       if (directRes.ok) {
         arrayBuffer = await directRes.arrayBuffer();
+        directOutcome = 'ok ' + (arrayBuffer ? arrayBuffer.byteLength : 0) + 'b';
       } else {
-        Logger.debug(prefix + ' Direct HTTP ' + directRes.status + ', trying proxy');
+        directOutcome = 'http ' + directRes.status;
       }
-    } catch {
-      Logger.debug(prefix + ' Direct fetch failed, trying proxy');
+    } catch (err) {
+      directOutcome = 'throw ' + (err instanceof Error ? err.message : String(err));
     }
 
     // Fallback: relay image-proxy (CORS-blocked CDNs)
@@ -174,28 +177,54 @@ function fetchImageHashForUrl(
         const proxyRes = await withTimeout(fetch(proxyUrl), IMAGE_FETCH_TIMEOUT);
         if (proxyRes.ok) {
           arrayBuffer = await proxyRes.arrayBuffer();
-          Logger.debug(
-            prefix + ' Proxy OK, ' + (arrayBuffer ? arrayBuffer.byteLength : 0) + ' bytes',
-          );
+          proxyOutcome = 'ok ' + (arrayBuffer ? arrayBuffer.byteLength : 0) + 'b';
         } else {
-          Logger.debug(prefix + ' Proxy HTTP ' + proxyRes.status);
+          proxyOutcome = 'http ' + proxyRes.status;
         }
       } catch (proxyErr) {
-        Logger.debug(
-          prefix +
-            ' Proxy failed: ' +
-            (proxyErr instanceof Error ? proxyErr.message : String(proxyErr)),
-        );
+        proxyOutcome = 'throw ' + (proxyErr instanceof Error ? proxyErr.message : String(proxyErr));
       }
     }
 
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
-      Logger.debug(prefix + ' No image data for ' + normalizedUrl.substring(0, 60));
+      Logger.info(
+        prefix +
+          ' NO BYTES for ' +
+          normalizedUrl.substring(0, 80) +
+          ' (direct=' +
+          directOutcome +
+          ', proxy=' +
+          proxyOutcome +
+          ')',
+      );
       return null;
     }
 
-    const image = figma.createImage(new Uint8Array(arrayBuffer));
-    return image.hash;
+    try {
+      const image = figma.createImage(new Uint8Array(arrayBuffer));
+      Logger.debug(
+        prefix +
+          ' createImage OK, hash=' +
+          image.hash.substring(0, 8) +
+          ' (direct=' +
+          directOutcome +
+          ', proxy=' +
+          proxyOutcome +
+          ')',
+      );
+      return image.hash;
+    } catch (createErr) {
+      Logger.info(
+        prefix +
+          ' createImage THREW for ' +
+          normalizedUrl.substring(0, 80) +
+          ' (' +
+          (arrayBuffer ? arrayBuffer.byteLength : 0) +
+          'b): ' +
+          (createErr instanceof Error ? createErr.message : String(createErr)),
+      );
+      return null;
+    }
   })();
 
   imageHashCache.set(normalizedUrl, promise);

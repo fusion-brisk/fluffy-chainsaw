@@ -20,7 +20,7 @@ import { createFeedPage } from './feed-page-builder';
 import type { WizardPayload } from '../types/wizard-types';
 import { renderProductCard as renderProductCardSidebar } from './plugin/productcard-processor';
 import { resetImageTiming, resetImageCache, getImageTiming } from './image-apply';
-import { CLOUD_RELAY_URL } from '../config';
+import { CLOUD_RELAY_URL, DEBUG_REFERENCE_NODE_ID } from '../config';
 
 // Sidecar features (result export, screenshot mirror, /debug) were local-relay-only.
 // Cloud relay doesn't expose them (Phase 2 via Object Storage). We keep the RELAY_URL
@@ -97,40 +97,60 @@ Logger.info('Плагин Contentify загружен');
 const rulesManager = new ParsingRulesManager();
 
 // Загрузка скриншотов и размещение рядом с SERP фреймом
-async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Promise<void> {
-  // Fetch screenshot metadata
-  const metaRes = await fetch(`${RELAY_URL}/screenshot`);
-  if (!metaRes.ok) return;
+interface ScreenshotMetaForRender {
+  urls: string[];
+  totalHeight: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  devicePixelRatio: number;
+  count: number;
+}
 
-  const meta = (await metaRes.json()) as {
-    count: number;
-    meta: { viewportWidth: number; viewportHeight: number };
-  };
-  if (meta.count === 0) return;
+/**
+ * Place a vertical column of full-page screenshot segments to the right of
+ * the imported frame. Used for visual QA — designer compares the rendered
+ * Figma frame against the live production page.
+ *
+ * Screenshot URLs come from the extension via relay `meta.screenshotUrls`
+ * (uploaded out-of-band to Yandex Object Storage by /upload-screenshot).
+ * No-op when meta is undefined (capture disabled or upload failed).
+ */
+async function placeScreenshotSegments(
+  pageFrame: FrameNode,
+  query: string,
+  meta: ScreenshotMetaForRender | undefined,
+): Promise<FrameNode | null> {
+  if (!meta || !meta.urls || meta.urls.length === 0) return null;
 
-  // Fetch all segment images
   const imageHashes: string[] = [];
-  for (let i = 0; i < meta.count; i++) {
-    const segRes = await fetch(`${RELAY_URL}/screenshot?index=${i}`);
-    if (!segRes.ok) continue;
-    const buffer = await segRes.arrayBuffer();
-    const image = figma.createImage(new Uint8Array(buffer));
-    imageHashes.push(image.hash);
+  for (let i = 0; i < meta.urls.length; i++) {
+    try {
+      // figma.createImageAsync fetches the URL itself — no CORS issues for
+      // public Object Storage objects. Returns an Image with .hash; we then
+      // address that image via fills[].imageHash on a rectangle.
+      const image = await figma.createImageAsync(meta.urls[i]);
+      imageHashes.push(image.hash);
+    } catch (err) {
+      Logger.error(`📸 Failed to load screenshot segment ${i}:`, err);
+    }
   }
+  if (imageHashes.length === 0) return null;
 
-  if (imageHashes.length === 0) return;
+  // Geometry: each captured segment fills one viewport-height worth of the
+  // source page; stitched together they reproduce the full scroll. Place them
+  // at native viewport size (no scaling) so the designer can inspect prices,
+  // typography, and tiny labels at 1:1.
+  const { viewportWidth, viewportHeight, count } = meta;
+  const totalHeight = viewportHeight * imageHashes.length;
 
-  const { viewportWidth, viewportHeight } = meta.meta;
-
-  // Create container frame
   const frame = figma.createFrame();
   frame.name = `Screenshot — ${query}`;
   frame.x = pageFrame.x + pageFrame.width + 100;
   frame.y = pageFrame.y;
-  frame.resize(viewportWidth, viewportHeight * imageHashes.length);
+  frame.resize(viewportWidth, totalHeight);
   frame.clipsContent = true;
+  frame.fills = [{ type: 'SOLID', color: { r: 1, g: 1, b: 1 } }];
 
-  // Place each segment as a rectangle with image fill
   for (let i = 0; i < imageHashes.length; i++) {
     const rect = figma.createRectangle();
     rect.resize(viewportWidth, viewportHeight);
@@ -146,7 +166,45 @@ async function placeScreenshotSegments(pageFrame: FrameNode, query: string): Pro
     frame.appendChild(rect);
   }
 
-  Logger.info(`📸 Размещено ${imageHashes.length} сегментов скриншота`);
+  Logger.info(`📸 Размещено ${imageHashes.length}/${count} сегментов скриншота`);
+  return frame;
+}
+
+/**
+ * Debug-only: clone a designer-supplied reference node and place it as a
+ * third column right of the screenshot column. Disabled when
+ * DEBUG_REFERENCE_NODE_ID is null. Tolerates lookup failure silently —
+ * never blocks user flow.
+ *
+ * Usage: set DEBUG_REFERENCE_NODE_ID in `config.ts` to the target node id
+ * during local design-system QA, then revert to null before shipping.
+ */
+async function placeDesignReferenceNode(
+  pageFrame: FrameNode,
+  screenshotFrame?: FrameNode,
+): Promise<void> {
+  if (!DEBUG_REFERENCE_NODE_ID) return;
+  try {
+    const node = await figma.getNodeByIdAsync(DEBUG_REFERENCE_NODE_ID);
+    if (!node || !('clone' in node)) {
+      Logger.info(`🧪 Debug ref ${DEBUG_REFERENCE_NODE_ID} not found / not cloneable`);
+      return;
+    }
+    const clone = (node as SceneNode & { clone: () => SceneNode }).clone();
+    figma.currentPage.appendChild(clone);
+    // Anchor: right of screenshot frame if present, else right of import frame
+    const anchor = screenshotFrame ?? pageFrame;
+    if ('x' in clone && 'y' in clone) {
+      clone.x = anchor.x + ('width' in anchor ? anchor.width : 0) + 100;
+      clone.y = pageFrame.y;
+    }
+    if ('name' in clone) {
+      clone.name = `Design ref — ${DEBUG_REFERENCE_NODE_ID}`;
+    }
+    Logger.info(`🧪 Debug reference node placed: ${DEBUG_REFERENCE_NODE_ID}`);
+  } catch (err) {
+    Logger.error('🧪 Debug reference clone failed:', err);
+  }
 }
 
 // Проверка обновлений правил парсинга
@@ -594,12 +652,17 @@ figma.ui.onmessage = async (msg) => {
 
           // Screenshot is visible to user once placed — keep await (~1s, useful).
           const screenshotStart = Date.now();
+          let screenshotFrame: FrameNode | null = null;
           try {
-            await placeScreenshotSegments(result.frame, query);
+            const screenshotsMeta = (msg as { screenshots?: ScreenshotMetaForRender }).screenshots;
+            screenshotFrame = await placeScreenshotSegments(result.frame, query, screenshotsMeta);
           } catch (err) {
             Logger.error('Screenshot placement failed:', err);
           }
           Logger.info(`[Timing] Screenshot placement: ${Date.now() - screenshotStart}ms`);
+
+          // Debug-only design reference (no-op when DEBUG_REFERENCE_NODE_ID is null)
+          await placeDesignReferenceNode(result.frame, screenshotFrame ?? undefined);
 
           // Final 100% marker — user sees "Готово!" right before success flash.
           figma.ui.postMessage({
@@ -647,6 +710,7 @@ figma.ui.onmessage = async (msg) => {
       const feedPayload = msg.payload as {
         cards: import('../types/feed-card-types').FeedCardRow[];
         platform?: import('../types/feed-card-types').FeedPlatform;
+        screenshots?: ScreenshotMetaForRender;
       };
 
       const feedCards = feedPayload.cards;
@@ -706,11 +770,19 @@ figma.ui.onmessage = async (msg) => {
           );
 
           // Place screenshot next to feed frame (same as SERP pipeline)
+          let feedScreenshotFrame: FrameNode | null = null;
           try {
-            await placeScreenshotSegments(feedResult.frame, feedPayload.platform || 'ya.ru feed');
+            feedScreenshotFrame = await placeScreenshotSegments(
+              feedResult.frame,
+              feedPayload.platform || 'ya.ru feed',
+              feedPayload.screenshots,
+            );
           } catch (err) {
             Logger.error('Feed screenshot placement failed:', err);
           }
+
+          // Debug-only design reference (no-op when DEBUG_REFERENCE_NODE_ID is null)
+          await placeDesignReferenceNode(feedResult.frame, feedScreenshotFrame ?? undefined);
         } else {
           const feedErrorMsg =
             feedResult.errors && feedResult.errors.length > 0

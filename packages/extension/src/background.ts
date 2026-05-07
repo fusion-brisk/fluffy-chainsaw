@@ -73,6 +73,213 @@ function buildCloudUrl(path: string, sessionCode: string): string {
   return `${CLOUD_RELAY_URL}${path}?session=${encodeURIComponent(sessionCode)}`;
 }
 
+function dataUrlToBase64(dataUrl: string): string {
+  const m = /^data:image\/(jpe?g|png|webp);base64,(.+)$/i.exec(dataUrl);
+  if (!m) throw new Error(`Unexpected dataUrl prefix: ${dataUrl.slice(0, 32)}`);
+  return m[2];
+}
+
+async function uploadOneScreenshot(
+  sessionCode: string,
+  segIdx: number,
+  dataUrl: string,
+  totalSegments: number,
+  kind: 'segment' | 'advert' = 'segment',
+): Promise<{ key: string; url: string }> {
+  const dataBase64 = dataUrlToBase64(dataUrl);
+  const res = await fetch(buildCloudUrl('/upload-screenshot', sessionCode), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ segIdx, dataBase64, contentType: 'image/jpeg', totalSegments, kind }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`upload-screenshot ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const body = (await res.json()) as { key: string; url: string };
+  return body;
+}
+
+/**
+ * @deprecated Removed from the import flow — left for now in case we want to
+ * resurrect it for a different purpose (e.g. capturing a live preview of
+ * advert structure). The runtime entry point in the import handler no longer
+ * calls it; tree-shaking will drop it from the production bundle.
+ *
+ * Original purpose: clip advert wrapper regions out of the captured viewport
+ * segments and upload each clip as its own image. Replaced by shadow-DOM
+ * URL extraction in feed-parser.ts.
+ */
+async function cropAndUploadAdverts(
+  feedCards: Array<Record<string, string>>,
+  screenshots: string[],
+  screenshotMeta: Record<string, unknown> | null,
+  sessionCode: string,
+): Promise<number> {
+  if (screenshots.length === 0 || !screenshotMeta) {
+    console.log(
+      `[advert-clip] aborted: screenshots=${screenshots.length}, meta=${screenshotMeta ? 'yes' : 'null'}`,
+    );
+    return 0;
+  }
+  const dpr = (screenshotMeta.devicePixelRatio as number) || 1;
+  const vh = (screenshotMeta.viewportHeight as number) || 0;
+  if (vh <= 0) {
+    console.log('[advert-clip] aborted: viewportHeight=0 in meta');
+    return 0;
+  }
+
+  const segmentBitmaps: Array<ImageBitmap | null> = new Array(screenshots.length).fill(null);
+  async function getSegmentBitmap(idx: number): Promise<ImageBitmap | null> {
+    if (idx < 0 || idx >= screenshots.length) return null;
+    if (segmentBitmaps[idx]) return segmentBitmaps[idx];
+    try {
+      const res = await fetch(screenshots[idx]);
+      const blob = await res.blob();
+      const bitmap = await createImageBitmap(blob);
+      segmentBitmaps[idx] = bitmap;
+      return bitmap;
+    } catch (err) {
+      console.warn('[advert-clip] segment decode failed idx=' + idx, err);
+      return null;
+    }
+  }
+
+  // Stats for diagnostics — emitted at end so the user sees a single line.
+  let stats = {
+    advertTotal: 0,
+    hadDomImage: 0,
+    missingRect: 0,
+    invalidRect: 0,
+    bitmapMissing: 0,
+    canvasFail: 0,
+    uploadFail: 0,
+    uploaded: 0,
+    crossSegment: 0,
+  };
+
+  let advertSlot = 0;
+  for (let i = 0; i < feedCards.length; i++) {
+    const card = feedCards[i];
+    if (card['#Feed_CardType'] !== 'advert') continue;
+    stats.advertTotal += 1;
+
+    if (card['#Feed_ImageUrl']) {
+      stats.hadDomImage += 1;
+      continue;
+    }
+    const rectStr = card['#Feed_AdvertCaptureRect'];
+    if (!rectStr) {
+      stats.missingRect += 1;
+      continue;
+    }
+
+    let rect: { x: number; y: number; w: number; h: number };
+    try {
+      rect = JSON.parse(rectStr);
+    } catch {
+      stats.invalidRect += 1;
+      continue;
+    }
+    if (!(rect.w > 0 && rect.h > 0)) {
+      stats.invalidRect += 1;
+      continue;
+    }
+
+    // Page-Y span of the advert in CSS pixels.
+    const segIdxTop = Math.floor(rect.y / vh);
+    const segIdxBot = Math.floor((rect.y + rect.h - 1) / vh);
+    if (segIdxTop >= screenshots.length) {
+      stats.bitmapMissing += 1;
+      continue;
+    }
+    if (segIdxBot > segIdxTop) stats.crossSegment += 1;
+
+    const clipX = Math.max(0, Math.round(rect.x * dpr));
+    const clipW = Math.round(rect.w * dpr);
+    const clipH = Math.round(rect.h * dpr);
+
+    let blob: Blob;
+    try {
+      const canvas = new OffscreenCanvas(clipW, clipH);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        stats.canvasFail += 1;
+        continue;
+      }
+      // Stitch from one or more segments. For each segment in the rect's
+      // page-Y range, copy the slice of the segment that overlaps the rect
+      // into the canvas at the correct vertical offset.
+      let drawnAny = false;
+      let drawY = 0;
+      for (let s = segIdxTop; s <= segIdxBot && s < screenshots.length; s++) {
+        const bitmap = await getSegmentBitmap(s);
+        if (!bitmap) continue;
+        const segPageTop = s * vh;
+        const segPageBot = segPageTop + vh;
+        const sliceTopPage = Math.max(rect.y, segPageTop);
+        const sliceBotPage = Math.min(rect.y + rect.h, segPageBot);
+        if (sliceBotPage <= sliceTopPage) continue;
+
+        const srcX = clipX;
+        const srcY = Math.max(0, Math.round((sliceTopPage - segPageTop) * dpr));
+        const srcW = clipW;
+        const srcH = Math.round((sliceBotPage - sliceTopPage) * dpr);
+        // Clamp to bitmap bounds (last segment may be shorter or page may
+        // have grown after capture).
+        const safeW = Math.min(srcW, Math.max(0, bitmap.width - srcX));
+        const safeH = Math.min(srcH, Math.max(0, bitmap.height - srcY));
+        if (safeW <= 0 || safeH <= 0) continue;
+        ctx.drawImage(bitmap, srcX, srcY, safeW, safeH, 0, drawY, safeW, safeH);
+        drawnAny = true;
+        drawY += safeH;
+      }
+      if (!drawnAny) {
+        stats.bitmapMissing += 1;
+        continue;
+      }
+      blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+    } catch (err) {
+      stats.canvasFail += 1;
+      console.warn('[advert-clip] canvas op failed for card #' + i, err);
+      continue;
+    }
+
+    let dataUrl: string;
+    try {
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      stats.uploadFail += 1;
+      console.warn('[advert-clip] dataUrl conversion failed', err);
+      continue;
+    }
+
+    try {
+      const result = await uploadOneScreenshot(
+        sessionCode,
+        advertSlot,
+        dataUrl,
+        feedCards.length,
+        'advert',
+      );
+      card['#Feed_ImageUrl'] = result.url;
+      stats.uploaded += 1;
+      advertSlot += 1;
+    } catch (err) {
+      stats.uploadFail += 1;
+      console.warn('[advert-clip] upload failed for card #' + i, err);
+    }
+  }
+  console.log('[advert-clip] stats:', stats);
+  return stats.uploaded;
+}
+
 // === Heads-up signaling ===
 //
 // Lightweight progress signal sent to relay alongside (and before) the heavy
@@ -387,7 +594,18 @@ async function captureFullPage(
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  // --- Hide technical UI only (header + ProductsModePanel stay for first segment) ---
+  // --- Hide technical UI + page header before ANY capture ---
+  //
+  // Why hide the header up-front (was deferred to segment 1+ previously):
+  // when the plugin places the screenshot column next to the imported frame,
+  // the user expects top-row alignment. With the header in segment 0, the
+  // production-fid scroll started ~150px below the imported frame's top.
+  // Hiding HeaderDesktop / ProductsModePanel from the very first capture
+  // makes the screenshot strip's first segment begin at the same `y` as
+  // the rythm-feed root in the imported frame.
+  //
+  // We still measure `headerOffset` after-the-fact for the scroll-step
+  // arithmetic — but the visible result no longer leaks the chrome.
   await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
@@ -396,6 +614,8 @@ async function captureFullPage(
       style.textContent = [
         '#ulitochka-container { display: none !important; }',
         '.YndxBug { display: none !important; }',
+        '.HeaderDesktop, .HeaderPhone { display: none !important; }',
+        '.ProductsModePanel { display: none !important; }',
       ].join('\n');
       document.head.appendChild(style);
     },
@@ -437,18 +657,9 @@ async function captureFullPage(
     Math.min(Math.ceil(Math.max(0, scrollHeight - innerHeight) / innerHeight), MAX_CAPTURES - 1);
   onSegmentCaptured(1, projectedTotal);
 
-  // --- Hide header + sticky ProductsModePanel for remaining segments ---
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const fix = document.getElementById('contentify-screenshot-fix');
-      if (fix)
-        fix.textContent +=
-          '\n.HeaderDesktop, .HeaderPhone { display: none !important; }\n.ProductsModePanel { display: none !important; }';
-    },
-  });
-
-  // Measure how much content shifted up after hiding header
+  // Header was already hidden up-front (see contentify-screenshot-fix style),
+  // so `headerOffset` here is 0 — preserved as a variable to keep arithmetic
+  // below readable and to leave a knob for partial-hide scenarios.
   const [{ result: rawNewScrollHeight }] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => document.documentElement.scrollHeight,
@@ -548,6 +759,135 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
         },
         args: [rules],
       });
+    }
+
+    // Pre-flush feed lazy-load BEFORE running the content script.
+    //
+    // ya.ru rythm-feed renders ~70 cards but only loads images for the first
+    // ~8 (those near the viewport). The rest stay with placeholder src and
+    // `naturalWidth=0` until they scroll into view. Without this flush, our
+    // parser collects empty/duplicate URLs for all bottom cards — the visible
+    // symptom is the "balaclava-model" image cloned across many Posts cards
+    // in the imported Figma frame.
+    //
+    // We scroll to bottom in 800px steps with a settle delay so the
+    // IntersectionObserver fires and lazy-loaders kick in, then scroll back
+    // to top before parsing. Idempotent for non-feed pages (the marker class
+    // is feed-only); ~3-4 seconds wall-clock on a 70-card feed.
+    const [{ result: isFeedPage }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id! },
+      func: () => !!document.querySelector('[class*="masonry-feed--rythm-feed"]'),
+    });
+    if (isFeedPage) {
+      console.log('[Feed] Pre-scrolling to flush lazy-loaded images + advert RTB...');
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id! },
+        func: async () => {
+          const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+          const startY = window.scrollY;
+          const step = 800;
+          const maxScroll = document.documentElement.scrollHeight;
+          // Pass 1: drag through the page to trigger IntersectionObserver-based
+          // lazy-loaders for both regular images AND RTB ad iframes.
+          for (let y = 0; y <= maxScroll; y += step) {
+            window.scrollTo(0, y);
+            await settle(180);
+          }
+          await settle(600);
+          // Pass 2: short re-pass through the same range — RTB iframes start
+          // their network request on first viewport entry but the creative
+          // markup (declarative shadow root + <style>) usually arrives
+          // ~700-1500ms later. Re-visiting with a small delay gives the
+          // shadow root time to attach so chrome.dom.openOrClosedShadowRoot
+          // returns content.
+          const newMax = document.documentElement.scrollHeight;
+          for (let y = 0; y <= newMax; y += step * 2) {
+            window.scrollTo(0, y);
+            await settle(120);
+          }
+          // Final wait at the bottom for any straggler advert iframes to
+          // populate their shadow root.
+          await settle(900);
+          window.scrollTo(0, startY);
+          await settle(200);
+        },
+      });
+
+      // Active per-advert warmup: scroll each empty RTB host to viewport
+      // centre, dispatch synthetic mouseenter / visibilitychange events to
+      // nudge Yandex's lazy ad loaders, and MutationObserver-wait for the
+      // csr-uniq host to gain content. Honours a global ~10 s budget so
+      // import never blocks indefinitely.
+      const [{ result: adResult }] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id! },
+        func: async () => {
+          const settle = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+          const ads = Array.from(document.querySelectorAll('[class*="advert-card--rythm-feed"]'));
+          interface EmptyHost {
+            ad: Element;
+            csr: Element;
+          }
+          const emptyHosts: EmptyHost[] = [];
+          for (const ad of ads) {
+            const csr = ad.querySelector('[class*="csr-uniq"]');
+            if (csr && csr.innerHTML.length === 0) emptyHosts.push({ ad, csr });
+          }
+          if (emptyHosts.length === 0) {
+            return { total: ads.length, empty: 0, loaded: 0, finalEmpty: 0 };
+          }
+          const startY = window.scrollY;
+          // Phase A: bring each empty advert into the centre of the viewport
+          // briefly. RTB lazy loaders fire on impression — sustained in-view
+          // (≈250 ms per ad) is enough for the network request to start.
+          for (const { ad } of emptyHosts) {
+            try {
+              (ad as HTMLElement).scrollIntoView({
+                block: 'center',
+                inline: 'center',
+                behavior: 'instant' as ScrollBehavior,
+              });
+              ad.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              ad.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            } catch {
+              /* ignore */
+            }
+            await settle(250);
+          }
+          // Phase B: poll-loop until every empty host gains content OR the
+          // global budget runs out. Burst extra mouseenter every iteration
+          // for hosts still empty.
+          const MAX_WAIT_MS = 10_000;
+          const POLL_MS = 350;
+          const tStart = Date.now();
+          let loaded = 0;
+          while (Date.now() - tStart < MAX_WAIT_MS) {
+            const stillEmpty = emptyHosts.filter((e) => e.csr.innerHTML.length === 0);
+            loaded = emptyHosts.length - stillEmpty.length;
+            if (stillEmpty.length === 0) break;
+            for (const { ad } of stillEmpty) {
+              try {
+                ad.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              } catch {
+                /* ignore */
+              }
+            }
+            await settle(POLL_MS);
+          }
+          loaded =
+            emptyHosts.length - emptyHosts.filter((e) => e.csr.innerHTML.length === 0).length;
+          window.scrollTo(0, startY);
+          await settle(150);
+          return {
+            total: ads.length,
+            empty: emptyHosts.length,
+            loaded: loaded,
+            finalEmpty: emptyHosts.length - loaded,
+          };
+        },
+      });
+      console.log(
+        `[Feed/advert-warmup] ${(adResult as { loaded: number; empty: number; total: number; finalEmpty: number } | null | undefined)?.loaded ?? 0}/${(adResult as { empty: number } | null | undefined)?.empty ?? 0} empty advert hosts populated (total ads=${(adResult as { total: number } | null | undefined)?.total ?? 0})`,
+      );
     }
 
     // Parse page using content script
@@ -667,12 +1007,48 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       payload.productCard = productCard;
     }
 
-    // Screenshots intentionally NOT attached to /push body. Yandex Cloud API Gateway
-    // caps request bodies at ~3.5 MB and the relay drops `payload.screenshots` on
-    // arrival anyway (Phase 2 feature, never wired up). Keeping them here previously
-    // caused 413 → AbortSignal.timeout → infinite retry storm. Re-enable only when
-    // Phase 2 ships a dedicated upload endpoint (e.g. Object Storage). The capture
-    // itself still runs to feed the `uploading_screenshots` heads-up UI.
+    // Screenshots travel through a side-channel: each segment is uploaded
+    // separately to /upload-screenshot (writes to Yandex Object Storage), and
+    // we ship only the resulting keys + URLs in `meta` on the main /push.
+    // This keeps the /push body well under the 3.5 MB API Gateway cap.
+    let screenshotKeys: string[] | undefined;
+    let screenshotUrls: string[] | undefined;
+    if (screenshots.length > 0) {
+      try {
+        const keys: string[] = [];
+        const urls: string[] = [];
+        for (let i = 0; i < screenshots.length; i++) {
+          const r = await uploadOneScreenshot(sessionCode, i, screenshots[i], screenshots.length);
+          keys.push(r.key);
+          urls.push(r.url);
+          // Re-emit progress so the plugin's heads-up shows "uploading screenshots N/M"
+          // covering BOTH the capture phase AND the upload phase. Frontend already
+          // expects monotonic progress within the phase.
+          void sendHeadsUp('uploading_screenshots', { current: i + 1, total: screenshots.length });
+        }
+        screenshotKeys = keys;
+        screenshotUrls = urls;
+        console.log(`[Screenshot] Uploaded ${keys.length}/${screenshots.length} segments`);
+      } catch (uploadErr: unknown) {
+        // Upload failure is non-fatal: structured /push still goes through, just
+        // without the comparison column on the plugin side.
+        console.warn(
+          '[Screenshot] Upload failed, /push will proceed without screenshots:',
+          (uploadErr as Error).message,
+        );
+        screenshotKeys = undefined;
+        screenshotUrls = undefined;
+      }
+    }
+
+    // Note: an earlier version cropped advert creatives out of the captured
+    // viewport segments and uploaded them as fallback images for RTB iframes.
+    // That path was removed because screenshot crops bake in UI overlays
+    // (kebab, like buttons, dots) and add JPEG artifacts. We now rely on
+    // shadow-DOM extraction (chrome.dom.openOrClosedShadowRoot in the
+    // parser) to pull the real CDN image URL out of `.img-source-component`.
+    // Cards whose RTB iframe hasn't materialised by parse time are left
+    // imageless — the plugin's default Tile / Ads placeholder handles that.
 
     const itemCount = isFeed ? parseResult.feedCards?.length || 0 : rows.length;
     const meta = {
@@ -685,6 +1061,10 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       wizardCount: isFeed ? 0 : wizards.length,
       feedCardCount: isFeed ? itemCount : undefined,
       extensionVersion: chrome.runtime.getManifest().version,
+      // Screenshot side-channel — only present when capture+upload succeeded.
+      screenshotKeys,
+      screenshotUrls,
+      screenshotMeta: screenshotKeys ? screenshotMeta : undefined,
     };
 
     // Heads-up: about to upload the structured payload.

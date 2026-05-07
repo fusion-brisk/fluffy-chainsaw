@@ -1,6 +1,6 @@
 # @contentify/cloud-relay
 
-Cloud replacement for `packages/relay`. Deploys to **Yandex Cloud Functions** (Node.js 22 runtime) and serves the same HTTP API (`/push`, `/peek`, `/ack`, `/reject`, `/status`, `/clear`, `/health`) over HTTPS with session-based isolation. Persistent queue lives in **YDB** (serverless).
+Cloud replacement for `packages/relay`. Deploys to **Yandex Cloud Functions** (Node.js 22 runtime) and serves the same HTTP API (`/push`, `/peek`, `/ack`, `/reject`, `/status`, `/clear`, `/health`, `/upload-screenshot`) over HTTPS with session-based isolation. Persistent queue lives in **YDB** (serverless); screenshots live in **Yandex Object Storage**.
 
 The full migration plan lives at [`.claude/specs/in-progress/cloud-relay.md`](../../.claude/specs/in-progress/cloud-relay.md).
 
@@ -36,18 +36,34 @@ Unlike `packages/plugin/src/sandbox/`, this package runs on Node.js 22 in the cl
 
 1. **Install `yc` CLI** — https://cloud.yandex.com/docs/cli/quickstart.
 2. **Authenticate** — `yc config set token <your-oauth-token>` (or `yc init` for interactive OAuth). Also set `cloud-id` + `folder-id` in the yc config, or pass `--folder-id` on each command.
-3. **Create a Service Account** with role `ydb.editor` in your folder:
+3. **Create a Service Account** with roles `ydb.editor` AND `storage.editor`:
    ```bash
    yc iam service-account create --name contentify-relay-sa
    yc resource-manager folder add-access-binding <folder-id> \
      --service-account-id <sa-id> \
      --role ydb.editor
+   yc resource-manager folder add-access-binding <folder-id> \
+     --service-account-id <sa-id> \
+     --role storage.editor
    ```
 4. **Create a serverless YDB database**:
    ```bash
    yc ydb database create contentify-ydb --serverless --sls-storage-size 10GB
    ```
    Record its `endpoint` and the database path (shown in `yc ydb database get contentify-ydb`).
+   4a. **Create the Object Storage bucket for screenshots** (used by `/upload-screenshot`):
+   ```bash
+   yc storage bucket create --name contentify-screenshots \
+       --default-storage-class standard --public-read
+   yc storage bucket update --name contentify-screenshots \
+       --lifecycle-rule '{"id":"expire-1d","enabled":true,"expiration":{"days":1}}'
+   # Issue static keys for the SA so the function can sign S3 requests:
+   yc iam access-key create --service-account-id <sa-id>
+   #   → save key_id (S3_ACCESS_KEY_ID) and secret (S3_SECRET_ACCESS_KEY)
+   ```
+   The bucket is **public-read** so the plugin can fetch images without auth via
+   `figma.createImageAsync(url)`. The 24h lifecycle rule keeps storage costs at
+   ~zero — screenshots are debugging artifacts, not durable storage.
 5. **Create an API Gateway** (one-time — gives the stable public URL used by the extension/plugin). The `openapi.yaml` in this package has a catch-all `/{proxy+}` route that forwards every request to the function:
    ```bash
    # After the function exists (see "Deploy a new version" below, run once):
@@ -64,6 +80,14 @@ Unlike `packages/plugin/src/sandbox/`, this package runs on Node.js 22 in the cl
    FUNCTION_ID=d4e...
    GATEWAY_ID=d5d...
    GATEWAY_URL=https://d5d....628pfjdx.apigw.yandexcloud.net
+   # Object Storage (for /upload-screenshot)
+   S3_ACCESS_KEY_ID=YCAJEsomething
+   S3_SECRET_ACCESS_KEY=YCN6...secret
+   S3_BUCKET=contentify-screenshots
+   # Optional overrides (defaults shown)
+   # S3_ENDPOINT=https://storage.yandexcloud.net
+   # S3_REGION=ru-central1
+   # SCREENSHOTS_PUBLIC_BASE=https://storage.yandexcloud.net/contentify-screenshots
    # For bootstrap-ydb run from your laptop (not used by the deployed function):
    YC_TOKEN=y0__your_oauth_or_iam_token
    ```
@@ -89,7 +113,7 @@ The script:
 1. Builds with `tsc`.
 2. Stages `dist/ + package.json` into a temp dir.
 3. Creates the function container on first run (`yc serverless function create`).
-4. Uploads a new version with env vars `YDB_ENDPOINT`, `YDB_DATABASE`, `YDB_METADATA_CREDENTIALS=1`.
+4. Uploads a new version with env vars `YDB_ENDPOINT`, `YDB_DATABASE`, `YDB_METADATA_CREDENTIALS=1`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_ENDPOINT`, `S3_REGION`, `SCREENSHOTS_PUBLIC_BASE`.
 5. Makes the function publicly invokable (`allow-unauthenticated-invoke`).
 6. Prints the invoke URL — paste it into `packages/plugin/src/config.ts` and `packages/extension/src/config.ts` as `CLOUD_RELAY_URL`.
 

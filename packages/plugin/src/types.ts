@@ -147,12 +147,35 @@ export interface ParsingRulesMetadata {
  *                  dismiss-rules-update, reset-rules-cache
  * - WHATS NEW: check-whats-new, mark-whats-new-seen
  */
+/**
+ * Optional comparison-screenshot side-channel forwarded from extension via
+ * relay `meta`. Sandbox uses these to render the production page next to
+ * the imported frame for visual QA. Always optional.
+ */
+export interface ScreenshotsForApply {
+  urls: string[];
+  totalHeight: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  devicePixelRatio: number;
+  count: number;
+}
+
 export type UIMessage =
   // === BROWSER RELAY ===
-  | { type: 'apply-relay-payload'; payload: RelayPayload; scope?: string } // Apply data from browser extension via relay
+  | {
+      type: 'apply-relay-payload';
+      payload: RelayPayload;
+      scope?: string;
+      screenshots?: ScreenshotsForApply;
+    } // Apply data from browser extension via relay
   | {
       type: 'apply-feed-payload';
-      payload: { cards: Array<Record<string, string>>; platform: string };
+      payload: {
+        cards: Array<Record<string, string>>;
+        platform: string;
+        screenshots?: ScreenshotsForApply;
+      };
     } // Apply ya.ru feed cards
   // === RESET ===
   | { type: 'reset-snippets'; scope: string } // Reset all snippets to default state
