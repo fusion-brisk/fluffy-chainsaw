@@ -7,7 +7,7 @@
  *
  * - single-screen architecture (no STEPS array, no StepIndicator wiring)
  * - idle / waiting / timed-out state machine present
- * - 15s pair timeout wired up
+ * - 20s pair timeout wired up (defers to parent's 15s checking-timeout)
  * - offline detection renders a banner when relayConnected === false
  * - fallback "У меня нет расширения" action is always visible (not gated by toggle)
  * - repair-mode copy divergence is preserved
@@ -48,9 +48,9 @@ describe('SetupFlow — single-screen contract', () => {
     expect(SETUP_FLOW_SOURCE).toMatch(/type PairState = 'idle' \| 'waiting' \| 'timed-out'/);
   });
 
-  it('wires a 15 s pair timeout', () => {
-    // 15_000 or 15000 acceptable; the key is the timeout path exists.
-    expect(SETUP_FLOW_SOURCE).toMatch(/PAIR_TIMEOUT_MS\s*=\s*15[_\s]?000/);
+  it('wires a 20 s pair timeout (defers to parent 15s checking-timeout)', () => {
+    // 20_000 or 20000 acceptable; the key is the timeout path exists.
+    expect(SETUP_FLOW_SOURCE).toMatch(/PAIR_TIMEOUT_MS\s*=\s*20[_\s]?000/);
     expect(SETUP_FLOW_SOURCE).toMatch(/setPairState\('timed-out'\)/);
   });
 

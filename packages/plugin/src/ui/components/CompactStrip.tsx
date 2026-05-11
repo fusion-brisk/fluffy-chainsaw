@@ -236,13 +236,18 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       return () => document.removeEventListener('keydown', handleKeyDown);
     }, [menuOpen, closeMenu]);
 
-    // Close menu on mode change (e.g. data arrives while menu is open)
+    // Close menu on mode change (e.g. data arrives while menu is open).
+    // Resize back to baseHeight ourselves to avoid a 1-frame "menu height + new mode"
+    // overlap before ui.tsx's mode-driven resize fires.
+    // Intentionally omit menuOpen/setMenuOpen/baseHeight/onRequestResize from deps
+    // so we only react to mode changes — exhaustive-deps lint rule isn't configured
+    // in this project, so a plain comment carries the intent.
     useEffect(() => {
       if (menuOpen) {
         setMenuOpen(false);
-        // Don't call onRequestResize here — ui.tsx will resize for the new state
+        onRequestResize(baseHeight);
       }
-    }, [mode]); // intentionally omit menuOpen/setMenuOpen — only react to mode changes
+    }, [mode]);
 
     // Auto-dismiss for success and error.
     //

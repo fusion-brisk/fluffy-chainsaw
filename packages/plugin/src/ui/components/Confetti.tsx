@@ -58,12 +58,13 @@ export const Confetti: React.FC<ConfettiProps> = memo(
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Устанавливаем размер canvas
+      // Устанавливаем размер canvas + слушаем resize iframe
       const updateSize = () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
       };
       updateSize();
+      window.addEventListener('resize', updateSize);
 
       const colors = SUCCESS_COLORS;
       const particleCount = 50;
@@ -181,6 +182,7 @@ export const Confetti: React.FC<ConfettiProps> = memo(
       animate();
 
       return () => {
+        window.removeEventListener('resize', updateSize);
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
         }

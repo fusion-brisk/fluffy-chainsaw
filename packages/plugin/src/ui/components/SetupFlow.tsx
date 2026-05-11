@@ -40,8 +40,11 @@ interface SetupFlowProps {
   allowRepair?: boolean;
 }
 
-/** How long to wait for pair-ack before surfacing the timeout UI. */
-const PAIR_TIMEOUT_MS = 15_000;
+/** How long to wait for pair-ack before surfacing the timeout UI.
+ *  Set to 20s so the parent's 15s checking-timeout fires first if
+ *  relay itself is unreachable — gives the user a clearer diagnostic
+ *  ("relay down") rather than "extension didn't ack". */
+const PAIR_TIMEOUT_MS = 20_000;
 
 type PairState = 'idle' | 'waiting' | 'timed-out';
 
@@ -58,8 +61,15 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     // shouldn't render at all — the parent transition effect will unmount us
     // within one React tick. `onComplete()` nudges the parent in case the
     // transition hasn't fired yet (defensive).
+    //
+    // `completedRef` guards against double invocation: the parent's
+    // transition effect could fire simultaneously with this auto-complete
+    // effect, and `onComplete` itself can have side effects (resizeUI,
+    // setAppState) that don't tolerate being called twice in the same tick.
+    const completedRef = useRef(false);
     useEffect(() => {
-      if (!allowRepair && extensionInstalled) {
+      if (!allowRepair && extensionInstalled && !completedRef.current) {
+        completedRef.current = true;
         onComplete();
       }
     }, [allowRepair, extensionInstalled, onComplete]);
@@ -86,11 +96,15 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     const startPairWaiting = useCallback(() => {
       setPairState('waiting');
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      // No point arming a timeout if relay is offline — the offline banner
+      // already conveys "this won't work right now" and we'd just race with
+      // it to show a less useful "extension didn't ack" message.
+      if (!relayConnected) return;
       timeoutRef.current = window.setTimeout(() => {
         timeoutRef.current = null;
         setPairState('timed-out');
       }, PAIR_TIMEOUT_MS);
-    }, []);
+    }, [relayConnected]);
 
     const handlePair = useCallback(() => {
       if (!sessionCode) return;

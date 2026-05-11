@@ -30,6 +30,7 @@ import type { RelayDataEvent } from './hooks/useRelayConnection';
 
 // Components
 import { CompactStrip } from './components/CompactStrip';
+import type { CompactStripMode } from './components/CompactStrip';
 import { Confetti } from './components/Confetti';
 import { ImportConfirmDialog } from './components/ImportConfirmDialog';
 import { SetupFlow } from './components/SetupFlow';
@@ -549,13 +550,17 @@ const App: React.FC = () => {
     }
   }, [appState, relay.connected, resizeUI]);
 
-  // Show What's New panel after reaching ready state (deferred from init)
+  // Show What's New panel after reaching ready state (deferred from init).
+  // Deps narrowed to the specific panels fields used — `panels` is a fresh
+  // object every render, so `[..., panels]` would re-run this effect on every
+  // render (cheap but pointless and harder to reason about).
+  const openPanel = panels.openPanel;
   useEffect(() => {
     if (pendingWhatsNew && appState === 'ready' && !panels.isPanelOpen) {
       setPendingWhatsNew(false);
-      panels.openPanel('whatsNew');
+      openPanel('whatsNew');
     }
-  }, [pendingWhatsNew, appState, panels]);
+  }, [pendingWhatsNew, appState, panels.isPanelOpen, openPanel]);
 
   // Clear dismissal when relay reconnects — next disconnect should show banner again.
   // Deps include cloudBannerDismissed only to satisfy exhaustive-deps; the guard is
@@ -708,34 +713,42 @@ const App: React.FC = () => {
   );
 
   // === KEYBOARD SHORTCUTS ===
+  // Deps narrowed to the specific panels fields used — see the openPanel /
+  // closePanel destructuring above for the same rationale.
+  const activePanel = panels.activePanel;
+  const closePanel = panels.closePanel;
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'L') {
         e.preventDefault();
-        if (panels.activePanel === 'logs') {
-          panels.closePanel();
+        if (activePanel === 'logs') {
+          closePanel();
         } else {
-          panels.openPanel('logs');
+          openPanel('logs');
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [panels]);
+  }, [activePanel, openPanel, closePanel]);
 
   // === COMPACT STRIP MODE ===
-  const compactStripMode =
-    appState === 'error'
-      ? 'error'
-      : appState === 'checking'
-        ? 'checking'
-        : appState === 'incoming'
-          ? 'incoming'
-          : appState === 'processing'
-            ? 'processing'
-            : appState === 'success'
-              ? 'success'
-              : 'ready';
+  const compactStripMode: CompactStripMode = (() => {
+    switch (appState) {
+      case 'error':
+        return 'error';
+      case 'checking':
+        return 'checking';
+      case 'incoming':
+        return 'incoming';
+      case 'processing':
+        return 'processing';
+      case 'success':
+        return 'success';
+      default:
+        return 'ready';
+    }
+  })();
 
   const isCompactState = [
     'checking',
@@ -773,40 +786,45 @@ const App: React.FC = () => {
         <SetupSplash />
       )}
 
-      {/* Update banners — only in compact ready state, BEFORE strip to stay in flow */}
-      <div ref={updateBannerRef}>
-        {appState === 'ready' && !panels.isPanelOpen && (
+      {/* Update banners — only in compact ready state, BEFORE strip to stay in flow.
+          Conditionally mounted at the wrapper level so the banner doesn't run
+          hooks/effects when hidden; useMeasuredHeight resets to 0 when the ref
+          detaches (the callback receives null on unmount). */}
+      {appState === 'ready' && !panels.isPanelOpen && versionCheck.extensionUpdate && (
+        <div ref={updateBannerRef}>
           <UpdateBanner
             extensionUpdate={versionCheck.extensionUpdate}
             onDismissExtension={versionCheck.dismissExtension}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Cloud-unreachable banner — surfaces "check your internet" when the cloud relay is down */}
-      <div ref={cloudBannerRef}>
-        {!panels.isPanelOpen && (
+      {!panels.isPanelOpen && showCloudUnreachableBanner && (
+        <div ref={cloudBannerRef}>
           <CloudUnreachableBanner
-            visible={showCloudUnreachableBanner}
+            visible={true}
             sessionCode={sessionCode}
             onRetry={relay.checkNow}
             onDismiss={() => setCloudBannerDismissed(true)}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Pair confirmation flash — shown briefly after the auto-pair handshake */}
-      <div ref={pairedBannerRef}>
-        {!panels.isPanelOpen && <PairedBanner visible={pairedFlashVisible} />}
-      </div>
+      {!panels.isPanelOpen && pairedFlashVisible && (
+        <div ref={pairedBannerRef}>
+          <PairedBanner visible={true} />
+        </div>
+      )}
 
       {/* First-run tip — one-time hint shown above CompactStrip after initial setup,
           gated on clientStorage flag and ready state. */}
-      <div ref={onboardingTipRef}>
-        {appState === 'ready' && !panels.isPanelOpen && (
-          <OnboardingTip visible={onboardingTipVisible} onDismiss={handleDismissOnboardingTip} />
-        )}
-      </div>
+      {appState === 'ready' && !panels.isPanelOpen && onboardingTipVisible && (
+        <div ref={onboardingTipRef}>
+          <OnboardingTip visible={true} onDismiss={handleDismissOnboardingTip} />
+        </div>
+      )}
 
       {/* Compact strip — checking, ready, processing, success, error */}
       {isCompactState && !panels.isPanelOpen && (
