@@ -25,6 +25,7 @@ import { usePanelManager } from './hooks/usePanelManager';
 import { useResizeUI } from './hooks/useResizeUI';
 import { useImportFlow } from './hooks/useImportFlow';
 import { usePlatform } from './hooks/usePlatform';
+import { useMeasuredHeight } from './hooks/useMeasuredHeight';
 import type { RelayDataEvent } from './hooks/useRelayConnection';
 
 // Components
@@ -582,21 +583,20 @@ const App: React.FC = () => {
     (appState === 'ready' || appState === 'error');
 
   // === COMPACT STRIP RESIZE (for menu) ===
-  const bannerCount = versionCheck.extensionUpdate ? 1 : 0;
-  // Each update banner: 26px (6+12+6 padding + 2 border) + container 8px top padding + 4px gap
-  const updateBannerHeight = bannerCount > 0 ? bannerCount * 26 + (bannerCount > 1 ? 4 : 0) + 8 : 0;
-  // Cloud-unreachable banner measured height: ~110px (header 18 + desc 40 + actions 28
-  //   + 2×8 gap + 20 padding + 8 margin-top + 2 border). No command block in the cloud
-  //   variant — "check internet" copy fits in ~two lines.
-  const cloudUnreachableBannerHeight = showCloudUnreachableBanner ? 110 : 0;
-  // Paired banner: single line (~12 font + 16 padding + 2 border + 8 margin-top) ≈ 38px.
-  const pairedBannerHeight = pairedFlashVisible ? 38 : 0;
-  // Onboarding tip: 2-line hint (~14 × 2 + 16 padding + 2 border + 8 margin-top) ≈ 62px.
-  const onboardingTipHeight = onboardingTipVisible && appState === 'ready' ? 62 : 0;
+  // Banner heights are measured via ResizeObserver instead of estimated.
+  // Hardcoded values used to undercount when text wrapped to extra lines
+  // (e.g., cloud-unreachable banner with a long session code, onboarding
+  // tip at higher system font scaling).
+  const [updateBannerRef, updateBannerHeight] = useMeasuredHeight<HTMLDivElement>();
+  const [cloudBannerRef, cloudBannerHeight] = useMeasuredHeight<HTMLDivElement>();
+  const [pairedBannerRef, pairedBannerHeight] = useMeasuredHeight<HTMLDivElement>();
+  const [onboardingTipRef, onboardingTipHeight] = useMeasuredHeight<HTMLDivElement>();
+
+  const STRIP_HEIGHT = 56;
   const compactBaseHeight =
-    56 +
+    STRIP_HEIGHT +
     updateBannerHeight +
-    cloudUnreachableBannerHeight +
+    cloudBannerHeight +
     pairedBannerHeight +
     onboardingTipHeight;
 
@@ -770,31 +770,39 @@ const App: React.FC = () => {
       )}
 
       {/* Update banners — only in compact ready state, BEFORE strip to stay in flow */}
-      {appState === 'ready' && !panels.isPanelOpen && (
-        <UpdateBanner
-          extensionUpdate={versionCheck.extensionUpdate}
-          onDismissExtension={versionCheck.dismissExtension}
-        />
-      )}
+      <div ref={updateBannerRef}>
+        {appState === 'ready' && !panels.isPanelOpen && (
+          <UpdateBanner
+            extensionUpdate={versionCheck.extensionUpdate}
+            onDismissExtension={versionCheck.dismissExtension}
+          />
+        )}
+      </div>
 
       {/* Cloud-unreachable banner — surfaces "check your internet" when the cloud relay is down */}
-      {!panels.isPanelOpen && (
-        <CloudUnreachableBanner
-          visible={showCloudUnreachableBanner}
-          sessionCode={sessionCode}
-          onRetry={relay.checkNow}
-          onDismiss={() => setCloudBannerDismissed(true)}
-        />
-      )}
+      <div ref={cloudBannerRef}>
+        {!panels.isPanelOpen && (
+          <CloudUnreachableBanner
+            visible={showCloudUnreachableBanner}
+            sessionCode={sessionCode}
+            onRetry={relay.checkNow}
+            onDismiss={() => setCloudBannerDismissed(true)}
+          />
+        )}
+      </div>
 
       {/* Pair confirmation flash — shown briefly after the auto-pair handshake */}
-      {!panels.isPanelOpen && <PairedBanner visible={pairedFlashVisible} />}
+      <div ref={pairedBannerRef}>
+        {!panels.isPanelOpen && <PairedBanner visible={pairedFlashVisible} />}
+      </div>
 
       {/* First-run tip — one-time hint shown above CompactStrip after initial setup,
           gated on clientStorage flag and ready state. */}
-      {appState === 'ready' && !panels.isPanelOpen && (
-        <OnboardingTip visible={onboardingTipVisible} onDismiss={handleDismissOnboardingTip} />
-      )}
+      <div ref={onboardingTipRef}>
+        {appState === 'ready' && !panels.isPanelOpen && (
+          <OnboardingTip visible={onboardingTipVisible} onDismiss={handleDismissOnboardingTip} />
+        )}
+      </div>
 
       {/* Compact strip — checking, ready, processing, success, error */}
       {isCompactState && !panels.isPanelOpen && (

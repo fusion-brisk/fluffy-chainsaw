@@ -1,8 +1,9 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { UI_SIZES, STATE_TO_TIER } from '../../types';
 import { sendMessageToPlugin } from '../../utils/index';
 
-/** Resize animation duration (ms) — matches --duration-resize */
+/** Resize animation duration (ms). Matches `--duration-resize` in
+ *  packages/plugin/src/ui/styles.css. When changing one, update both. */
 const RESIZE_ANIMATION_DURATION = 350;
 
 /** Delay before resize starts (ms) — allows content to prepare */
@@ -105,6 +106,10 @@ export function useResizeUI(): ResizeUI {
     },
     [cancelAnimation],
   );
+
+  useEffect(() => {
+    return cancelAnimation;
+  }, [cancelAnimation]);
 
   return { resize, setSize };
 }

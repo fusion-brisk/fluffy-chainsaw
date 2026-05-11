@@ -147,15 +147,29 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       [hasPendingData, hasSelection],
     );
 
-    // Compute menu height for desktop resize
+    // Measure the menu via a hidden mirror rendered offscreen so we can
+    // resize the iframe to the actual rendered height instead of an
+    // estimate (which used to undercount ~5px/item and ignore wrapping
+    // on long Cyrillic labels like "Макеты брейкпоинтов").
+    const menuMirrorRef = useRef<HTMLDivElement>(null);
+    const [measuredMenuHeight, setMeasuredMenuHeight] = useState(0);
+
+    useEffect(() => {
+      const node = menuMirrorRef.current;
+      if (!node) return;
+      setMeasuredMenuHeight(Math.ceil(node.getBoundingClientRect().height));
+    }, [menuItems]);
+
     const menuHeight = useMemo(() => {
+      if (measuredMenuHeight > 0) return measuredMenuHeight;
+      // Fallback before first measurement — kept conservative so the
+      // pre-measurement open still mostly fits.
       const visibleItems = menuItems.filter(
         (item) => item.condition === undefined || item.condition,
       );
       const hasDanger = visibleItems.some((item) => item.danger);
-      // Each item ~36px (padding 8px + line-height ~20px), divider 9px (1px + 4px*2), container padding 8px top+bottom
-      return visibleItems.length * 36 + (hasDanger ? 9 : 0) + 16;
-    }, [menuItems]);
+      return visibleItems.length * 40 + (hasDanger ? 9 : 0) + 16;
+    }, [menuItems, measuredMenuHeight]);
 
     // Close menu helper
     const closeMenu = useCallback(() => {
@@ -528,6 +542,23 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
 
         {/* Tooltip */}
         {showTooltip && tooltipText && <div className="compact-strip__tooltip">{tooltipText}</div>}
+
+        {/* Hidden measurement mirror — same content as the visible menu but
+            positioned offscreen so we can read its rendered height. */}
+        <div
+          ref={menuMirrorRef}
+          className="compact-strip__menu"
+          aria-hidden
+          style={{
+            position: 'absolute',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+            top: -9999,
+            width: 320 /* matches iframe width — content wraps the same way */,
+          }}
+        >
+          {renderMenuItems(false)}
+        </div>
 
         {/* Desktop menu — dropdown below strip */}
         {menuOpen && platform === 'desktop' && (
