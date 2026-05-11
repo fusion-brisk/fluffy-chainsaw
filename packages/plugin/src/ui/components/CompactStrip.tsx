@@ -11,6 +11,7 @@
 
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { PluginPlatform } from '../hooks/usePlatform';
+import { useMeasuredHeight } from '../hooks/useMeasuredHeight';
 
 export type CompactStripMode =
   | 'checking'
@@ -147,22 +148,15 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       [hasPendingData, hasSelection],
     );
 
-    // Measure the menu via a hidden mirror rendered offscreen so we can
-    // resize the iframe to the actual rendered height instead of an
-    // estimate (which used to undercount ~5px/item and ignore wrapping
-    // on long Cyrillic labels like "Макеты брейкпоинтов").
-    const menuMirrorRef = useRef<HTMLDivElement>(null);
-    const [measuredMenuHeight, setMeasuredMenuHeight] = useState(0);
-
-    useEffect(() => {
-      const node = menuMirrorRef.current;
-      if (!node) return;
-      setMeasuredMenuHeight(Math.ceil(node.getBoundingClientRect().height));
-    }, [menuItems]);
+    // Measure the menu via a hidden offscreen mirror so we can resize
+    // the iframe to the actual rendered height instead of an estimate.
+    // Old magic-number estimate undercounted ~5px/item and ignored
+    // 2-line wrapping for long Cyrillic labels.
+    const [menuMirrorRef, measuredMenuHeight] = useMeasuredHeight<HTMLDivElement>();
 
     const menuHeight = useMemo(() => {
       if (measuredMenuHeight > 0) return measuredMenuHeight;
-      // Fallback before first measurement — kept conservative so the
+      // Fallback before first measurement — conservative so the
       // pre-measurement open still mostly fits.
       const visibleItems = menuItems.filter(
         (item) => item.condition === undefined || item.condition,
@@ -543,22 +537,24 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         {/* Tooltip */}
         {showTooltip && tooltipText && <div className="compact-strip__tooltip">{tooltipText}</div>}
 
-        {/* Hidden measurement mirror — same content as the visible menu but
-            positioned offscreen so we can read its rendered height. */}
-        <div
-          ref={menuMirrorRef}
-          className="compact-strip__menu"
-          aria-hidden
-          style={{
-            position: 'absolute',
-            visibility: 'hidden',
-            pointerEvents: 'none',
-            top: -9999,
-            width: 320 /* matches iframe width — content wraps the same way */,
-          }}
-        >
-          {renderMenuItems(false)}
-        </div>
+        {/* Hidden measurement mirror — desktop only.
+            Mobile uses a bottom sheet with fixed height, no measurement needed. */}
+        {platform === 'desktop' && (
+          <div
+            ref={menuMirrorRef}
+            className="compact-strip__menu"
+            aria-hidden
+            style={{
+              position: 'absolute',
+              visibility: 'hidden',
+              pointerEvents: 'none',
+              top: -9999,
+              width: 320 /* matches iframe width — content wraps the same way */,
+            }}
+          >
+            {renderMenuItems(false)}
+          </div>
+        )}
 
         {/* Desktop menu — dropdown below strip */}
         {menuOpen && platform === 'desktop' && (

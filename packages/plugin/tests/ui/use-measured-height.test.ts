@@ -37,4 +37,26 @@ describe('useMeasuredHeight — source contract', () => {
     expect(SOURCE).toMatch(/export\s+function\s+useMeasuredHeight/);
     expect(SOURCE).toMatch(/return\s+\[\s*refCallback\s*,\s*height\s*\]/);
   });
+
+  it('CompactStrip menu mirror uses useMeasuredHeight (no local useState fallback)', () => {
+    const compactStripSource = fs.readFileSync(
+      path.join(__dirname, '../../src/ui/components/CompactStrip.tsx'),
+      'utf8',
+    );
+    expect(compactStripSource).toContain('useMeasuredHeight');
+    expect(compactStripSource).toMatch(
+      /\[\s*menuMirrorRef\s*,\s*measuredMenuHeight\s*\]\s*=\s*useMeasuredHeight/,
+    );
+    // Confirm the OLD pattern was removed
+    expect(compactStripSource).not.toMatch(/setMeasuredMenuHeight\(/);
+  });
+
+  it('CompactStrip mirror only renders on desktop platform', () => {
+    const compactStripSource = fs.readFileSync(
+      path.join(__dirname, '../../src/ui/components/CompactStrip.tsx'),
+      'utf8',
+    );
+    // Mirror element is gated by platform === 'desktop'
+    expect(compactStripSource).toMatch(/platform === 'desktop' && \(\s*<div\s+ref={menuMirrorRef}/);
+  });
 });
