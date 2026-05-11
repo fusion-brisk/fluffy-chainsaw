@@ -438,7 +438,6 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
 
           <span
             className="compact-strip__text"
-            title={tooltipText}
             onMouseEnter={() => tooltipText && setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
           >

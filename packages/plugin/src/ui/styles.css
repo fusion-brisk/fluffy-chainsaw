@@ -4,12 +4,13 @@
 :root {
   /* Typography Scale (UI3: 11px base) */
   --font-size-xs: 10px;
-  --font-size-sm: 10px;
+  --font-size-sm: 11px;
   --font-size-base: 11px;
   --font-size-lg: 13px;
   --font-size-xl: 14px;
-  --font-size-2xl: 16px;
-  --font-size-3xl: 18px;
+
+  /* Mono font stack (for code chips, step numbers, inspector keys) */
+  --font-family-mono: 'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace;
 
   /* Font Weight Scale (UI3: 550 semibold) */
   --font-weight-regular: 400;
@@ -60,6 +61,9 @@
   --card-shadow: var(--shadow-sm);
   --btn-radius: 6px;
   --step-number-size: 24px;
+
+  /* Warning color — Figma не инжектит --figma-color-text-warning, держим свой fallback */
+  --ctf-color-warning: #c4841d;
 }
 
 /* Reset & Base */
@@ -464,7 +468,7 @@ button:disabled {
 }
 
 .compact-strip__dot--offline {
-  background-color: var(--figma-color-border-strong, #999);
+  background-color: var(--figma-color-icon-secondary, var(--figma-color-text-secondary, #888888));
 }
 
 .compact-strip__icon {
@@ -522,7 +526,7 @@ button:disabled {
   background: transparent;
   border: 1px solid transparent;
   color: var(--figma-color-text-secondary, #888);
-  font-size: 11px;
+  font-size: var(--font-size-base, 11px);
   padding: 4px 8px;
   margin-right: 4px;
   cursor: pointer;
@@ -540,12 +544,12 @@ button:disabled {
    can abort the wait. Default cancel-link blends with the menu ⋮; this variant
    uses the warning color + underline-on-hover so it stands out. */
 .compact-strip__cancel-link--emphasised {
-  color: var(--figma-color-text-warning, #f24822);
+  color: var(--figma-color-text-warning, #c4841d);
   font-weight: 500;
 }
 .compact-strip__cancel-link--emphasised:hover:not(:disabled) {
   background-color: transparent;
-  color: var(--figma-color-text-warning, #f24822);
+  color: var(--figma-color-text-warning, #c4841d);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -560,7 +564,7 @@ button:disabled {
   background: transparent;
   border: 1px solid transparent;
   color: var(--figma-color-text-brand, #0d99ff);
-  font-size: 11px;
+  font-size: var(--font-size-base, 11px);
   font-weight: 500;
   padding: 4px 8px;
   margin-right: 4px;
@@ -636,7 +640,7 @@ button:disabled {
 /* Tooltip */
 .compact-strip__tooltip {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   left: 16px;
   right: 16px;
   background: var(--figma-color-bg, #ffffff);
@@ -773,7 +777,7 @@ button:disabled {
 .compact-strip__menu-sheet-handle {
   width: 36px;
   height: 4px;
-  background: var(--figma-color-border-strong, var(--figma-color-border, #e5e5e5));
+  background: var(--figma-color-border, #e5e5e5);
   border-radius: 2px;
   margin: 4px auto 12px;
 }
@@ -870,7 +874,7 @@ button:disabled {
 }
 
 .confirm-dialog__mode-label {
-  font-size: var(--font-size-sm, 10px);
+  font-size: var(--font-size-sm, 11px);
   color: var(--figma-color-text-tertiary, #b3b3b3);
   margin-bottom: var(--space-sm);
   display: block;
@@ -919,7 +923,7 @@ button:disabled {
    click it. Native title attr is the secondary hover affordance. */
 .confirm-dialog__radio-hint {
   margin-left: 6px;
-  font-size: 10.5px;
+  font-size: var(--font-size-xs, 10px);
   color: var(--figma-color-text-tertiary, #b3b3b3);
   font-style: italic;
 }
@@ -1161,7 +1165,7 @@ button:disabled {
 
 .setup-flow__splash-label {
   margin: 0;
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
   color: var(--figma-color-text-secondary, #888);
   white-space: nowrap;
 }
@@ -1206,7 +1210,7 @@ button:disabled {
 
 .setup-flow__hint--muted {
   color: var(--figma-color-text-tertiary, #b3b3b3);
-  font-size: var(--font-size-xs, 11px);
+  font-size: var(--font-size-xs, 10px);
   line-height: 1.4;
 }
 
@@ -1222,15 +1226,17 @@ button:disabled {
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
+  background: rgba(196, 132, 29, 0.12); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--figma-color-text-warning, #c4841d) 12%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(196, 132, 29, 0.3); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 30%, transparent);
-  border-radius: var(--radius-small, 6px);
+  border-radius: var(--radius-small, 4px);
   color: var(--figma-color-text, #333);
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
 }
 
 .setup-flow__offline-icon {
@@ -1259,13 +1265,15 @@ button:disabled {
   flex-direction: column;
   gap: 10px;
   padding: 12px;
+  background: rgba(196, 132, 29, 0.1); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--figma-color-text-warning, #c4841d) 10%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(196, 132, 29, 0.3); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 30%, transparent);
-  border-radius: var(--radius-small, 6px);
+  border-radius: var(--radius-small, 4px);
   animation: bannerSlideIn 0.25s ease-out;
 }
 
@@ -1302,7 +1310,7 @@ button:disabled {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
   line-height: 1.5;
   color: var(--figma-color-text, #333);
 }
@@ -1317,6 +1325,7 @@ button:disabled {
   justify-content: center;
   font-size: 11px;
   font-weight: var(--font-weight-bold, 700);
+  background: rgba(196, 132, 29, 0.18); /* fallback for color-mix */
   background: color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 18%, transparent);
   color: var(--figma-color-text-warning, #c4841d);
   font-family: var(--font-family-mono, monospace);
@@ -1388,21 +1397,25 @@ button:disabled {
 }
 
 .update-banner--warning {
+  background: rgba(196, 132, 29, 0.12); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--figma-color-text-warning, #c4841d) 12%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(196, 132, 29, 0.3); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 30%, transparent);
   color: var(--figma-color-text-warning, #c4841d);
 }
 
 .update-banner--critical {
+  background: rgba(242, 72, 34, 0.12); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--figma-color-text-danger, #f24822) 12%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(242, 72, 34, 0.3); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--figma-color-text-danger, #f24822) 30%, transparent);
   color: var(--figma-color-text-danger, #f24822);
 }
@@ -1467,14 +1480,16 @@ button:disabled {
   margin: 8px 12px 0;
   padding: 10px;
   border-radius: 8px;
+  background: rgba(196, 132, 29, 0.1); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--figma-color-text-warning, #c4841d) 10%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(196, 132, 29, 0.3); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 30%, transparent);
   color: var(--figma-color-text, #333333);
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
   animation: bannerSlideIn 0.25s ease-out;
 }
 
@@ -1522,7 +1537,7 @@ button:disabled {
 
 .cloud-unreachable-banner__code {
   font-family: var(--font-family-mono, 'SFMono-Regular', Consolas, monospace);
-  font-size: var(--font-size-xs, 11px);
+  font-size: var(--font-size-xs, 10px);
   padding: 1px 4px;
   border-radius: 3px;
   background: var(--figma-color-bg-secondary, #f5f5f5);
@@ -1535,7 +1550,7 @@ button:disabled {
 }
 
 .cloud-unreachable-banner__retry {
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
 }
 
 /* ============================================
@@ -1548,14 +1563,16 @@ button:disabled {
   margin: 8px 12px 0;
   padding: 8px 12px;
   border-radius: 8px;
+  background: rgba(52, 211, 153, 0.14); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--status-connected, #34d399) 14%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(52, 211, 153, 0.4); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--status-connected, #34d399) 40%, transparent);
   color: var(--figma-color-text, #333333);
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
   animation: bannerSlideIn 0.25s ease-out;
 }
 
@@ -1581,14 +1598,16 @@ button:disabled {
   margin: 8px 12px 0;
   padding: 10px 12px;
   border-radius: 8px;
+  background: rgba(13, 153, 255, 0.08); /* fallback for color-mix */
   background: color-mix(
     in srgb,
     var(--figma-color-border-brand, #0d99ff) 8%,
     var(--figma-color-bg, #ffffff)
   );
+  border: 1px solid rgba(13, 153, 255, 0.28); /* fallback for color-mix */
   border: 1px solid color-mix(in srgb, var(--figma-color-border-brand, #0d99ff) 28%, transparent);
   color: var(--figma-color-text, #333);
-  font-size: var(--font-size-sm, 12px);
+  font-size: var(--font-size-sm, 11px);
   line-height: 1.4;
   animation: bannerSlideIn 0.25s ease-out;
 }
