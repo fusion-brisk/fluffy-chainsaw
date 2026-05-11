@@ -246,7 +246,7 @@ button:hover:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-text)
     .compact-strip__menu-item
   ):not(.compact-strip__cancel-link):not(.compact-strip__zoom-link):not(.panel-layout__back):not(
     .onboarding-tip__close
-  ):not(.setup-flow__step-link) {
+  ):not(.setup-flow__step-link):not(.comp-inspector-key) {
   background-color: var(--figma-color-bg-hover, #f5f5f5);
 }
 
@@ -465,7 +465,8 @@ button:disabled {
 }
 
 .compact-strip__dot--offline {
-  background-color: var(--figma-color-icon-secondary, var(--figma-color-text-secondary, #888888));
+  background-color: transparent;
+  border: 1.5px solid var(--figma-color-icon-secondary, var(--figma-color-text-secondary, #888888));
 }
 
 .compact-strip__icon {
@@ -919,12 +920,26 @@ button:disabled {
 
 /* Inline reason text after a disabled radio label — explains WHY the option
    is unavailable so a new user doesn't get stuck wondering why they can't
-   click it. Native title attr is the secondary hover affordance. */
+   click it. Native title attr is the secondary hover affordance.
+   Currently unused — the ⓘ icon-tooltip pattern below is preferred — kept
+   for parity with any future caller. */
 .confirm-dialog__radio-hint {
   margin-left: 6px;
   font-size: var(--font-size-xs, 10px);
   color: var(--figma-color-text-tertiary, #b3b3b3);
   font-style: italic;
+}
+
+/* Compact ⓘ icon-tooltip after a disabled radio label.
+   Replaces the inline hint text (`.confirm-dialog__radio-hint`) so the
+   row doesn't wrap to a second line on narrow widths — the reason is
+   delivered via the native `title=` tooltip and the screen-reader
+   `aria-label`. */
+.confirm-dialog__radio-hint-icon {
+  margin-left: 6px;
+  font-size: var(--font-size-xs, 10px);
+  color: var(--figma-color-text-tertiary, #b3b3b3);
+  cursor: help;
 }
 
 /* Footer — pinned to bottom */
@@ -947,14 +962,15 @@ button:disabled {
 .confirm-dialog__btn-danger {
   background: none;
   border: none;
-  padding: 0;
+  padding: 0 6px;
   color: var(--figma-color-text-danger, #f24822);
   font-size: var(--font-size-base, 11px);
   font-family: inherit;
   cursor: pointer;
   transition: opacity 0.15s;
-  height: 28px;
-  line-height: 28px;
+  height: 36px;
+  line-height: 36px;
+  min-width: 36px;
   opacity: 0.75;
 }
 
@@ -964,7 +980,7 @@ button:disabled {
 
 /* Button: Secondary (Отмена) */
 .confirm-dialog__btn-secondary {
-  padding: 0 12px;
+  padding: 0 14px;
   background: none;
   border: none;
   color: var(--figma-color-text-secondary, #888888);
@@ -972,8 +988,8 @@ button:disabled {
   font-family: inherit;
   cursor: pointer;
   transition: color 0.15s;
-  height: 28px;
-  line-height: 28px;
+  height: 36px;
+  line-height: 36px;
 }
 
 .confirm-dialog__btn-secondary:hover {
@@ -982,7 +998,7 @@ button:disabled {
 
 /* Button: Primary (Импорт) */
 .confirm-dialog__btn-primary {
-  padding: 0 14px;
+  padding: 0 16px;
   background: var(--figma-color-bg-brand, #0d99ff);
   border: none;
   border-radius: 6px;
@@ -992,8 +1008,8 @@ button:disabled {
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
-  height: 28px;
-  line-height: 28px;
+  height: 36px;
+  line-height: 36px;
 }
 
 .confirm-dialog__btn-primary:hover {
@@ -1704,6 +1720,10 @@ button:disabled {
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   color: var(--figma-color-text, #333333);
+  max-width: calc(100% - 160px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .panel-layout__content {
@@ -1963,13 +1983,20 @@ button:disabled {
 }
 
 .comp-inspector-key {
-  font-family: 'SF Mono', 'Menlo', monospace;
-  font-size: var(--font-size-xs);
-  color: var(--figma-color-text-brand, #0d99ff);
   background: var(--figma-color-bg, #ffffff);
+  border: 1px solid transparent;
   padding: 2px 6px;
   border-radius: 4px;
   cursor: pointer;
+  font-family: var(--font-family-mono, 'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace);
+  font-size: var(--font-size-xs, 10px);
+  color: var(--figma-color-text-brand, #0d99ff);
+}
+
+.comp-inspector-key code {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
   user-select: all;
   word-break: break-all;
 }

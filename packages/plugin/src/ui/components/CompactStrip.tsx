@@ -316,9 +316,17 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         break;
       case 'ready':
         statusIcon = connected ? (
-          <div className="compact-strip__dot compact-strip__dot--ok" />
+          <div
+            className="compact-strip__dot compact-strip__dot--ok"
+            role="img"
+            aria-label="Подключено"
+          />
         ) : (
-          <div className="compact-strip__dot compact-strip__dot--offline" />
+          <div
+            className="compact-strip__dot compact-strip__dot--offline"
+            role="img"
+            aria-label="Не подключено"
+          />
         );
         break;
       case 'incoming':
@@ -489,13 +497,16 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
           <button
             ref={menuBtnRef}
             type="button"
+            id="compact-strip-menu-btn"
             className={`compact-strip__menu-btn${menuOpen ? ' compact-strip__menu-btn--active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
               toggleMenu();
             }}
             aria-label="Меню"
+            aria-haspopup="menu"
             aria-expanded={menuOpen}
+            aria-controls={menuOpen ? 'compact-strip-menu' : undefined}
           >
             {'\u22EE'}
           </button>
@@ -558,7 +569,12 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
 
         {/* Desktop menu — dropdown below strip */}
         {menuOpen && platform === 'desktop' && (
-          <div className="compact-strip__menu" role="menu">
+          <div
+            className="compact-strip__menu"
+            role="menu"
+            id="compact-strip-menu"
+            aria-labelledby="compact-strip-menu-btn"
+          >
             {renderMenuItems(false)}
           </div>
         )}

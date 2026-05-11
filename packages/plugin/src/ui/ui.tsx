@@ -668,7 +668,9 @@ const App: React.FC = () => {
           importFlow.clearQueue();
           break;
         case 'resetSnippets':
-          sendMessageToPlugin({ type: 'reset-snippets', scope: 'page' });
+          if (window.confirm('Сбросить все сниппеты на странице? Это нельзя отменить.')) {
+            sendMessageToPlugin({ type: 'reset-snippets', scope: 'page' });
+          }
           break;
         case 'exportHtml':
           sendMessageToPlugin({ type: 'export-html' });

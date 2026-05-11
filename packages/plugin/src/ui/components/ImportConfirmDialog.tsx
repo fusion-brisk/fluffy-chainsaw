@@ -13,7 +13,7 @@
  *   Очистить        [Отмена] [Импорт]
  */
 
-import React, { memo, useEffect, useState, useCallback } from 'react';
+import React, { memo, useEffect, useState, useCallback, useRef } from 'react';
 import type { ImportSummaryData } from '../../types';
 import { pluralize } from '../../utils/format';
 
@@ -85,22 +85,34 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
       saveLastMode(next);
     }, []);
 
-    const handleConfirm = useCallback(() => {
-      onConfirm({ mode });
-    }, [onConfirm, mode]);
+    // Ref-based late-binding for handlers + current mode so the keydown
+    // listener below can have empty deps. Without these refs the listener
+    // would be re-bound on every render where `mode` changes — adding
+    // churn to the global window listener and making the focus-trap state
+    // marginally less reliable.
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const modeRef = useRef(mode);
+    modeRef.current = mode;
 
-    // Keyboard shortcuts
+    const onConfirmRef = useRef(onConfirm);
+    onConfirmRef.current = onConfirm;
+
+    const onCancelRef = useRef(onCancel);
+    onCancelRef.current = onCancel;
+
+    // Keyboard shortcuts — listener registered once for the lifetime of
+    // the dialog (empty deps). All mutable values come through refs.
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-          onCancel();
+          onCancelRef.current();
         } else if (e.key === 'Enter') {
           const active = document.activeElement;
           if (active && (active as HTMLElement).tagName === 'INPUT') return;
-          handleConfirm();
+          onConfirmRef.current({ mode: modeRef.current });
         } else if (e.key === 'Tab') {
           // Focus trap: cycle through focusable elements within dialog
-          const dialog = document.querySelector('.confirm-dialog');
+          const dialog = dialogRef.current;
           if (!dialog) return;
           const focusable = dialog.querySelectorAll<HTMLElement>(
             'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"])',
@@ -119,7 +131,7 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
       };
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onCancel, handleConfirm]);
+    }, []);
 
     // Build summary rows — split count and word so we can emphasise the number
     // separately in markup (count is primary data, word is just the unit).
@@ -163,6 +175,7 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
 
     return (
       <div
+        ref={dialogRef}
         className="confirm-dialog"
         role="dialog"
         aria-modal="true"
@@ -207,7 +220,6 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
             </label>
             <label
               className={`confirm-dialog__radio${isFeed ? ' confirm-dialog__radio--disabled' : ''}`}
-              title={isFeed ? 'Недоступно для ленточного фида ya.ru' : undefined}
             >
               <input
                 type="radio"
@@ -220,14 +232,18 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
               />
               <span>Все брейкпоинты</span>
               {isFeed && (
-                <span id="mode-breakpoints-hint" className="confirm-dialog__radio-hint">
-                  для ya.ru фида недоступно
+                <span
+                  id="mode-breakpoints-hint"
+                  className="confirm-dialog__radio-hint-icon"
+                  title="Недоступно для ленточного фида ya.ru"
+                  aria-label="Недоступно для ленточного фида ya.ru"
+                >
+                  {'ⓘ'}
                 </span>
               )}
             </label>
             <label
               className={`confirm-dialog__radio${!hasSelection ? ' confirm-dialog__radio--disabled' : ''}`}
-              title={!hasSelection ? 'Выделите фреймы на холсте, чтобы заполнить их' : undefined}
             >
               <input
                 type="radio"
@@ -240,8 +256,13 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
               />
               <span>Заполнить выделение</span>
               {!hasSelection && (
-                <span id="mode-selection-hint" className="confirm-dialog__radio-hint">
-                  выделите фреймы на холсте
+                <span
+                  id="mode-selection-hint"
+                  className="confirm-dialog__radio-hint-icon"
+                  title="Выделите фреймы на холсте, чтобы заполнить их"
+                  aria-label="Выделите фреймы на холсте, чтобы заполнить их"
+                >
+                  {'ⓘ'}
                 </span>
               )}
             </label>
@@ -263,7 +284,7 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
             <button
               type="button"
               className="confirm-dialog__btn-primary"
-              onClick={handleConfirm}
+              onClick={() => onConfirmRef.current({ mode })}
               autoFocus
             >
               Импорт

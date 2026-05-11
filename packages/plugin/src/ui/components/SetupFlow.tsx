@@ -135,7 +135,12 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     const primaryLabel = isRepair ? 'Переподключить расширение' : 'Подключить расширение';
 
     return (
-      <div className="setup-flow setup-flow--single view-animate-in">
+      <div
+        className="setup-flow setup-flow--single view-animate-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="setup-flow-title"
+      >
         <div className="setup-flow__content">
           <div className="setup-flow__illustration" aria-hidden>
             {/* Chrome ↔ Figma pairing glyph (static, purely decorative) */}
@@ -153,14 +158,6 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
                 stroke="var(--figma-color-border-brand, #0d99ff)"
                 strokeWidth="2"
               />
-              <text
-                x="20"
-                y="32"
-                textAnchor="middle"
-                fill="var(--figma-color-text, #333)"
-                fontSize="14"
-                fontFamily="sans-serif"
-              ></text>
               <path
                 d="M 42 28 L 58 28 M 54 24 L 58 28 L 54 32"
                 stroke="var(--figma-color-text-secondary, #888)"
@@ -204,7 +201,9 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
             </svg>
           </div>
 
-          <h2 className="setup-flow__title">{title}</h2>
+          <h2 id="setup-flow-title" className="setup-flow__title">
+            {title}
+          </h2>
           <p className="setup-flow__description">{description}</p>
 
           {!relayConnected && (
