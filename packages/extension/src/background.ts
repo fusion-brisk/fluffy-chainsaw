@@ -34,7 +34,26 @@ interface ParseResult {
   sourceType?: 'feed' | 'serp';
   /** Feed card rows (when sourceType='feed') */
   feedCards?: Record<string, string>[];
+  // --- Timing instrumentation (set by content.ts; forwarded into meta.timings) ---
+  /** Wall-clock ms when content script's IIFE started executing. */
+  parseStartedAt?: number;
+  /** Total monotonic ms the content script's IIFE spent (includes extract + setup). */
+  parseDurationMs?: number;
+  /** Subset of parseDurationMs spent inside extractFeedCards (feed only). */
+  parseFeedExtractMs?: number;
+  /** Subset of parseDurationMs spent inside extractSnippets (serp only). */
+  parseSerpExtractMs?: number;
+  /** Cards/rows the content script returned (matches feedCards.length / rows.length). */
+  parseCardCount?: number;
+  parseRowCount?: number;
 }
+
+// Phase-timer factory extracted to ./phase-timer for direct unit testing —
+// background.ts imports chrome.* globals at module top, which makes the SW
+// hard to import in a node-based vitest run. See tests/extension/phase-timer.
+// Re-exported here so the SW module remains a single import-target for
+// downstream tooling.
+import { makePhaseTimer } from './phase-timer';
 
 interface PageDimensions {
   scrollHeight: number;
@@ -743,12 +762,19 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
   // Fire-and-forget: tell plugin "we're starting" before any heavy work.
   void sendHeadsUp('parsing');
 
+  // Wall-clock anchor for the whole click→push pipeline. Used for the final
+  // `[Timing] handleIconClick total` line + meta.timings.totalMs.
+  const handleClickStartedAt = Date.now();
+  const phaseTimer = makePhaseTimer();
+
   // Declare at higher scope for access in catch block
   let parseResult: ParseResult | null = null;
 
   try {
     // Load shared parsing rules (cached, non-blocking)
+    phaseTimer.markStart('loadRulesMs');
     const rules = await loadParsingRules();
+    phaseTimer.markEnd('loadRulesMs');
 
     // Inject parsing rules into page before content script
     if (rules) {
@@ -780,6 +806,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     });
     if (isFeedPage) {
       console.log('[Feed] Pre-scrolling to flush lazy-loaded images + advert RTB...');
+      phaseTimer.markStart('preScrollMs');
       await chrome.scripting.executeScript({
         target: { tabId: tab.id! },
         func: async () => {
@@ -812,12 +839,14 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
           await settle(200);
         },
       });
+      phaseTimer.markEnd('preScrollMs');
 
       // Active per-advert warmup: scroll each empty RTB host to viewport
       // centre, dispatch synthetic mouseenter / visibilitychange events to
       // nudge Yandex's lazy ad loaders, and MutationObserver-wait for the
       // csr-uniq host to gain content. Honours a global ~10 s budget so
       // import never blocks indefinitely.
+      phaseTimer.markStart('advertWarmupMs');
       const [{ result: adResult }] = await chrome.scripting.executeScript({
         target: { tabId: tab.id! },
         func: async () => {
@@ -836,9 +865,11 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
             return { total: ads.length, empty: 0, loaded: 0, finalEmpty: 0 };
           }
           const startY = window.scrollY;
-          // Phase A: bring each empty advert into the centre of the viewport
-          // briefly. RTB lazy loaders fire on impression — sustained in-view
-          // (≈250 ms per ad) is enough for the network request to start.
+          // Phase A: bring each empty advert into the viewport so the RTB
+          // lazy-loader's IntersectionObserver fires. Loader registration is
+          // synchronous on entry — we only need to hold the impression long
+          // enough for the network request to dispatch (≈60ms is plenty;
+          // 250ms × 12 ads previously ate ~3s for marginal benefit).
           for (const { ad } of emptyHosts) {
             try {
               (ad as HTMLElement).scrollIntoView({
@@ -851,13 +882,19 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
             } catch {
               /* ignore */
             }
-            await settle(250);
+            await settle(60);
           }
+          // Single tail wait so IntersectionObservers for the LAST few ads
+          // get a turn before we move on (replaces the per-ad 250ms tail).
+          await settle(300);
           // Phase B: poll-loop until every empty host gains content OR the
-          // global budget runs out. Burst extra mouseenter every iteration
-          // for hosts still empty.
-          const MAX_WAIT_MS = 10_000;
-          const POLL_MS = 350;
+          // global budget runs out. Budget cut from 10s → 4s based on real
+          // imports: ads that haven't loaded by 4s typically never load
+          // (no fill, blocked, RTB timeout). The marginal late-loader is
+          // rare and not worth the wall-clock cost — plugin already has a
+          // placeholder for missing creatives.
+          const MAX_WAIT_MS = 4_000;
+          const POLL_MS = 250;
           const tStart = Date.now();
           let loaded = 0;
           while (Date.now() - tStart < MAX_WAIT_MS) {
@@ -876,7 +913,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
           loaded =
             emptyHosts.length - emptyHosts.filter((e) => e.csr.innerHTML.length === 0).length;
           window.scrollTo(0, startY);
-          await settle(150);
+          await settle(80);
           return {
             total: ads.length,
             empty: emptyHosts.length,
@@ -885,6 +922,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
           };
         },
       });
+      phaseTimer.markEnd('advertWarmupMs');
       console.log(
         `[Feed/advert-warmup] ${(adResult as { loaded: number; empty: number; total: number; finalEmpty: number } | null | undefined)?.loaded ?? 0}/${(adResult as { empty: number } | null | undefined)?.empty ?? 0} empty advert hosts populated (total ads=${(adResult as { total: number } | null | undefined)?.total ?? 0})`,
       );
@@ -893,16 +931,22 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     // Parse page using content script
     // Note: esbuild wraps content.js in extra IIFE, swallowing the return value.
     // Content script stores result in window.__contentifyResult as fallback.
+    // injectContentMs covers the executeScript call (parsing happens inside it,
+    // but the script also stamps its own parseDurationMs on the result).
+    phaseTimer.markStart('injectContentMs');
     await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       files: ['dist/content.js'],
     });
+    phaseTimer.markEnd('injectContentMs');
 
     // Read result from page context (esbuild IIFE prevents direct return)
+    phaseTimer.markStart('readResultMs');
     const [{ result: pageResult }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       func: () => (window as Window).__contentifyResult,
     });
+    phaseTimer.markEnd('readResultMs');
 
     parseResult = pageResult as ParseResult | null;
 
@@ -965,6 +1009,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
         }
       }
 
+      phaseTimer.markStart('screenshotCaptureMs');
       try {
         const result = await captureFullPage(
           tab.id!,
@@ -989,6 +1034,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       } catch (screenshotErr: unknown) {
         console.log('[Screenshot] Failed:', (screenshotErr as Error).message);
       }
+      phaseTimer.markEnd('screenshotCaptureMs');
     }
 
     // Build payload
@@ -1014,24 +1060,35 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     let screenshotKeys: string[] | undefined;
     let screenshotUrls: string[] | undefined;
     if (screenshots.length > 0) {
+      phaseTimer.markStart('screenshotUploadMs');
       try {
-        const keys: string[] = [];
-        const urls: string[] = [];
-        for (let i = 0; i < screenshots.length; i++) {
-          const r = await uploadOneScreenshot(sessionCode, i, screenshots[i], screenshots.length);
-          keys.push(r.key);
-          urls.push(r.url);
-          // Re-emit progress so the plugin's heads-up shows "uploading screenshots N/M"
-          // covering BOTH the capture phase AND the upload phase. Frontend already
-          // expects monotonic progress within the phase.
-          void sendHeadsUp('uploading_screenshots', { current: i + 1, total: screenshots.length });
-        }
+        // Parallel upload — was sequential (one /upload-screenshot at a time)
+        // and cost ~1.2s/segment × 6 = 7.4s. Each upload is independent
+        // (different object key in S3), so we fan out and only block on
+        // Promise.all. Heads-up progress is still emitted per-resolved
+        // upload via `done++` so the plugin sees monotonic 1→N progress.
+        // 6 concurrent uploads at ~250KB each is well under any reasonable
+        // network or API Gateway concurrency ceiling.
+        let done = 0;
+        const uploads = screenshots.map(async (segment, i) => {
+          const r = await uploadOneScreenshot(sessionCode, i, segment, screenshots.length);
+          done++;
+          void sendHeadsUp('uploading_screenshots', {
+            current: done,
+            total: screenshots.length,
+          });
+          return r;
+        });
+        const results = await Promise.all(uploads);
+        const keys = results.map((r) => r.key);
+        const urls = results.map((r) => r.url);
         screenshotKeys = keys;
         screenshotUrls = urls;
         console.log(`[Screenshot] Uploaded ${keys.length}/${screenshots.length} segments`);
       } catch (uploadErr: unknown) {
         // Upload failure is non-fatal: structured /push still goes through, just
-        // without the comparison column on the plugin side.
+        // without the comparison column on the plugin side. Promise.all rejects
+        // on first failure; partial uploads from siblings are abandoned.
         console.warn(
           '[Screenshot] Upload failed, /push will proceed without screenshots:',
           (uploadErr as Error).message,
@@ -1039,6 +1096,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
         screenshotKeys = undefined;
         screenshotUrls = undefined;
       }
+      phaseTimer.markEnd('screenshotUploadMs');
     }
 
     // Note: an earlier version cropped advert creatives out of the captured
@@ -1051,12 +1109,30 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     // imageless — the plugin's default Tile / Ads placeholder handles that.
 
     const itemCount = isFeed ? parseResult.feedCards?.length || 0 : rows.length;
+
+    // Pull parse-side timings + counts off the result so they can be merged
+    // into meta.timings (single source for the plugin Logs panel).
+    const parseTimings: Record<string, number> = {};
+    if (typeof parseResult.parseStartedAt === 'number') {
+      parseTimings.parseStartedAt = parseResult.parseStartedAt;
+    }
+    if (typeof parseResult.parseDurationMs === 'number') {
+      parseTimings.parseDurationMs = parseResult.parseDurationMs;
+    }
+    if (typeof parseResult.parseFeedExtractMs === 'number') {
+      parseTimings.parseFeedExtractMs = parseResult.parseFeedExtractMs;
+    }
+    if (typeof parseResult.parseSerpExtractMs === 'number') {
+      parseTimings.parseSerpExtractMs = parseResult.parseSerpExtractMs;
+    }
+
+    const pushedAt = Date.now();
     const meta = {
       url: tab.url,
       parsedAt: new Date().toISOString(),
       // Wall-clock ms right before /push. Plugin computes (peek-time − pushedAt) to
       // measure relay RTT + polling latency. Safe because both sides run on the same OS.
-      pushedAt: Date.now(),
+      pushedAt,
       snippetCount: isFeed ? 0 : rows.length,
       wizardCount: isFeed ? 0 : wizards.length,
       feedCardCount: isFeed ? itemCount : undefined,
@@ -1065,6 +1141,18 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       screenshotKeys,
       screenshotUrls,
       screenshotMeta: screenshotKeys ? screenshotMeta : undefined,
+      /**
+       * Phase timings (ms) for the click→push pipeline. Forwarded by the
+       * plugin Logs panel as `[Timing] <phase>: Xms` lines so the user can see
+       * where wall-clock went between hitting the extension icon and the
+       * plugin receiving data. See `.claude/rules/performance.md` §1.
+       */
+      timings: {
+        ...phaseTimer.values(),
+        ...parseTimings,
+        // Pre-fetch wall-clock between click and starting /push (excludes pushMs).
+        preFetchMs: pushedAt - handleClickStartedAt,
+      } as Record<string, number>,
     };
 
     // Heads-up: about to upload the structured payload.
@@ -1072,6 +1160,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
 
     // Send to cloud relay
     let relaySuccess = false;
+    phaseTimer.markStart('pushMs');
 
     try {
       const res = await fetch(buildCloudUrl('/push', sessionCode), {
@@ -1089,6 +1178,31 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     } catch (relayErr: unknown) {
       console.log('[Relay] Request failed:', (relayErr as Error).message);
     }
+    phaseTimer.markEnd('pushMs');
+
+    // Final summary — flush to background console so DevTools shows the
+    // whole click→push breakdown alongside the [Timing] lines the plugin Logs
+    // panel will emit. pushMs lives here only (it's unobservable inside the
+    // body we just sent).
+    const totalMs = Date.now() - handleClickStartedAt;
+    const phaseValues = phaseTimer.values();
+    const phaseLog = Object.keys(phaseValues)
+      .map((k) => k + '=' + phaseValues[k] + 'ms')
+      .join(', ');
+    console.log(
+      '[Timing] handleIconClick total=' +
+        totalMs +
+        'ms (' +
+        phaseLog +
+        (typeof parseTimings.parseDurationMs === 'number'
+          ? ', parseDurationMs=' + parseTimings.parseDurationMs + 'ms'
+          : '') +
+        ', items=' +
+        itemCount +
+        ', isFeed=' +
+        isFeed +
+        ')',
+    );
 
     if (relaySuccess) {
       void sendHeadsUp('finalizing');

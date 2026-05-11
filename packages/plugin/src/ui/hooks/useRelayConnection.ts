@@ -244,10 +244,51 @@ export function useRelayConnection({
       // Relay RTT instrumentation: extension stamps `meta.pushedAt` (wall-clock ms)
       // right before POST /push; we subtract here to measure extension-push →
       // plugin-peek latency including polling interval. Logged once per payload.
-      const timingMeta = data.meta as { pushedAt?: number } | undefined;
+      const timingMeta = data.meta as
+        | { pushedAt?: number; timings?: Record<string, number> }
+        | undefined;
       if (typeof timingMeta?.pushedAt === 'number') {
         const rtt = Date.now() - timingMeta.pushedAt;
         onTimingRef.current?.(`[Timing] Relay RTT (push→peek): ${rtt}ms`);
+      }
+      // Per-phase timings from the extension (loadRules, preScroll, advertWarmup,
+      // injectContent, readResult, screenshotCapture, screenshotUpload, push,
+      // plus the inner parseDurationMs from the content script). Each phase is
+      // emitted as its own [Timing] line so the user can spot regressions.
+      if (timingMeta?.timings) {
+        const phases = timingMeta.timings;
+        const keys = Object.keys(phases);
+        // Stable ordering (matches click→push timeline) so the Logs panel is
+        // readable. Unknown keys fall to the end alphabetically.
+        const ORDER = [
+          'preFetchMs',
+          'loadRulesMs',
+          'preScrollMs',
+          'advertWarmupMs',
+          'injectContentMs',
+          'readResultMs',
+          'parseDurationMs',
+          'parseFeedExtractMs',
+          'parseSerpExtractMs',
+          'screenshotCaptureMs',
+          'screenshotUploadMs',
+          'pushMs',
+        ];
+        keys.sort((a, b) => {
+          const ia = ORDER.indexOf(a);
+          const ib = ORDER.indexOf(b);
+          if (ia === -1 && ib === -1) return a.localeCompare(b);
+          if (ia === -1) return 1;
+          if (ib === -1) return -1;
+          return ia - ib;
+        });
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          if (k === 'parseStartedAt') continue; // wall-clock anchor, not a duration
+          const v = phases[k];
+          if (typeof v !== 'number') continue;
+          onTimingRef.current?.(`[Timing] ext.${k}: ${v}ms`);
+        }
       }
 
       // Pull optional screenshot side-channel metadata. Extension populates

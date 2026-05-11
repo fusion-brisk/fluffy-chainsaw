@@ -132,11 +132,27 @@ export function createFeedPage(
     }> = [];
     let chain = Promise.resolve();
 
+    // Per-card timing instrumentation. We capture (importMs, applyMs, totalMs)
+    // per card and emit a single summary at the end. See `.claude/rules/
+    // performance.md` §1 — measure before optimizing. Helps spot whether
+    // wall-clock goes into component import (cache miss + network) or data
+    // application (image fetches, setProperties calls).
+    interface CardTiming {
+      idx: number;
+      cardType: string;
+      importMs: number;
+      applyMs: number;
+      totalMs: number;
+    }
+    const timings: CardTiming[] = [];
+
     for (let i = 0; i < cards.length; i++) {
       (function (idx) {
         chain = chain.then(function () {
           const card = cards[idx];
           const cardType = card['#Feed_CardType'] || 'unknown';
+          const tCardStart = Date.now();
+          let tImportEnd = 0;
 
           // Advert cards: RTB iframes are usually empty in the DOM (no title,
           // no image). Previously we skipped them, but the unified Feed Card
@@ -152,11 +168,20 @@ export function createFeedPage(
 
           return importFeedComponent(card)
             .then(function (component) {
+              tImportEnd = Date.now();
               if (component) {
                 const instance = component.createInstance();
                 resizeToColumnWidth(instance, config.columnWidth);
                 return applyFeedData(instance, card, relayUrl).then(function () {
                   results.push({ instance: instance, index: idx, card: card });
+                  const tEnd = Date.now();
+                  timings.push({
+                    idx: idx,
+                    cardType: cardType,
+                    importMs: tImportEnd - tCardStart,
+                    applyMs: tEnd - tImportEnd,
+                    totalMs: tEnd - tCardStart,
+                  });
                 });
               } else {
                 return createPlaceholder(cardType, config.columnWidth, 200).then(
@@ -165,6 +190,14 @@ export function createFeedPage(
                     errors.push(
                       'Card ' + idx + ' (' + cardType + '): component not found, using placeholder',
                     );
+                    const tEnd = Date.now();
+                    timings.push({
+                      idx: idx,
+                      cardType: cardType + '/placeholder',
+                      importMs: tImportEnd - tCardStart,
+                      applyMs: tEnd - tImportEnd,
+                      totalMs: tEnd - tCardStart,
+                    });
                   },
                 );
               }
@@ -172,14 +205,35 @@ export function createFeedPage(
             .catch(function (e) {
               const msg = e instanceof Error ? e.message : String(e);
               errors.push('Card ' + idx + ' (' + cardType + '): ' + msg);
+              // The import threw before tImportEnd was set — fall back to
+              // tCardStart for importMs so the summary's totalMs math is
+              // consistent even on the error path.
+              const tErr = Date.now();
+              const importMsErr = (tImportEnd || tErr) - tCardStart;
 
               return createPlaceholder(cardType, config.columnWidth, 200)
                 .then(function (placeholder) {
                   results.push({ instance: placeholder, index: idx, card: card });
+                  const tEnd = Date.now();
+                  timings.push({
+                    idx: idx,
+                    cardType: cardType + '/error',
+                    importMs: importMsErr,
+                    applyMs: tEnd - (tImportEnd || tErr),
+                    totalMs: tEnd - tCardStart,
+                  });
                 })
                 .catch(function () {
                   // Even placeholder failed — skip this card entirely
                   errors.push('Card ' + idx + ': placeholder creation also failed');
+                  const tEnd = Date.now();
+                  timings.push({
+                    idx: idx,
+                    cardType: cardType + '/skip',
+                    importMs: importMsErr,
+                    applyMs: tEnd - (tImportEnd || tErr),
+                    totalMs: tEnd - tCardStart,
+                  });
                 });
             });
         });
@@ -187,6 +241,103 @@ export function createFeedPage(
     }
 
     return chain.then(function () {
+      // Emit a single timing summary: per-cardType aggregate (count, total,
+      // avg, max), plus the top-5 slowest cards. Done at INFO level so it
+      // ships in the user's exported Logs panel automatically.
+      if (timings.length > 0) {
+        interface Agg {
+          count: number;
+          totalMs: number;
+          importMs: number;
+          applyMs: number;
+          maxMs: number;
+        }
+        const byType: Record<string, Agg> = {};
+        let grandTotalMs = 0;
+        let grandImportMs = 0;
+        let grandApplyMs = 0;
+        for (let i = 0; i < timings.length; i++) {
+          const t = timings[i];
+          grandTotalMs += t.totalMs;
+          grandImportMs += t.importMs;
+          grandApplyMs += t.applyMs;
+          const a = byType[t.cardType];
+          if (a) {
+            a.count++;
+            a.totalMs += t.totalMs;
+            a.importMs += t.importMs;
+            a.applyMs += t.applyMs;
+            if (t.totalMs > a.maxMs) a.maxMs = t.totalMs;
+          } else {
+            byType[t.cardType] = {
+              count: 1,
+              totalMs: t.totalMs,
+              importMs: t.importMs,
+              applyMs: t.applyMs,
+              maxMs: t.totalMs,
+            };
+          }
+        }
+        Logger.info(
+          '[FeedTiming] grand: ' +
+            grandTotalMs +
+            'ms (' +
+            timings.length +
+            ' cards, avg ' +
+            Math.round(grandTotalMs / timings.length) +
+            'ms/card; import ' +
+            grandImportMs +
+            'ms, apply ' +
+            grandApplyMs +
+            'ms)',
+        );
+        const typeKeys = Object.keys(byType);
+        for (let i = 0; i < typeKeys.length; i++) {
+          const k = typeKeys[i];
+          const a = byType[k];
+          Logger.info(
+            '[FeedTiming] ' +
+              k +
+              ': ' +
+              a.count +
+              '× total=' +
+              a.totalMs +
+              'ms (avg=' +
+              Math.round(a.totalMs / a.count) +
+              'ms, max=' +
+              a.maxMs +
+              'ms, import=' +
+              a.importMs +
+              'ms, apply=' +
+              a.applyMs +
+              'ms)',
+          );
+        }
+        // Top-5 slowest cards (drives drill-down when one type doesn't
+        // explain the wall-clock).
+        const sorted = timings.slice().sort(function (a, b) {
+          return b.totalMs - a.totalMs;
+        });
+        const topN = Math.min(5, sorted.length);
+        for (let i = 0; i < topN; i++) {
+          const t = sorted[i];
+          Logger.info(
+            '[FeedTiming] slow#' +
+              (i + 1) +
+              ': idx=' +
+              t.idx +
+              ' type=' +
+              t.cardType +
+              ' total=' +
+              t.totalMs +
+              'ms (import=' +
+              t.importMs +
+              'ms, apply=' +
+              t.applyMs +
+              'ms)',
+          );
+        }
+      }
       return results;
     });
   }
