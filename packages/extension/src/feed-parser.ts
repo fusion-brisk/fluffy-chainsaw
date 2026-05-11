@@ -207,48 +207,78 @@ function extractPrice(text: string): string {
 
 /**
  * Get clean price text from a price container.
- * Prefers .Price-Value (clean formatted text) over parent container
- * which may include doubled accessibility-hidden text.
+ *
+ * Lookup ladder (most specific → least specific):
+ *  1. `.EcomFeedDiscountPrice-Price .Price-Value` — the CURRENT-price branch.
+ *     When a card has both an old strikethrough price and a discount price,
+ *     each lives in its own `.Price-Value`; bare `.Price-Value` picks DOM-order
+ *     first which can be the OLD one (e.g. tss_mebel: parser grabbed `112 000`
+ *     instead of the discount `55 720`). Scoping to `EcomFeedDiscountPrice-Price`
+ *     locks us to the current/discounted price branch.
+ *  2. `.Price-Value` — generic leaf for cards without a current/old split.
+ *  3. Container `textContent` — last resort, may contain duplicate A11y text.
  */
 function getPriceText(parent: Element, selector: string): string {
   const container = parent.querySelector(selector);
   if (!container) return '';
-  // Try leaf-level .Price-Value first (avoids "222600 ₽222 600 ₽" duplication)
+  var current = container.querySelector('.EcomFeedDiscountPrice-Price .Price-Value');
+  if (current) return current.textContent?.trim() || '';
   var leaf = container.querySelector('.Price-Value');
   if (leaf) return leaf.textContent?.trim() || '';
   return container.textContent?.trim() || '';
 }
 
 /**
+ * Extract the OLD (strikethrough) price from a discount block, when present.
+ * Looks specifically for `.EcomFeedDiscountPrice-OldPrice .Price-Value` —
+ * the dedicated old-price subtree. Returns '' when no old price (most cards).
+ */
+function getOldPriceText(parent: Element, selector: string): string {
+  const container = parent.querySelector(selector);
+  if (!container) return '';
+  var old = container.querySelector('.EcomFeedDiscountPrice-OldPrice .Price-Value');
+  if (old) return old.textContent?.trim() || '';
+  return '';
+}
+
+/**
  * Map width/height ratio to closest available Figma `Image` ratio variant.
  *
- * The Figma `Image` component-set in this design system exposes ONLY four
+ * The Figma `Image` component-set in this design system exposes six
  * portrait/square options (no landscape — feed cards are always taller
- * than wide):
- *   1:1   → 1.000
- *   4:5   → 0.800
- *   3:4   → 0.750
+ * than wide). Designer added 5:8 and 1:2 on 2026-05-10 to close the gap
+ * around live ya.ru's m-tier (≈ 0.65) and xl-tier (≈ 0.48).
+ *   1:1   → 1.0000
+ *   4:5   → 0.8000
+ *   3:4   → 0.7500
+ *   5:8   → 0.6250
  *   9:16  → 0.5625
+ *   1:2   → 0.5000
  *
  * Boundaries are midpoints between adjacent ratios:
- *   ≥ 0.900  → 1:1
- *   ≥ 0.775  → 4:5
- *   ≥ 0.656  → 3:4
- *   <  0.656 → 9:16
+ *   ≥ 0.90000 → 1:1
+ *   ≥ 0.77500 → 4:5
+ *   ≥ 0.68750 → 3:4
+ *   ≥ 0.59375 → 5:8
+ *   ≥ 0.53125 → 9:16
+ *   <  0.53125 → 1:2
  *
  * Anything wider than 1:1 (landscape) clamps to 1:1 — closest available.
  *
- * Real ya.ru tiers:
- *   span 14 (290:446 ≈ 0.650) → 9:16 (closer to 0.5625 than 0.75)
- *   span 17 (290:542 ≈ 0.535) → 9:16
- *   span 11 (≈ 0.83 hypothetical) → 4:5
+ * Real ya.ru tiers (image aspect after subtracting source row, ≈ 52 px):
+ *   xs (span 12, ≈ 0.877) → 4:5
+ *   m  (span 14, ≈ 0.744) → 3:4
+ *   ml (span 17, ≈ 0.599) → 5:8
+ *   xl (span 19, ≈ 0.530) → 1:2
  */
 function ratioFromAspect(r: number): string {
   if (!Number.isFinite(r) || r <= 0) return '3:4'; // safe default for missing data
   if (r >= 0.9) return '1:1';
   if (r >= 0.775) return '4:5';
-  if (r >= 0.656) return '3:4';
-  return '9:16';
+  if (r >= 0.6875) return '3:4';
+  if (r >= 0.59375) return '5:8';
+  if (r >= 0.53125) return '9:16';
+  return '1:2';
 }
 
 /**
@@ -397,23 +427,58 @@ function parseMarketCard(element: Element, index: number, ctx: GridCtx): FeedCar
   row['#Feed_SourceAvatarUrl'] = getImageUrl(element, '.EcomFeedCardSource img');
   row['#Feed_SourceDomain'] = 'market.yandex.ru';
 
-  // Green price (with Yandex Pay card) — e.g. "12 177"
-  var greenPrice = getText(element, '[data-test-id="green-price"]');
-  if (greenPrice) {
-    row['#Feed_Price'] = extractPrice(greenPrice);
-    row['#Feed_Currency'] = '₽';
-  } else {
-    // Fallback to generic price selector
-    var priceText = getText(element, SEL.marketPrice);
-    if (priceText) {
-      row['#Feed_Price'] = extractPrice(priceText);
+  // Market price extraction — DOM as of 2026-05-11:
+  //
+  //   .EcomFeedMarketCard-Price
+  //   ├── .EcomFeedPrice-Value             ← "570"        (direct text node)
+  //   │   └── .EcomFeedPrice-Rouble        ← "₽"
+  //   └── .EcomFeedPrice-PayTextWrapper    ← "Картой" + svg (Yandex Pay)
+  //
+  // The legacy `[data-test-id="green-price"]` no longer exists; the
+  // priceContainer fallback `[class*="price"]` was lowercase and didn't
+  // match Yandex's CamelCase `EcomFeedMarketCard-Price` — both paths
+  // were returning empty, and the plugin shipped the PriceV2 placeholder
+  // ("112 000") on every market card.
+  //
+  // New strategy: read `.EcomFeedPrice-Value` directly. Use the direct
+  // text node (childNodes filter) to avoid concatenating the "₽" suffix
+  // — `extractPrice` strips non-digits anyway, but the cleaner the input
+  // the better when we later route this through `formatPrice`.
+  var priceValueEl = element.querySelector('.EcomFeedMarketCard-Price .EcomFeedPrice-Value');
+  if (priceValueEl) {
+    // Direct text only — skips inner `.EcomFeedPrice-Rouble` span which
+    // would otherwise contribute "₽" to textContent.
+    var directText = '';
+    for (var i = 0; i < priceValueEl.childNodes.length; i++) {
+      var n = priceValueEl.childNodes[i];
+      if (n.nodeType === 3 /* TEXT_NODE */) directText += n.textContent || '';
+    }
+    var priceClean = directText.trim() || priceValueEl.textContent?.trim() || '';
+    if (priceClean) {
+      row['#Feed_Price'] = extractPrice(priceClean);
       row['#Feed_Currency'] = '₽';
     }
   }
-  // Old price (crossed out)
-  var oldPriceText = getText(element, '.EcomFeedPrice-Value:not([data-test-id="green-price"])');
-  if (oldPriceText && oldPriceText !== greenPrice) {
-    row['#Feed_OldPrice'] = extractPrice(oldPriceText);
+  // Discount Source signal — Yandex flags cards eligible for the
+  // "Через Пэй" / "Картой Пэй" discount path with a sibling
+  // `.EcomFeedPrice-PayTextWrapper` inside the price container. Not all
+  // market cards carry it (observed: ~95% present, ~5% absent in a
+  // 16-card sample — `Аккумуляторная дрель-шуруповёрт Makita` was the
+  // outlier). Plugin uses this to toggle PriceV2's Discount Source
+  // boolean on/off per-card instead of leaving the variant default.
+  if (element.querySelector('.EcomFeedMarketCard-Price .EcomFeedPrice-PayTextWrapper')) {
+    row['#Feed_HasDiscountSource'] = 'true';
+  }
+  // Old price (crossed out) — market cards may show a strikethrough
+  // original price next to the discounted current one. Skip the
+  // current-price Value (the one we already captured) to avoid double-
+  // reporting it as the "old" price.
+  var oldPriceValueEl = element.querySelector(
+    '.EcomFeedMarketCard-Price .EcomFeedPrice-Value_old, ' +
+      '.EcomFeedMarketCard-Price .EcomFeedPrice-OldValue',
+  );
+  if (oldPriceValueEl) {
+    row['#Feed_OldPrice'] = extractPrice(oldPriceValueEl.textContent?.trim() || '');
   }
 
   const hasCashback = !!element.querySelector('[class*="cashback"], [class*="plus"]');
@@ -483,15 +548,17 @@ function parsePostCard(element: Element, index: number, ctx: GridCtx): FeedCardR
     if (activeIdx >= 0) row['#Feed_ActiveSlideIndex'] = String(activeIdx);
   }
 
-  // Carousel images — search broadly. The .EcomFeedSlider element only contains
-  // pagination dots in the current DOM; actual slide images live in
-  // card-content__image, EcomFeedSliderItem, and post-products-preview blocks.
-  // Dedupe by src to avoid double-counting the same image rendered at multiple
-  // resolutions.
+  // Carousel images — REAL multi-slide galleries only. The plugin uses the
+  // length of this array to decide whether to enable the Dots indicator on
+  // the Tile, so it must NOT include product-preview thumbnails (those are
+  // separate "related product" cards under a video / post and are not part
+  // of the card's own gallery).
+  //
+  // Dedupe by src to avoid double-counting the same image rendered at
+  // multiple resolutions.
   const sliderImageEls = element.querySelectorAll(
     '[class*="card-content__image"] img, ' +
       '[class*="EcomFeedSliderItem"] img, ' +
-      '[class*="post-products-preview"] img, ' +
       '.EcomFeedSlider img',
   );
   if (sliderImageEls.length > 0) {
@@ -559,6 +626,14 @@ function parsePostCard(element: Element, index: number, ctx: GridCtx): FeedCardR
   if (priceText) {
     row['#Feed_Price'] = extractPrice(priceText);
     row['#Feed_Currency'] = '₽';
+  }
+  // Old (strikethrough) price — only present on discounted product previews.
+  // Scoped to the dedicated `.EcomFeedDiscountPrice-OldPrice` subtree so we
+  // don't double-count A11y duplicates or pick up the OldPriceBadge percentage
+  // text.
+  const oldPriceText = getOldPriceText(element, SEL.price);
+  if (oldPriceText) {
+    row['#Feed_OldPrice'] = extractPrice(oldPriceText);
   }
 
   const discountText = getText(element, SEL.discount);
@@ -634,6 +709,14 @@ function parsePostCard(element: Element, index: number, ctx: GridCtx): FeedCardR
   // Stable post id for trackback / dedupe.
   const postId = element.getAttribute('data-test-post-id');
   if (postId) row['#Feed_PostId'] = postId;
+
+  // Live ya.ru renders an explicit play-button overlay
+  // (`[data-test-id="video-badge"]`) inside `card-actions__header` on
+  // cards whose creative is video. Plugin uses this signal to flip
+  // `Video#2724:4 = true` on the Tile's Content Badge Set.
+  if (element.querySelector('[data-test-id="video-badge"]')) {
+    row['#Feed_HasVideoBadge'] = 'true';
+  }
 
   return row;
 }

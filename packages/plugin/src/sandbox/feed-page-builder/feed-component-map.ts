@@ -10,7 +10,6 @@
 import { Logger } from '../../logger';
 import {
   FeedCardRow,
-  FeedCardSize,
   FeedCardType,
   FeedPlatform,
   FeedComponentVariant,
@@ -33,11 +32,18 @@ const FEED_COMPONENT_SET_KEYS: Record<string, string> = {
   product: '862ed09175edc1b277dd67b9686e753e5c51212d',
   collection: '0a973790f90a010df34a9f6509256b176bd611b3',
   /**
-   * Unified Feed Card shell — used for advert (and future post/video migration).
+   * Unified Feed Card shell — used for ALL non-market card types
+   * (post / video / advert / future product, collection).
    * Variants are addressed by `State` (Default/…) + `Platform` (Desktop/Mobile).
-   * Media Tile + Content slots are filled via INSTANCE_SWAP component properties.
+   * `Media Tile SA#4900:6` and `Content#2768:0` slots are filled via
+   * INSTANCE_SWAP component properties; `Source#3265:0` toggles the source row.
+   *
+   * Updated 2026-05-08 — switched from the original `Feed Card` set
+   * (key `74489a31…`) to the designer's new `Feed Card_0426` set, which
+   * exposes the Content slot as a top-level INSTANCE_SWAP (previously
+   * baked-in) and ships an updated Media Tile default.
    */
-  feed_card: '74489a31b31e7015b931f0678eb8b65cd8ad81aa',
+  feed_card: 'fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783',
 };
 
 /**
@@ -72,26 +78,11 @@ interface VariantRange {
   max: number;
 }
 
-/**
- * Market: size -> variant range
- *   xs, s    -> 1-2  (small card, no description)
- *   m, ml    -> 3-6  (medium)
- *   l, xl    -> 7-8  (large with description)
- */
-function getMarketVariantRange(size: FeedCardSize): VariantRange {
-  if (size === 'xs' || size === 's') {
-    return { min: 1, max: 2 };
-  }
-  if (size === 'm' || size === 'ml') {
-    return { min: 3, max: 6 };
-  }
-  // l, xl
-  return { min: 7, max: 8 };
-}
-
-// Legacy variant-range helpers for Post/Video have been retired now that
-// post/video route through the unified Feed Card shell (Tile is swapped
-// in by applyPostData/applyVideoData via INSTANCE_SWAP).
+// Legacy variant-range helpers for Market / Post / Video have been retired
+// now that all four non-product card types (post / video / advert / market)
+// route through the unified Feed Card shell — the Tile + variant axes are
+// chosen by the corresponding apply*Data function via INSTANCE_SWAP +
+// setProperties on the swapped child.
 
 /**
  * Product: type -> variant range
@@ -147,23 +138,22 @@ function getAdvertConfig(row: FeedCardRow): { setKey: string; range: VariantRang
  */
 export function selectFeedVariant(row: FeedCardRow): FeedComponentVariant | null {
   const cardType: FeedCardType = row['#Feed_CardType'];
-  const size: FeedCardSize = row['#Feed_CardSize'];
   const platform: FeedPlatform = row['#Feed_Platform'] || 'desktop';
 
   let setKey: string;
   let range: VariantRange;
 
   switch (cardType) {
-    case 'market': {
-      setKey = FEED_COMPONENT_SET_KEYS['market'];
-      range = getMarketVariantRange(size);
-      break;
-    }
+    case 'market':
     case 'video':
     case 'post':
     case 'advert': {
       // Unified Feed Card shell — type-specific Tile is swapped into the
-      // Media Tile slot by the corresponding apply*Data function.
+      // Media Tile slot by the corresponding apply*Data function. Market
+      // joined the unified shell on 2026-05-08 (was on its own legacy
+      // `Market Production Snippet` set); product/price now flow through
+      // Tile / Media Content's Product boolean instead of Market's bespoke
+      // direct-text Description node.
       return {
         key: FEED_COMPONENT_SET_KEYS['feed_card'],
         state: 'Default',

@@ -130,6 +130,16 @@ export interface FeedCardFields {
   /** Карточка — видео (play icon) */
   '#Feed_HasVideo'?: 'true' | 'false';
 
+  /**
+   * Live ya.ru renders an explicit play-button overlay
+   * (`[data-test-id="video-badge"]` inside `card-actions__header`) on cards
+   * whose creative is video. Plugin uses this to flip
+   * `Video#2724:4 = true` on the Tile's Content Badge Set instance.
+   * `#Feed_HasVideo` (above) is a similar but DIFFERENT signal — derived
+   * from sound-toggle presence in card-content; both can co-occur.
+   */
+  '#Feed_HasVideoBadge'?: 'true' | 'false';
+
   /** Есть звук (для видео) */
   '#Feed_HasSound'?: 'true' | 'false';
 
@@ -138,6 +148,15 @@ export interface FeedCardFields {
 
   /** Лейбл кэшбека */
   '#Feed_CashbackLabel'?: string;
+
+  /**
+   * Market card eligible for the "Через Пэй" / "Картой Пэй" discount —
+   * Yandex stamps a `.EcomFeedPrice-PayTextWrapper` next to the price
+   * Value. Plugin toggles PriceV2's `Discount Source#…` BOOLEAN based
+   * on this signal so cards without the badge don't show "Через Пэй"
+   * leaking from the variant default.
+   */
+  '#Feed_HasDiscountSource'?: 'true' | 'false';
 
   // --- Collection-specific ---
 
