@@ -94,22 +94,15 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(
 
                 <div className="comp-inspector-row comp-inspector-row--key">
                   <span className="comp-inspector-label">Ключ</span>
-                  <code
+                  <button
+                    type="button"
                     className="comp-inspector-key"
-                    role="button"
-                    aria-label="Копировать ключ"
-                    tabIndex={0}
                     onClick={() => handleCopyKey(comp.componentKey)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        handleCopyKey(comp.componentKey);
-                      }
-                    }}
                     title={comp.componentKey || 'Click to copy'}
+                    aria-label="Копировать ключ"
                   >
-                    {comp.componentKey ? truncateHash(comp.componentKey) : '(no key)'}
-                  </code>
+                    <code>{comp.componentKey ? truncateHash(comp.componentKey) : '(no key)'}</code>
+                  </button>
                 </div>
 
                 {comp.componentSetKey && (
@@ -120,22 +113,15 @@ export const ComponentInspector: React.FC<ComponentInspectorProps> = memo(
                     </div>
                     <div className="comp-inspector-row comp-inspector-row--key">
                       <span className="comp-inspector-label">Ключ набора</span>
-                      <code
+                      <button
+                        type="button"
                         className="comp-inspector-key"
-                        role="button"
-                        aria-label="Копировать ключ"
-                        tabIndex={0}
                         onClick={() => handleCopyKey(comp.componentSetKey!)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            handleCopyKey(comp.componentSetKey!);
-                          }
-                        }}
                         title={comp.componentSetKey}
+                        aria-label="Копировать ключ"
                       >
-                        {truncateHash(comp.componentSetKey)}
-                      </code>
+                        <code>{truncateHash(comp.componentSetKey)}</code>
+                      </button>
                     </div>
                   </>
                 )}

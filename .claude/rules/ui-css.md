@@ -66,6 +66,80 @@ Key fallback values:
 - `--figma-color-border-brand` → `#0d99ff`
 - `--figma-color-icon-secondary` → `#888`
 
+## CSS variables Figma does NOT inject
+
+These look like Figma color tokens but aren't actually provided by the
+Plugin API. Their fallbacks are always what renders. Verified May 2026:
+
+- `--figma-color-text-warning` — use fallback `#c4841d` (warm orange).
+  Past bug: two sites used fallback `#f24822` (red), giving inconsistent
+  warning UI. Always use `#c4841d` unless intentionally signaling error
+  (which has its own `--figma-color-text-danger` Figma token).
+- `--figma-color-border-strong` — does not exist. Use
+  `--figma-color-border` or `--figma-color-icon-secondary` instead.
+
+If you find another `--figma-color-*` that doesn't render correctly,
+add it here so the next agent doesn't have to rediscover.
+
+## `color-mix()` requires a static fallback above it
+
+`color-mix()` is Chromium 111+ (March 2023). Figma on iPad may run an
+older WebView where the entire `color-mix()` declaration becomes
+invalid → background goes transparent → banner becomes invisible.
+
+Always pair `color-mix()` with a static `rgba()` line on the SAME
+property, just above:
+
+```css
+background: rgba(196, 132, 29, 0.12); /* fallback for color-mix */
+background: color-mix(in srgb, var(--figma-color-text-warning, #c4841d) 12%, var(--figma-color-bg, #ffffff));
+```
+
+Older browsers ignore the unknown `color-mix()` line and keep the
+static value; newer browsers apply `color-mix()` since it comes last.
+
+## Font-size fallbacks must match `:root` values
+
+Current `:root`:
+
+- `--font-size-xs: 10px`
+- `--font-size-sm: 11px`
+- `--font-size-base: 11px`
+- `--font-size-lg: 13px`
+- `--font-size-xl: 14px`
+
+Bad: `font-size: var(--font-size-sm, 12px);` — fallback is wishful, the
+real declared value is 11px. If `--font-size-sm` is unset (Figma weird
+context), the rendered font goes to 12px instead of 11 — invisible
+inconsistency.
+
+Good: fallback always matches `:root`:
+`font-size: var(--font-size-sm, 11px);`
+
+## Measure dynamic heights, don't hardcode
+
+Banner heights, menu heights, and any text-wrapping content depend on
+font scale and content. Use `useMeasuredHeight` from
+`packages/plugin/src/ui/hooks/useMeasuredHeight.ts`:
+
+```tsx
+const [bannerRef, bannerHeight] = useMeasuredHeight<HTMLDivElement>();
+return (
+  <>
+    {visible && (
+      <div ref={bannerRef}>
+        <Banner />
+      </div>
+    )}
+    {/* bannerHeight is measured live via ResizeObserver, 0 when ref detaches */}
+  </>
+);
+```
+
+Hardcoded heights (e.g. `cloudUnreachableBannerHeight = visible ? 110 : 0`)
+will lie when text wraps, when system font scales up, or when the
+banner adds a new line of content.
+
 ## Shadow tokens
 
 Use design tokens from `:root` — never inline `rgba()` in box-shadow:

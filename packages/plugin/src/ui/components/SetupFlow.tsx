@@ -40,8 +40,11 @@ interface SetupFlowProps {
   allowRepair?: boolean;
 }
 
-/** How long to wait for pair-ack before surfacing the timeout UI. */
-const PAIR_TIMEOUT_MS = 15_000;
+/** How long to wait for pair-ack before surfacing the timeout UI.
+ *  Set to 20s so the parent's 15s checking-timeout fires first if
+ *  relay itself is unreachable — gives the user a clearer diagnostic
+ *  ("relay down") rather than "extension didn't ack". */
+const PAIR_TIMEOUT_MS = 20_000;
 
 type PairState = 'idle' | 'waiting' | 'timed-out';
 
@@ -58,8 +61,15 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     // shouldn't render at all — the parent transition effect will unmount us
     // within one React tick. `onComplete()` nudges the parent in case the
     // transition hasn't fired yet (defensive).
+    //
+    // `completedRef` guards against double invocation: the parent's
+    // transition effect could fire simultaneously with this auto-complete
+    // effect, and `onComplete` itself can have side effects (resizeUI,
+    // setAppState) that don't tolerate being called twice in the same tick.
+    const completedRef = useRef(false);
     useEffect(() => {
-      if (!allowRepair && extensionInstalled) {
+      if (!allowRepair && extensionInstalled && !completedRef.current) {
+        completedRef.current = true;
         onComplete();
       }
     }, [allowRepair, extensionInstalled, onComplete]);
@@ -86,11 +96,15 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     const startPairWaiting = useCallback(() => {
       setPairState('waiting');
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      // No point arming a timeout if relay is offline — the offline banner
+      // already conveys "this won't work right now" and we'd just race with
+      // it to show a less useful "extension didn't ack" message.
+      if (!relayConnected) return;
       timeoutRef.current = window.setTimeout(() => {
         timeoutRef.current = null;
         setPairState('timed-out');
       }, PAIR_TIMEOUT_MS);
-    }, []);
+    }, [relayConnected]);
 
     const handlePair = useCallback(() => {
       if (!sessionCode) return;
@@ -135,7 +149,12 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
     const primaryLabel = isRepair ? 'Переподключить расширение' : 'Подключить расширение';
 
     return (
-      <div className="setup-flow setup-flow--single view-animate-in">
+      <div
+        className="setup-flow setup-flow--single view-animate-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="setup-flow-title"
+      >
         <div className="setup-flow__content">
           <div className="setup-flow__illustration" aria-hidden>
             {/* Chrome ↔ Figma pairing glyph (static, purely decorative) */}
@@ -153,14 +172,6 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
                 stroke="var(--figma-color-border-brand, #0d99ff)"
                 strokeWidth="2"
               />
-              <text
-                x="20"
-                y="32"
-                textAnchor="middle"
-                fill="var(--figma-color-text, #333)"
-                fontSize="14"
-                fontFamily="sans-serif"
-              ></text>
               <path
                 d="M 42 28 L 58 28 M 54 24 L 58 28 L 54 32"
                 stroke="var(--figma-color-text-secondary, #888)"
@@ -204,7 +215,9 @@ export const SetupFlow: React.FC<SetupFlowProps> = memo(
             </svg>
           </div>
 
-          <h2 className="setup-flow__title">{title}</h2>
+          <h2 id="setup-flow-title" className="setup-flow__title">
+            {title}
+          </h2>
           <p className="setup-flow__description">{description}</p>
 
           {!relayConnected && (

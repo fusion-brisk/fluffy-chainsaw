@@ -11,6 +11,7 @@
 
 import React, { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { PluginPlatform } from '../hooks/usePlatform';
+import { useMeasuredHeight } from '../hooks/useMeasuredHeight';
 
 export type CompactStripMode =
   | 'checking'
@@ -147,15 +148,22 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       [hasPendingData, hasSelection],
     );
 
-    // Compute menu height for desktop resize
+    // Measure the menu via a hidden offscreen mirror so we can resize
+    // the iframe to the actual rendered height instead of an estimate.
+    // Old magic-number estimate undercounted ~5px/item and ignored
+    // 2-line wrapping for long Cyrillic labels.
+    const [menuMirrorRef, measuredMenuHeight] = useMeasuredHeight<HTMLDivElement>();
+
     const menuHeight = useMemo(() => {
+      if (measuredMenuHeight > 0) return measuredMenuHeight;
+      // Fallback before first measurement — conservative so the
+      // pre-measurement open still mostly fits.
       const visibleItems = menuItems.filter(
         (item) => item.condition === undefined || item.condition,
       );
       const hasDanger = visibleItems.some((item) => item.danger);
-      // Each item ~36px (padding 8px + line-height ~20px), divider 9px (1px + 4px*2), container padding 8px top+bottom
-      return visibleItems.length * 36 + (hasDanger ? 9 : 0) + 16;
-    }, [menuItems]);
+      return visibleItems.length * 40 + (hasDanger ? 9 : 0) + 16;
+    }, [menuItems, measuredMenuHeight]);
 
     // Close menu helper
     const closeMenu = useCallback(() => {
@@ -228,13 +236,18 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
       return () => document.removeEventListener('keydown', handleKeyDown);
     }, [menuOpen, closeMenu]);
 
-    // Close menu on mode change (e.g. data arrives while menu is open)
+    // Close menu on mode change (e.g. data arrives while menu is open).
+    // Resize back to baseHeight ourselves to avoid a 1-frame "menu height + new mode"
+    // overlap before ui.tsx's mode-driven resize fires.
+    // Intentionally omit menuOpen/setMenuOpen/baseHeight/onRequestResize from deps
+    // so we only react to mode changes — exhaustive-deps lint rule isn't configured
+    // in this project, so a plain comment carries the intent.
     useEffect(() => {
       if (menuOpen) {
         setMenuOpen(false);
-        // Don't call onRequestResize here — ui.tsx will resize for the new state
+        onRequestResize(baseHeight);
       }
-    }, [mode]); // intentionally omit menuOpen/setMenuOpen — only react to mode changes
+    }, [mode]);
 
     // Auto-dismiss for success and error.
     //
@@ -308,9 +321,17 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         break;
       case 'ready':
         statusIcon = connected ? (
-          <div className="compact-strip__dot compact-strip__dot--ok" />
+          <div
+            className="compact-strip__dot compact-strip__dot--ok"
+            role="img"
+            aria-label="Подключено"
+          />
         ) : (
-          <div className="compact-strip__dot compact-strip__dot--offline" />
+          <div
+            className="compact-strip__dot compact-strip__dot--offline"
+            role="img"
+            aria-label="Не подключено"
+          />
         );
         break;
       case 'incoming':
@@ -438,7 +459,6 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
 
           <span
             className="compact-strip__text"
-            title={tooltipText}
             onMouseEnter={() => tooltipText && setShowTooltip(true)}
             onMouseLeave={() => setShowTooltip(false)}
           >
@@ -482,13 +502,16 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
           <button
             ref={menuBtnRef}
             type="button"
+            id="compact-strip-menu-btn"
             className={`compact-strip__menu-btn${menuOpen ? ' compact-strip__menu-btn--active' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
               toggleMenu();
             }}
             aria-label="Меню"
+            aria-haspopup="menu"
             aria-expanded={menuOpen}
+            aria-controls={menuOpen ? 'compact-strip-menu' : undefined}
           >
             {'\u22EE'}
           </button>
@@ -530,9 +553,33 @@ export const CompactStrip: React.FC<CompactStripProps> = memo(
         {/* Tooltip */}
         {showTooltip && tooltipText && <div className="compact-strip__tooltip">{tooltipText}</div>}
 
+        {/* Hidden measurement mirror — desktop only.
+            Mobile uses a bottom sheet with fixed height, no measurement needed. */}
+        {platform === 'desktop' && (
+          <div
+            ref={menuMirrorRef}
+            className="compact-strip__menu"
+            aria-hidden
+            style={{
+              position: 'absolute',
+              visibility: 'hidden',
+              pointerEvents: 'none',
+              top: -9999,
+              width: 320 /* matches iframe width — content wraps the same way */,
+            }}
+          >
+            {renderMenuItems(false)}
+          </div>
+        )}
+
         {/* Desktop menu — dropdown below strip */}
         {menuOpen && platform === 'desktop' && (
-          <div className="compact-strip__menu" role="menu">
+          <div
+            className="compact-strip__menu"
+            role="menu"
+            id="compact-strip-menu"
+            aria-labelledby="compact-strip-menu-btn"
+          >
             {renderMenuItems(false)}
           </div>
         )}
