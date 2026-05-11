@@ -63,6 +63,7 @@ AI commits: add `Co-Authored-By: Claude <noreply@anthropic.com>`.
 | Page builder           | `docs/PAGE_BUILDER_SETUP.md`                                      |
 | Perf / import latency  | `.claude/rules/performance.md`                                    |
 | Release                | `.claude/rules/release.md`                                        |
+| Post-merge / worktree  | CLAUDE.md §Git & Merges, §Build Discipline                        |
 | Module internals       | `docs/STRUCTURE.md`, `docs/GLOSSARY.md`                           |
 | UI state/panels/resize | `.claude/rules/ui-state.md`                                       |
 | UI hooks/state         | `src/ui/hooks/`, `docs/STRUCTURE.md` §UI Hooks                    |
@@ -79,6 +80,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - Always run `npx prettier --write` on changed files before committing. If a commit fails due to formatting, fix and retry automatically.
 - For git merges: never checkout a different branch inside a worktree. Use `git merge` from the correct branch, or create a PR. If the user says 'merge', ask which strategy (merge commit, rebase, squash) only once, then proceed.
 - Default merge strategy: squash merge via PR to main. After merge — delete source branch locally and on remote, pull main, confirm clean state.
+- **Post-merge rebuild is mandatory**. Once main is updated, immediately run `npm run build -w packages/extension && npm run build -w packages/plugin` from the origin repo. Builds done inside a worktree disappear with the worktree, so the `dist/` on `main` will be stale until rebuilt. Verify with `ls -la packages/*/dist/*.js` (mtime must be ≥ merge time) and a spot-grep of the fix in the bundle (esbuild minifies, so search for the variable name, not the literal — e.g. `30000` becomes `3e4`). Only then tell the user to reload extension / reopen plugin.
 - Before any git operation, run `git worktree list` and `git status` to understand current state. Never assume.
 - Before any destructive git operation (branch delete, force push, reset), create a backup tag: `git tag backup/<branch>-$(date +%s)`.
 - At session start, if branch state is unclear, run `git branch -a && git worktree list && git status` and show a compact summary before doing anything.
@@ -113,6 +115,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - **Stale-ref after variant swap**: `setProperties({ variant: … })` on a parent instance silently invalidates cached sublayer refs. Accessing `.componentProperties` / `.children` / `.name` on a stale ref throws `"The node … does not exist"`. Guards (`utils/instance-cache.ts` + `utils/component-cache.ts`) check `.removed` and evict stale entries — do not remove them. If you write a new handler that caches an instance, verify validity with `.removed` before property access. See `.claude/rules/performance.md` §4.
 - **No hidden diagnostic layers on canvas**: never create invisible Figma frames/nodes as a side channel for debug output (`figma.createFrame()` + `.visible = false` + node name like `__contentify_debug__`). Use `Logger.info` or `figma.ui.postMessage({ type: 'debug-report', ... })` instead — clutter-free and faster. See `.claude/rules/performance.md` §5.
 - **Progress narrative, not counter**: long-running operations (SERP import ≈ 30s) must emit named-phase progress events, not a bare percentage. "Размещаем 15/27…" beats "33%" every time. Phase order + Russian messaging live in `.claude/rules/performance.md` §6.
+- **Design system is extensible**: when a mapping limitation has no good plugin-side fix (e.g. live aspect 0.65 maps badly to either 3:4 or 9:16), **propose adding a Figma variant/property/boolean** to close the gap rather than hard-coding a workaround. The user owns the design system and can ship new variants — example: 2026-05-10 added `Ratio=5:8` and `Ratio=1:2` to the Image set after the parser flagged a bad m-tier match. Frame the proposal as: (1) what the gap is, (2) what variant/property would close it, (3) how it'd map. Don't quietly accept a 14% mapping error.
 
 ## Build Discipline
 
@@ -121,6 +124,7 @@ On completion, move to `.claude/specs/done/`. To resume: "Continue spec in `.cla
 - Plugin: `npm run build -w packages/plugin` (or root `npm run build`) after sandbox/UI changes.
 - After rebuild, remind the user to **reload the extension** in Chrome (chrome://extensions → Reload) and **reopen the Figma plugin**.
 - `npm run verify` before commit — catches typecheck + lint + test + build in one pass.
+- **Worktree builds don't survive merge.** When work is done in a `.claude/worktrees/<name>` checkout, the `dist/` produced there vanishes when the worktree is removed. After squash-merging to main, rebuild from the origin repo (see Git & Merges §post-merge rebuild) — never assume `main`'s `dist/` reflects the just-merged source. Spot-check with `grep -c <new-symbol>` against `packages/*/dist/*.js`.
 
 ## Refactoring
 

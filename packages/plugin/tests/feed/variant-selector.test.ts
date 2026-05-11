@@ -20,105 +20,70 @@ function makeRow(overrides: Partial<FeedCardRow>): FeedCardRow {
 
 describe('selectFeedVariant', () => {
   // ===== Market =====
+  // Market joined the unified Feed Card shell on 2026-05-08 — its data is
+  // now rendered inside Feed Card_0426 with a Tile / Media Content swap
+  // (`Type=Actions On` + `Product=true`) instead of the legacy
+  // `Market Production Snippet` set. Size axis no longer drives variant
+  // selection; size still flows through the parser for future use.
   describe('market', () => {
-    it('xs size returns variant in 1-2 range', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 'xs' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(2);
-    });
-
-    it('m size returns variant in 3-6 range', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 'm' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(3);
-      expect(result!.variant).toBeLessThanOrEqual(6);
-    });
-
-    it('xl size returns variant in 7-8 range', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 'xl' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(7);
-      expect(result!.variant).toBeLessThanOrEqual(8);
-    });
-
-    it('s size falls into xs range (1-2)', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 's' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(2);
-    });
-
-    it('l size falls into xl range (7-8)', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 'l' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(7);
-      expect(result!.variant).toBeLessThanOrEqual(8);
+    it('returns Feed Card set with State=Default for any size', () => {
+      for (const size of ['xs', 's', 'm', 'ml', 'l', 'xl'] as const) {
+        const result = selectFeedVariant(
+          makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': size }),
+        );
+        expect(result).not.toBeNull();
+        expect(result!.key).toBe('fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783');
+        expect(result!.state).toBe('Default');
+        expect(result!.variant).toBeUndefined();
+      }
     });
   });
 
-  // ===== Video =====
+  // ===== Video / Post =====
+  // post/video are now routed through the unified Feed Card shell — type-specific
+  // Tile (Tile / Video / Tile / Media Content) is swapped into the Media Tile slot
+  // by the corresponding apply*Data function.
   describe('video', () => {
-    it('ml size returns variant in 1-5 range', () => {
+    it('returns Feed Card set with State=Default for any size', () => {
       const result = selectFeedVariant(
         makeRow({ '#Feed_CardType': 'video', '#Feed_CardSize': 'ml' }),
       );
       expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(5);
-    });
-
-    it('xs size returns variant in 1-5 range', () => {
-      const result = selectFeedVariant(
-        makeRow({ '#Feed_CardType': 'video', '#Feed_CardSize': 'xs' }),
-      );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(5);
+      expect(result!.key).toBe('fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783');
+      expect(result!.state).toBe('Default');
+      expect(result!.variant).toBeUndefined();
     });
   });
 
-  // ===== Post =====
   describe('post', () => {
-    it('with carousel returns variant in 1-4 range', () => {
-      const result = selectFeedVariant(
+    it('returns Feed Card set with State=Default regardless of carousel', () => {
+      const carousel = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'post',
           '#Feed_CardSize': 'm',
           '#Feed_CarouselImages': '["img1.jpg","img2.jpg"]',
         }),
       );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(4);
-    });
-
-    it('without carousel returns variant in 5-14 range', () => {
-      const result = selectFeedVariant(
+      const noCarousel = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'post',
           '#Feed_CardSize': 'm',
         }),
       );
-      expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(5);
-      expect(result!.variant).toBeLessThanOrEqual(14);
+      expect(carousel!.key).toBe('fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783');
+      expect(carousel!.state).toBe('Default');
+      expect(noCarousel!.key).toBe('fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783');
+      expect(noCarousel!.state).toBe('Default');
     });
   });
 
   // ===== Advert =====
+  // Advert is now routed through the unified Feed Card shell:
+  // the slot tile (Tile / Ads, Type=Default) is swapped in by applyAdsData
+  // via INSTANCE_SWAP. The selector returns the Feed Card set key + State axis,
+  // not a numbered Variant.
   describe('advert', () => {
-    it('default (production) returns variant in 1-6 range', () => {
+    it('returns Feed Card set with State=Default regardless of style', () => {
       const result = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'advert',
@@ -126,11 +91,12 @@ describe('selectFeedVariant', () => {
         }),
       );
       expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(6);
+      expect(result!.key).toBe('fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783');
+      expect(result!.state).toBe('Default');
+      expect(result!.variant).toBeUndefined();
     });
 
-    it('branded style uses examples set key', () => {
+    it('branded style still routes to Feed Card shell (style picked at slot level)', () => {
       const result = selectFeedVariant(
         makeRow({
           '#Feed_CardType': 'advert',
@@ -139,10 +105,8 @@ describe('selectFeedVariant', () => {
         }),
       );
       expect(result).not.toBeNull();
-      expect(result!.variant).toBeGreaterThanOrEqual(1);
-      expect(result!.variant).toBeLessThanOrEqual(9);
-      // The key should be the advert_examples set key
-      expect(result!.key).toBe('fa33e1ca52751009197bba25340780694e977cdf');
+      expect(result!.key).toBe('fe5ce5e0d5863ab0b4b4d7fd952b19f6ddb58783');
+      expect(result!.state).toBe('Default');
     });
   });
 
@@ -231,13 +195,17 @@ describe('selectFeedVariant', () => {
 
   // ===== Deterministic (first in range) =====
   describe('deterministic selection', () => {
-    it('always picks the first variant in range', () => {
-      const r1 = selectFeedVariant(makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 'xs' }));
-      const r2 = selectFeedVariant(makeRow({ '#Feed_CardType': 'market', '#Feed_CardSize': 'xs' }));
+    it('always picks the first variant in range for product (legacy range path)', () => {
+      const r1 = selectFeedVariant(
+        makeRow({ '#Feed_CardType': 'product', '#Feed_ProductType': 'independent' }),
+      );
+      const r2 = selectFeedVariant(
+        makeRow({ '#Feed_CardType': 'product', '#Feed_ProductType': 'independent' }),
+      );
       expect(r1).not.toBeNull();
       expect(r2).not.toBeNull();
       expect(r1!.variant).toBe(r2!.variant);
-      expect(r1!.variant).toBe(1); // first in 1-2 range
+      expect(r1!.variant).toBe(1); // first in 1-7 range
     });
   });
 

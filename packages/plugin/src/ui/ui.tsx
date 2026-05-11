@@ -210,6 +210,7 @@ const App: React.FC = () => {
             entryId: data.entryId,
             sourceType: 'feed',
             feedCards: data.feedCards,
+            screenshots: data.screenshots,
           });
           flow.updateInfo({
             itemCount: feedCardCount,
@@ -239,6 +240,7 @@ const App: React.FC = () => {
             query: data.query,
             source: 'Яндекс',
             entryId: data.entryId,
+            screenshots: data.screenshots,
           });
           flow.updateInfo({ itemCount: totalCount, summary, summaryData });
         }

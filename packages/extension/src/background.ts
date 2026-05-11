@@ -34,7 +34,26 @@ interface ParseResult {
   sourceType?: 'feed' | 'serp';
   /** Feed card rows (when sourceType='feed') */
   feedCards?: Record<string, string>[];
+  // --- Timing instrumentation (set by content.ts; forwarded into meta.timings) ---
+  /** Wall-clock ms when content script's IIFE started executing. */
+  parseStartedAt?: number;
+  /** Total monotonic ms the content script's IIFE spent (includes extract + setup). */
+  parseDurationMs?: number;
+  /** Subset of parseDurationMs spent inside extractFeedCards (feed only). */
+  parseFeedExtractMs?: number;
+  /** Subset of parseDurationMs spent inside extractSnippets (serp only). */
+  parseSerpExtractMs?: number;
+  /** Cards/rows the content script returned (matches feedCards.length / rows.length). */
+  parseCardCount?: number;
+  parseRowCount?: number;
 }
+
+// Phase-timer factory extracted to ./phase-timer for direct unit testing —
+// background.ts imports chrome.* globals at module top, which makes the SW
+// hard to import in a node-based vitest run. See tests/extension/phase-timer.
+// Re-exported here so the SW module remains a single import-target for
+// downstream tooling.
+import { makePhaseTimer } from './phase-timer';
 
 interface PageDimensions {
   scrollHeight: number;
@@ -71,6 +90,213 @@ let isRetrying = false;
  */
 function buildCloudUrl(path: string, sessionCode: string): string {
   return `${CLOUD_RELAY_URL}${path}?session=${encodeURIComponent(sessionCode)}`;
+}
+
+function dataUrlToBase64(dataUrl: string): string {
+  const m = /^data:image\/(jpe?g|png|webp);base64,(.+)$/i.exec(dataUrl);
+  if (!m) throw new Error(`Unexpected dataUrl prefix: ${dataUrl.slice(0, 32)}`);
+  return m[2];
+}
+
+async function uploadOneScreenshot(
+  sessionCode: string,
+  segIdx: number,
+  dataUrl: string,
+  totalSegments: number,
+  kind: 'segment' | 'advert' = 'segment',
+): Promise<{ key: string; url: string }> {
+  const dataBase64 = dataUrlToBase64(dataUrl);
+  const res = await fetch(buildCloudUrl('/upload-screenshot', sessionCode), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ segIdx, dataBase64, contentType: 'image/jpeg', totalSegments, kind }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`upload-screenshot ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const body = (await res.json()) as { key: string; url: string };
+  return body;
+}
+
+/**
+ * @deprecated Removed from the import flow — left for now in case we want to
+ * resurrect it for a different purpose (e.g. capturing a live preview of
+ * advert structure). The runtime entry point in the import handler no longer
+ * calls it; tree-shaking will drop it from the production bundle.
+ *
+ * Original purpose: clip advert wrapper regions out of the captured viewport
+ * segments and upload each clip as its own image. Replaced by shadow-DOM
+ * URL extraction in feed-parser.ts.
+ */
+async function cropAndUploadAdverts(
+  feedCards: Array<Record<string, string>>,
+  screenshots: string[],
+  screenshotMeta: Record<string, unknown> | null,
+  sessionCode: string,
+): Promise<number> {
+  if (screenshots.length === 0 || !screenshotMeta) {
+    console.log(
+      `[advert-clip] aborted: screenshots=${screenshots.length}, meta=${screenshotMeta ? 'yes' : 'null'}`,
+    );
+    return 0;
+  }
+  const dpr = (screenshotMeta.devicePixelRatio as number) || 1;
+  const vh = (screenshotMeta.viewportHeight as number) || 0;
+  if (vh <= 0) {
+    console.log('[advert-clip] aborted: viewportHeight=0 in meta');
+    return 0;
+  }
+
+  const segmentBitmaps: Array<ImageBitmap | null> = new Array(screenshots.length).fill(null);
+  async function getSegmentBitmap(idx: number): Promise<ImageBitmap | null> {
+    if (idx < 0 || idx >= screenshots.length) return null;
+    if (segmentBitmaps[idx]) return segmentBitmaps[idx];
+    try {
+      const res = await fetch(screenshots[idx]);
+      const blob = await res.blob();
+      const bitmap = await createImageBitmap(blob);
+      segmentBitmaps[idx] = bitmap;
+      return bitmap;
+    } catch (err) {
+      console.warn('[advert-clip] segment decode failed idx=' + idx, err);
+      return null;
+    }
+  }
+
+  // Stats for diagnostics — emitted at end so the user sees a single line.
+  let stats = {
+    advertTotal: 0,
+    hadDomImage: 0,
+    missingRect: 0,
+    invalidRect: 0,
+    bitmapMissing: 0,
+    canvasFail: 0,
+    uploadFail: 0,
+    uploaded: 0,
+    crossSegment: 0,
+  };
+
+  let advertSlot = 0;
+  for (let i = 0; i < feedCards.length; i++) {
+    const card = feedCards[i];
+    if (card['#Feed_CardType'] !== 'advert') continue;
+    stats.advertTotal += 1;
+
+    if (card['#Feed_ImageUrl']) {
+      stats.hadDomImage += 1;
+      continue;
+    }
+    const rectStr = card['#Feed_AdvertCaptureRect'];
+    if (!rectStr) {
+      stats.missingRect += 1;
+      continue;
+    }
+
+    let rect: { x: number; y: number; w: number; h: number };
+    try {
+      rect = JSON.parse(rectStr);
+    } catch {
+      stats.invalidRect += 1;
+      continue;
+    }
+    if (!(rect.w > 0 && rect.h > 0)) {
+      stats.invalidRect += 1;
+      continue;
+    }
+
+    // Page-Y span of the advert in CSS pixels.
+    const segIdxTop = Math.floor(rect.y / vh);
+    const segIdxBot = Math.floor((rect.y + rect.h - 1) / vh);
+    if (segIdxTop >= screenshots.length) {
+      stats.bitmapMissing += 1;
+      continue;
+    }
+    if (segIdxBot > segIdxTop) stats.crossSegment += 1;
+
+    const clipX = Math.max(0, Math.round(rect.x * dpr));
+    const clipW = Math.round(rect.w * dpr);
+    const clipH = Math.round(rect.h * dpr);
+
+    let blob: Blob;
+    try {
+      const canvas = new OffscreenCanvas(clipW, clipH);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        stats.canvasFail += 1;
+        continue;
+      }
+      // Stitch from one or more segments. For each segment in the rect's
+      // page-Y range, copy the slice of the segment that overlaps the rect
+      // into the canvas at the correct vertical offset.
+      let drawnAny = false;
+      let drawY = 0;
+      for (let s = segIdxTop; s <= segIdxBot && s < screenshots.length; s++) {
+        const bitmap = await getSegmentBitmap(s);
+        if (!bitmap) continue;
+        const segPageTop = s * vh;
+        const segPageBot = segPageTop + vh;
+        const sliceTopPage = Math.max(rect.y, segPageTop);
+        const sliceBotPage = Math.min(rect.y + rect.h, segPageBot);
+        if (sliceBotPage <= sliceTopPage) continue;
+
+        const srcX = clipX;
+        const srcY = Math.max(0, Math.round((sliceTopPage - segPageTop) * dpr));
+        const srcW = clipW;
+        const srcH = Math.round((sliceBotPage - sliceTopPage) * dpr);
+        // Clamp to bitmap bounds (last segment may be shorter or page may
+        // have grown after capture).
+        const safeW = Math.min(srcW, Math.max(0, bitmap.width - srcX));
+        const safeH = Math.min(srcH, Math.max(0, bitmap.height - srcY));
+        if (safeW <= 0 || safeH <= 0) continue;
+        ctx.drawImage(bitmap, srcX, srcY, safeW, safeH, 0, drawY, safeW, safeH);
+        drawnAny = true;
+        drawY += safeH;
+      }
+      if (!drawnAny) {
+        stats.bitmapMissing += 1;
+        continue;
+      }
+      blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
+    } catch (err) {
+      stats.canvasFail += 1;
+      console.warn('[advert-clip] canvas op failed for card #' + i, err);
+      continue;
+    }
+
+    let dataUrl: string;
+    try {
+      dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      stats.uploadFail += 1;
+      console.warn('[advert-clip] dataUrl conversion failed', err);
+      continue;
+    }
+
+    try {
+      const result = await uploadOneScreenshot(
+        sessionCode,
+        advertSlot,
+        dataUrl,
+        feedCards.length,
+        'advert',
+      );
+      card['#Feed_ImageUrl'] = result.url;
+      stats.uploaded += 1;
+      advertSlot += 1;
+    } catch (err) {
+      stats.uploadFail += 1;
+      console.warn('[advert-clip] upload failed for card #' + i, err);
+    }
+  }
+  console.log('[advert-clip] stats:', stats);
+  return stats.uploaded;
 }
 
 // === Heads-up signaling ===
@@ -387,7 +613,18 @@ async function captureFullPage(
     await new Promise((r) => setTimeout(r, 300));
   }
 
-  // --- Hide technical UI only (header + ProductsModePanel stay for first segment) ---
+  // --- Hide technical UI + page header before ANY capture ---
+  //
+  // Why hide the header up-front (was deferred to segment 1+ previously):
+  // when the plugin places the screenshot column next to the imported frame,
+  // the user expects top-row alignment. With the header in segment 0, the
+  // production-fid scroll started ~150px below the imported frame's top.
+  // Hiding HeaderDesktop / ProductsModePanel from the very first capture
+  // makes the screenshot strip's first segment begin at the same `y` as
+  // the rythm-feed root in the imported frame.
+  //
+  // We still measure `headerOffset` after-the-fact for the scroll-step
+  // arithmetic — but the visible result no longer leaks the chrome.
   await chrome.scripting.executeScript({
     target: { tabId },
     func: () => {
@@ -396,6 +633,8 @@ async function captureFullPage(
       style.textContent = [
         '#ulitochka-container { display: none !important; }',
         '.YndxBug { display: none !important; }',
+        '.HeaderDesktop, .HeaderPhone { display: none !important; }',
+        '.ProductsModePanel { display: none !important; }',
       ].join('\n');
       document.head.appendChild(style);
     },
@@ -437,18 +676,9 @@ async function captureFullPage(
     Math.min(Math.ceil(Math.max(0, scrollHeight - innerHeight) / innerHeight), MAX_CAPTURES - 1);
   onSegmentCaptured(1, projectedTotal);
 
-  // --- Hide header + sticky ProductsModePanel for remaining segments ---
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const fix = document.getElementById('contentify-screenshot-fix');
-      if (fix)
-        fix.textContent +=
-          '\n.HeaderDesktop, .HeaderPhone { display: none !important; }\n.ProductsModePanel { display: none !important; }';
-    },
-  });
-
-  // Measure how much content shifted up after hiding header
+  // Header was already hidden up-front (see contentify-screenshot-fix style),
+  // so `headerOffset` here is 0 — preserved as a variable to keep arithmetic
+  // below readable and to leave a knob for partial-hide scenarios.
   const [{ result: rawNewScrollHeight }] = await chrome.scripting.executeScript({
     target: { tabId },
     func: () => document.documentElement.scrollHeight,
@@ -532,12 +762,19 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
   // Fire-and-forget: tell plugin "we're starting" before any heavy work.
   void sendHeadsUp('parsing');
 
+  // Wall-clock anchor for the whole click→push pipeline. Used for the final
+  // `[Timing] handleIconClick total` line + meta.timings.totalMs.
+  const handleClickStartedAt = Date.now();
+  const phaseTimer = makePhaseTimer();
+
   // Declare at higher scope for access in catch block
   let parseResult: ParseResult | null = null;
 
   try {
     // Load shared parsing rules (cached, non-blocking)
+    phaseTimer.markStart('loadRulesMs');
     const rules = await loadParsingRules();
+    phaseTimer.markEnd('loadRulesMs');
 
     // Inject parsing rules into page before content script
     if (rules) {
@@ -550,19 +787,166 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       });
     }
 
+    // Pre-flush feed lazy-load BEFORE running the content script.
+    //
+    // ya.ru rythm-feed renders ~70 cards but only loads images for the first
+    // ~8 (those near the viewport). The rest stay with placeholder src and
+    // `naturalWidth=0` until they scroll into view. Without this flush, our
+    // parser collects empty/duplicate URLs for all bottom cards — the visible
+    // symptom is the "balaclava-model" image cloned across many Posts cards
+    // in the imported Figma frame.
+    //
+    // We scroll to bottom in 800px steps with a settle delay so the
+    // IntersectionObserver fires and lazy-loaders kick in, then scroll back
+    // to top before parsing. Idempotent for non-feed pages (the marker class
+    // is feed-only); ~3-4 seconds wall-clock on a 70-card feed.
+    const [{ result: isFeedPage }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id! },
+      func: () => !!document.querySelector('[class*="masonry-feed--rythm-feed"]'),
+    });
+    if (isFeedPage) {
+      console.log('[Feed] Pre-scrolling to flush lazy-loaded images + advert RTB...');
+      phaseTimer.markStart('preScrollMs');
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id! },
+        func: async () => {
+          const settle = (ms: number) => new Promise((r) => setTimeout(r, ms));
+          const startY = window.scrollY;
+          const step = 800;
+          const maxScroll = document.documentElement.scrollHeight;
+          // Pass 1: drag through the page to trigger IntersectionObserver-based
+          // lazy-loaders for both regular images AND RTB ad iframes.
+          for (let y = 0; y <= maxScroll; y += step) {
+            window.scrollTo(0, y);
+            await settle(180);
+          }
+          await settle(600);
+          // Pass 2: short re-pass through the same range — RTB iframes start
+          // their network request on first viewport entry but the creative
+          // markup (declarative shadow root + <style>) usually arrives
+          // ~700-1500ms later. Re-visiting with a small delay gives the
+          // shadow root time to attach so chrome.dom.openOrClosedShadowRoot
+          // returns content.
+          const newMax = document.documentElement.scrollHeight;
+          for (let y = 0; y <= newMax; y += step * 2) {
+            window.scrollTo(0, y);
+            await settle(120);
+          }
+          // Final wait at the bottom for any straggler advert iframes to
+          // populate their shadow root.
+          await settle(900);
+          window.scrollTo(0, startY);
+          await settle(200);
+        },
+      });
+      phaseTimer.markEnd('preScrollMs');
+
+      // Active per-advert warmup: scroll each empty RTB host to viewport
+      // centre, dispatch synthetic mouseenter / visibilitychange events to
+      // nudge Yandex's lazy ad loaders, and MutationObserver-wait for the
+      // csr-uniq host to gain content. Honours a global ~10 s budget so
+      // import never blocks indefinitely.
+      phaseTimer.markStart('advertWarmupMs');
+      const [{ result: adResult }] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id! },
+        func: async () => {
+          const settle = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+          const ads = Array.from(document.querySelectorAll('[class*="advert-card--rythm-feed"]'));
+          interface EmptyHost {
+            ad: Element;
+            csr: Element;
+          }
+          const emptyHosts: EmptyHost[] = [];
+          for (const ad of ads) {
+            const csr = ad.querySelector('[class*="csr-uniq"]');
+            if (csr && csr.innerHTML.length === 0) emptyHosts.push({ ad, csr });
+          }
+          if (emptyHosts.length === 0) {
+            return { total: ads.length, empty: 0, loaded: 0, finalEmpty: 0 };
+          }
+          const startY = window.scrollY;
+          // Phase A: bring each empty advert into the viewport so the RTB
+          // lazy-loader's IntersectionObserver fires. Loader registration is
+          // synchronous on entry — we only need to hold the impression long
+          // enough for the network request to dispatch (≈60ms is plenty;
+          // 250ms × 12 ads previously ate ~3s for marginal benefit).
+          for (const { ad } of emptyHosts) {
+            try {
+              (ad as HTMLElement).scrollIntoView({
+                block: 'center',
+                inline: 'center',
+                behavior: 'instant' as ScrollBehavior,
+              });
+              ad.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              ad.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+            } catch {
+              /* ignore */
+            }
+            await settle(60);
+          }
+          // Single tail wait so IntersectionObservers for the LAST few ads
+          // get a turn before we move on (replaces the per-ad 250ms tail).
+          await settle(300);
+          // Phase B: poll-loop until every empty host gains content OR the
+          // global budget runs out. Budget cut from 10s → 4s based on real
+          // imports: ads that haven't loaded by 4s typically never load
+          // (no fill, blocked, RTB timeout). The marginal late-loader is
+          // rare and not worth the wall-clock cost — plugin already has a
+          // placeholder for missing creatives.
+          const MAX_WAIT_MS = 4_000;
+          const POLL_MS = 250;
+          const tStart = Date.now();
+          let loaded = 0;
+          while (Date.now() - tStart < MAX_WAIT_MS) {
+            const stillEmpty = emptyHosts.filter((e) => e.csr.innerHTML.length === 0);
+            loaded = emptyHosts.length - stillEmpty.length;
+            if (stillEmpty.length === 0) break;
+            for (const { ad } of stillEmpty) {
+              try {
+                ad.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+              } catch {
+                /* ignore */
+              }
+            }
+            await settle(POLL_MS);
+          }
+          loaded =
+            emptyHosts.length - emptyHosts.filter((e) => e.csr.innerHTML.length === 0).length;
+          window.scrollTo(0, startY);
+          await settle(80);
+          return {
+            total: ads.length,
+            empty: emptyHosts.length,
+            loaded: loaded,
+            finalEmpty: emptyHosts.length - loaded,
+          };
+        },
+      });
+      phaseTimer.markEnd('advertWarmupMs');
+      console.log(
+        `[Feed/advert-warmup] ${(adResult as { loaded: number; empty: number; total: number; finalEmpty: number } | null | undefined)?.loaded ?? 0}/${(adResult as { empty: number } | null | undefined)?.empty ?? 0} empty advert hosts populated (total ads=${(adResult as { total: number } | null | undefined)?.total ?? 0})`,
+      );
+    }
+
     // Parse page using content script
     // Note: esbuild wraps content.js in extra IIFE, swallowing the return value.
     // Content script stores result in window.__contentifyResult as fallback.
+    // injectContentMs covers the executeScript call (parsing happens inside it,
+    // but the script also stamps its own parseDurationMs on the result).
+    phaseTimer.markStart('injectContentMs');
     await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       files: ['dist/content.js'],
     });
+    phaseTimer.markEnd('injectContentMs');
 
     // Read result from page context (esbuild IIFE prevents direct return)
+    phaseTimer.markStart('readResultMs');
     const [{ result: pageResult }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id! },
       func: () => (window as Window).__contentifyResult,
     });
+    phaseTimer.markEnd('readResultMs');
 
     parseResult = pageResult as ParseResult | null;
 
@@ -625,6 +1009,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
         }
       }
 
+      phaseTimer.markStart('screenshotCaptureMs');
       try {
         const result = await captureFullPage(
           tab.id!,
@@ -649,6 +1034,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       } catch (screenshotErr: unknown) {
         console.log('[Screenshot] Failed:', (screenshotErr as Error).message);
       }
+      phaseTimer.markEnd('screenshotCaptureMs');
     }
 
     // Build payload
@@ -667,24 +1053,106 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
       payload.productCard = productCard;
     }
 
-    // Screenshots intentionally NOT attached to /push body. Yandex Cloud API Gateway
-    // caps request bodies at ~3.5 MB and the relay drops `payload.screenshots` on
-    // arrival anyway (Phase 2 feature, never wired up). Keeping them here previously
-    // caused 413 → AbortSignal.timeout → infinite retry storm. Re-enable only when
-    // Phase 2 ships a dedicated upload endpoint (e.g. Object Storage). The capture
-    // itself still runs to feed the `uploading_screenshots` heads-up UI.
+    // Screenshots travel through a side-channel: each segment is uploaded
+    // separately to /upload-screenshot (writes to Yandex Object Storage), and
+    // we ship only the resulting keys + URLs in `meta` on the main /push.
+    // This keeps the /push body well under the 3.5 MB API Gateway cap.
+    let screenshotKeys: string[] | undefined;
+    let screenshotUrls: string[] | undefined;
+    if (screenshots.length > 0) {
+      phaseTimer.markStart('screenshotUploadMs');
+      try {
+        // Parallel upload — was sequential (one /upload-screenshot at a time)
+        // and cost ~1.2s/segment × 6 = 7.4s. Each upload is independent
+        // (different object key in S3), so we fan out and only block on
+        // Promise.all. Heads-up progress is still emitted per-resolved
+        // upload via `done++` so the plugin sees monotonic 1→N progress.
+        // 6 concurrent uploads at ~250KB each is well under any reasonable
+        // network or API Gateway concurrency ceiling.
+        let done = 0;
+        const uploads = screenshots.map(async (segment, i) => {
+          const r = await uploadOneScreenshot(sessionCode, i, segment, screenshots.length);
+          done++;
+          void sendHeadsUp('uploading_screenshots', {
+            current: done,
+            total: screenshots.length,
+          });
+          return r;
+        });
+        const results = await Promise.all(uploads);
+        const keys = results.map((r) => r.key);
+        const urls = results.map((r) => r.url);
+        screenshotKeys = keys;
+        screenshotUrls = urls;
+        console.log(`[Screenshot] Uploaded ${keys.length}/${screenshots.length} segments`);
+      } catch (uploadErr: unknown) {
+        // Upload failure is non-fatal: structured /push still goes through, just
+        // without the comparison column on the plugin side. Promise.all rejects
+        // on first failure; partial uploads from siblings are abandoned.
+        console.warn(
+          '[Screenshot] Upload failed, /push will proceed without screenshots:',
+          (uploadErr as Error).message,
+        );
+        screenshotKeys = undefined;
+        screenshotUrls = undefined;
+      }
+      phaseTimer.markEnd('screenshotUploadMs');
+    }
+
+    // Note: an earlier version cropped advert creatives out of the captured
+    // viewport segments and uploaded them as fallback images for RTB iframes.
+    // That path was removed because screenshot crops bake in UI overlays
+    // (kebab, like buttons, dots) and add JPEG artifacts. We now rely on
+    // shadow-DOM extraction (chrome.dom.openOrClosedShadowRoot in the
+    // parser) to pull the real CDN image URL out of `.img-source-component`.
+    // Cards whose RTB iframe hasn't materialised by parse time are left
+    // imageless — the plugin's default Tile / Ads placeholder handles that.
 
     const itemCount = isFeed ? parseResult.feedCards?.length || 0 : rows.length;
+
+    // Pull parse-side timings + counts off the result so they can be merged
+    // into meta.timings (single source for the plugin Logs panel).
+    const parseTimings: Record<string, number> = {};
+    if (typeof parseResult.parseStartedAt === 'number') {
+      parseTimings.parseStartedAt = parseResult.parseStartedAt;
+    }
+    if (typeof parseResult.parseDurationMs === 'number') {
+      parseTimings.parseDurationMs = parseResult.parseDurationMs;
+    }
+    if (typeof parseResult.parseFeedExtractMs === 'number') {
+      parseTimings.parseFeedExtractMs = parseResult.parseFeedExtractMs;
+    }
+    if (typeof parseResult.parseSerpExtractMs === 'number') {
+      parseTimings.parseSerpExtractMs = parseResult.parseSerpExtractMs;
+    }
+
+    const pushedAt = Date.now();
     const meta = {
       url: tab.url,
       parsedAt: new Date().toISOString(),
       // Wall-clock ms right before /push. Plugin computes (peek-time − pushedAt) to
       // measure relay RTT + polling latency. Safe because both sides run on the same OS.
-      pushedAt: Date.now(),
+      pushedAt,
       snippetCount: isFeed ? 0 : rows.length,
       wizardCount: isFeed ? 0 : wizards.length,
       feedCardCount: isFeed ? itemCount : undefined,
       extensionVersion: chrome.runtime.getManifest().version,
+      // Screenshot side-channel — only present when capture+upload succeeded.
+      screenshotKeys,
+      screenshotUrls,
+      screenshotMeta: screenshotKeys ? screenshotMeta : undefined,
+      /**
+       * Phase timings (ms) for the click→push pipeline. Forwarded by the
+       * plugin Logs panel as `[Timing] <phase>: Xms` lines so the user can see
+       * where wall-clock went between hitting the extension icon and the
+       * plugin receiving data. See `.claude/rules/performance.md` §1.
+       */
+      timings: {
+        ...phaseTimer.values(),
+        ...parseTimings,
+        // Pre-fetch wall-clock between click and starting /push (excludes pushMs).
+        preFetchMs: pushedAt - handleClickStartedAt,
+      } as Record<string, number>,
     };
 
     // Heads-up: about to upload the structured payload.
@@ -692,6 +1160,7 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
 
     // Send to cloud relay
     let relaySuccess = false;
+    phaseTimer.markStart('pushMs');
 
     try {
       const res = await fetch(buildCloudUrl('/push', sessionCode), {
@@ -709,6 +1178,31 @@ async function handleIconClick(tab: chrome.tabs.Tab): Promise<void> {
     } catch (relayErr: unknown) {
       console.log('[Relay] Request failed:', (relayErr as Error).message);
     }
+    phaseTimer.markEnd('pushMs');
+
+    // Final summary — flush to background console so DevTools shows the
+    // whole click→push breakdown alongside the [Timing] lines the plugin Logs
+    // panel will emit. pushMs lives here only (it's unobservable inside the
+    // body we just sent).
+    const totalMs = Date.now() - handleClickStartedAt;
+    const phaseValues = phaseTimer.values();
+    const phaseLog = Object.keys(phaseValues)
+      .map((k) => k + '=' + phaseValues[k] + 'ms')
+      .join(', ');
+    console.log(
+      '[Timing] handleIconClick total=' +
+        totalMs +
+        'ms (' +
+        phaseLog +
+        (typeof parseTimings.parseDurationMs === 'number'
+          ? ', parseDurationMs=' + parseTimings.parseDurationMs + 'ms'
+          : '') +
+        ', items=' +
+        itemCount +
+        ', isFeed=' +
+        isFeed +
+        ')',
+    );
 
     if (relaySuccess) {
       void sendHeadsUp('finalizing');

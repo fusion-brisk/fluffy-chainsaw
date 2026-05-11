@@ -27,6 +27,25 @@ declare global {
   'use strict';
 
   // ============================================================================
+  // PARSE-TIMING INSTRUMENTATION
+  // Stamps wall-clock start + monotonic duration onto __contentifyResult so
+  // background.ts can forward into meta.timings and the plugin Logs panel can
+  // surface a `[Timing] Parse (DOM walk): Xms` line. See `.claude/rules/
+  // performance.md` §1 — instrument before optimizing.
+  // ============================================================================
+  const __parseStartedAt: number = Date.now();
+  // Feature-detect once; both __parseT0 and every __parseElapsedMs() call share
+  // the same clock so subtraction stays consistent (no monotonic-vs-wall-clock
+  // crossing if one of them used a different source).
+  const __hasPerfNow: boolean =
+    typeof performance !== 'undefined' && typeof performance.now === 'function';
+  const __parseT0: number = __hasPerfNow ? performance.now() : Date.now();
+  function __parseElapsedMs(): number {
+    const now = __hasPerfNow ? performance.now() : Date.now();
+    return Math.round(now - __parseT0);
+  }
+
+  // ============================================================================
   // CONSTANTS & REGEX
   // SOURCE OF TRUTH: src/utils/yandex-shared.ts + src/utils/regex.ts
   // При изменении — обновлять и здесь, и в yandex-shared.ts
@@ -3838,25 +3857,58 @@ declare global {
     const { extractFeedCards } = require('./feed-parser') as {
       extractFeedCards: (root?: Document | Element) => Array<Record<string, string>>;
     };
+    const __feedExtractT0 = __parseElapsedMs();
     const feedCards = extractFeedCards(document);
+    const __feedExtractMs = __parseElapsedMs() - __feedExtractT0;
     const feedResult = {
       sourceType: 'feed' as const,
       feedCards,
       rows: [],
       wizards: [],
       productCard: null,
+      // Timing instrumentation (consumed by background.ts → meta.timings)
+      parseStartedAt: __parseStartedAt,
+      parseDurationMs: __parseElapsedMs(),
+      parseFeedExtractMs: __feedExtractMs,
+      parseCardCount: feedCards.length,
     };
     window.__contentifyResult = feedResult;
+    console.log(
+      '[Content/Timing] feed parse: ' +
+        feedResult.parseDurationMs +
+        'ms (extractFeedCards ' +
+        __feedExtractMs +
+        'ms, ' +
+        feedCards.length +
+        ' cards)',
+    );
     return feedResult;
   }
 
   // === SERP parsing (existing path) ===
   // Shared parsing rules may have been injected by background.js
   const parsingRules = (typeof window !== 'undefined' && window.__contentifyParsingRules) || null;
-  const __contentifyResult = extractSnippets(parsingRules);
+  const __serpExtractT0 = __parseElapsedMs();
+  const __contentifyResult = extractSnippets(parsingRules) as Record<string, unknown>;
+  const __serpExtractMs = __parseElapsedMs() - __serpExtractT0;
+  // Attach timing fields (background.ts forwards them in meta.timings).
+  __contentifyResult.parseStartedAt = __parseStartedAt;
+  __contentifyResult.parseDurationMs = __parseElapsedMs();
+  __contentifyResult.parseSerpExtractMs = __serpExtractMs;
+  const __rowsForCount = (__contentifyResult as { rows?: unknown[] }).rows;
+  __contentifyResult.parseRowCount = Array.isArray(__rowsForCount) ? __rowsForCount.length : 0;
   // Expose result globally so chrome.scripting.executeScript can read it
   // (esbuild wraps in extra IIFE, swallowing the return value)
   window.__contentifyResult = __contentifyResult;
+  console.log(
+    '[Content/Timing] serp parse: ' +
+      __contentifyResult.parseDurationMs +
+      'ms (extractSnippets ' +
+      __serpExtractMs +
+      'ms, ' +
+      __contentifyResult.parseRowCount +
+      ' rows)',
+  );
   return __contentifyResult;
 })();
 

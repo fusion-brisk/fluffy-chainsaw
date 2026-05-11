@@ -41,12 +41,31 @@ const DISCONNECT_CONFIRM_THRESHOLD = 2;
 // return to ready state.
 const HEADS_UP_STALE_MS = 10_000;
 
+/**
+ * Optional comparison-screenshot metadata forwarded from the extension via
+ * relay `meta`. Only present when the user enabled the screenshot capture
+ * checkbox AND each segment was successfully uploaded to Object Storage.
+ *
+ * The plugin uses these to render a side-by-side production-fid column next
+ * to the imported frame for visual QA.
+ */
+export interface RelayScreenshotMeta {
+  urls: string[]; // public HTTPS URLs to JPEG segments, in order
+  totalHeight: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  devicePixelRatio: number;
+  count: number;
+}
+
 export interface RelayDataEvent extends ParsedRelayData {
   entryId: string;
   payload: unknown;
   wizardCount: number;
   sourceType?: 'serp' | 'feed';
   feedCards?: Array<Record<string, string>>;
+  /** Comparison screenshot metadata, when extension uploaded segments. */
+  screenshots?: RelayScreenshotMeta;
 }
 
 export interface UseRelayConnectionOptions {
@@ -225,20 +244,83 @@ export function useRelayConnection({
       // Relay RTT instrumentation: extension stamps `meta.pushedAt` (wall-clock ms)
       // right before POST /push; we subtract here to measure extension-push →
       // plugin-peek latency including polling interval. Logged once per payload.
-      const timingMeta = data.meta as { pushedAt?: number } | undefined;
+      const timingMeta = data.meta as
+        | { pushedAt?: number; timings?: Record<string, number> }
+        | undefined;
       if (typeof timingMeta?.pushedAt === 'number') {
         const rtt = Date.now() - timingMeta.pushedAt;
         onTimingRef.current?.(`[Timing] Relay RTT (push→peek): ${rtt}ms`);
       }
+      // Per-phase timings from the extension (loadRules, preScroll, advertWarmup,
+      // injectContent, readResult, screenshotCapture, screenshotUpload, push,
+      // plus the inner parseDurationMs from the content script). Each phase is
+      // emitted as its own [Timing] line so the user can spot regressions.
+      if (timingMeta?.timings) {
+        const phases = timingMeta.timings;
+        const keys = Object.keys(phases);
+        // Stable ordering (matches click→push timeline) so the Logs panel is
+        // readable. Unknown keys fall to the end alphabetically.
+        const ORDER = [
+          'preFetchMs',
+          'loadRulesMs',
+          'preScrollMs',
+          'advertWarmupMs',
+          'injectContentMs',
+          'readResultMs',
+          'parseDurationMs',
+          'parseFeedExtractMs',
+          'parseSerpExtractMs',
+          'screenshotCaptureMs',
+          'screenshotUploadMs',
+          'pushMs',
+        ];
+        keys.sort((a, b) => {
+          const ia = ORDER.indexOf(a);
+          const ib = ORDER.indexOf(b);
+          if (ia === -1 && ib === -1) return a.localeCompare(b);
+          if (ia === -1) return 1;
+          if (ib === -1) return -1;
+          return ia - ib;
+        });
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          if (k === 'parseStartedAt') continue; // wall-clock anchor, not a duration
+          const v = phases[k];
+          if (typeof v !== 'number') continue;
+          onTimingRef.current?.(`[Timing] ext.${k}: ${v}ms`);
+        }
+      }
+
+      // Pull optional screenshot side-channel metadata. Extension populates
+      // these only when capture+upload succeed; absent → no comparison column.
+      const fullMeta = data.meta as
+        | {
+            extensionVersion?: string;
+            screenshotUrls?: string[];
+            screenshotMeta?: {
+              totalHeight: number;
+              viewportHeight: number;
+              viewportWidth: number;
+              devicePixelRatio: number;
+              count: number;
+            };
+          }
+        | undefined;
+      const screenshots: RelayScreenshotMeta | undefined =
+        fullMeta?.screenshotUrls && fullMeta.screenshotUrls.length > 0 && fullMeta.screenshotMeta
+          ? {
+              urls: fullMeta.screenshotUrls,
+              ...fullMeta.screenshotMeta,
+            }
+          : undefined;
 
       if (isFeed) {
         // Feed pipeline — feedCards instead of rawRows
         const feedCards = payload.feedCards || [];
         if (feedCards.length === 0) return;
 
-        const meta = data.meta as { extensionVersion?: string } | undefined;
-        if (meta?.extensionVersion) {
-          setExtensionVersion(meta.extensionVersion);
+        if (fullMeta?.extensionVersion) {
+          setExtensionVersion(fullMeta.extensionVersion);
         }
 
         pendingEntryIdRef.current = entryId;
@@ -251,6 +333,7 @@ export function useRelayConnection({
           wizardCount: 0,
           sourceType: 'feed',
           feedCards,
+          screenshots,
         });
         return;
       }
@@ -261,9 +344,8 @@ export function useRelayConnection({
 
       const wizardCount = payload.wizards?.length || 0;
 
-      const meta = data.meta as { extensionVersion?: string } | undefined;
-      if (meta?.extensionVersion) {
-        setExtensionVersion(meta.extensionVersion);
+      if (fullMeta?.extensionVersion) {
+        setExtensionVersion(fullMeta.extensionVersion);
       }
 
       pendingEntryIdRef.current = entryId;
@@ -273,6 +355,7 @@ export function useRelayConnection({
         entryId,
         payload,
         wizardCount,
+        screenshots,
       });
     } catch (error) {
       console.error('[Relay:peek] Error:', error);

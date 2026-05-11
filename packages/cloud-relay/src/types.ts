@@ -13,6 +13,20 @@
 
 // ─── Queue entry ────────────────────────────────────────────────────────────
 
+/**
+ * Geometry of the captured screenshot strip. Plugin uses these to scale the
+ * stitched preview to the same height as the imported frame.
+ */
+export interface ScreenshotMeta {
+  /** Sum of segment heights (px in the source page coordinates). */
+  totalHeight: number;
+  viewportHeight: number;
+  viewportWidth: number;
+  devicePixelRatio: number;
+  /** Number of segments captured (matches `screenshotKeys.length`). */
+  count: number;
+}
+
 export interface QueueEntryPayload {
   rawRows?: Array<Record<string, string>>;
   wizards?: unknown[];
@@ -30,6 +44,16 @@ export interface QueueEntryPayload {
 
 export interface QueueEntryMeta {
   extensionVersion?: string;
+  /**
+   * Object Storage keys for screenshot segments uploaded out-of-band via
+   * POST /upload-screenshot. Order matches segment order. Empty/undefined
+   * means no screenshots were captured for this push.
+   */
+  screenshotKeys?: string[];
+  /** Public URLs (resolved by relay so the plugin doesn't need bucket config). */
+  screenshotUrls?: string[];
+  /** Geometry meta — only present when `screenshotKeys` is non-empty. */
+  screenshotMeta?: ScreenshotMeta;
   [key: string]: unknown;
 }
 

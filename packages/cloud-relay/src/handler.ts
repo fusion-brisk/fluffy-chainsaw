@@ -17,10 +17,12 @@
 import { ack } from './routes/ack';
 import { clear } from './routes/clear';
 import { health } from './routes/health';
+import { imageProxy } from './routes/image-proxy';
 import { peek } from './routes/peek';
 import { push } from './routes/push';
 import { reject } from './routes/reject';
 import { status } from './routes/status';
+import { uploadScreenshot } from './routes/upload-screenshot';
 import { extractSessionId } from './session';
 import type { Route, YcHttpEvent, YcHttpResponse } from './types';
 
@@ -69,6 +71,7 @@ const ROUTES: Record<string, Route> = {
   'POST /reject': reject,
   'GET /status': status,
   'DELETE /clear': clear,
+  'POST /upload-screenshot': uploadScreenshot,
 };
 
 export async function handler(event: YcHttpEvent): Promise<YcHttpResponse> {
@@ -84,6 +87,15 @@ export async function handler(event: YcHttpEvent): Promise<YcHttpResponse> {
 
   if (path === '/health') {
     const result = await health(event, '');
+    return cors(result);
+  }
+
+  // /image-proxy is sessionless — it only forwards a public image fetch.
+  // No queue, no per-session state, so requiring a session code adds no
+  // security and would just trip up the plugin's image applicator (which
+  // doesn't carry a session in `proxyBaseUrl`).
+  if (path === '/image-proxy' && event.httpMethod === 'GET') {
+    const result = await imageProxy(event, '');
     return cors(result);
   }
 

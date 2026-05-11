@@ -18,6 +18,28 @@ export const SESSION_CODE_KEY = 'contentify-session-code';
 // Увеличивайте при каждом релизе с изменениями, достойными показа пользователю
 export const PLUGIN_VERSION = '3.1.2';
 
+// ============================================
+// DEBUG TOGGLES — disabled in production builds
+// ============================================
+/**
+ * When non-null, after every successful import the sandbox clones the
+ * specified Figma node and places it as a third column right of the
+ * production screenshot, giving the designer:
+ *
+ *     [imported frame] | [production screenshot] | [design reference]
+ *
+ * Format: 'fileKey:nodeId' where nodeId uses ':' (Figma's API form), e.g.
+ *   '1651:17100'           — same file, just node id
+ *   'Ew8YjZHHTluWur2tyMFpEh:1651:17100' — cross-file (NOT supported by
+ *                                          getNodeByIdAsync; only same-file)
+ *
+ * Same-file lookups use figma.getNodeByIdAsync. Cross-file would need the
+ * Figma REST API + an access token, which is out of scope for now.
+ *
+ * Set to `null` to disable. **Must be `null` in production releases.**
+ */
+export const DEBUG_REFERENCE_NODE_ID: string | null = null;
+
 // Имена контейнеров, которые считаются сниппетами (карточками)
 // Главный критерий: наличие цены в сниппете
 export const SNIPPET_CONTAINER_NAMES = [
