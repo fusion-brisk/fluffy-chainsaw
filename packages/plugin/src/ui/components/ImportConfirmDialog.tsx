@@ -281,6 +281,9 @@ export const ImportConfirmDialog: React.FC<Props> = memo(
             <button type="button" className="confirm-dialog__btn-secondary" onClick={onCancel}>
               Отмена
             </button>
+            {/* Ref + closure intentionally asymmetric: onConfirm via ref (parent may
+                pass a new instance per render); mode via closure (button handler
+                runs in the same render that owns `mode`, so closure is fresh). */}
             <button
               type="button"
               className="confirm-dialog__btn-primary"

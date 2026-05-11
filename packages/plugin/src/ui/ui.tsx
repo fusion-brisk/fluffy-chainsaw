@@ -668,6 +668,8 @@ const App: React.FC = () => {
           importFlow.clearQueue();
           break;
         case 'resetSnippets':
+          // Stopgap: system confirm() is intrusive (breaks plugin design language).
+          // Replace with a styled ConfirmDialog component in a future polish pass.
           if (window.confirm('Сбросить все сниппеты на странице? Это нельзя отменить.')) {
             sendMessageToPlugin({ type: 'reset-snippets', scope: 'page' });
           }

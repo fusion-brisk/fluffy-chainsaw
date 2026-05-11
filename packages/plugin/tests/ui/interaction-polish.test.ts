@@ -18,6 +18,10 @@ describe('ImportConfirmDialog — interaction contract', () => {
 
   it('focus trap uses dialogRef.current, not document.querySelector', () => {
     expect(source).toContain('dialogRef');
+    // Ref must be attached to the root dialog div
+    expect(source).toMatch(/<div[^>]+ref=\{dialogRef\}/);
+    // Ref must be dereferenced inside the keydown handler
+    expect(source).toMatch(/dialogRef\.current/);
     expect(source).not.toMatch(/document\.querySelector\(['"]\.confirm-dialog/);
   });
 
@@ -26,6 +30,8 @@ describe('ImportConfirmDialog — interaction contract', () => {
     expect(source).toContain('onConfirmRef');
     expect(source).toContain('onCancelRef');
     expect(source).toContain('modeRef');
+    // The keydown effect must have empty deps (refs eliminate the listener churn)
+    expect(source).toMatch(/window\.addEventListener\('keydown'[\s\S]*?\},\s*\[\]\)/);
   });
 
   it('disabled radios use info icon-tooltip instead of inline hint text', () => {
@@ -39,8 +45,12 @@ describe('CompactStrip — menu a11y contract', () => {
   const source = READ('components/CompactStrip.tsx');
 
   it('menu button declares aria-haspopup and id', () => {
-    expect(source).toContain('aria-haspopup="menu"');
-    expect(source).toContain('id="compact-strip-menu-btn"');
+    // The id, aria-haspopup, and aria-controls must live on the same button
+    // (within a single JSX element, allowing arbitrary attributes between them).
+    expect(source).toMatch(
+      /<button[^>]*id="compact-strip-menu-btn"[\s\S]{0,500}aria-haspopup="menu"/,
+    );
+    expect(source).toContain("aria-controls={menuOpen ? 'compact-strip-menu' : undefined}");
   });
 
   it('menu has id matching the button aria-controls', () => {
