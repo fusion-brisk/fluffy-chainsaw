@@ -61,9 +61,6 @@
   --card-shadow: var(--shadow-sm);
   --btn-radius: 6px;
   --step-number-size: 24px;
-
-  /* Warning color — Figma не инжектит --figma-color-text-warning, держим свой fallback */
-  --ctf-color-warning: #c4841d;
 }
 
 /* Reset & Base */
